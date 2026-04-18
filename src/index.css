@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/* ── Tailwind v4 theme: map CSS vars to utility classes ── */
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-primary: var(--text);
+  --color-secondary: var(--text-secondary);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-glow: var(--accent-glow);
+  --color-accent-surface: var(--accent-surface);
+  --color-btn-primary: var(--btn-primary-bg);
+  --color-btn-primary-fg: var(--btn-primary-fg);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+  --color-diagram-bar: var(--diagram-bar);
+  --color-diagram-bar-strong: var(--diagram-bar-strong);
+  --color-diagram-flow: var(--diagram-flow);
+}
+
+/* ── Theme tokens (dark default / light toggle) ─────── */
+
+:root,
+[data-theme="light"] {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --text: #0b1220;
+  --text-secondary: #445065;
+  --border: #d9dee5;
+  --accent: #0d5f58;
+  --accent-glow: rgba(13, 95, 88, 0.16);
+  --accent-surface: rgba(13, 95, 88, 0.08);
+  --btn-primary-bg: #0b1220;
+  --btn-primary-fg: #ffffff;
+  --link: #1e293b;
+  --link-hover: #0d5f58;
+  --diagram-bar: rgba(15, 23, 42, 0.14);
+  --diagram-bar-strong: rgba(15, 23, 42, 0.26);
+  --diagram-flow: rgba(15, 23, 42, 0.42);
+}
+
+[data-theme="dark"] {
+  --bg: #0c0e11;
+  --surface: #141820;
+  --text: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --border: #2d3748;
+  --accent: #9effe3;
+  --accent-glow: rgba(158, 255, 227, 0.22);
+  --accent-surface: rgba(255, 255, 255, 0.04);
+  --btn-primary-bg: #f8fafc;
+  --btn-primary-fg: #0c0e11;
+  --link: #e2e8f0;
+  --link-hover: #9effe3;
+  --diagram-bar: rgba(248, 250, 252, 0.14);
+  --diagram-bar-strong: rgba(248, 250, 252, 0.26);
+  --diagram-flow: rgba(248, 250, 252, 0.45);
+}
+
+/* ── Base layer ────────────────────────────────────── */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+  }
+
+  body {
+    @apply bg-bg text-primary font-sans antialiased;
+    line-height: 1.7;
+    transition: background 0.2s ease, color 0.2s ease;
+    background-image:
+      radial-gradient(
+        circle at top,
+        rgba(158, 255, 227, 0.03) 0%,
+        transparent 55%
+      ),
+      radial-gradient(
+        circle at 50% 120%,
+        rgba(158, 255, 227, 0.04) 0%,
+        transparent 50%
+      );
+  }
+
+  [data-theme="light"] body {
+    background-image:
+      radial-gradient(
+        circle at top,
+        rgba(13, 95, 88, 0.05) 0%,
+        transparent 55%
+      );
+  }
+
+  ::selection {
+    background: rgba(158, 255, 227, 0.22);
+    color: var(--text);
+  }
+
+  a {
+    @apply text-link no-underline;
+  }
+  a:hover {
+    @apply text-link-hover underline underline-offset-2;
+  }
+
+  code {
+    @apply font-mono text-[0.9em];
+  }
+}
