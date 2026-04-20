@@ -60,23 +60,22 @@ export default function Hero() {
       >
         <FaultyTerminal
           key={theme}
-          scale={2}
+          scale={2.75}
           gridMul={[2, 1]}
-          digitSize={1.2}
-          timeScale={0.5}
-          pause={false}
-          scanlineIntensity={0.5}
-          glitchAmount={1}
-          flickerAmount={1}
-          noiseAmp={1}
+          digitSize={1.25}
+          timeScale={0.33}
+          scanlineIntensity={0.2}
+          glitchAmount={0.2}
+          flickerAmount={0.4}
+          noiseAmp={0.45}
           chromaticAberration={0}
-          dither={0.5}
-          curvature={0.025}
-          tint={"#ffffff"}
+          dither={0.25}
+          curvature={0}
+          tint="#ffffff"
           mouseReact
-          mouseStrength={0.3}
+          mouseStrength={0.2}
           pageLoadAnimation
-          brightness={0.5}
+          brightness={0.6}
           className="h-full w-full"
         />
       </div>
