@@ -46,7 +46,7 @@ export default function Team() {
 
 function MemberCard({ member }: { member: TeamMember }) {
   return (
-    <div className="group rounded-xl border border-border/60 bg-surface/60 p-5 backdrop-blur-sm transition-colors hover:border-accent/30">
+    <div className="group rounded-xl border border-border/60 bg-surface/60 p-5 backdrop-blur-sm transition-colors hover:border-border hover:bg-surface/80">
       <div className="mb-4 size-12 overflow-hidden rounded-full border border-border/60">
         <img
           src={member.image}
@@ -67,10 +67,10 @@ function MemberCard({ member }: { member: TeamMember }) {
         </div>
       </div>
 
-      <div className="mb-0.5 font-mono text-[0.88rem] font-semibold text-primary">
+      <div className="mb-0.5 font-sans text-[0.95rem] font-semibold text-primary">
         {member.name}
       </div>
-      <div className="mb-3 font-mono text-[0.7rem] uppercase tracking-[0.15em] text-secondary">
+      <div className="mb-3 font-mono text-[0.68rem] uppercase tracking-[0.16em] text-secondary">
         {member.role}
       </div>
 
@@ -80,7 +80,7 @@ function MemberCard({ member }: { member: TeamMember }) {
             href={member.github}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-secondary/70 transition-colors hover:text-accent"
+            className="text-secondary/70 transition-colors hover:text-primary"
             aria-label={`${member.name} on GitHub`}
           >
             <IconGithub />
@@ -91,7 +91,7 @@ function MemberCard({ member }: { member: TeamMember }) {
             href={member.twitter}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-secondary/70 transition-colors hover:text-accent"
+            className="text-secondary/70 transition-colors hover:text-primary"
             aria-label={`${member.name} on X`}
           >
             <IconX />
@@ -102,7 +102,7 @@ function MemberCard({ member }: { member: TeamMember }) {
             href={member.linkedin}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-secondary/70 transition-colors hover:text-accent"
+            className="text-secondary/70 transition-colors hover:text-primary"
             aria-label={`${member.name} on LinkedIn`}
           >
             <IconLinkedin />

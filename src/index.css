@@ -27,36 +27,36 @@
 
 :root,
 [data-theme="light"] {
-  --bg: #f6f7f9;
+  --bg: #fafbfc;
   --surface: #ffffff;
-  --text: #0b1220;
-  --text-secondary: #445065;
-  --border: #d9dee5;
-  --accent: #0d5f58;
-  --accent-glow: rgba(13, 95, 88, 0.16);
-  --accent-surface: rgba(13, 95, 88, 0.08);
-  --btn-primary-bg: #0b1220;
+  --text: #0a0e14;
+  --text-secondary: #475569;
+  --border: #e2e8f0;
+  --accent: #0d9488;
+  --accent-glow: rgba(13, 148, 136, 0.14);
+  --accent-surface: rgba(13, 148, 136, 0.06);
+  --btn-primary-bg: #0a0e14;
   --btn-primary-fg: #ffffff;
   --link: #1e293b;
-  --link-hover: #0d5f58;
+  --link-hover: #0d9488;
   --diagram-bar: rgba(15, 23, 42, 0.14);
   --diagram-bar-strong: rgba(15, 23, 42, 0.26);
   --diagram-flow: rgba(15, 23, 42, 0.42);
 }
 
 [data-theme="dark"] {
-  --bg: #0c0e11;
-  --surface: #141820;
-  --text: #f1f5f9;
-  --text-secondary: #cbd5e1;
-  --border: #2d3748;
-  --accent: #9effe3;
-  --accent-glow: rgba(158, 255, 227, 0.22);
-  --accent-surface: rgba(255, 255, 255, 0.04);
-  --btn-primary-bg: #f8fafc;
-  --btn-primary-fg: #0c0e11;
+  --bg: #030405;
+  --surface: #09090b;
+  --text: #ffffff;
+  --text-secondary: #c8d0db;
+  --border: #1e2330;
+  --accent: #2dd4bf;
+  --accent-glow: rgba(45, 212, 191, 0.18);
+  --accent-surface: rgba(255, 255, 255, 0.03);
+  --btn-primary-bg: #ffffff;
+  --btn-primary-fg: #080a0c;
   --link: #e2e8f0;
-  --link-hover: #9effe3;
+  --link-hover: #2dd4bf;
   --diagram-bar: rgba(248, 250, 252, 0.14);
   --diagram-bar-strong: rgba(248, 250, 252, 0.26);
   --diagram-flow: rgba(248, 250, 252, 0.45);
@@ -72,32 +72,33 @@
 
   body {
     @apply bg-bg text-primary font-sans antialiased;
-    line-height: 1.7;
-    transition: background 0.2s ease, color 0.2s ease;
+    line-height: 1.65;
+    transition:
+      background 0.2s ease,
+      color 0.2s ease;
     background-image:
       radial-gradient(
         circle at top,
-        rgba(158, 255, 227, 0.03) 0%,
+        rgba(45, 212, 191, 0.025) 0%,
         transparent 55%
       ),
       radial-gradient(
         circle at 50% 120%,
-        rgba(158, 255, 227, 0.04) 0%,
+        rgba(45, 212, 191, 0.03) 0%,
         transparent 50%
       );
   }
 
   [data-theme="light"] body {
-    background-image:
-      radial-gradient(
-        circle at top,
-        rgba(13, 95, 88, 0.05) 0%,
-        transparent 55%
-      );
+    background-image: radial-gradient(
+      circle at top,
+      rgba(13, 148, 136, 0.04) 0%,
+      transparent 55%
+    );
   }
 
   ::selection {
-    background: rgba(158, 255, 227, 0.22);
+    background: rgba(45, 212, 191, 0.2);
     color: var(--text);
   }
 

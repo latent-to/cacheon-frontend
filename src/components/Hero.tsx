@@ -31,7 +31,7 @@ function useTheme(): "light" | "dark" {
 const FEATURES = [
   {
     title: "KV cache competition",
-    body: "Contributors compete to improve how models store and reuse attention memory. King of the hill, winner-take-all.",
+    body: "Compete to optimize how models store attention memory. King of the hill, winner-take-all.",
   },
   {
     title: "Open & auditable",
@@ -39,7 +39,7 @@ const FEATURES = [
   },
   {
     title: "From competition to product",
-    body: "Turn winning policies into configs that can plug into your existing infra: vLLM, Hugging Face, TensorRT-LLM, & beyond.",
+    body: "Turn winning policies into ready-to-deploy configs for vLLM, Hugging Face, and beyond.",
   },
 ];
 
@@ -60,7 +60,7 @@ export default function Hero() {
       >
         <FaultyTerminal
           key={theme}
-          scale={1.5}
+          scale={2}
           gridMul={[2, 1]}
           digitSize={1.2}
           timeScale={0.5}
@@ -72,11 +72,11 @@ export default function Hero() {
           chromaticAberration={0}
           dither={0.5}
           curvature={0.025}
-          tint={isLight ? "#0f766e" : "#9effe3"}
+          tint={"#ffffff"}
           mouseReact
           mouseStrength={0.3}
           pageLoadAnimation
-          brightness={isLight ? 1 : 0.5}
+          brightness={0.5}
           className="h-full w-full"
         />
       </div>
@@ -92,7 +92,7 @@ export default function Hero() {
       {/* Hero content — vertically centered in viewport */}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-24 pb-0 text-center">
         {/* Pill */}
-        <div className="mb-8 inline-flex items-center rounded-full border border-accent/45 bg-accent-surface px-4 py-1.5 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-accent">
+        <div className="mb-8 inline-flex items-center rounded-full border border-accent/40 bg-accent-surface px-3.5 py-1 font-mono text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-accent">
           Bittensor subnet · SN14
         </div>
 
@@ -102,7 +102,7 @@ export default function Hero() {
             className={
               isLight
                 ? "text-accent"
-                : "text-accent [text-shadow:0_0_36px_rgba(158,255,227,0.32)]"
+                : "text-accent [text-shadow:0_0_32px_rgba(45,212,191,0.18)]"
             }
           >
             Faster Inference
@@ -114,7 +114,7 @@ export default function Hero() {
             className={
               isLight
                 ? "text-accent"
-                : "text-accent [text-shadow:0_0_28px_rgba(158,255,227,0.22)]"
+                : "text-accent [text-shadow:0_0_24px_rgba(45,212,191,0.12)]"
             }
           >
             Same Quality
@@ -122,12 +122,13 @@ export default function Hero() {
         </h1>
 
         {/* Sub-copy */}
-        <p className="mb-10 max-w-md font-mono text-[0.88rem] leading-[1.75] text-secondary">
+        <p className="mb-10 max-w-xl font-sans text-base leading-[1.65] text-secondary sm:text-lg sm:leading-[1.6]">
           KV cache has been the bottleneck for LLM inference at scale.{" "}
-          <span className="text-accent">Cacheon</span> turns it into a live
-          competition: submit a smarter memory policy, beat the reigning
-          champion, and earn <span className="text-accent">&gt;7,000* USD</span>{" "}
-          per day!
+          <span className="text-primary font-medium">Cacheon</span> turns it
+          into a live competition: submit a smarter memory policy, beat the
+          reigning champion, and earn{" "}
+          <span className="text-primary font-medium">&gt;7,000 USD</span> per
+          day.
         </p>
 
         {/* CTAs */}
@@ -136,7 +137,7 @@ export default function Hero() {
             href="https://github.com/latent-to/cacheon"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg bg-btn-primary px-6 py-2.5 font-mono text-[0.88rem] font-semibold text-btn-primary-fg no-underline transition-opacity hover:opacity-85"
+            className="inline-flex items-center gap-2 rounded-md bg-btn-primary px-6 py-2.5 font-sans text-[0.92rem] font-semibold text-btn-primary-fg no-underline transition-opacity hover:opacity-85"
           >
             Read the docs <span aria-hidden>→</span>
           </a>
@@ -144,7 +145,7 @@ export default function Hero() {
             href="https://discord.gg/bittensor"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface/60 px-6 py-2.5 font-mono text-[0.88rem] font-medium text-primary backdrop-blur-sm no-underline transition-colors hover:border-accent/40"
+            className="inline-flex items-center gap-2 rounded-md border border-border/80 bg-surface/60 px-6 py-2.5 font-sans text-[0.92rem] font-medium text-primary backdrop-blur-sm no-underline transition-colors hover:border-border hover:bg-surface"
           >
             Join Discord
           </a>
@@ -152,14 +153,14 @@ export default function Hero() {
       </div>
 
       {/* Feature strip — pinned to the bottom of the viewport */}
-      <div className="relative z-10 mt-auto px-6 pb-12 pt-10">
-        <div className="mx-auto grid max-w-4xl grid-cols-1 gap-6 border-t border-border/40 pt-10 sm:grid-cols-3 sm:gap-10">
+      <div className="relative z-10 mt-auto px-6 pb-12 pt-10 sm:px-8 lg:px-10">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-y-10 border-t border-border/40 pt-10 sm:grid-cols-3 sm:gap-x-12 sm:gap-y-8 lg:gap-x-16 xl:gap-x-20">
           {FEATURES.map((f) => (
-            <div key={f.title} className="text-center">
-              <h2 className="mb-2 font-mono text-[0.82rem] font-semibold uppercase tracking-wide text-primary">
+            <div key={f.title} className="text-center sm:px-2 lg:px-4">
+              <h2 className="mb-2 font-mono text-[0.8rem] font-semibold uppercase tracking-[0.16em] text-primary sm:text-[0.85rem]">
                 {f.title}
               </h2>
-              <p className="font-mono text-[0.78rem] leading-[1.7] text-secondary">
+              <p className="font-sans text-[0.95rem] leading-[1.6] text-secondary sm:text-base sm:leading-[1.55]">
                 {f.body}
               </p>
             </div>

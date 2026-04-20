@@ -6,7 +6,7 @@ const STEPS = [
     title: "Submit a policy",
     desc: (
       <>
-        Write a <code>KVCachePolicy</code> — Python that controls how K/V pairs
+        Write a <code>KVCachePolicy</code>: Python that controls how KV pairs
         are stored and how attention is computed. Commit it on-chain with a
         pointer to a public repo.
       </>
@@ -17,9 +17,9 @@ const STEPS = [
     title: "Validator evaluates",
     desc: (
       <>
-        The validator fetches your policy, runs static analysis and sandbox
-        isolation, then executes it on the same prompts, model, and hardware as
-        the baseline. Memory, latency, and output quality are all measured.
+        Fetches your policy, runs static analysis and sandbox isolation, then
+        executes it on the same prompts, model, and hardware as the baseline.
+        Memory, latency, and output quality are measured.
       </>
     ),
   },
@@ -28,8 +28,8 @@ const STEPS = [
     title: "Best policy wins",
     desc: (
       <>
-        Beat the king's score and pass the KL quality gate — you're the new
-        king. All emission flows to the winner. No partial credit.
+        Beat the king's score and pass the KL quality gate: you're the new king.
+        All emission flows to the winner. No partial credit.
       </>
     ),
   },
@@ -74,16 +74,15 @@ export default function HowItWorks() {
           {STEPS.map((s) => (
             <article
               key={s.num}
-              className="rounded-xl border border-border/60 bg-surface/60 p-7 backdrop-blur-sm transition-colors hover:border-accent/30"
+              className="rounded-xl border border-border/60 bg-surface/60 p-7 backdrop-blur-sm transition-colors hover:border-border hover:bg-surface/80"
             >
-              <div className="mb-4 font-mono text-[0.7rem] font-semibold uppercase tracking-[0.25em] text-accent">
-                {"// "}
+              <div className="mb-4 font-mono text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-accent">
                 {s.num}
               </div>
-              <h3 className="mb-3 font-mono text-[0.97rem] font-semibold text-primary">
+              <h3 className="mb-3 font-sans text-[1rem] font-semibold text-primary">
                 {s.title}
               </h3>
-              <p className="font-mono text-[0.84rem] leading-[1.7] text-secondary">
+              <p className="font-sans text-[0.92rem] leading-[1.6] text-secondary">
                 {s.desc}
               </p>
             </article>
@@ -93,16 +92,16 @@ export default function HowItWorks() {
         {/* Divider */}
         <div className="mb-14 flex items-center gap-4">
           <div className="h-px flex-1 bg-border/40" />
-          <span className="font-mono text-[0.7rem] font-semibold uppercase tracking-[0.28em] text-accent opacity-70">
-            scoring
+          <span className="font-mono text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-secondary">
+            Scoring
           </span>
           <div className="h-px flex-1 bg-border/40" />
         </div>
 
         {/* Score formula */}
         <div className="mb-8 rounded-xl border border-border/60 bg-surface/60 p-7 backdrop-blur-sm">
-          <div className="mb-4 font-mono text-[0.7rem] font-semibold uppercase tracking-[0.25em] text-accent">
-            {"// "}scoring.py
+          <div className="mb-4 font-mono text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-accent">
+            scoring.py
           </div>
           <pre className="m-0 overflow-auto font-mono text-[0.85rem] leading-[1.85] text-primary">
             <span className="text-secondary">
@@ -131,27 +130,26 @@ export default function HowItWorks() {
           {METRICS.map((m) => (
             <div
               key={m.label}
-              className={`rounded-xl border p-6 backdrop-blur-sm transition-colors hover:border-accent/30 ${
+              className={`rounded-xl border p-6 backdrop-blur-sm transition-colors hover:border-border hover:bg-surface/80 ${
                 m.highlight
                   ? "border-accent/50 bg-accent/5"
                   : "border-border/60 bg-surface/60"
               }`}
             >
-              <div className="mb-2 font-mono text-3xl font-bold leading-none text-accent">
+              <div className="mb-2 font-mono text-3xl font-bold leading-none text-primary">
                 {m.value}
               </div>
-              <div className="mb-2 font-mono text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-primary">
+              <div className="mb-2 font-mono text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-accent">
                 {m.label}
               </div>
-              <p className="font-mono text-[0.82rem] leading-[1.7] text-secondary">
+              <p className="font-sans text-[0.9rem] leading-[1.55] text-secondary">
                 {m.desc}
               </p>
             </div>
           ))}
         </div>
 
-        <p className="max-w-xl font-mono text-[0.78rem] leading-[1.7] text-secondary">
-          <span className="text-accent opacity-70">{"// "}</span>
+        <p className="max-w-xl font-sans text-[0.88rem] leading-[1.6] text-secondary">
           Memory via <code>torch.cuda.max_memory_allocated()</code> — not
           self-reported. Latency is wall-clock. Both relative to the same
           passthrough baseline on the same hardware.

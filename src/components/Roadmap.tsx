@@ -52,19 +52,19 @@ function PhaseCard({
       <div
         className={`rounded-xl border px-6 py-5 backdrop-blur-sm transition-colors ${
           isActive
-            ? "border-accent/60 bg-accent/5 shadow-[0_0_24px_rgba(158,255,227,0.06)]"
-            : "border-border/60 bg-surface/60 hover:border-accent/30"
+            ? "border-accent/50 bg-accent/[0.04] shadow-[0_0_24px_rgba(45,212,191,0.05)]"
+            : "border-border/60 bg-surface/60 hover:border-border hover:bg-surface/80"
         }`}
       >
         <div className="mb-3 flex flex-wrap items-center gap-3">
-          <span className="font-mono text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-accent">
+          <span className="font-mono text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-accent">
             {phase.version}
           </span>
-          <span className="font-mono text-[0.95rem] font-semibold text-primary">
+          <span className="font-sans text-[1rem] font-semibold text-primary">
             {phase.label}
           </span>
           {isActive && (
-            <span className="rounded-full border border-accent/60 bg-accent/10 px-2.5 py-0.5 font-mono text-[0.65rem] font-bold uppercase tracking-[0.18em] text-accent">
+            <span className="rounded-full border border-accent/60 bg-accent/10 px-2.5 py-0.5 font-mono text-[0.62rem] font-bold uppercase tracking-[0.2em] text-accent">
               Live
             </span>
           )}
@@ -74,9 +74,9 @@ function PhaseCard({
           {phase.items.map((item, i) => (
             <li
               key={i}
-              className="relative pl-4 font-mono text-[0.82rem] leading-[1.65] text-secondary"
+              className="relative pl-4 font-sans text-[0.9rem] leading-[1.55] text-secondary"
             >
-              <span className="absolute left-0 opacity-60">–</span>
+              <span className="absolute left-0 font-mono text-secondary/50">–</span>
               {item}
             </li>
           ))}
