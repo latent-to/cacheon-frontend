@@ -1,0 +1,37 @@
+# robots.txt — cacheon.ai
+# https://www.rfc-editor.org/rfc/rfc9309
+#
+# Goal: allow live AI agents (ChatGPT browsing, Claude, Perplexity, etc.)
+# while blocking bulk training scrapers.
+#
+# Content Signals (https://contentsignals.org/):
+#   search=yes    — index for search results
+#   ai-input=yes  — use for live RAG / grounding (agentic economy)
+#   ai-train=no   — do not use for model training / fine-tuning
+
+# Allow all search engines and live retrieval agents
+User-agent: *
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Allow: /
+
+# OpenAI training crawler (distinct from ChatGPT-User live browsing)
+User-agent: GPTBot
+Disallow: /
+
+# Common Crawl — feeds many open training datasets
+User-agent: CCBot
+Disallow: /
+
+# Gemini training data (does not affect Google Search ranking)
+User-agent: Google-Extended
+Disallow: /
+
+# ByteDance training scraper
+User-agent: Bytespider
+Disallow: /
+
+# Diffbot — bulk data extraction / resale
+User-agent: Diffbot
+Disallow: /
+
+Sitemap: https://cacheon.ai/sitemap.xml
