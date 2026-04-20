@@ -128,7 +128,7 @@ export default function Hero() {
           reigning champion, and earn{" "}
           <span className="group relative inline-block">
             <span className="cursor-help whitespace-nowrap border-b border-dotted border-primary/45 text-primary font-medium">
-              up to 13 TAO
+              up to 28 TAO
             </span>
             <span
               role="tooltip"

@@ -25,8 +25,7 @@ export default function WhatIs() {
               </>,
               <>
                 King of the hill, winner-take-all: champion earns{" "}
-                <code>27+ TAO</code>/day (≈ <code>7k USD</code>; prices
-                fluctuate).
+                <code>up to 28 TAO</code>/day (prices fluctuate).
               </>,
               <>
                 Scoring:{" "}
