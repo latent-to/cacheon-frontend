@@ -3,7 +3,7 @@ export default function Footer() {
     { label: "GitHub", href: "https://github.com/latent-to/cacheon" },
     {
       label: "Discord",
-      href: "https://discord.com/channels/799672011265015819/1364251338707570698",
+      href: "https://discord.gg/bittensor",
     },
     { label: "TAO.app", href: "https://tao.app/subnets/14" },
     { label: "Bittensor", href: "https://bittensor.com" },
