@@ -20,7 +20,7 @@ export default function Community() {
 
         <div className="flex flex-wrap justify-center gap-3">
           <a
-            href="https://discord.gg/bittensor"
+            href="https://discord.gg/64BVP8Vu"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-md bg-btn-primary px-6 py-2.5 font-sans text-[0.92rem] font-semibold text-btn-primary-fg no-underline transition-opacity hover:opacity-85"

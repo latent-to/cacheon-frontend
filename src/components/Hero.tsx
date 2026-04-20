@@ -141,7 +141,7 @@ export default function Hero() {
             Read the docs <span aria-hidden>→</span>
           </a>
           <a
-            href="https://discord.gg/bittensor"
+            href="https://discord.gg/64BVP8Vu"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-md border border-border/80 bg-surface/60 px-6 py-2.5 font-sans text-[0.92rem] font-medium text-primary backdrop-blur-sm no-underline transition-colors hover:border-border hover:bg-surface"

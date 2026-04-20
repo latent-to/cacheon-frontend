@@ -1,7 +1,7 @@
 export default function Footer() {
   const links = [
     { label: "GitHub", href: "https://github.com/latent-to/cacheon" },
-    { label: "Discord", href: "https://discord.gg/bittensor" },
+    { label: "Discord", href: "https://discord.gg/64BVP8Vu" },
     { label: "TAO.app", href: "https://tao.app/subnets/14" },
     { label: "Bittensor", href: "https://bittensor.com" },
   ];
