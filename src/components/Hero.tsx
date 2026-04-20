@@ -126,8 +126,20 @@ export default function Hero() {
           <span className="text-primary font-medium">Cacheon</span> turns it
           into a live competition: submit a smarter memory policy, beat the
           reigning champion, and earn{" "}
-          <span className="text-primary font-medium">&gt;7,000 USD</span> per
-          day.
+          <span className="group relative inline-block">
+            <span className="cursor-help whitespace-nowrap border-b border-dotted border-primary/45 text-primary font-medium">
+              up to 13 TAO
+            </span>
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-72 max-w-[min(18rem,calc(100vw-2rem))] -translate-x-1/2 whitespace-normal break-words rounded-md border border-border bg-surface/95 px-3 py-2 text-left font-sans text-xs leading-relaxed text-secondary opacity-0 shadow-lg backdrop-blur-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+            >
+              Rewards are paid in SN14 tokens. Both the SN14/TAO price and the
+              TAO/USD (and other fiat) exchange rates fluctuate, so fiat values
+              will vary over time.
+            </span>
+          </span>{" "}
+          per day.
         </p>
 
         {/* CTAs */}
