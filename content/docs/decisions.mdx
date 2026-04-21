@@ -1,0 +1,130 @@
+---
+title: Key decisions
+description: A single-page log of the major design decisions for Cacheon V1, why they were made, and what was considered and rejected.
+---
+
+This page exists so contributors and miners can answer "why does it work this way?" without re-reading the whole architecture doc. Decisions are listed roughly in order of how load-bearing they are.
+
+## Inference framework: HuggingFace, not vLLM
+
+**Decision:** Use HuggingFace Transformers for the harness.
+
+**Reasoning:** vLLM manages its own KV cache internally via PagedAttention, and replacing it would mean fighting undocumented internals that change between versions. HuggingFace gives exact hook points — every attention layer is a plain `forward()` method. Both baseline and miner run on the same stack, so relative comparisons are valid.
+
+**Rejected:** vLLM. PagedAttention is not hookable cleanly. Any custom policy would require a vLLM fork and would measure against vLLM-specific behavior that doesn't generalize.
+
+## Incentive: king-of-the-hill, winner-take-all
+
+**Decision:** One reigning champion. All emission to the king. Challengers must strictly beat the king's score to dethrone them.
+
+**Reasoning:** Creates a sharp optimization target — miners optimize for "best," not "good enough to be top-N." GPU eval only runs when new challengers exist, which amortizes the cost of expensive H100-hours.
+
+**Rejected:** Top-N split (e.g. 60/25/10/5%). Distributes incentive more broadly but weakens the signal. Miners optimize to land in the top bracket, which is noisier than optimizing to be best.
+
+## Commitment model: one per hotkey, permanent
+
+**Decision:** Each hotkey maps to exactly one policy commit. No re-submission on the same hotkey.
+
+**Reasoning:** Commitment pressure — miners test locally before registering. Clean on-chain record: one hotkey = one policy version at one pinned commit SHA.
+
+**Rejected:** Unlimited resubmission on the same hotkey. Turns the subnet into a free hyperparameter search service. Removes skin in the game.
+
+## Submission transport: on-chain commit pointer
+
+**Decision:** Miners publish policy source to a public repo and commit `{"model": "...", "revision": "..."}` on-chain.
+
+**Reasoning:** Policy code lives where code lives (GitHub, Hugging Face). On-chain record is a lightweight pointer that the harness resolves and pins to the exact commit SHA. Cleaner and more auditable than uploading bytes directly.
+
+**Rejected:** Direct `.py` file upload on-chain. Clunky, size-limited, harder to audit.
+
+## Eval hook shape: `write` + `attend`, not three hooks
+
+**Decision:** The policy gets two hooks — `write(K, V, ...)` and `attend(Q, ...)`. `attend` returns the final `AttentionOutput`.
+
+**Reasoning:** Three separate hooks (`write`, `score`, `aggregate`) force materialization of the `[batch, heads, q_len, kv_len]` score tensor, which kills fused approaches like TurboQuant at long context. They also create a circular dependency for eviction — H2O needs attention weights from the current step to decide what to evict in `write`, but weights are only computed in `score`.
+
+`write` + `attend` lets the miner own the full pass. The policy object holds state across calls; all internal computation stays inside the class.
+
+**Rejected:** Separate `score` and `aggregate` hooks. Kills TurboQuant-class strategies outright.
+
+## Quality enforcement: hard KL gate, not soft penalty
+
+**Decision:** `if KL > 0.1 nats: score = 0`, no partial credit.
+
+**Reasoning:** A soft penalty creates incentives to trade output quality for efficiency in ways that are hard to detect. Over many rounds, the subnet would drift toward policies that are slightly worse at everything. A hard gate says: your job is to match baseline quality first, then optimize.
+
+**Rejected:** `score -= k × KL` with some tunable `k`. Always leaks quality.
+
+## Score weights: 60% memory, 40% latency
+
+**Decision:** `score = 0.6 × memory_reduction + 0.4 × latency_improvement`.
+
+**Reasoning:** Memory is the primary bottleneck at scale — KV cache memory determines max context length and max batch size. Latency matters but is secondary and can often be covered by hardware. Both weights are tunable once we see real submissions.
+
+**Rejected:** 50/50. Undersells how load-bearing memory is at long context. Rejected for now, could shift toward 50/50 if V2 expands to latency-sensitive workloads.
+
+## Memory measurement: CUDA allocator, not self-reported
+
+**Decision:** Memory score uses `torch.cuda.max_memory_allocated()`. The policy's `memory_bytes()` is informational only.
+
+**Reasoning:** Self-reported numbers can be faked. Allocator-level peak memory cannot — it measures real GPU pages. `memory_bytes()` stays in the interface as a debugging aid and cross-check; a large discrepancy flags the submission.
+
+**Rejected:** Trust `memory_bytes()`. Fine in a cooperative setting, indefensible in a competitive one.
+
+## Operating model: single-validator V1
+
+**Decision:** One validator (the subnet owner), one GPU pod, one person setting weights.
+
+**Reasoning:** Different hardware produces different KL values. An H100 and an A100 running the same policy produce slightly different FP results. If multiple validators ran independent eval, they'd disagree on rankings and produce conflicting weight signals. Centralized eval on a reference machine eliminates that variance.
+
+The tradeoff — trust concentration — is real. V2's verifiable rollouts (publishing prompts, baseline logits, KL values) are the mitigation: anyone can audit results after the fact, even if they can't run eval themselves.
+
+**Rejected (for V1):** Decentralized validation. Deferred to V2 once rollout publishing is in place.
+
+## Security: CPU/GPU split, SSH transport
+
+**Decision:** Wallet keys and chain access live on a CPU server. GPU pod only runs inference.
+
+**Reasoning:** If the GPU pod is compromised (it runs arbitrary miner code after sandboxing, so it's a realistic attack surface), the attacker gets model weights and in-flight eval results — not wallet keys, not weight-setting capability. SSH between the two machines narrows the blast radius.
+
+**Rejected:** Everything on one machine. Miner code and wallet keys on the same host is reckless.
+
+**Rejected:** HTTP service on the pod. More moving parts, open port, auth layer. SSH is simpler and the pod's only interface becomes the SSH key.
+
+## Sandbox: two layers — AST + subprocess isolation
+
+**Decision:** Layer 1 is static AST analysis (fast feedback). Layer 2 is firejail subprocess isolation (security boundary).
+
+**Reasoning:** Neither alone is enough. AST-only can be bypassed with enough cleverness. Subprocess-only gives miners terrible error messages (timeouts at 300s instead of `import os rejected` in 5ms). Layered defense covers both.
+
+**Rejected:** AST-only. Not airtight.
+**Rejected:** Subprocess-only. Bad UX for miners.
+
+## Triton: blocked in V1
+
+**Decision:** Triton kernels are not allowed in V1 submissions.
+
+**Reasoning:** Triton can read and write arbitrary GPU memory, and kernel bytecode is harder to audit than PyTorch ops. PyTorch is sufficient to implement every known KV optimization approach correctly for V1. The kernel-level speedups Triton unlocks are a V2 concern with additional isolation (Triton IR static analysis + constrained allocator).
+
+**Rejected:** Allow Triton in V1. Sandboxing cost not worth it for V1's scope.
+
+## Prompts: PG19, block-hash seeded, 131K chars
+
+**Decision:** PG19 passages, seeded by Bittensor block hash, truncated to ~131K chars (~32K tokens).
+
+**Reasoning:** KV-cache benchmarking needs long, continuous sequences. At 2K tokens, the Qwen2.5-7B GQA cache is ~0.7% of peak memory — memory reduction is invisible to scoring. At 32K tokens it's ~12%, large enough for compression gains to register. Block-hash seeding makes prompt selection deterministic and auditable; PG19's full-novel passages force the cache to grow.
+
+**Rejected:** FineWeb. Median documents &lt;1K tokens; cache too small for signal.
+**Rejected:** Synthetic prompts (infilling, retrieval). Deferred to V2+ once V1 is running on real text.
+
+## Attention weight sanity checks
+
+**Decision:** Occasionally validate that attention weights sum to ~1 per query row.
+
+**Reasoning:** Catches degenerate policies that collapse attention to a single token. Such policies can sometimes pass the KL gate by accident on easy prompts; the sanity check rejects them before they get scored.
+
+**Rejected:** Check every round. Overhead is not worth it; sampled checks are sufficient.
+
+---
+
+All of these are open to revision. The rule is: change them when you have a real reason, not to be neat. Every decision here was expensive to make — reverting one without evidence costs more than keeping it.

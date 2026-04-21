@@ -1,5 +1,12 @@
-import { useEffect, useState } from "react";
-import FaultyTerminal from "./FaultyTerminal";
+import { lazy, Suspense, useEffect, useState } from "react";
+
+const FaultyTerminal = lazy(() => import("./FaultyTerminal"));
+
+function ClientOnly({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted ? <>{children}</> : null;
+}
 
 function useTheme(): "light" | "dark" {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -52,32 +59,36 @@ export default function Hero() {
       id="hero"
       className="relative flex min-h-screen flex-col overflow-hidden"
     >
-      {/* WebGL terminal background */}
+      {/* WebGL terminal background (client-only) */}
       <div
         className={`absolute inset-0 z-0 ${
           isLight ? "opacity-[0.45] mix-blend-multiply" : ""
         }`}
       >
-        <FaultyTerminal
-          key={theme}
-          scale={2.75}
-          gridMul={[2, 1]}
-          digitSize={1.25}
-          timeScale={0.33}
-          scanlineIntensity={0.2}
-          glitchAmount={0.2}
-          flickerAmount={0.4}
-          noiseAmp={0.45}
-          chromaticAberration={0}
-          dither={0.25}
-          curvature={0}
-          tint="#ffffff"
-          mouseReact
-          mouseStrength={0.2}
-          pageLoadAnimation
-          brightness={0.6}
-          className="h-full w-full"
-        />
+        <ClientOnly>
+          <Suspense fallback={null}>
+            <FaultyTerminal
+              key={theme}
+              scale={2.75}
+              gridMul={[2, 1]}
+              digitSize={1.25}
+              timeScale={0.33}
+              scanlineIntensity={0.2}
+              glitchAmount={0.2}
+              flickerAmount={0.4}
+              noiseAmp={0.45}
+              chromaticAberration={0}
+              dither={0.25}
+              curvature={0}
+              tint="#ffffff"
+              mouseReact
+              mouseStrength={0.2}
+              pageLoadAnimation
+              brightness={0.6}
+              className="h-full w-full"
+            />
+          </Suspense>
+        </ClientOnly>
       </div>
 
       {/* Readability scrim */}

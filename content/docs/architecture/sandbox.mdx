@@ -1,0 +1,144 @@
+---
+title: Sandbox
+description: Two layers of isolation for miner code. Static AST analysis for fast feedback, firejail subprocess isolation as the security boundary.
+---
+
+Miner code is arbitrary Python hosted on a public repo. The validator has to run it on a machine that matters. Two layers separate them.
+
+## Layer 1 — Static AST analysis
+
+**Where it runs:** CPU server, before any subprocess is spawned.
+**What it is:** parse the source with Python's `ast` module and walk the tree looking for violations.
+**Cost:** milliseconds.
+
+### Import allowlist
+
+Top-level package must be one of:
+
+- `torch`
+- `numpy`
+- `math`
+- `einops`
+- `inference_engine` — only `inference_engine` or `inference_engine.policy`. Other submodules (`runner`, `sandbox`, `harness`) are blocked because they re-export stdlib objects internally.
+
+Relative imports (`from .` / `from ..`) are rejected.
+
+### Blocked bare calls
+
+Any direct call to these names is rejected:
+
+```
+eval, exec, compile, open, input, breakpoint,
+__import__, getattr, setattr, delattr,
+globals, locals, vars
+```
+
+These are checked as **bare calls only** — `eval(...)` gets rejected, but `model.eval()` does not, because the callee is an attribute (`ast.Attribute`) not a bare name (`ast.Name`). That's why `super().__init__()`, `type(self)`, `dir(self)` work.
+
+### Blocked attribute targets
+
+Direct attribute access on these names is rejected:
+
+```
+os, sys, subprocess, socket, importlib, ctypes, cffi,
+builtins, __builtins__, pickle, shelve
+```
+
+So `os.system("rm -rf /")` is rejected. A sufficiently clever miner could still obfuscate access to these at AST level — which is why Layer 2 exists.
+
+### Structural check
+
+The submission must contain exactly one class inheriting from `KVCachePolicy` with all four required methods: `setup`, `write`, `attend`, `memory_bytes`. Missing any method, or defining multiple policy classes, is rejected.
+
+### What Layer 1 is for
+
+Layer 1 is a **fast-feedback tool**, not the security boundary. A miner submitting `import os` gets a clear error in milliseconds instead of after a 300-second subprocess timeout.
+
+It is not airtight. Dynamic access patterns (`__import__` obfuscated, chained attribute access on non-Name bases, constructed source via `compile`) can sometimes get through. Layer 2 handles the escaped cases.
+
+## Layer 2 — Subprocess isolation
+
+**Where it runs:** CPU server, when Layer 1 passes.
+**What it is:** write the policy + a worker script to a temp directory, spawn a subprocess, wait for `result.json`.
+**Cost:** one process startup + the worker's runtime (bounded at 300s).
+
+### firejail mode (production)
+
+On hosts where `firejail` is installed (the intended setup for the CPU validator):
+
+```
+firejail \
+  --net=none \
+  --private=<workdir> \
+  --rlimit-as=8g \
+  --rlimit-nproc=64 \
+  python -u worker.py
+```
+
+- `--net=none` — no network, not even localhost
+- `--private=<workdir>` — mounts a tmpfs over `$HOME`. The worker can't read any of the user's files
+- `--rlimit-as=8g` — 8 GB memory cap
+- `--rlimit-nproc=64` — process count cap
+
+Plus a hard timeout at 300 seconds, enforced by `subprocess.run(timeout=300)` + `start_new_session=True` for clean process-group kills.
+
+### Fallback mode (dev / CI / GPU-only hosts)
+
+If `firejail` is not on PATH, the runner falls back to a plain `subprocess.run([python, -u, worker.py], ...)` and logs a warning.
+
+This is fine for local development and CI. It is **not** the security posture for untrusted miner code in production.
+
+### The `--private` path constraint
+
+`--private=<workdir>` hides everything under `$HOME` inside the jail. That means:
+
+- Python interpreter must live outside `$HOME` — e.g. `/usr/bin/python3`, not `~/venv/bin/python3`
+- The repo must live outside `$HOME` — e.g. `/opt/cacheon`, not `~/cacheon`
+
+When provisioning the CPU server for Phase 5, install Python and the repo to non-home paths. This is documented in the CPU server setup playbook.
+
+The GPU pod **does not** run firejail. It runs the harness and scoring — not miner code. Miner code is subprocessed only on the CPU validator, where firejail applies.
+
+### Output validation
+
+After the worker exits, the runner reads `result.json` and validates:
+
+- Shape matches `[batch, num_heads, q_len, head_dim]`
+- Dtype is a floating-point type
+- No NaN or Inf
+- All values in `[-100, 100]` — numerical stability guard
+- If attention weights are returned, they sum to ~1 per query row
+
+Any failure → `CheckResult(ok=False, reason=...)` and the submission is scored `0`.
+
+## Why two layers
+
+| Layer   | Role                   | What it catches                                               |
+| ------- | ---------------------- | ------------------------------------------------------------- |
+| Layer 1 | Fast feedback          | Most accidental or sloppy submissions. Clear error messages.  |
+| Layer 2 | Security boundary      | Everything Layer 1 misses. OS-level guarantees.               |
+
+A single layer doesn't work:
+
+- **AST-only** can be bypassed with enough cleverness. It's a filter, not a wall.
+- **Sandbox-only** doesn't give miners useful feedback. A 300-second timeout is a terrible error message.
+
+Layered defense gives both.
+
+## Triton
+
+Triton kernels are blocked in V1. Triton can read and write arbitrary GPU memory, and the kernel bytecode is harder to audit than PyTorch ops. PyTorch is sufficient to implement every known KV optimization approach correctly for V1 — the kernel-level speedups Triton unlocks are a V2 concern.
+
+V2 will add Triton support with additional isolation (likely: static analysis of the Triton IR, plus running kernels in a constrained allocator).
+
+## Decisions at a glance
+
+| Decision                       | Why                                                                 |
+| ------------------------------ | ------------------------------------------------------------------- |
+| Two layers (AST + subprocess)  | Neither alone is sufficient. Layer 1 = feedback, Layer 2 = boundary. |
+| firejail over containers       | Lighter-weight, more Unix-native, fewer surprises than Docker-in-validator. |
+| `--net=none`                   | Miners cannot exfiltrate anything. No "check in with my server" patterns. |
+| `super()`/`type()`/`dir()` allowed | Standard Python. OS isolation makes AST-level paranoia unnecessary. |
+| Triton blocked in V1           | Sandboxing GPU kernels is its own project. PyTorch is enough.        |
+
+See [Inference engine](/docs/architecture/inference-engine) for how sandbox + runner fit into the full eval pipeline.

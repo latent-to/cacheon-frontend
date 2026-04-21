@@ -1,0 +1,106 @@
+---
+title: System overview
+description: The full path from an on-chain commitment to a set-weights call — CPU validator, GPU eval pod, and the SSH transport between them.
+---
+
+Cacheon V1 runs as two machines that only talk over SSH:
+
+- A **CPU server** that holds wallet keys, reads the chain, and sets weights.
+- A **GPU pod** that has no keys and no chain access. Its only job is to run inference and return a results JSON.
+
+## The diagram
+
+```
+BITTENSOR CHAIN
+  │
+  │  miner registers: {"model": "hf/repo", "revision": "sha"}
+  │  one commitment per hotkey — permanent, no re-do
+  ▼
+CPU SERVER  ← remote_validator.py
+  │
+  │  [Main loop, ~every 360s]
+  │  1. fetch metagraph + all revealed commitments
+  │  2. sandbox-precheck new submissions (AST + subprocess)
+  │  3. identify king (current best in state) and new challengers
+  │  4. if no new challengers → set_weights(king), sleep, loop
+  │  5. if challengers exist → SSH to GPU pod with eval job
+  │
+  │  ── SSH/SFTP ──────────────────────────────────────────────
+  ▼
+GPU POD  ← pod_eval.py
+  │
+  │  no wallet keys, no chain access
+  │  load Qwen2.5-7B-Instruct
+  │  generate prompts (block-hash seeded PG19)
+  │  for each challenger:
+  │    baseline = harness.run(PassthroughPolicy, prompts)
+  │    miner    = harness.run(MinerPolicy, prompts)
+  │    result   = scoring.score(baseline, miner)
+  │  write results.json
+  │
+  └──────── results.json back over SSH ───────────────────────▶ CPU SERVER
+  │
+  │  6. did any challenger beat king? → new king
+  │  7. set_weights(winner_uid = 1.0, all others = 0.0)
+```
+
+Every arrow that crosses a machine boundary has a typed payload (`CommitmentRecord`, `EvaluationJob`, `EvaluationResult`, persisted `ValidatorState`). Field-level reference: [Data contracts](/docs/architecture/data-contracts).
+
+## Why split CPU and GPU
+
+The split is a **security boundary inside our own infrastructure**, not a decentralization claim.
+
+If the GPU pod is compromised, the attacker gets:
+
+- model weights (public — `Qwen2.5-7B-Instruct`)
+- eval results in flight
+
+They don't get:
+
+- wallet keys (those live on the CPU server)
+- the ability to set weights (only the CPU server has the subtensor signer)
+- chain reads (the GPU pod can't query subtensor even if it wanted to)
+
+Running miners' arbitrary Python on the same machine that holds wallet keys would be reckless. The SSH boundary narrows the blast radius to something recoverable.
+
+## Why ~360-second polling
+
+GPU eval at 32K context takes minutes to hours per policy. There's no benefit to reacting faster than that. One full scan per epoch (fetch metagraph + compare revealed commitments against state) is enough.
+
+The loop runs immediately after a successful eval completes. The 360-second sleep only kicks in when the loop is **idle** — no new challengers, nothing to do. Chain failures and eval failures also back off to the same interval.
+
+## Why SSH and not an HTTP service on the pod
+
+Fewer moving parts. No open port, no auth layer, no request validation to write. The pod's only interface is the SSH key the CPU server holds. SFTP moves the eval job in and the results out.
+
+This also means the pod can run on any infrastructure that supports SSH — cloud GPUs, a bare-metal server, a Targon pod — without special networking config.
+
+## Other validators
+
+Other validator hotkeys can exist on subnet 14 and set their own weights independently. The Bittensor protocol allows it. In practice:
+
+- Running independent eval requires matching hardware (H100 80GB) and matching methodology.
+- Floating-point results differ between H100 and A100, so independent validators would disagree on KL and produce conflicting rankings.
+- Most other validators follow the subnet owner's weights via chain consensus.
+
+The public API (leaderboard, per-hotkey scores) is for miners and the community, not for other validators to use as a weight-setting signal. V2's verifiable rollouts are the path to actually decentralizing eval.
+
+## Components
+
+| Component                             | Where it runs   | Role                                                              |
+| ------------------------------------- | --------------- | ----------------------------------------------------------------- |
+| `scripts/remote_validator.py`         | CPU server      | Main validator loop — chain scan, challenger selection, set_weights |
+| `validator/` package                  | CPU server      | State persistence (king, scores), challenger logic                |
+| `inference_engine/sandbox.py`         | CPU server      | Static AST check on miner source code                            |
+| `inference_engine/runner.py`          | CPU server      | Subprocess isolation (firejail on Linux)                         |
+| `scripts/pod_eval.py`                 | GPU pod         | Loads model, runs harness + scoring, writes `results.json`        |
+| `inference_engine/harness.py`         | GPU pod         | Attention monkey-patching, prefill + decode, metric collection    |
+| `inference_engine/scoring.py`         | GPU pod         | KL, memory delta, latency delta → score                           |
+| `inference_engine/prompts.py`         | Either          | Block-hash seeded PG19 sampling — deterministic                  |
+
+Deep-dives:
+
+- [Validator](/docs/architecture/validator)
+- [Data contracts](/docs/architecture/data-contracts)
+- [Sandbox](/docs/architecture/sandbox)
+- [Inference engine](/docs/architecture/inference-engine)

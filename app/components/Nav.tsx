@@ -17,17 +17,17 @@ function Icon({ id, size = 18 }: { id: string; size?: number }) {
 }
 
 export default function Nav() {
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    return (
-      (document.documentElement.getAttribute("data-theme") as
-        | "light"
-        | "dark") || "dark"
-    );
-  });
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
+    const current =
+      (document.documentElement.getAttribute("data-theme") as
+        | "light"
+        | "dark"
+        | null) || "dark";
+    setTheme(current);
     const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);

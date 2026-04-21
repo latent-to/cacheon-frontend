@@ -1,0 +1,120 @@
+---
+title: Policy interface
+description: The complete KVCachePolicy contract — methods, data types, call order, and shape conventions.
+---
+
+Miners submit a single Python class that implements `KVCachePolicy`. The harness monkey-patches each attention layer of the model to call this class at every write and read. Your class owns the cache — you decide how it's stored and how attention is computed against it.
+
+Full definition lives in `inference_engine/policy.py`. Reference implementation in `inference_engine/passthrough.py`.
+
+## The contract
+
+```python
+class KVCachePolicy:
+    def setup(self, config: CacheConfig) -> None:
+        """Called once per sequence. Initialize internal state."""
+
+    def write(self, keys, values, layer_idx, positions) -> None:
+        """Store K/V entries. Compress, quantize, evict — your choice."""
+
+    def attend(self, query, layer_idx) -> AttentionOutput:
+        """Full attention in one call: scoring + softmax + aggregation."""
+
+    def memory_bytes(self) -> int:
+        """Report current memory usage of all stored cache state."""
+```
+
+All four methods are required. The sandbox rejects submissions missing any of them.
+
+## Data types
+
+### `CacheConfig`
+
+Passed to `setup()` once per sequence. Describes the model's attention topology.
+
+| Field          | Type      | Meaning                                               | Qwen2.5-7B value |
+| -------------- | --------- | ----------------------------------------------------- | ---------------- |
+| `num_layers`   | `int`     | Number of transformer layers                          | 28               |
+| `num_heads`    | `int`     | Query attention heads                                 | 28               |
+| `num_kv_heads` | `int`     | Key/value heads (fewer than query heads due to GQA)   | 4                |
+| `head_dim`     | `int`     | Per-head dimension                                    | 128              |
+| `max_seq_len`  | `int`     | Upper bound on sequence length for this run          | varies           |
+| `dtype`        | `torch.dtype` | Model dtype                                       | `float16`        |
+
+### `AttentionOutput`
+
+Returned by `attend()` at every layer, every step.
+
+```python
+AttentionOutput
+  output              Tensor [batch, num_heads, q_len, head_dim]
+  attention_weights   Tensor [batch, num_heads, q_len, kv_len] | None
+```
+
+`attention_weights` may be `None` if your policy doesn't compute them explicitly (fused approaches like TurboQuant). Set to `None` by default unless you need to expose them (H2O-style importance tracking does).
+
+## Call order
+
+For each generated token, at each of the 28 layers:
+
+```
+Layer forward:
+  1. Q, K, V projections
+  2. RoPE applied to Q and K
+  3. → policy.write(K, V, layer_idx, positions)        # store
+  4. → policy.attend(Q, layer_idx)    → AttentionOutput # score
+  5. o_proj(AttentionOutput.output) → layer output
+```
+
+<Callout type="warn" title="RoPE is applied BEFORE write">
+  The harness hands you K tensors that have already had rotary position embeddings applied. If you store and later re-score with an unrotated Q, or vice versa, attention scores will be wrong. Just store what you're given.
+</Callout>
+
+## Shape conventions
+
+### `write(keys, values, layer_idx, positions)`
+
+| Arg         | Shape                                   | Notes                                |
+| ----------- | --------------------------------------- | ------------------------------------ |
+| `keys`      | `[batch, num_kv_heads, seq_len, head_dim]` | Post-RoPE                          |
+| `values`    | `[batch, num_kv_heads, seq_len, head_dim]` |                                    |
+| `layer_idx` | `int`                                   | `0` to `num_layers - 1`             |
+| `positions` | `[batch, seq_len]` long tensor          | Absolute positions in the sequence  |
+
+During **prefill** (first forward pass), `seq_len = full prompt length`. During **decode** (autoregressive generation), `seq_len = 1`. Your cache must grow, not replace.
+
+### `attend(query, layer_idx)`
+
+| Arg         | Shape                                | Notes                               |
+| ----------- | ------------------------------------ | ----------------------------------- |
+| `query`     | `[batch, num_heads, q_len, head_dim]` | Post-RoPE                         |
+| `layer_idx` | `int`                                |                                    |
+
+Note: query has `num_heads` (28), not `num_kv_heads` (4). Handle GQA broadcasting inside `attend` (e.g. `K.repeat_interleave(num_heads // num_kv_heads, dim=1)` or equivalent).
+
+Return an `AttentionOutput` with `output` shape `[batch, num_heads, q_len, head_dim]`.
+
+## Why `write` + `attend` and not more hooks
+
+Earlier designs split scoring and aggregation into separate methods (`score`, `aggregate`). We rejected that. Two reasons:
+
+1. **Eviction needs attention weights.** H2O-style policies track which tokens get attended to most, so they can drop low-importance ones. Attention weights are computed during scoring. If scoring is a separate hook after `write`, the eviction decision has no access to *this step's* weights — you'd have to defer eviction one step, which creates circular dependencies.
+2. **Fused scoring is a first-class use case.** TurboQuant computes `Q @ K_compressed.T + correction → softmax → aggregate` in one pass, never materializing the full `[batch, heads, q_len, kv_len]` score tensor. Separate hooks force that materialization. At 32K context, that tensor is tens of GB. Killing it is the whole point.
+
+`write` + `attend` lets your class own the full pass. Your object survives across calls — importance accumulators, codebooks, rotation matrices, all live on `self`.
+
+## What runs each method
+
+| Called once per               | Methods                                |
+| ----------------------------- | -------------------------------------- |
+| sequence (before prefill)     | `setup(config)`                        |
+| layer, per forward pass       | `write(...)`, `attend(...)`            |
+| score reporting (informational) | `memory_bytes()`                      |
+
+`memory_bytes()` is **self-reported and not the score**. The harness uses `torch.cuda.max_memory_allocated()` to measure real peak memory. `memory_bytes()` exists for debugging and as a cross-check — a large discrepancy can flag a submission for manual review.
+
+## Reference: passthrough
+
+The baseline every miner is compared against. Stores K/V in FP16 and runs full-precision attention. See `inference_engine/passthrough.py` in the repo for the canonical implementation.
+
+When you score a policy, you're computing `(passthrough - yours) / passthrough` on the memory and latency axes. Beating it means beating this reference on the same model, same hardware, same prompts.

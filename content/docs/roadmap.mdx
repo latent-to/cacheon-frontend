@@ -1,0 +1,78 @@
+---
+title: Roadmap
+description: V1 ships KV-cache optimization on a fixed model. V2 expands the optimization surface. V3 generates policies. V4 puts them into production.
+---
+
+Four versions. Each one expands what the subnet optimizes. No version ships before the previous one is stable.
+
+## V1 — KV cache optimization
+
+**Status:** in progress. Evaluation pipeline complete; validator loop complete; GPU transport + public API in progress.
+
+Scoped narrowly on purpose:
+
+- One model: `Qwen2.5-7B-Instruct`
+- One hardware target: H100 80GB
+- One runtime: HuggingFace Transformers with monkey-patched attention
+- One prompt dataset: PG19 (Project Gutenberg)
+- One scoring formula: `0.6 × memory + 0.4 × latency`, hard KL gate
+- King-of-the-hill, winner-take-all
+- Centralized eval on a single validator-operated GPU pod
+
+The point of V1 is to prove the loop: someone submits a policy on-chain, the harness evaluates it, the best policy wins emission. Everything else follows from making this work.
+
+### V1 build phases
+
+| Phase         | What                                                                                              | Status |
+| ------------- | ------------------------------------------------------------------------------------------------- | ------ |
+| 1 — Harness   | Load Qwen2.5-7B, monkey-patch attention, passthrough policy, prefill + decode, logits + metrics | ✅ Complete |
+| 2 — Scoring   | KL, memory delta, latency delta → `ScoreResult`                                                   | ✅ Complete |
+| 3 — Sandbox   | AST analysis + firejail subprocess isolation + output validation                                  | ✅ Complete |
+| 4 — Prompts   | Block-hash seeded PG19 sampling                                                                   | ✅ Complete |
+| 5 — Validator | CPU server loop + GPU eval transport + monitoring API                                             | 🟡 In progress |
+
+Phase 5 Part A (loop) is done. Parts B (SSH transport to GPU pod) and C (read-only API) are in progress.
+
+## V2 — Expanded optimization surface
+
+After V1 is running stably and producing a real leaderboard, V2 expands what miners can optimize. Candidate features:
+
+- **Triton kernel support** with additional isolation (static analysis of Triton IR, constrained GPU allocator)
+- **Hybrid KV strategies** — quantization + eviction combined, per-layer adaptive mixes
+- **Cache offloading** to CPU DRAM or NVMe for extreme long context
+- **Adaptive policies** that change behavior based on runtime conditions (context length, batch pressure, recent attention distribution)
+- **Multi-turn and RAG-style workloads** — evaluation beyond single-prompt continuation
+- **Additional model targets** — upgrade to Qwen2.5-14B or similar if the memory signal is too noisy at 7B
+- **Verifiable eval rollouts** — publish prompts, baseline logits, and per-token KL to Cloudflare R2 so anyone can audit results offline
+
+V2 is also where the validator set can realistically expand. With verifiable rollouts, multiple validators can compute scores independently and agree on rankings without running the same hardware.
+
+## V3 — Policy generation
+
+Given a model, hardware, workload distribution, and quality constraints — output the best inference policy for that configuration.
+
+By V3, the subnet has accumulated thousands of evaluated `(policy, model, hardware, score)` tuples. That dataset is a map of the policy space. V3 turns miners' submissions from "a single handcrafted policy" into "a function from configuration to policy."
+
+What this looks like concretely:
+
+- A user specifies: `Qwen2.5-32B on A100 80GB, workload=chat, KL ≤ 0.05`
+- The subnet returns: a policy configuration (quantization bits per layer, eviction budget, attention sink size, etc.) that beats any fixed default for this setup
+- Miners compete on how well their generator handles new configurations
+
+## V4 — Deployment
+
+Stop evaluating ideas, start shipping them.
+
+One-click config generation with direct integration into:
+
+- **vLLM** — as a custom attention backend
+- **Hugging Face Transformers** — as a KV cache plugin
+- **TensorRT-LLM** — as a quantization / attention pass
+
+A user points Cacheon at their deployment and gets back a config that runs. The subnet becomes the source of production inference configurations, not just an academic benchmark.
+
+## End state
+
+Cacheon becomes a system that continuously learns how to run LLMs optimally across environments and hardware targets, and produces inference configurations that actually get deployed.
+
+The phase structure is deliberate: **prove the loop works (V1), expand what it optimizes (V2), learn to generate policies (V3), deploy them (V4).** Skipping phases breaks. V2 before V1 is stable means optimizing the wrong things. V3 before V2 means a narrow dataset. V4 before V3 means shipping handcrafted policies that don't generalize.

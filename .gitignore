@@ -10,7 +10,17 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+build
 *.local
+
+# fumadocs-mdx generated sources
+.source
+
+# react-router typegen output
+.react-router
+
+# wrangler types generated
+worker-configuration.d.ts
 
 # Editor directories and files
 .vscode/*

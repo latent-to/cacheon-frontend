@@ -1,0 +1,127 @@
+---
+title: Scoring
+description: The full scoring formula — hard KL gate at 0.1 nats, then 60% memory + 40% latency. Plus why we measure memory with the CUDA allocator and not self-reporting.
+---
+
+## The formula
+
+```python
+if kl_divergence > QUALITY_THRESHOLD:     # QUALITY_THRESHOLD = 0.1 nats
+    score = 0.0
+else:
+    score = (0.6 * memory_reduction) + (0.4 * latency_improvement)
+```
+
+Three axes, in order of enforcement:
+
+1. **Quality gate** — fail this and nothing else matters.
+2. **Memory** — 60% of the remaining score.
+3. **Latency** — 40%.
+
+## Quality — KL divergence
+
+```
+kl = (1/N) * Σ_t KL( softmax(baseline_logits[t])  ||  softmax(miner_logits[t]) )   in nats
+```
+
+Averaged over all decoded tokens, across all prompts. If it exceeds the threshold, the score is zero. No partial credit, no soft penalty.
+
+### Why hard-gate, not soft-penalty
+
+A soft KL penalty (e.g. `score = ... - 0.5 * kl`) creates an incentive to trade output quality for compression — small degradations in output in exchange for bigger memory/latency wins. Over many rounds, the subnet ends up optimizing a model that's slightly worse at everything in exchange for being faster.
+
+A hard gate says: **your job is to match baseline quality, then optimize.** If you can't hold quality, you're not participating. The bar is non-negotiable.
+
+### The 0.1 nats threshold
+
+This is tunable and will move as we see real submissions. Rough calibration:
+
+- **0.01 nats**: indistinguishable outputs, token-level agreement on ~99% of positions
+- **0.1 nats**: noticeable but minor differences, same semantic content
+- **0.3 nats**: clearly different outputs, possibly still coherent
+- **1.0 nats**: different model quality tier entirely
+
+`0.1` is the current cutoff for "close enough to ship." We reserve the right to tighten it if policies cluster too close to the gate.
+
+## Memory reduction
+
+```
+memory_reduction = (baseline_peak_memory - miner_peak_memory) / baseline_peak_memory
+```
+
+Clamped to `[-1, 1]`. Negative values (you use more memory than baseline) are allowed but hurt your score.
+
+### Measured with `torch.cuda.max_memory_allocated`
+
+This is the real, allocator-level peak memory usage across the entire run. Not self-reported. Not approximated.
+
+```python
+torch.cuda.reset_peak_memory_stats()
+# ... run inference ...
+peak = torch.cuda.max_memory_allocated()
+```
+
+Your policy's `memory_bytes()` method is **informational only** — the harness records it, but it doesn't affect your score. A large discrepancy between self-reported and measured memory flags the submission for manual review.
+
+<Callout type="warn" title="Peak memory, not average">
+  Compressing K/V for storage but decompressing to FP16 before `attend()` means your peak memory is almost identical to baseline — the decompressed buffer dominates. **Fused scoring against the compressed form** (TurboQuant path) is the only way to win the memory axis decisively.
+</Callout>
+
+### Why memory gets 60%
+
+Memory is the primary bottleneck at scale. KV cache memory determines:
+
+- Maximum context length you can serve
+- Maximum batch size (requests served in parallel)
+- Whether the model fits on one GPU at all
+
+Latency matters, but you can often cover a latency regression by adding hardware. You can't cover a memory regression — it's a hard failure.
+
+## Latency improvement
+
+```
+latency_improvement = (baseline_latency - miner_latency) / baseline_latency
+```
+
+Clamped to `[-1, 1]`. Wall-clock seconds from first token to completion of the generation.
+
+### Why latency gets 40%
+
+Latency gains from KV optimization are real but bounded. You can save memory bandwidth (reading compressed keys is cheaper), avoid recomputation (fused scoring skips decompression), and shrink working sets so more fits in cache. Typical gains in the 10–30% range.
+
+But latency has other contributors Cacheon doesn't control in V1 — scheduling, batching, kernel choice, the actual matmul performance. Weighting latency higher would distort the signal.
+
+## Disqualification vs. low score
+
+| Outcome           | Cause                                             | What happens                  |
+| ----------------- | ------------------------------------------------- | ----------------------------- |
+| **Disqualified**  | KL > 0.1, NaN/Inf in logits, invalid output shape | `score = 0`, not a challenger |
+| **Low score**     | Passes KL gate but doesn't beat king              | Recorded, not king            |
+| **Wins**          | Passes KL, beats king's score                     | New king, takes all emission  |
+
+A disqualified submission still burns the hotkey — you can't re-register the same hotkey with different code. That's the commitment pressure.
+
+## Degenerate-policy checks
+
+Some policies can pass the KL gate by accident — e.g. a policy that collapses attention to a single token might still produce plausible outputs on some prompts. The harness occasionally runs lightweight additional checks:
+
+- **Attention weight sanity.** Weights should sum to ~1 per query position (when a policy returns them). Deviation flags the submission.
+- **Output value range.** Attention outputs should land in `[-100, 100]`. Values outside this range indicate numerical instability and are treated as disqualification.
+
+These aren't score inputs — they're sanity filters that catch a class of exploits before they reach the king comparison.
+
+## Reproducibility
+
+Every scored run produces a `ScoreResult`:
+
+```
+ScoreResult
+  kl_divergence       float
+  memory_reduction    float
+  latency_improvement float
+  score               float
+  disqualified        bool
+  disqualify_reason   str | None
+```
+
+Combined with the block hash that seeded the prompts and the pinned commit SHA of the policy, anyone can replay the eval offline and verify the result. V2 will publish full eval rollouts (prompts + baseline logits + KL values) for auditability.
