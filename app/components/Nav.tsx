@@ -1,12 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 
-const LINKS: Array<{ label: string; href: string; active?: boolean }> = [
-  { label: "Home", href: "#hero", active: true },
-  { label: "About", href: "#about" },
-  { label: "How it Works", href: "#how-it-works" },
-  { label: "Roadmap", href: "#roadmap" },
-  { label: "Team", href: "#team" },
-];
+const navLinkClass =
+  "text-[0.82rem] font-medium uppercase tracking-[0.14em] text-secondary no-underline transition-colors hover:text-primary";
 
 function Icon({ id, size = 18 }: { id: string; size?: number }) {
   return (
@@ -49,28 +45,21 @@ export default function Nav() {
       }`}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-4">
-        <a
-          href="#"
+        <Link
+          to="/"
           className="flex items-center gap-0.5 text-2xl font-bold tracking-wide text-primary no-underline"
         >
           <span className="font-mono text-accent">C</span>acheon
-        </a>
+        </Link>
 
         {/* Desktop */}
         <div className="hidden items-center gap-8 font-mono md:flex">
-          {LINKS.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              className={
-                l.active
-                  ? "text-[0.82rem] font-semibold uppercase tracking-[0.14em] text-primary no-underline transition-colors"
-                  : "text-[0.82rem] font-medium uppercase tracking-[0.14em] text-secondary no-underline transition-colors hover:text-primary"
-              }
-            >
-              {l.label}
-            </a>
-          ))}
+          <Link to="/" className={navLinkClass}>
+            Home
+          </Link>
+          <Link to="/docs" className={navLinkClass}>
+            Docs
+          </Link>
           <a
             href="https://github.com/latent-to/cacheon"
             target="_blank"
@@ -80,8 +69,9 @@ export default function Nav() {
             GitHub
           </a>
           <button
+            type="button"
             onClick={toggleTheme}
-            aria-label="Toggle theme"
+            aria-label="Toggle color theme"
             className="flex cursor-pointer items-center justify-center rounded-md border border-border/80 bg-transparent p-2 text-secondary transition-colors hover:border-border hover:text-primary"
           >
             <Icon id={theme === "dark" ? "icon-sun" : "icon-moon"} size={20} />
@@ -90,6 +80,7 @@ export default function Nav() {
 
         {/* Mobile hamburger */}
         <button
+          type="button"
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label="Toggle menu"
           className="flex cursor-pointer border-none bg-transparent p-1 text-primary md:hidden"
@@ -118,20 +109,20 @@ export default function Nav() {
       {/* Mobile menu */}
       {menuOpen && (
         <div className="flex flex-col gap-3 border-b border-border bg-bg px-6 pb-4 pt-2 font-mono md:hidden">
-          {LINKS.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              onClick={() => setMenuOpen(false)}
-              className={
-                l.active
-                  ? "text-[0.82rem] font-semibold uppercase tracking-[0.14em] text-primary no-underline"
-                  : "text-[0.82rem] font-medium uppercase tracking-[0.14em] text-secondary no-underline"
-              }
-            >
-              {l.label}
-            </a>
-          ))}
+          <Link
+            to="/"
+            onClick={() => setMenuOpen(false)}
+            className={navLinkClass}
+          >
+            Home
+          </Link>
+          <Link
+            to="/docs"
+            onClick={() => setMenuOpen(false)}
+            className={navLinkClass}
+          >
+            Docs
+          </Link>
           <a
             href="https://github.com/latent-to/cacheon"
             target="_blank"
@@ -142,7 +133,9 @@ export default function Nav() {
             GitHub
           </a>
           <button
+            type="button"
             onClick={toggleTheme}
+            aria-label="Toggle color theme"
             className="flex w-fit cursor-pointer items-center gap-2 rounded-md border border-border/80 bg-transparent px-3 py-1.5 text-sm text-secondary"
           >
             <Icon id={theme === "dark" ? "icon-sun" : "icon-moon"} />
