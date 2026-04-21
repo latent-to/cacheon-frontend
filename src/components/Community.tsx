@@ -23,7 +23,7 @@ export default function Community() {
             href="https://discord.gg/bittensor"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg bg-btn-primary px-6 py-2.5 font-mono text-[0.88rem] font-semibold text-btn-primary-fg no-underline transition-opacity hover:opacity-85"
+            className="inline-flex items-center gap-2 rounded-md bg-btn-primary px-6 py-2.5 font-sans text-[0.92rem] font-semibold text-btn-primary-fg no-underline transition-opacity hover:opacity-85"
           >
             <Icon id="icon-discord" />
             Discord
@@ -32,7 +32,7 @@ export default function Community() {
             href="https://github.com/latent-to/cacheon"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface/60 px-6 py-2.5 font-mono text-[0.88rem] font-medium text-primary backdrop-blur-sm no-underline transition-colors hover:border-accent/45"
+            className="inline-flex items-center gap-2 rounded-md border border-border/80 bg-surface/60 px-6 py-2.5 font-sans text-[0.92rem] font-medium text-primary backdrop-blur-sm no-underline transition-colors hover:border-border hover:bg-surface"
           >
             <Icon id="icon-github" />
             GitHub
@@ -41,7 +41,7 @@ export default function Community() {
             href="https://tao.app/subnets/14"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg border border-border/70 bg-surface/60 px-6 py-2.5 font-mono text-[0.88rem] font-medium text-primary backdrop-blur-sm no-underline transition-colors hover:border-accent/45"
+            className="inline-flex items-center gap-2 rounded-md border border-border/80 bg-surface/60 px-6 py-2.5 font-sans text-[0.92rem] font-medium text-primary backdrop-blur-sm no-underline transition-colors hover:border-border hover:bg-surface"
           >
             TAO.app
           </a>

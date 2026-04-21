@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
-const LINKS: Array<{ label: string; href: string; pill?: boolean }> = [
-  { label: "Home", href: "#hero", pill: true },
+const LINKS: Array<{ label: string; href: string; active?: boolean }> = [
+  { label: "Home", href: "#hero", active: true },
   { label: "About", href: "#about" },
   { label: "How it Works", href: "#how-it-works" },
   { label: "Roadmap", href: "#roadmap" },
@@ -63,9 +63,9 @@ export default function Nav() {
               key={l.href}
               href={l.href}
               className={
-                l.pill
-                  ? "rounded-full bg-accent px-4 py-1.5 text-[0.82rem] font-semibold uppercase tracking-wide text-btn-primary-fg no-underline transition-opacity hover:opacity-90"
-                  : "text-[0.88rem] font-medium uppercase tracking-wide text-secondary no-underline transition-colors hover:text-link-hover"
+                l.active
+                  ? "text-[0.82rem] font-semibold uppercase tracking-[0.14em] text-primary no-underline transition-colors"
+                  : "text-[0.82rem] font-medium uppercase tracking-[0.14em] text-secondary no-underline transition-colors hover:text-primary"
               }
             >
               {l.label}
@@ -75,14 +75,14 @@ export default function Nav() {
             href="https://github.com/latent-to/cacheon"
             target="_blank"
             rel="noopener noreferrer"
-            className="ml-1 rounded-full border border-border bg-btn-primary px-4 py-1.5 text-[0.82rem] font-semibold uppercase tracking-wide text-btn-primary-fg no-underline transition-opacity hover:opacity-80"
+            className="ml-1 rounded-md border border-border/80 bg-surface/60 px-3.5 py-1.5 text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-primary no-underline transition-colors hover:border-border hover:bg-surface"
           >
             GitHub
           </a>
           <button
             onClick={toggleTheme}
             aria-label="Toggle theme"
-            className="flex cursor-pointer items-center justify-center rounded-lg border border-border bg-transparent p-2 text-secondary transition-colors hover:border-accent/40"
+            className="flex cursor-pointer items-center justify-center rounded-md border border-border/80 bg-transparent p-2 text-secondary transition-colors hover:border-border hover:text-primary"
           >
             <Icon id={theme === "dark" ? "icon-sun" : "icon-moon"} size={20} />
           </button>
@@ -124,9 +124,9 @@ export default function Nav() {
               href={l.href}
               onClick={() => setMenuOpen(false)}
               className={
-                l.pill
-                  ? "w-fit rounded-full bg-accent px-3 py-1 text-[0.75rem] font-semibold uppercase tracking-wide text-btn-primary-fg no-underline"
-                  : "text-[0.85rem] font-medium uppercase tracking-wide text-secondary no-underline"
+                l.active
+                  ? "text-[0.82rem] font-semibold uppercase tracking-[0.14em] text-primary no-underline"
+                  : "text-[0.82rem] font-medium uppercase tracking-[0.14em] text-secondary no-underline"
               }
             >
               {l.label}
@@ -137,13 +137,13 @@ export default function Nav() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setMenuOpen(false)}
-            className="w-fit rounded-full border border-border bg-btn-primary px-3 py-1 text-[0.75rem] font-semibold uppercase tracking-wide text-btn-primary-fg no-underline transition-opacity hover:opacity-80"
+            className="w-fit rounded-md border border-border/80 bg-surface/60 px-3.5 py-1.5 text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-primary no-underline transition-colors hover:bg-surface"
           >
             GitHub
           </a>
           <button
             onClick={toggleTheme}
-            className="flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-border bg-transparent px-3 py-1.5 text-sm text-secondary"
+            className="flex w-fit cursor-pointer items-center gap-2 rounded-md border border-border/80 bg-transparent px-3 py-1.5 text-sm text-secondary"
           >
             <Icon id={theme === "dark" ? "icon-sun" : "icon-moon"} />
             {theme === "dark" ? "Light mode" : "Dark mode"}

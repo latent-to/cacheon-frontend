@@ -4,31 +4,28 @@ export default function WhatIs() {
   return (
     <section id="about" className="relative border-t border-border/50">
       <div className="mx-auto max-w-6xl px-6 py-28 max-sm:py-16">
-        <SectionHeader
-          eyebrow="01 — Overview"
-          title="What is Cacheon?"
-        />
+        <SectionHeader eyebrow="01 — Overview" title="What is Cacheon?" />
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Card
             title="For everyone"
             items={[
-              "Everyone runs the same pretrained model—no training or fine-tuning",
-              "Participants submit code that uses less memory or runs attention faster",
-              "Best score wins—king of the hill, winner takes all",
-              "Quality is enforced: outputs must match the baseline",
+              "LLM inference is slow and expensive. Memory has been the bottleneck",
+              "Cacheon is a live benchmark where engineers compete to run the same AI faster and cheaper",
+              "Results are on-chain and auditable. The best submission wins real rewards",
+              "Winning policies ship to real infrastructure",
             ]}
           />
           <Card
             title="For ML engineers"
             items={[
               <>
-                Implement <code>KVCachePolicy</code> — <code>write()</code> stores
-                K/V, <code>attend()</code> owns the full attention pass
+                Implement <code>KVCachePolicy</code> — <code>write()</code>{" "}
+                stores K/V, <code>attend()</code> owns the full attention pass
               </>,
               <>
                 King of the hill, winner-take-all: champion earns{" "}
-                <code>27+ TAO</code>/day (≈ <code>7k USD</code>; prices fluctuate).
+                <code>up to 28 TAO</code>/day (prices fluctuate).
               </>,
               <>
                 Scoring:{" "}
@@ -50,17 +47,17 @@ export default function WhatIs() {
 
 function Card({ title, items }: { title: string; items: React.ReactNode[] }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-surface/60 p-7 backdrop-blur-sm transition-colors hover:border-accent/30">
-      <h3 className="mb-5 font-mono text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-accent">
+    <div className="rounded-xl border border-border/60 bg-surface/60 p-7 backdrop-blur-sm transition-colors hover:border-border hover:bg-surface/80">
+      <h3 className="mb-5 font-mono text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-accent">
         {title}
       </h3>
       <ul className="flex list-none flex-col gap-3">
         {items.map((item, i) => (
           <li
             key={i}
-            className="relative pl-5 font-mono text-[0.85rem] leading-[1.7] text-secondary"
+            className="relative pl-5 font-sans text-[0.92rem] leading-[1.6] text-secondary"
           >
-            <span className="absolute left-0 text-accent/70">›</span>
+            <span className="absolute left-0 font-mono text-accent/70">›</span>
             {item}
           </li>
         ))}
