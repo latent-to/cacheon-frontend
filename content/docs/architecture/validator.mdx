@@ -117,6 +117,44 @@ Things that can go wrong mid-eval and how the loop handles them:
 
 The philosophy is "fail forward slowly." Transient failures back off to 360s and retry. Persistent failures show up in logs loud and clear.
 
+## Dethrone rule
+
+`ValidatorState.record_evaluation` decides whether an incoming `EvaluationRecord` becomes the new king. The rule is two-stage; both are implemented in `validator/state.py`.
+
+### Stage 1 — Duplicate-of-king DQ
+
+If the current king exists, the challenger's `source_hash` is non-empty and equals the king's, the hotkeys differ, and `ev.commit_block` is **strictly greater** than `king.commit_block`, the incoming record is rewritten **before** it is stored:
+
+- `score = 0.0`
+- `disqualified = True`
+- `disqualify_reason = "duplicate_of_king"`
+
+Callers should use `RecordResult.stored`, not the raw input, for logs and audit trails. Empty `source_hash` on legacy rows is ignored so this rule never misfires.
+
+### Stage 2 — Decaying-epsilon threshold
+
+A non-DQ'd challenger with finite `score > 0` becomes king if either there is **no** king yet, or:
+
+```
+stored.score > threshold
+threshold   = king.score × (1 + ε(age))
+ε(age)      = epsilon_initial × max(0, 1 − age / decay_blocks)
+age         = current_block − king.crowned_at_block
+```
+
+(`current_block` is the chain height passed into `record_evaluation`.)
+
+Defaults (tunable via env in `validator/config.py`):
+
+| Constant                    | Default  | Env var                             | Meaning                                                               |
+| --------------------------- | -------- | ----------------------------------- | --------------------------------------------------------------------- |
+| `KING_EPSILON_INITIAL`      | `0.01`   | `CACHEON_KING_EPSILON_INITIAL`      | Moat when the king is fresh: threshold starts at `king.score × 1.01`. |
+| `KING_EPSILON_DECAY_BLOCKS` | `50_400` | `CACHEON_KING_EPSILON_DECAY_BLOCKS` | Blocks over which ε decays linearly to `0` (~7 days at ~12 s/block).  |
+
+When `decay_blocks <= 0` or `epsilon_initial <= 0`, `_effective_dethrone_threshold` returns `king_score` — strict improvement only. That shape is useful for tests.
+
+`RecordResult.dethrone_threshold` is the threshold that was in force for that call (`0.0` when there was no king).
+
 ## Weight setting
 
 One-hot. The king gets `1.0`, everyone else gets `0.0`, passed in one `set_weights` call with `other_uids_zeroed=True`.
@@ -130,7 +168,7 @@ The validator is Phase 5 of the build. Current state:
 | Part | Scope                                                         | Status         |
 | ---- | ------------------------------------------------------------- | -------------- |
 | A    | Validator loop, state, challenger selection, set_weights      | ✅ Complete    |
-| B    | GPU eval transport — `pod_eval.py` + SSH client on CPU side   | 🔲 In progress |
+| B    | GPU eval transport — `pod_eval.py` + SSH client on CPU side   | 🟡 In progress |
 | C    | Read-only monitoring API (`/leaderboard`, `/scores/{hotkey}`) | 🔲 Pending     |
 
 Phase A works end-to-end with a stubbed `eval_fn` — the loop logic, state persistence, and weight-setting are all exercised. Part B wires it to real GPU inference.
