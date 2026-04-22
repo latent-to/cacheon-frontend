@@ -1,33 +1,33 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 
 const navLinkClass =
-  "text-[0.82rem] font-medium uppercase tracking-[0.14em] text-secondary no-underline transition-colors hover:text-primary";
+  'text-[0.82rem] font-medium uppercase tracking-[0.14em] text-secondary no-underline transition-colors hover:text-primary'
 
 export default function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 10);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    const onScroll = () => setScrolled(window.scrollY > 10)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   return (
     <nav
       className={`fixed inset-x-0 top-0 z-50 transition-all duration-200 ${
         scrolled
-          ? "border-b border-border bg-bg/85 backdrop-blur-xl"
-          : "border-b border-transparent bg-transparent"
+          ? 'border-border bg-bg/85 border-b backdrop-blur-xl'
+          : 'border-b border-transparent bg-transparent'
       }`}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-4">
         <Link
           to="/"
-          className="flex items-center gap-0.5 text-2xl font-bold tracking-wide text-primary no-underline"
+          className="text-primary flex items-center gap-0.5 text-2xl font-bold tracking-wide no-underline"
         >
-          <span className="font-mono text-accent">C</span>acheon
+          <span className="text-accent font-mono">C</span>acheon
         </Link>
 
         {/* Desktop */}
@@ -42,7 +42,7 @@ export default function Nav() {
             href="https://github.com/latent-to/cacheon"
             target="_blank"
             rel="noopener noreferrer"
-            className="ml-1 rounded-md border border-border/80 bg-surface/60 px-3.5 py-1.5 text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-primary no-underline transition-colors hover:border-border hover:bg-surface"
+            className="border-border/80 bg-surface/60 text-primary hover:border-border hover:bg-surface ml-1 rounded-md border px-3.5 py-1.5 text-[0.78rem] font-semibold tracking-[0.14em] uppercase no-underline transition-colors"
           >
             GitHub
           </a>
@@ -53,7 +53,7 @@ export default function Nav() {
           type="button"
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label="Toggle menu"
-          className="flex cursor-pointer border-none bg-transparent p-1 text-primary md:hidden"
+          className="text-primary flex cursor-pointer border-none bg-transparent p-1 md:hidden"
         >
           <svg
             width="24"
@@ -78,19 +78,11 @@ export default function Nav() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="flex flex-col gap-3 border-b border-border bg-bg px-6 pb-4 pt-2 font-mono md:hidden">
-          <Link
-            to="/"
-            onClick={() => setMenuOpen(false)}
-            className={navLinkClass}
-          >
+        <div className="border-border bg-bg flex flex-col gap-3 border-b px-6 pt-2 pb-4 font-mono md:hidden">
+          <Link to="/" onClick={() => setMenuOpen(false)} className={navLinkClass}>
             Home
           </Link>
-          <Link
-            to="/docs"
-            onClick={() => setMenuOpen(false)}
-            className={navLinkClass}
-          >
+          <Link to="/docs" onClick={() => setMenuOpen(false)} className={navLinkClass}>
             Docs
           </Link>
           <a
@@ -98,12 +90,12 @@ export default function Nav() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setMenuOpen(false)}
-            className="w-fit rounded-md border border-border/80 bg-surface/60 px-3.5 py-1.5 text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-primary no-underline transition-colors hover:bg-surface"
+            className="border-border/80 bg-surface/60 text-primary hover:bg-surface w-fit rounded-md border px-3.5 py-1.5 text-[0.78rem] font-semibold tracking-[0.14em] uppercase no-underline transition-colors"
           >
             GitHub
           </a>
         </div>
       )}
     </nav>
-  );
+  )
 }

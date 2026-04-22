@@ -1,27 +1,27 @@
 export default function HeroDiagram() {
-  const rowH = 6;
-  const gap = 3;
-  const leftRows = 12;
-  const rightRows = 4;
-  const leftX = 20;
-  const rightX = 200;
-  const leftW = 100;
-  const rightW = 80;
-  const totalH = leftRows * (rowH + gap);
+  const rowH = 6
+  const gap = 3
+  const leftRows = 12
+  const rightRows = 4
+  const leftX = 20
+  const rightX = 200
+  const leftW = 100
+  const rightW = 80
+  const totalH = leftRows * (rowH + gap)
 
-  const leftStartY = 10;
-  const rightStartY = leftStartY + (totalH - rightRows * (rowH + gap)) / 2;
+  const leftStartY = 10
+  const rightStartY = leftStartY + (totalH - rightRows * (rowH + gap)) / 2
 
   return (
     <svg
       viewBox="0 0 320 120"
       fill="none"
-      style={{ width: "100%", maxWidth: 480, height: "auto", opacity: 0.92 }}
+      style={{ width: '100%', maxWidth: 480, height: 'auto', opacity: 0.92 }}
       aria-label="KV cache compression diagram"
     >
       {/* Left: full cache rows (K/V pairs) — neutral bars */}
       {Array.from({ length: leftRows }).map((_, i) => {
-        const y = leftStartY + i * (rowH + gap);
+        const y = leftStartY + i * (rowH + gap)
         return (
           <g key={`l-${i}`}>
             <rect
@@ -43,7 +43,7 @@ export default function HeroDiagram() {
               opacity={0.65 + (i % 3) * 0.06}
             />
           </g>
-        );
+        )
       })}
 
       {/* Labels */}
@@ -70,9 +70,10 @@ export default function HeroDiagram() {
 
       {/* Arrow / compression flow lines */}
       {Array.from({ length: rightRows }).map((_, i) => {
-        const ry = rightStartY + i * (rowH + gap) + rowH / 2;
-        const fromTop = leftStartY + (i * (leftRows / rightRows)) * (rowH + gap) + rowH / 2;
-        const fromBot = leftStartY + ((i + 1) * (leftRows / rightRows) - 1) * (rowH + gap) + rowH / 2;
+        const ry = rightStartY + i * (rowH + gap) + rowH / 2
+        const fromTop = leftStartY + i * (leftRows / rightRows) * (rowH + gap) + rowH / 2
+        const fromBot =
+          leftStartY + ((i + 1) * (leftRows / rightRows) - 1) * (rowH + gap) + rowH / 2
         return (
           <g key={`a-${i}`} opacity={0.35}>
             <line
@@ -92,12 +93,12 @@ export default function HeroDiagram() {
               strokeWidth={0.7}
             />
           </g>
-        );
+        )
       })}
 
       {/* Right: compressed cache rows */}
       {Array.from({ length: rightRows }).map((_, i) => {
-        const y = rightStartY + i * (rowH + gap);
+        const y = rightStartY + i * (rowH + gap)
         return (
           <rect
             key={`r-${i}`}
@@ -109,7 +110,7 @@ export default function HeroDiagram() {
             fill="var(--diagram-bar-strong)"
             opacity={0.75}
           />
-        );
+        )
       })}
 
       {/* Query arc — single accent stroke */}
@@ -142,5 +143,5 @@ export default function HeroDiagram() {
         compressed
       </text>
     </svg>
-  );
+  )
 }

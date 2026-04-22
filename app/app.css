@@ -1,13 +1,13 @@
-@import "tailwindcss";
-@import "fumadocs-ui/css/neutral.css";
-@import "fumadocs-ui/css/preset.css";
-@source "../node_modules/fumadocs-ui/dist/**/*.js";
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+@source '../node_modules/fumadocs-ui/dist/**/*.js';
 
 /* ── Tailwind v4 theme: map CSS vars to utility classes ── */
 
 @theme {
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
   --color-bg: var(--bg);
   --color-surface: var(--surface);
@@ -59,16 +59,8 @@
     @apply bg-bg text-primary font-sans antialiased;
     line-height: 1.65;
     background-image:
-      radial-gradient(
-        circle at top,
-        rgba(45, 212, 191, 0.025) 0%,
-        transparent 30%
-      ),
-      radial-gradient(
-        circle at 50% 120%,
-        rgba(45, 212, 191, 0.03) 0%,
-        transparent 30%
-      );
+      radial-gradient(circle at top, rgba(45, 212, 191, 0.025) 0%, transparent 30%),
+      radial-gradient(circle at 50% 120%, rgba(45, 212, 191, 0.03) 0%, transparent 30%);
   }
 
   ::selection {

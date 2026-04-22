@@ -9,10 +9,10 @@ The harness is the thing that actually loads the model, runs the policy, and mea
 
 vLLM is faster and more production-grade. It's also the wrong choice for Cacheon's V1.
 
-| Stack             | Pros                                | Cons                                                     |
-| ----------------- | ----------------------------------- | -------------------------------------------------------- |
-| **vLLM / PagedAttention** | Fast. Production-grade. Handles batching, scheduling. | Manages its own KV cache internally. Replacing it requires fighting undocumented internals that change between versions. |
-| **HuggingFace Transformers** | Plain Python. Every attention layer is a `forward()` method. Exact hook points. | Slower. Not production-grade. But we're measuring *relative* improvements, not absolute throughput. |
+| Stack                        | Pros                                                                            | Cons                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **vLLM / PagedAttention**    | Fast. Production-grade. Handles batching, scheduling.                           | Manages its own KV cache internally. Replacing it requires fighting undocumented internals that change between versions. |
+| **HuggingFace Transformers** | Plain Python. Every attention layer is a `forward()` method. Exact hook points. | Slower. Not production-grade. But we're measuring _relative_ improvements, not absolute throughput.                      |
 
 vLLM's `PagedAttention` is deeply intertwined with its paged-memory allocator. You can't insert a custom policy without forking vLLM. Even if you did, the baseline would be measured against vLLM-specific behavior and not generalize.
 
@@ -67,10 +67,10 @@ Same sequence of calls whether it's the baseline or the miner — that's what ma
 
 The distinction matters because the shapes `policy.write` receives are different:
 
-| Phase   | `policy.write` `seq_len` | `policy.attend` `q_len` |
-| ------- | ------------------------ | ----------------------- |
-| Prefill | full prompt length (~32K) | full prompt length     |
-| Decode  | 1                        | 1                       |
+| Phase   | `policy.write` `seq_len`  | `policy.attend` `q_len` |
+| ------- | ------------------------- | ----------------------- |
+| Prefill | full prompt length (~32K) | full prompt length      |
+| Decode  | 1                         | 1                       |
 
 Your cache must grow on each decode step, not replace. The harness delivers `positions` so you always know where you are in the sequence.
 

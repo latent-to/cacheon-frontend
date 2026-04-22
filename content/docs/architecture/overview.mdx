@@ -87,16 +87,16 @@ The public API (leaderboard, per-hotkey scores) is for miners and the community,
 
 ## Components
 
-| Component                             | Where it runs   | Role                                                              |
-| ------------------------------------- | --------------- | ----------------------------------------------------------------- |
-| `scripts/remote_validator.py`         | CPU server      | Main validator loop — chain scan, challenger selection, set_weights |
-| `validator/` package                  | CPU server      | State persistence (king, scores), challenger logic                |
-| `inference_engine/sandbox.py`         | CPU server      | Static AST check on miner source code                            |
-| `inference_engine/runner.py`          | CPU server      | Subprocess isolation (firejail on Linux)                         |
-| `scripts/pod_eval.py`                 | GPU pod         | Loads model, runs harness + scoring, writes `results.json`        |
-| `inference_engine/harness.py`         | GPU pod         | Attention monkey-patching, prefill + decode, metric collection    |
-| `inference_engine/scoring.py`         | GPU pod         | KL, memory delta, latency delta → score                           |
-| `inference_engine/prompts.py`         | Either          | Block-hash seeded PG19 sampling — deterministic                  |
+| Component                     | Where it runs | Role                                                                |
+| ----------------------------- | ------------- | ------------------------------------------------------------------- |
+| `scripts/remote_validator.py` | CPU server    | Main validator loop — chain scan, challenger selection, set_weights |
+| `validator/` package          | CPU server    | State persistence (king, scores), challenger logic                  |
+| `inference_engine/sandbox.py` | CPU server    | Static AST check on miner source code                               |
+| `inference_engine/runner.py`  | CPU server    | Subprocess isolation (firejail on Linux)                            |
+| `scripts/pod_eval.py`         | GPU pod       | Loads model, runs harness + scoring, writes `results.json`          |
+| `inference_engine/harness.py` | GPU pod       | Attention monkey-patching, prefill + decode, metric collection      |
+| `inference_engine/scoring.py` | GPU pod       | KL, memory delta, latency delta → score                             |
+| `inference_engine/prompts.py` | Either        | Block-hash seeded PG19 sampling — deterministic                     |
 
 Deep-dives:
 

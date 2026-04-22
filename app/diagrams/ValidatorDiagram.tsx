@@ -4,8 +4,8 @@
  * Flow lines use neutral grays; electric teal is not used for large fills.
  */
 export default function ValidatorDiagram() {
-  const flow = "var(--diagram-flow)";
-  const arrowFill = "var(--diagram-flow)";
+  const flow = 'var(--diagram-flow)'
+  const arrowFill = 'var(--diagram-flow)'
 
   return (
     <svg
@@ -14,10 +14,10 @@ export default function ValidatorDiagram() {
       role="img"
       aria-label="Architecture: Bittensor chain connects to a CPU validator server, which talks over SSH to a GPU pod that runs evals; results return to the CPU server."
       style={{
-        width: "100%",
-        maxWidth: "min(100%, 56rem)",
-        minHeight: "clamp(200px, 28vw, 280px)",
-        height: "auto",
+        width: '100%',
+        maxWidth: 'min(100%, 56rem)',
+        minHeight: 'clamp(200px, 28vw, 280px)',
+        height: 'auto',
       }}
     >
       {/* Bittensor chain */}
@@ -87,16 +87,44 @@ export default function ValidatorDiagram() {
       >
         CPU server
       </text>
-      <text x="392" y="98" textAnchor="middle" fill="var(--text-secondary)" fontSize="12.5" fontFamily="var(--mono)">
+      <text
+        x="392"
+        y="98"
+        textAnchor="middle"
+        fill="var(--text-secondary)"
+        fontSize="12.5"
+        fontFamily="var(--mono)"
+      >
         reads on-chain commitments
       </text>
-      <text x="392" y="122" textAnchor="middle" fill="var(--text-secondary)" fontSize="12.5" fontFamily="var(--mono)">
+      <text
+        x="392"
+        y="122"
+        textAnchor="middle"
+        fill="var(--text-secondary)"
+        fontSize="12.5"
+        fontFamily="var(--mono)"
+      >
         sandbox safety check
       </text>
-      <text x="392" y="146" textAnchor="middle" fill="var(--text-secondary)" fontSize="12.5" fontFamily="var(--mono)">
+      <text
+        x="392"
+        y="146"
+        textAnchor="middle"
+        fill="var(--text-secondary)"
+        fontSize="12.5"
+        fontFamily="var(--mono)"
+      >
         assigns network rewards
       </text>
-      <text x="392" y="170" textAnchor="middle" fill="var(--text-secondary)" fontSize="12.5" fontFamily="var(--mono)">
+      <text
+        x="392"
+        y="170"
+        textAnchor="middle"
+        fill="var(--text-secondary)"
+        fontSize="12.5"
+        fontFamily="var(--mono)"
+      >
         holds wallet keys
       </text>
 
@@ -111,7 +139,14 @@ export default function ValidatorDiagram() {
         markerEnd="url(#vd-arrow)"
         opacity="0.85"
       />
-      <text x="564" y="104" textAnchor="middle" fill="var(--text-secondary)" fontSize="12" fontFamily="var(--mono)">
+      <text
+        x="564"
+        y="104"
+        textAnchor="middle"
+        fill="var(--text-secondary)"
+        fontSize="12"
+        fontFamily="var(--mono)"
+      >
         SSH
       </text>
 
@@ -137,13 +172,34 @@ export default function ValidatorDiagram() {
       >
         GPU pod
       </text>
-      <text x="736" y="98" textAnchor="middle" fill="var(--text-secondary)" fontSize="12.5" fontFamily="var(--mono)">
+      <text
+        x="736"
+        y="98"
+        textAnchor="middle"
+        fill="var(--text-secondary)"
+        fontSize="12.5"
+        fontFamily="var(--mono)"
+      >
         loads model, runs eval
       </text>
-      <text x="736" y="122" textAnchor="middle" fill="var(--text-secondary)" fontSize="12.5" fontFamily="var(--mono)">
-        {"measures memory & speed"}
+      <text
+        x="736"
+        y="122"
+        textAnchor="middle"
+        fill="var(--text-secondary)"
+        fontSize="12.5"
+        fontFamily="var(--mono)"
+      >
+        {'measures memory & speed'}
       </text>
-      <text x="736" y="146" textAnchor="middle" fill="var(--text-secondary)" fontSize="12.5" fontFamily="var(--mono)">
+      <text
+        x="736"
+        y="146"
+        textAnchor="middle"
+        fill="var(--text-secondary)"
+        fontSize="12.5"
+        fontFamily="var(--mono)"
+      >
         no chain, no wallet keys
       </text>
 
@@ -157,7 +213,14 @@ export default function ValidatorDiagram() {
         opacity="0.55"
         strokeDasharray="6 4"
       />
-      <text x="564" y="238" textAnchor="middle" fill="var(--text-secondary)" fontSize="12" fontFamily="var(--mono)">
+      <text
+        x="564"
+        y="238"
+        textAnchor="middle"
+        fill="var(--text-secondary)"
+        fontSize="12"
+        fontFamily="var(--mono)"
+      >
         results back
       </text>
 
@@ -167,5 +230,5 @@ export default function ValidatorDiagram() {
         </marker>
       </defs>
     </svg>
-  );
+  )
 }

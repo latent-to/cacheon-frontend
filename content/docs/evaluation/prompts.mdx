@@ -9,12 +9,12 @@ Prompts are sampled from **PG19** (Project Gutenberg books) with a **block-hash-
 
 KV-cache benchmarking needs long, continuous sequences that force the cache to grow. Short documents produce trivially small caches where memory reduction is lost in noise.
 
-| Dataset     | Typical doc length        | Why rejected or chosen                          |
-| ----------- | ------------------------- | ------------------------------------------------ |
-| FineWeb     | Median &lt;1K tokens       | Too short — cache never gets large enough for signal |
-| MMLU / HellaSwag | ~100–500 tokens       | Evaluation benchmarks, not continuation prompts      |
-| Synthetic (infilling, retrieval) | Variable | Deferred to V2+; want real text for V1       |
-| **PG19**    | **100K+ tokens (full novels)** | **Chosen** — long-form text pushes cache to ~12% of peak memory at 32K tokens |
+| Dataset                          | Typical doc length             | Why rejected or chosen                                                        |
+| -------------------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
+| FineWeb                          | Median &lt;1K tokens           | Too short — cache never gets large enough for signal                          |
+| MMLU / HellaSwag                 | ~100–500 tokens                | Evaluation benchmarks, not continuation prompts                               |
+| Synthetic (infilling, retrieval) | Variable                       | Deferred to V2+; want real text for V1                                        |
+| **PG19**                         | **100K+ tokens (full novels)** | **Chosen** — long-form text pushes cache to ~12% of peak memory at 32K tokens |
 
 PG19 is pinned to a specific Hugging Face dataset revision. Row ordering is stable regardless of upstream changes — eval rounds from two years ago can be reproduced exactly.
 
@@ -47,11 +47,11 @@ Anyone with the block hash can reconstruct the exact prompt set used in that eva
 
 ## Parameter defaults
 
-| Parameter   | Value           | Why                                                                          |
-| ----------- | --------------- | ---------------------------------------------------------------------------- |
-| `max_chars` | 131,072         | ~32K tokens. At this length the Qwen2.5-7B KV cache is ~1.8 GB (~12% of peak memory) — large enough for the memory axis to produce signal |
-| `min_chars` | 1,000           | Filters PG19 frontmatter, chapter headers, OCR artifacts                     |
-| `revision`  | pinned commit SHA | Row ordering stable across upstream dataset updates                        |
+| Parameter   | Value             | Why                                                                                                                                       |
+| ----------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_chars` | 131,072           | ~32K tokens. At this length the Qwen2.5-7B KV cache is ~1.8 GB (~12% of peak memory) — large enough for the memory axis to produce signal |
+| `min_chars` | 1,000             | Filters PG19 frontmatter, chapter headers, OCR artifacts                                                                                  |
+| `revision`  | pinned commit SHA | Row ordering stable across upstream dataset updates                                                                                       |
 
 Passages are truncated at **sentence boundaries first, word boundaries as fallback** — avoiding mid-word cuts that waste tokens.
 
