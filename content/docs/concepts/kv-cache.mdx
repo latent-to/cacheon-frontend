@@ -5,7 +5,7 @@ description: How transformers reuse past work during decoding, why the cache gro
 
 ## The plain-English version
 
-Language models generate text one token at a time. To pick the next token, the model needs access to everything that came before in the sequence. Recomputing the past from scratch every step would be impossibly slow — so the model **caches** some of that work.
+Language models generate text one token at a time. To pick the next token, the model needs access to everything that came before in the sequence. Recalculating historical context from scratch at every step is too slow. Therefore, to optimize performance, the model caches intermediate states to minimize redundant processing.
 
 For each layer and each position already processed, the model stores two vectors per attention head:
 
@@ -51,7 +51,10 @@ Skip decompression entirely. Compute `Q @ K_compressed.T` directly, with a mathe
 TurboQuant is the canonical example: random rotation + 3-bit Lloyd-Max on keys, then `Q @ K_3bit.T + QJL_correction` in one fused step. Never materializes uncompressed keys.
 
 <Callout type="info" title="Which is more powerful?">
-Path 2 strictly dominates Path 1 — it saves both the memory of the decompressed buffer and the compute of decompression. But it requires the miner to own the attention math, not just the storage format. Cacheon's interface supports both.
+  Path 2 strictly dominates Path 1 — it saves both the memory of the
+  decompressed buffer and the compute of decompression. But it requires the
+  miner to own the attention math, not just the storage format. Cacheon's
+  interface supports both.
 </Callout>
 
 ## Why the cache is the right target

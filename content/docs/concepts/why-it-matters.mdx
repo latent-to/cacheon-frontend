@@ -7,8 +7,8 @@ description: In production, training is no longer the bottleneck — latency, me
 
 Most of the public attention on LLMs still goes to training. In production, the constraints that actually determine whether a model is usable are different:
 
-- **Latency** — tokens/sec and time-to-first-token. Users wait.
-- **Memory** — KV cache scaling with context length. More context, more memory.
+- **Latency** — tokens/sec and time-to-first-token. Users feel the delay.
+- **Memory** — KV cache scaling with context length. More context means more memory.
 - **Cost** — GPU utilization and serving efficiency. Dollars per million tokens.
 
 These are **inference-time** problems. Cacheon treats inference optimization as a search problem and asks the subnet to measure it in the open.
@@ -21,7 +21,7 @@ Every transformer model stores a key-value cache that grows linearly with sequen
 KV cache memory = 2 × num_layers × num_kv_heads × head_dim × seq_len × dtype_bytes
 ```
 
-At **100k tokens × 80 layers × `head_dim=128`** in FP16, the KV cache alone is **~80 GB**. That's an entire H100. You're out of memory before you start generating.
+At **100k tokens × 80 layers × `head_dim=128`** in FP16, the KV cache alone is **~80 GB**. That's the size of an entire NVIDIA H100 GPU. This means you run out of memory before you start generating.
 
 This is why longer context, larger batches, and cheaper serving all run into the same wall: the cache.
 
@@ -29,18 +29,20 @@ This is why longer context, larger batches, and cheaper serving all run into the
 
 There's no shortage of research on KV-cache optimization. What's missing is a shared, verifiable benchmark:
 
-| Approach        | What it does                              | Typical reported savings |
-| --------------- | ----------------------------------------- | ------------------------ |
-| H2O             | Evict tokens by attention importance      | 5–10× memory             |
-| SnapKV          | Compress by observation windows           | 4–8×                     |
-| KIVI            | 2-bit quantization of keys + values       | 4–6×                     |
-| TurboQuant      | Rotated 3-bit quantization + QJL scoring  | 8–10×                    |
-| StreamingLLM    | Keep first + last sliding window of tokens| 10× at long context      |
+| Approach     | What it does                               | Typical reported savings |
+| ------------ | ------------------------------------------ | ------------------------ |
+| H2O          | Evict tokens by attention importance       | 5–10× memory             |
+| SnapKV       | Compress by observation windows            | 4–8×                     |
+| KIVI         | 2-bit quantization of keys + values        | 4–6×                     |
+| TurboQuant   | Rotated 3-bit quantization + QJL scoring   | 8–10×                    |
+| StreamingLLM | Keep first + last sliding window of tokens | 10× at long context      |
 
-Each paper uses its own prompts, its own hardware, its own quality metric. **Numbers don't compare.** A team shipping production inference has no way to know which approach actually works for their workload.
+Each paper uses its own prompts, its own hardware, its own quality metric, so the **numbers don't compare.** Teams shipping production inference have no way to know which approach actually works for their specific workload.
 
 <Callout title="What Cacheon does">
-  Fix the model, fix the hardware, fix the prompts, fix the scoring — and let anyone submit a policy. The subnet produces an ordered leaderboard of policies that are apples-to-apples comparable.
+  Fix the model, fix the hardware, fix the prompts, fix the scoring — and let
+  anyone submit a policy. The subnet produces an ordered leaderboard of policies
+  that are apples-to-apples comparable.
 </Callout>
 
 ## What winning looks like

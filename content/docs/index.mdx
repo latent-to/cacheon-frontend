@@ -1,11 +1,11 @@
 ---
 title: Introduction
-description: Cacheon (Bittensor Subnet 14) is a live, on-chain competition for KV-cache optimization. Miners write code that makes a fixed LLM cheaper and faster without changing its answers.
+description: Cacheon (Bittensor Subnet 14) is a live, on-chain competition for KV-cache optimization. Miners develop optimizations that reduce the cost and latency of a fixed LLM without changing its outputs.
 ---
 
 **Cacheon** is Bittensor Subnet 14 (SN14). It is an open, on-chain competition for **inference-time optimization** of large language models.
 
-Miners submit a `KVCachePolicy` — a small Python class that controls how the model stores attention keys/values and how attention is computed against them. Validators run every submission against a fixed baseline on the same hardware and score it on **memory**, **latency**, and **output quality**. The best policy takes the throne; all emission flows to the king until someone beats them.
+Miners submit a `KVCachePolicy` — a small Python class that controls how the model stores attention keys/values and how the attention mechanism is computed against them. Validators run every submission against a fixed baseline on the same hardware and score it on **memory**, **latency**, and **output quality**. The best policy takes the throne; all emission flows to the king until someone beats them.
 
 <Callout title="TL;DR">
   - **Model**: Qwen2.5-7B-Instruct on H100 80GB
@@ -16,9 +16,9 @@ Miners submit a `KVCachePolicy` — a small Python class that controls how the m
 
 ## Why Cacheon exists
 
-Training is no longer the real bottleneck for serving LLMs — **inference** is. At 100k-token context across 80 layers with `head_dim=128`, the KV cache alone consumes ~80 GB in FP16. That's the wall.
+Training is no longer the real bottleneck for serving LLMs — **inference** is. At 100k-token context across 80 layers with a `head_dim` configuuration of `128`, the KV cache alone consumes ~80 GB in FP16. That's the [memory wall](./concepts/why-it-matters#the-memory-wall).
 
-There's a lot of research on KV-cache optimization (H2O, SnapKV, KIVI, TurboQuant, StreamingLLM), but everything is benchmarked differently and results don't compare. Cacheon turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring.
+There's a lot of research on KV-cache optimization (H2O, SnapKV, KIVI, TurboQuant, StreamingLLM), but all of these are benchmarked differently and results are difficult to compare. Cacheon turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring.
 
 See [Why it matters](/docs/concepts/why-it-matters) for the full problem statement.
 
@@ -51,7 +51,7 @@ See [Why it matters](/docs/concepts/why-it-matters) for the full problem stateme
 
 - **Not a training subnet.** Weights are fixed at `Qwen2.5-7B-Instruct`. You do not finetune.
 - **Not a general inference subnet.** V1 is scoped to the **KV cache path only**. Attention mechanism redesigns and custom CUDA kernels are out of bounds in V1.
-- **Not a free hyperparameter search.** One commitment per hotkey. Test locally before you register.
+- **Not a free hyperparameter search.** Miners are limited to one commitment per hotkey. Test locally before you register.
 
 ## Useful links
 
