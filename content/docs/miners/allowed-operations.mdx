@@ -40,7 +40,7 @@ V1 is scoped deliberately narrowly. Two things define the perimeter: the scoring
 
 | Operation                            | Why blocked                                                                 |
 | ------------------------------------ | --------------------------------------------------------------------------- |
-| Model weight changes / finetuning    | Violates "fixed model" premise — eval no longer comparable                  |
+| Model weight changes / finetuning    | Violates fixed "global model" premise — eval no longer comparable                  |
 | Attention mechanism redesign         | Outside the scope of KV-cache optimization                                  |
 | Replacing `Qwen2.5-7B` with anything else | V1 is model-pinned                                                       |
 
