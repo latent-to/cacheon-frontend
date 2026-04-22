@@ -113,10 +113,10 @@ Any failure → `CheckResult(ok=False, reason=...)` and the submission is scored
 
 ## Why two layers
 
-| Layer   | Role                   | What it catches                                               |
-| ------- | ---------------------- | ------------------------------------------------------------- |
-| Layer 1 | Fast feedback          | Most accidental or sloppy submissions. Clear error messages.  |
-| Layer 2 | Security boundary      | Everything Layer 1 misses. OS-level guarantees.               |
+| Layer   | Role              | What it catches                                              |
+| ------- | ----------------- | ------------------------------------------------------------ |
+| Layer 1 | Fast feedback     | Most accidental or sloppy submissions. Clear error messages. |
+| Layer 2 | Security boundary | Everything Layer 1 misses. OS-level guarantees.              |
 
 A single layer doesn't work:
 
@@ -133,12 +133,12 @@ V2 will add Triton support with additional isolation (likely: static analysis of
 
 ## Decisions at a glance
 
-| Decision                       | Why                                                                 |
-| ------------------------------ | ------------------------------------------------------------------- |
-| Two layers (AST + subprocess)  | Neither alone is sufficient. Layer 1 = feedback, Layer 2 = boundary. |
-| firejail over containers       | Lighter-weight, more Unix-native, fewer surprises than Docker-in-validator. |
-| `--net=none`                   | Miners cannot exfiltrate anything. No "check in with my server" patterns. |
-| `super()`/`type()`/`dir()` allowed | Standard Python. OS isolation makes AST-level paranoia unnecessary. |
-| Triton blocked in V1           | Sandboxing GPU kernels is its own project. PyTorch is enough.        |
+| Decision                           | Why                                                                         |
+| ---------------------------------- | --------------------------------------------------------------------------- |
+| Two layers (AST + subprocess)      | Neither alone is sufficient. Layer 1 = feedback, Layer 2 = boundary.        |
+| firejail over containers           | Lighter-weight, more Unix-native, fewer surprises than Docker-in-validator. |
+| `--net=none`                       | Miners cannot exfiltrate anything. No "check in with my server" patterns.   |
+| `super()`/`type()`/`dir()` allowed | Standard Python. OS isolation makes AST-level paranoia unnecessary.         |
+| Triton blocked in V1               | Sandboxing GPU kernels is its own project. PyTorch is enough.               |
 
 See [Inference engine](/docs/architecture/inference-engine) for how sandbox + runner fit into the full eval pipeline.

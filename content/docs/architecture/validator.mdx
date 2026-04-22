@@ -107,13 +107,13 @@ The pod has no wallet keys. It cannot read the chain. It receives prompts + poli
 
 Things that can go wrong mid-eval and how the loop handles them:
 
-| Failure                              | Handling                                                       |
-| ------------------------------------ | -------------------------------------------------------------- |
-| Pod is unreachable                   | `ssh_run` raises → caught by outer `try` → sleep 360, retry    |
-| Pod crashes mid-eval                 | Partial results in `results.json` → loop takes what's there, retries rest next epoch |
-| Individual policy crashes            | Sandbox runner catches it → `disqualified = True`, score = 0   |
-| `set_weights` fails                  | Caught → log → sleep 360 → retry next epoch                    |
-| Chain returns stale metagraph        | `evaluated_set` dedupes; no harm                               |
+| Failure                       | Handling                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------ |
+| Pod is unreachable            | `ssh_run` raises → caught by outer `try` → sleep 360, retry                          |
+| Pod crashes mid-eval          | Partial results in `results.json` → loop takes what's there, retries rest next epoch |
+| Individual policy crashes     | Sandbox runner catches it → `disqualified = True`, score = 0                         |
+| `set_weights` fails           | Caught → log → sleep 360 → retry next epoch                                          |
+| Chain returns stale metagraph | `evaluated_set` dedupes; no harm                                                     |
 
 The philosophy is "fail forward slowly." Transient failures back off to 360s and retry. Persistent failures show up in logs loud and clear.
 
@@ -127,11 +127,11 @@ No partial weights, no smoothing. If a challenger dethrones the king, the transi
 
 The validator is Phase 5 of the build. Current state:
 
-| Part | Scope                                                           | Status |
-| ---- | --------------------------------------------------------------- | ------ |
-| A    | Validator loop, state, challenger selection, set_weights         | ✅ Complete |
-| B    | GPU eval transport — `pod_eval.py` + SSH client on CPU side     | 🔲 In progress |
-| C    | Read-only monitoring API (`/leaderboard`, `/scores/{hotkey}`)   | 🔲 Pending |
+| Part | Scope                                                         | Status         |
+| ---- | ------------------------------------------------------------- | -------------- |
+| A    | Validator loop, state, challenger selection, set_weights      | ✅ Complete    |
+| B    | GPU eval transport — `pod_eval.py` + SSH client on CPU side   | 🔲 In progress |
+| C    | Read-only monitoring API (`/leaderboard`, `/scores/{hotkey}`) | 🔲 Pending     |
 
 Phase A works end-to-end with a stubbed `eval_fn` — the loop logic, state persistence, and weight-setting are all exercised. Part B wires it to real GPU inference.
 

@@ -14,10 +14,9 @@ Cacheon uses a **king-of-the-hill** incentive. There is always one reigning cham
 5. A challenger who beats the king's score takes the throne. Weights are updated: `winner = 1.0`, everyone else `= 0.0`.
 
 <Callout title="GPU time is only spent when something changed">
-  If nobody has registered a new policy since the last round, no inference runs.
-  The king keeps its emission and the validator simply re-sets the same weights
-  and sleeps. This is the only way the cost model works — GPU eval at 32K
-  context is minutes of H100 time per policy.
+  If nobody has registered a new policy since the last round, no inference runs. The king keeps its
+  emission and the validator simply re-sets the same weights and sleeps. This is the only way the
+  cost model works — GPU eval at 32K context is minutes of H100 time per policy.
 </Callout>
 
 ## Winner-take-all vs. top-N split

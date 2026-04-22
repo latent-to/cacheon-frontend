@@ -22,9 +22,5 @@
       "~/*": ["./app/*"]
     }
   },
-  "include": [
-    "workers",
-    "worker-configuration.d.ts",
-    ".react-router/types/+server-build.d.ts"
-  ]
+  "include": ["workers", "worker-configuration.d.ts", ".react-router/types/+server-build.d.ts"]
 }
