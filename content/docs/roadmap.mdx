@@ -23,13 +23,13 @@ The point of V1 is to prove the loop: someone submits a policy on-chain, the har
 
 ### V1 build phases
 
-| Phase         | What                                                                                              | Status |
-| ------------- | ------------------------------------------------------------------------------------------------- | ------ |
-| 1 — Harness   | Load Qwen2.5-7B, monkey-patch attention, passthrough policy, prefill + decode, logits + metrics | ✅ Complete |
-| 2 — Scoring   | KL, memory delta, latency delta → `ScoreResult`                                                   | ✅ Complete |
-| 3 — Sandbox   | AST analysis + firejail subprocess isolation + output validation                                  | ✅ Complete |
-| 4 — Prompts   | Block-hash seeded PG19 sampling                                                                   | ✅ Complete |
-| 5 — Validator | CPU server loop + GPU eval transport + monitoring API                                             | 🟡 In progress |
+| Phase         | What                                                                                            | Status         |
+| ------------- | ----------------------------------------------------------------------------------------------- | -------------- |
+| 1 — Harness   | Load Qwen2.5-7B, monkey-patch attention, passthrough policy, prefill + decode, logits + metrics | ✅ Complete    |
+| 2 — Scoring   | KL, memory delta, latency delta → `ScoreResult`                                                 | ✅ Complete    |
+| 3 — Sandbox   | AST analysis + firejail subprocess isolation + output validation                                | ✅ Complete    |
+| 4 — Prompts   | Block-hash seeded PG19 sampling                                                                 | ✅ Complete    |
+| 5 — Validator | CPU server loop + GPU eval transport + monitoring API                                           | 🟡 In progress |
 
 Phase 5 Part A (loop) is done. Parts B (SSH transport to GPU pod) and C (read-only API) are in progress.
 

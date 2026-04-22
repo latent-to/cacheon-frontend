@@ -1,34 +1,31 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from 'react'
 
-const FaultyTerminal = lazy(() => import("./FaultyTerminal"));
+const FaultyTerminal = lazy(() => import('./FaultyTerminal'))
 
 function ClientOnly({ children }: { children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  return mounted ? <>{children}</> : null;
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  return mounted ? <>{children}</> : null
 }
 
 const FEATURES = [
   {
-    title: "KV cache competition",
-    body: "Compete to optimize how models store attention memory. King of the hill, winner-take-all.",
+    title: 'KV cache competition',
+    body: 'Compete to optimize how models store attention memory. King of the hill, winner-take-all.',
   },
   {
-    title: "Open & auditable",
-    body: "Commitments and scoring live on-chain so progress and rankings stay transparent to the community.",
+    title: 'Open & auditable',
+    body: 'Commitments and scoring live on-chain so progress and rankings stay transparent to the community.',
   },
   {
-    title: "From competition to product",
-    body: "Turn winning policies into ready-to-deploy configs for vLLM, Hugging Face, and beyond.",
+    title: 'From competition to product',
+    body: 'Turn winning policies into ready-to-deploy configs for vLLM, Hugging Face, and beyond.',
   },
-];
+]
 
 export default function Hero() {
   return (
-    <section
-      id="hero"
-      className="relative flex min-h-screen flex-col overflow-hidden"
-    >
+    <section id="hero" className="relative flex min-h-screen flex-col overflow-hidden">
       {/* WebGL terminal background (client-only) */}
       <div className="absolute inset-0 z-0">
         <ClientOnly>
@@ -58,19 +55,19 @@ export default function Hero() {
 
       {/* Readability scrim */}
       <div
-        className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-bg/90 via-bg/70 to-bg"
+        className="from-bg/90 via-bg/70 to-bg pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b"
         aria-hidden
       />
 
       {/* Hero content — vertically centered in viewport */}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-24 pb-0 text-center">
         {/* Pill */}
-        <div className="mb-8 inline-flex items-center rounded-full border border-accent/40 bg-accent-surface px-3.5 py-1 font-mono text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-accent">
+        <div className="border-accent/40 bg-accent-surface text-accent mb-8 inline-flex items-center rounded-full border px-3.5 py-1 font-mono text-[0.62rem] font-semibold tracking-[0.22em] uppercase">
           Bittensor subnet · SN14
         </div>
 
         {/* Headline — three beats, one size; accent bookends + primary center */}
-        <h1 className="mb-6 max-w-[min(100%,48rem)] text-balance font-mono text-[clamp(1.75rem,4.6vw,3.15rem)] font-extrabold leading-[1.22] tracking-tight">
+        <h1 className="mb-6 max-w-[min(100%,48rem)] font-mono text-[clamp(1.75rem,4.6vw,3.15rem)] leading-[1.22] font-extrabold tracking-tight text-balance">
           <span className="text-accent [text-shadow:0_0_32px_rgba(45,212,191,0.18)]">
             Faster Inference
           </span>
@@ -83,24 +80,22 @@ export default function Hero() {
         </h1>
 
         {/* Sub-copy */}
-        <p className="mb-10 max-w-xl font-sans text-base leading-[1.65] text-secondary sm:text-lg sm:leading-[1.6]">
-          KV cache has been the bottleneck for LLM inference at scale.{" "}
-          <span className="text-primary font-medium">Cacheon</span> turns it
-          into a live competition: submit a smarter memory policy, beat the
-          reigning champion, and earn{" "}
+        <p className="text-secondary mb-10 max-w-xl font-sans text-base leading-[1.65] sm:text-lg sm:leading-[1.6]">
+          KV cache has been the bottleneck for LLM inference at scale.{' '}
+          <span className="text-primary font-medium">Cacheon</span> turns it into a live
+          competition: submit a smarter memory policy, beat the reigning champion, and earn{' '}
           <span className="group relative inline-block">
-            <span className="cursor-help whitespace-nowrap border-b border-dotted border-primary/45 text-primary font-medium">
+            <span className="border-primary/45 text-primary cursor-help border-b border-dotted font-medium whitespace-nowrap">
               up to 28 TAO
             </span>
             <span
               role="tooltip"
-              className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 break-words rounded-md border border-border bg-surface/95 px-3 py-2 text-xs text-secondary opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+              className="border-border bg-surface/95 text-secondary pointer-events-none absolute top-full left-1/2 z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-md border px-3 py-2 text-xs break-words opacity-0 shadow-md transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100"
             >
-              Rewards are paid in SN14 tokens. Both the SN14/TAO price and the
-              TAO/USD (and other fiat) exchange rates fluctuate, so fiat values
-              will vary over time.
+              Rewards are paid in SN14 tokens. Both the SN14/TAO price and the TAO/USD (and other
+              fiat) exchange rates fluctuate, so fiat values will vary over time.
             </span>
-          </span>{" "}
+          </span>{' '}
           per day.
         </p>
 
@@ -110,7 +105,7 @@ export default function Hero() {
             href="https://github.com/latent-to/cacheon"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-md bg-btn-primary px-6 py-2.5 font-sans text-[0.92rem] font-semibold text-btn-primary-fg no-underline transition-opacity hover:opacity-85"
+            className="bg-btn-primary text-btn-primary-fg inline-flex items-center gap-2 rounded-md px-6 py-2.5 font-sans text-[0.92rem] font-semibold no-underline transition-opacity hover:opacity-85"
           >
             Read the docs <span aria-hidden>→</span>
           </a>
@@ -118,7 +113,7 @@ export default function Hero() {
             href="https://discord.gg/bittensor"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-md border border-border/80 bg-surface/60 px-6 py-2.5 font-sans text-[0.92rem] font-medium text-primary backdrop-blur-sm no-underline transition-colors hover:border-border hover:bg-surface"
+            className="border-border/80 bg-surface/60 text-primary hover:border-border hover:bg-surface inline-flex items-center gap-2 rounded-md border px-6 py-2.5 font-sans text-[0.92rem] font-medium no-underline backdrop-blur-sm transition-colors"
           >
             Join Discord
           </a>
@@ -126,14 +121,14 @@ export default function Hero() {
       </div>
 
       {/* Feature strip — pinned to the bottom of the viewport */}
-      <div className="relative z-10 mt-auto px-6 pb-12 pt-10 sm:px-8 lg:px-10">
-        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-y-10 border-t border-border/40 pt-10 sm:grid-cols-3 sm:gap-x-12 sm:gap-y-8 lg:gap-x-16 xl:gap-x-20">
+      <div className="relative z-10 mt-auto px-6 pt-10 pb-12 sm:px-8 lg:px-10">
+        <div className="border-border/40 mx-auto grid max-w-6xl grid-cols-1 gap-y-10 border-t pt-10 sm:grid-cols-3 sm:gap-x-12 sm:gap-y-8 lg:gap-x-16 xl:gap-x-20">
           {FEATURES.map((f) => (
             <div key={f.title} className="text-center sm:px-2 lg:px-4">
-              <h2 className="mb-2 font-mono text-[0.8rem] font-semibold uppercase tracking-[0.16em] text-primary sm:text-[0.85rem]">
+              <h2 className="text-primary mb-2 font-mono text-[0.8rem] font-semibold tracking-[0.16em] uppercase sm:text-[0.85rem]">
                 {f.title}
               </h2>
-              <p className="font-sans text-[0.95rem] leading-[1.6] text-secondary sm:text-base sm:leading-[1.55]">
+              <p className="text-secondary font-sans text-[0.95rem] leading-[1.6] sm:text-base sm:leading-[1.55]">
                 {f.body}
               </p>
             </div>
@@ -141,5 +136,5 @@ export default function Hero() {
         </div>
       </div>
     </section>
-  );
+  )
 }

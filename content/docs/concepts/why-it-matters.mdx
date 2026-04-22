@@ -29,18 +29,20 @@ This is why longer context, larger batches, and cheaper serving all run into the
 
 There's no shortage of research on KV-cache optimization. What's missing is a shared, verifiable benchmark:
 
-| Approach        | What it does                              | Typical reported savings |
-| --------------- | ----------------------------------------- | ------------------------ |
-| H2O             | Evict tokens by attention importance      | 5–10× memory             |
-| SnapKV          | Compress by observation windows           | 4–8×                     |
-| KIVI            | 2-bit quantization of keys + values       | 4–6×                     |
-| TurboQuant      | Rotated 3-bit quantization + QJL scoring  | 8–10×                    |
-| StreamingLLM    | Keep first + last sliding window of tokens| 10× at long context      |
+| Approach     | What it does                               | Typical reported savings |
+| ------------ | ------------------------------------------ | ------------------------ |
+| H2O          | Evict tokens by attention importance       | 5–10× memory             |
+| SnapKV       | Compress by observation windows            | 4–8×                     |
+| KIVI         | 2-bit quantization of keys + values        | 4–6×                     |
+| TurboQuant   | Rotated 3-bit quantization + QJL scoring   | 8–10×                    |
+| StreamingLLM | Keep first + last sliding window of tokens | 10× at long context      |
 
 Each paper uses its own prompts, its own hardware, its own quality metric. **Numbers don't compare.** A team shipping production inference has no way to know which approach actually works for their workload.
 
 <Callout title="What Cacheon does">
-  Fix the model, fix the hardware, fix the prompts, fix the scoring — and let anyone submit a policy. The subnet produces an ordered leaderboard of policies that are apples-to-apples comparable.
+  Fix the model, fix the hardware, fix the prompts, fix the scoring — and let anyone submit a
+  policy. The subnet produces an ordered leaderboard of policies that are apples-to-apples
+  comparable.
 </Callout>
 
 ## What winning looks like

@@ -7,17 +7,17 @@ The `inference_engine` package is the evaluation core. It owns the policy contra
 
 ## Module map
 
-| Module             | Role                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------- |
-| `policy.py`        | Defines the `KVCachePolicy` contract. Re-exports `CacheConfig`, `AttentionOutput`.    |
-| `passthrough.py`   | Reference implementation of `KVCachePolicy`. The baseline every miner is compared to. |
-| `harness.py`       | Loads the model, monkey-patches attention, runs inference, collects metrics.          |
-| `scoring.py`       | Compares two `RunResult`s → `ScoreResult`.                                            |
-| `sandbox.py`       | Layer 1 — static AST analysis. Rejects unsafe source before execution.                |
-| `runner.py`        | Layer 2 — subprocess isolation (firejail on Linux). Runs accepted policies.           |
-| `prompts.py`       | `sample_prompts(block_hash, n)` — deterministic PG19 passage sampling.                |
-| `__init__.py`      | Public surface: `KVCachePolicy`, `CacheConfig`, `AttentionOutput`, `PassthroughPolicy`, `Harness`, `RunResult`, `sample_prompts`. |
-| `__main__.py`      | `python -m inference_engine` — loads 7B, runs `verify()`, prints baseline metrics.   |
+| Module           | Role                                                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `policy.py`      | Defines the `KVCachePolicy` contract. Re-exports `CacheConfig`, `AttentionOutput`.                                                |
+| `passthrough.py` | Reference implementation of `KVCachePolicy`. The baseline every miner is compared to.                                             |
+| `harness.py`     | Loads the model, monkey-patches attention, runs inference, collects metrics.                                                      |
+| `scoring.py`     | Compares two `RunResult`s → `ScoreResult`.                                                                                        |
+| `sandbox.py`     | Layer 1 — static AST analysis. Rejects unsafe source before execution.                                                            |
+| `runner.py`      | Layer 2 — subprocess isolation (firejail on Linux). Runs accepted policies.                                                       |
+| `prompts.py`     | `sample_prompts(block_hash, n)` — deterministic PG19 passage sampling.                                                            |
+| `__init__.py`    | Public surface: `KVCachePolicy`, `CacheConfig`, `AttentionOutput`, `PassthroughPolicy`, `Harness`, `RunResult`, `sample_prompts`. |
+| `__main__.py`    | `python -m inference_engine` — loads 7B, runs `verify()`, prints baseline metrics.                                                |
 
 ## Core data types
 
@@ -227,11 +227,11 @@ Same block hash always produces the same passage list. Auditable — anyone with
 
 Defaults:
 
-| Parameter   | Value        | Why                                                       |
-| ----------- | ------------ | --------------------------------------------------------- |
-| `max_chars` | 131,072      | ~32K tokens; KV cache reaches ~1.8 GB (~12% of peak)      |
-| `min_chars` | 1,000        | Filters out PG19 frontmatter, chapter headers, OCR cruft  |
-| `revision`  | pinned SHA   | Row ordering stable across dataset updates                |
+| Parameter   | Value      | Why                                                      |
+| ----------- | ---------- | -------------------------------------------------------- |
+| `max_chars` | 131,072    | ~32K tokens; KV cache reaches ~1.8 GB (~12% of peak)     |
+| `min_chars` | 1,000      | Filters out PG19 frontmatter, chapter headers, OCR cruft |
+| `revision`  | pinned SHA | Row ordering stable across dataset updates               |
 
 ## Public surface
 

@@ -130,7 +130,8 @@ subtensor.set_reveal_commitment(
 ```
 
 <Callout type="warn" title="One commitment per hotkey">
-  This hotkey now permanently points to this commit. To submit a new policy, register a new hotkey. See [Competition model](/docs/concepts/competition-model#one-commitment-per-hotkey) for why.
+  This hotkey now permanently points to this commit. To submit a new policy, register a new hotkey.
+  See [Competition model](/docs/concepts/competition-model#one-commitment-per-hotkey) for why.
 </Callout>
 
 ## 6. Wait for eval
@@ -144,7 +145,7 @@ Check your status:
 
 ## Common pitfalls
 
-- **Forgot RoPE.** Qwen applies rotary position embeddings to Q/K *before* your `write()` is called. If your policy internally rotates them again, attention breaks. The harness delivers post-RoPE tensors — just store them.
+- **Forgot RoPE.** Qwen applies rotary position embeddings to Q/K _before_ your `write()` is called. If your policy internally rotates them again, attention breaks. The harness delivers post-RoPE tensors — just store them.
 - **GQA shapes.** `Qwen2.5-7B` has `num_kv_heads=4` (not 28). K and V come in with `num_kv_heads` on dim 1, Q with `num_heads=28`. Don't assume they match.
 - **`seq_len=1` on decode.** During decode, `write()` receives a single new token's K/V. Your cache needs to grow, not replace. `attend()` is called with `q_len=1` and needs to attend over the full accumulated cache.
 - **Self-reported memory is not the score.** `memory_bytes()` is informational; the actual memory score uses `torch.cuda.max_memory_allocated()`. A large discrepancy flags the submission.

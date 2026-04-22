@@ -64,7 +64,9 @@ peak = torch.cuda.max_memory_allocated()
 Your policy's `memory_bytes()` method is **informational only** — the harness records it, but it doesn't affect your score. A large discrepancy between self-reported and measured memory flags the submission for manual review.
 
 <Callout type="warn" title="Peak memory, not average">
-  Compressing K/V for storage but decompressing to FP16 before `attend()` means your peak memory is almost identical to baseline — the decompressed buffer dominates. **Fused scoring against the compressed form** (TurboQuant path) is the only way to win the memory axis decisively.
+  Compressing K/V for storage but decompressing to FP16 before `attend()` means your peak memory is
+  almost identical to baseline — the decompressed buffer dominates. **Fused scoring against the
+  compressed form** (TurboQuant path) is the only way to win the memory axis decisively.
 </Callout>
 
 ### Why memory gets 60%
@@ -93,11 +95,11 @@ But latency has other contributors Cacheon doesn't control in V1 — scheduling,
 
 ## Disqualification vs. low score
 
-| Outcome           | Cause                                             | What happens                  |
-| ----------------- | ------------------------------------------------- | ----------------------------- |
-| **Disqualified**  | KL > 0.1, NaN/Inf in logits, invalid output shape | `score = 0`, not a challenger |
-| **Low score**     | Passes KL gate but doesn't beat king              | Recorded, not king            |
-| **Wins**          | Passes KL, beats king's score                     | New king, takes all emission  |
+| Outcome          | Cause                                             | What happens                  |
+| ---------------- | ------------------------------------------------- | ----------------------------- |
+| **Disqualified** | KL > 0.1, NaN/Inf in logits, invalid output shape | `score = 0`, not a challenger |
+| **Low score**    | Passes KL gate but doesn't beat king              | Recorded, not king            |
+| **Wins**         | Passes KL, beats king's score                     | New king, takes all emission  |
 
 A disqualified submission still burns the hotkey — you can't re-register the same hotkey with different code. That's the commitment pressure.
 

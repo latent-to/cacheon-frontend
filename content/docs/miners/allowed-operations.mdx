@@ -38,19 +38,19 @@ V1 is scoped deliberately narrowly. Two things define the perimeter: the scoring
 
 ### Model or architecture changes
 
-| Operation                            | Why blocked                                                                 |
-| ------------------------------------ | --------------------------------------------------------------------------- |
-| Model weight changes / finetuning    | Violates fixed "global model" premise — eval no longer comparable                  |
-| Attention mechanism redesign         | Outside the scope of KV-cache optimization                                  |
-| Replacing `Qwen2.5-7B` with anything else | V1 is model-pinned                                                       |
+| Operation                                 | Why blocked                                                       |
+| ----------------------------------------- | ----------------------------------------------------------------- |
+| Model weight changes / finetuning         | Violates fixed "global model" premise — eval no longer comparable |
+| Attention mechanism redesign              | Outside the scope of KV-cache optimization                        |
+| Replacing `Qwen2.5-7B` with anything else | V1 is model-pinned                                                |
 
 ### Infrastructure scope
 
-| Operation                            | Why blocked                                                                 |
-| ------------------------------------ | --------------------------------------------------------------------------- |
-| Batching- or scheduling-level changes | Outside the KV path — V2 roadmap item                                      |
+| Operation                             | Why blocked                                                                   |
+| ------------------------------------- | ----------------------------------------------------------------------------- |
+| Batching- or scheduling-level changes | Outside the KV path — V2 roadmap item                                         |
 | Custom CUDA kernels                   | Sandboxing cost not worth it in V1 — PyTorch ops can implement the algorithms |
-| **Triton kernels**                    | Same — Triton unlocks in V2 with additional isolation                      |
+| **Triton kernels**                    | Same — Triton unlocks in V2 with additional isolation                         |
 
 ### Import restrictions (enforced by sandbox)
 
@@ -74,7 +74,9 @@ V1 is scoped deliberately narrowly. Two things define the perimeter: the scoring
 Bare calls to any of: `eval`, `exec`, `compile`, `open`, `input`, `breakpoint`, `__import__`, `getattr`, `setattr`, `delattr`, `globals`, `locals`, `vars`.
 
 <Callout type="info" title="What's NOT blocked">
-  `super()`, `type()`, `dir()` are explicitly allowed — they're standard Python patterns that miners legitimately need. The OS-level sandbox (firejail on the CPU validator) is the actual security boundary; AST-level checks are a fast-feedback tool, not the last line of defense.
+  `super()`, `type()`, `dir()` are explicitly allowed — they're standard Python patterns that miners
+  legitimately need. The OS-level sandbox (firejail on the CPU validator) is the actual security
+  boundary; AST-level checks are a fast-feedback tool, not the last line of defense.
 </Callout>
 
 ## Quality requirements (enforced by scoring)

@@ -51,7 +51,9 @@ Skip decompression entirely. Compute `Q @ K_compressed.T` directly, with a mathe
 TurboQuant is the canonical example: random rotation + 3-bit Lloyd-Max on keys, then `Q @ K_3bit.T + QJL_correction` in one fused step. Never materializes uncompressed keys.
 
 <Callout type="info" title="Which is more powerful?">
-Path 2 strictly dominates Path 1 — it saves both the memory of the decompressed buffer and the compute of decompression. But it requires the miner to own the attention math, not just the storage format. Cacheon's interface supports both.
+  Path 2 strictly dominates Path 1 — it saves both the memory of the decompressed buffer and the
+  compute of decompression. But it requires the miner to own the attention math, not just the
+  storage format. Cacheon's interface supports both.
 </Callout>
 
 ## Why the cache is the right target

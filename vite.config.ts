@@ -1,14 +1,11 @@
-import { reactRouter } from "@react-router/dev/vite";
-import { cloudflare } from "@cloudflare/vite-plugin";
-import tailwindcss from "@tailwindcss/vite";
-import mdx from "fumadocs-mdx/vite";
-import { defineConfig } from "vite";
-import * as MdxConfig from "./source.config";
+import { reactRouter } from '@react-router/dev/vite'
+import { cloudflare } from '@cloudflare/vite-plugin'
+import tailwindcss from '@tailwindcss/vite'
+import mdx from 'fumadocs-mdx/vite'
+import { defineConfig } from 'vite'
+import * as MdxConfig from './source.config'
 
-const fumadocsDeps = [
-  "fumadocs-core/source/client",
-  "fumadocs-core/search/server",
-];
+const fumadocsDeps = ['fumadocs-core/source/client', 'fumadocs-core/search/server']
 
 export default defineConfig({
   resolve: {
@@ -24,8 +21,8 @@ export default defineConfig({
   },
   plugins: [
     mdx(MdxConfig),
-    cloudflare({ viteEnvironment: { name: "ssr" } }),
+    cloudflare({ viteEnvironment: { name: 'ssr' } }),
     tailwindcss(),
     reactRouter(),
   ],
-});
+})

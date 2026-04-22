@@ -46,7 +46,7 @@ class Int8Policy(KVCachePolicy):
 
 **Expected result**: ~2× memory reduction (16-bit → 8-bit plus scale overhead). Latency roughly neutral — you pay a dequant cost but cut memory bandwidth by half, and those mostly cancel.
 
-**Why it's a weak submission**: Path 1 (decompress-before-score) leaves the full-precision buffer in memory during attend. Your *peak* memory isn't much better than FP16. Path 2 does the math against the compressed form and wins on both axes.
+**Why it's a weak submission**: Path 1 (decompress-before-score) leaves the full-precision buffer in memory during attend. Your _peak_ memory isn't much better than FP16. Path 2 does the math against the compressed form and wins on both axes.
 
 ## H2O eviction
 

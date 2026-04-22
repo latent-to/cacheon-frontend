@@ -1,12 +1,4 @@
 {
   "title": "Cacheon Docs",
-  "pages": [
-    "index",
-    "concepts",
-    "miners",
-    "evaluation",
-    "architecture",
-    "roadmap",
-    "decisions"
-  ]
+  "pages": ["index", "concepts", "miners", "evaluation", "architecture", "roadmap", "decisions"]
 }
