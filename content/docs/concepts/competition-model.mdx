@@ -1,0 +1,65 @@
+---
+title: Competition model
+description: King-of-the-hill with winner-take-all emission. One commitment per hotkey. GPU eval only runs when new challengers exist.
+---
+
+Cacheon uses a **king-of-the-hill** incentive. There is always one reigning champion — the miner with the best score on record. **All subnet emission flows to the king.** Challengers compete to dethrone them.
+
+## How a round works
+
+1. The validator scans on-chain commitments on every epoch (~360s).
+2. Any hotkey with a revealed commitment that hasn't been evaluated yet is a **challenger**.
+3. If there are no challengers, the king keeps its weight, no GPU runs, and the loop sleeps.
+4. If challengers exist, the validator dispatches eval jobs and compares scores.
+5. A challenger who beats the king's score takes the throne. Weights are updated: `winner = 1.0`, everyone else `= 0.0`.
+
+<Callout title="GPU time is only spent when something changed">
+If nobody has registered a new policy since the last round, no inference runs. The king keeps its emission and the validator simply re-sets the same weights and sleeps. This is the only way the cost model works — GPU eval at 32K context is minutes of H100 time per policy.
+</Callout>
+
+## Winner-take-all vs. top-N split
+
+Top-N split (e.g. 60/25/10/5%) is the usual Bittensor pattern. Cacheon explicitly rejects it:
+
+- **Winner-take-all** creates a sharp optimization target. Miners optimize for "better than the king," period.
+- **Top-N** blurs the signal. Miners optimize for "good enough to be top-4," which produces slower convergence toward the true frontier.
+
+The goal is to find the best policy, not to keep a stable of similar ones.
+
+## One commitment per hotkey
+
+Each hotkey gets **exactly one policy**. To submit a new policy, register a new hotkey.
+
+This is a deliberate design choice:
+
+- **Commitment pressure.** Every submission costs something (registration fee + time). You will test locally before registering.
+- **Clean on-chain record.** One hotkey maps to one policy version, at one pinned commit. No ambiguity about which code produced which score.
+
+Unlimited resubmission would turn the subnet into a free hyperparameter search service. We're not that.
+
+## What validators score on
+
+Each evaluation round computes three numbers per challenger:
+
+| Axis             | How it's measured                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------- |
+| Quality (KL)     | Avg per-token KL divergence between baseline and miner logits. Hard gate at `0.1`. |
+| Memory reduction | `(baseline_mem - miner_mem) / baseline_mem`, clamped `[-1, 1]`                     |
+| Latency gain     | `(baseline_latency - miner_latency) / baseline_latency`, clamped `[-1, 1]`         |
+
+The final score is:
+
+```python
+if kl_divergence > 0.1:
+    score = 0.0
+else:
+    score = 0.6 * memory_reduction + 0.4 * latency_improvement
+```
+
+See [Scoring](/docs/evaluation/scoring) for the full rationale on the 60/40 split and why the KL gate is hard-reject rather than soft-penalty.
+
+## Who sets weights
+
+V1 runs a single validator (the subnet owner). Other validator hotkeys may exist on-chain and set their own weights independently, but in practice nobody else runs independent eval — it requires matching hardware and methodology. Decentralized eval is on the [V2 roadmap](/docs/roadmap) via verifiable rollouts.
+
+See [Architecture: validator](/docs/architecture/validator) for the CPU/GPU split and why it exists.

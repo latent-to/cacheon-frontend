@@ -1,0 +1,138 @@
+---
+title: Validator
+description: The CPU-side loop. Scan chain, pre-check new submissions, SSH to the GPU pod for eval, update king, set weights.
+---
+
+The validator is a single Python program on a CPU server. It runs forever. There is no FastAPI in the weight-setting path — just direct Python calls to subtensor.
+
+## The loop
+
+```python
+while True:
+    try:
+        # 1. Read chain
+        metagraph = subtensor.metagraph(netuid=14)
+        commitments = subtensor.get_all_revealed_commitments(netuid=14)
+
+        # 2. Identify challengers
+        challengers = [
+            c for c in commitments
+            if (c.hotkey, c.block) not in state.evaluated_set
+        ]
+
+        # 3. Sandbox-precheck (fast feedback — AST only)
+        challengers = [c for c in challengers if sandbox.check(c.source).ok]
+
+        # 4. If nothing new, hold the king
+        if not challengers:
+            subtensor.set_weights(
+                uids=[state.king.uid], weights=[1.0],
+                other_uids_zeroed=True,
+            )
+            time.sleep(360)
+            continue
+
+        # 5. Dispatch to GPU pod
+        results = eval_fn(challengers, block_hash=current_block_hash)
+
+        # 6. Update king
+        for r in results:
+            state.record(r)
+            if r.score > state.king.score:
+                state.king = r
+
+        # 7. Set weights
+        subtensor.set_weights(
+            uids=[state.king.uid], weights=[1.0],
+            other_uids_zeroed=True,
+        )
+
+    except Exception as e:
+        log.exception(e)
+        time.sleep(360)
+```
+
+`eval_fn` is injected — it's the SSH transport to the GPU pod. The whole loop is testable with a fake `eval_fn` that returns fixed scores.
+
+## State
+
+The validator persists a small amount of state to disk (atomic JSON writes):
+
+```
+ValidatorState
+  king                CurrentKing          — uid, hotkey, score, block when crowned
+  evaluated_set       set[(hotkey, block)]  — what's been scored
+  score_history       dict[hotkey, list]    — per-hotkey score trail
+```
+
+Full field-level reference (including `EvaluationRecord`, `KingRecord`, and wire types): [Data contracts](/docs/architecture/data-contracts).
+
+This is **not** the truth of the leaderboard — the chain is. State is a local cache that lets the loop answer "have I seen this commitment before?" without re-evaluating every commitment every epoch.
+
+If state is lost, the loop rebuilds by evaluating all revealed commitments fresh. Expensive, but recoverable.
+
+## Challenger selection
+
+A hotkey is a challenger iff:
+
+1. It has a revealed commitment on-chain
+2. `(hotkey, commit_block)` is not in `state.evaluated_set`
+3. Its source code passes sandbox pre-check (syntax, imports, blocked calls)
+
+Sandbox pre-check happens on the CPU server, before any SSH round-trip. It's cheap — milliseconds. Rejected submissions are recorded in `evaluated_set` with a disqualify reason, so they don't get retried every epoch.
+
+Challengers passing pre-check are batched into a single eval job per epoch. Typical batch size: 1–3 per epoch in steady state.
+
+## SSH transport
+
+The `eval_fn` is a thin wrapper around SSH/SFTP:
+
+```python
+def gpu_eval_fn(challengers, block_hash):
+    job = EvaluationJob(
+        prompts=sample_prompts(block_hash=block_hash, n=N_PROMPTS),
+        policies=[(c.model_ref, c.revision) for c in challengers],
+        block=current_block,
+        block_hash=block_hash,
+    )
+    sftp_write(pod, "/tmp/job.json", job.to_json())
+    ssh_run(pod, "python scripts/pod_eval.py /tmp/job.json /tmp/results.json")
+    raw = sftp_read(pod, "/tmp/results.json")
+    return [EvaluationRecord(**r) for r in json.loads(raw)]
+```
+
+The pod has no wallet keys. It cannot read the chain. It receives prompts + policy pointers and returns scores. That's its only interface.
+
+## Error handling
+
+Things that can go wrong mid-eval and how the loop handles them:
+
+| Failure                              | Handling                                                       |
+| ------------------------------------ | -------------------------------------------------------------- |
+| Pod is unreachable                   | `ssh_run` raises → caught by outer `try` → sleep 360, retry    |
+| Pod crashes mid-eval                 | Partial results in `results.json` → loop takes what's there, retries rest next epoch |
+| Individual policy crashes            | Sandbox runner catches it → `disqualified = True`, score = 0   |
+| `set_weights` fails                  | Caught → log → sleep 360 → retry next epoch                    |
+| Chain returns stale metagraph        | `evaluated_set` dedupes; no harm                               |
+
+The philosophy is "fail forward slowly." Transient failures back off to 360s and retry. Persistent failures show up in logs loud and clear.
+
+## Weight setting
+
+One-hot. The king gets `1.0`, everyone else gets `0.0`, passed in one `set_weights` call with `other_uids_zeroed=True`.
+
+No partial weights, no smoothing. If a challenger dethrones the king, the transition is immediate and clean.
+
+## Phase status
+
+The validator is Phase 5 of the build. Current state:
+
+| Part | Scope                                                           | Status |
+| ---- | --------------------------------------------------------------- | ------ |
+| A    | Validator loop, state, challenger selection, set_weights         | ✅ Complete |
+| B    | GPU eval transport — `pod_eval.py` + SSH client on CPU side     | 🔲 In progress |
+| C    | Read-only monitoring API (`/leaderboard`, `/scores/{hotkey}`)   | 🔲 Pending |
+
+Phase A works end-to-end with a stubbed `eval_fn` — the loop logic, state persistence, and weight-setting are all exercised. Part B wires it to real GPU inference.
+
+See [Overview](/docs/architecture/overview) for the full system diagram.

@@ -11,7 +11,7 @@ export const ROADMAP: RoadmapPhase[] = [
     label: "KV Cache Optimization",
     status: "active",
     items: [
-      "Single optimization target: KV cache under fixed model & hardware",
+      "Single optimization target: KV cache under a global model & hardware",
       "King-of-the-hill competition, winner-take-all emission",
       "Centralized harness with sandbox isolation",
       "PG19 prompt source, block-hash seeded",

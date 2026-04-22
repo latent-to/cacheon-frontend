@@ -1,0 +1,179 @@
+---
+title: Example policies
+description: Reference sketches of three well-known KV optimization strategies — INT8 quantization, H2O eviction, and TurboQuant fused scoring.
+---
+
+These are **sketches**, not submission-ready code. They show the shape of each approach — what goes in `setup`, `write`, and `attend` — so you can see how the `KVCachePolicy` interface maps onto real strategies.
+
+None of them will win the subnet as written. They exist as starting points. The subnet exists because someone will do each of these better.
+
+## INT8 quantization
+
+Simplest possible non-trivial policy. Quantize K and V to INT8 with per-row symmetric scales. Dequantize on attend.
+
+```python
+class Int8Policy(KVCachePolicy):
+    def setup(self, config):
+        self.k_cache = [[] for _ in range(config.num_layers)]
+        self.v_cache = [[] for _ in range(config.num_layers)]
+        self.k_scales = [[] for _ in range(config.num_layers)]
+        self.v_scales = [[] for _ in range(config.num_layers)]
+
+    def write(self, keys, values, layer_idx, positions):
+        k_scale = keys.abs().amax(dim=-1, keepdim=True) / 127
+        v_scale = values.abs().amax(dim=-1, keepdim=True) / 127
+        k_int8 = (keys / k_scale.clamp(min=1e-8)).round().to(torch.int8)
+        v_int8 = (values / v_scale.clamp(min=1e-8)).round().to(torch.int8)
+        self.k_cache[layer_idx].append(k_int8)
+        self.v_cache[layer_idx].append(v_int8)
+        self.k_scales[layer_idx].append(k_scale)
+        self.v_scales[layer_idx].append(v_scale)
+
+    def attend(self, query, layer_idx):
+        K_int = torch.cat(self.k_cache[layer_idx], dim=2).float()
+        V_int = torch.cat(self.v_cache[layer_idx], dim=2).float()
+        K_scale = torch.cat(self.k_scales[layer_idx], dim=2)
+        V_scale = torch.cat(self.v_scales[layer_idx], dim=2)
+        K = (K_int * K_scale).to(query.dtype)
+        V = (V_int * V_scale).to(query.dtype)
+        # GQA broadcast
+        K = K.repeat_interleave(query.shape[1] // K.shape[1], dim=1)
+        V = V.repeat_interleave(query.shape[1] // V.shape[1], dim=1)
+        scores = query @ K.transpose(-1, -2) / (query.shape[-1] ** 0.5)
+        weights = scores.softmax(dim=-1)
+        return AttentionOutput(output=weights @ V, attention_weights=weights)
+```
+
+**Expected result**: ~2× memory reduction (16-bit → 8-bit plus scale overhead). Latency roughly neutral — you pay a dequant cost but cut memory bandwidth by half, and those mostly cancel.
+
+**Why it's a weak submission**: Path 1 (decompress-before-score) leaves the full-precision buffer in memory during attend. Your *peak* memory isn't much better than FP16. Path 2 does the math against the compressed form and wins on both axes.
+
+## H2O eviction
+
+Heavy-hitter oracle. Track per-token attention mass over time; evict the lowest-importance tokens when over budget.
+
+```python
+class H2OPolicy(KVCachePolicy):
+    def __init__(self, heavy_budget=512, recent_budget=512):
+        self.heavy_budget = heavy_budget
+        self.recent_budget = recent_budget
+
+    def setup(self, config):
+        self.k = [None] * config.num_layers
+        self.v = [None] * config.num_layers
+        self.importance = [None] * config.num_layers
+        self.positions = [None] * config.num_layers
+
+    def write(self, keys, values, layer_idx, positions):
+        if self.k[layer_idx] is None:
+            self.k[layer_idx] = keys
+            self.v[layer_idx] = values
+            self.importance[layer_idx] = torch.zeros(
+                keys.shape[:-1], device=keys.device, dtype=torch.float32
+            )
+            self.positions[layer_idx] = positions
+        else:
+            self.k[layer_idx] = torch.cat([self.k[layer_idx], keys], dim=2)
+            self.v[layer_idx] = torch.cat([self.v[layer_idx], values], dim=2)
+            new_imp = torch.zeros(keys.shape[:-1], device=keys.device, dtype=torch.float32)
+            self.importance[layer_idx] = torch.cat([self.importance[layer_idx], new_imp], dim=-1)
+            self.positions[layer_idx] = torch.cat([self.positions[layer_idx], positions], dim=-1)
+
+        self._evict(layer_idx)
+
+    def _evict(self, layer_idx):
+        total = self.heavy_budget + self.recent_budget
+        if self.k[layer_idx].shape[2] <= total:
+            return
+        # Keep last `recent_budget` tokens unconditionally; among the rest,
+        # keep top-`heavy_budget` by importance.
+        keep_recent = self.k[layer_idx][..., -self.recent_budget:, :]
+        # ... (see H2O paper for full indexing logic)
+
+    def attend(self, query, layer_idx):
+        K = self.k[layer_idx].repeat_interleave(query.shape[1] // self.k[layer_idx].shape[1], dim=1)
+        V = self.v[layer_idx].repeat_interleave(query.shape[1] // self.v[layer_idx].shape[1], dim=1)
+        scores = query @ K.transpose(-1, -2) / (query.shape[-1] ** 0.5)
+        weights = scores.softmax(dim=-1)
+        # Update importance with this step's attention mass
+        self.importance[layer_idx] += weights.sum(dim=(0, 2)).to(self.importance[layer_idx].dtype)
+        return AttentionOutput(output=weights @ V, attention_weights=weights)
+```
+
+**Expected result**: 5–10× memory reduction at long context. Latency gain scales with how aggressive the eviction budget is. KL risk: if you evict too aggressively on reasoning prompts, output quality degrades fast.
+
+**Tuning points**: `heavy_budget` vs. `recent_budget` split, eviction cadence (every step vs. every N steps), whether to track importance per-head or per-layer.
+
+## TurboQuant (fused scoring sketch)
+
+Path 2 — never decompress. Rotate K, quantize to 3 bits, store rotation + quantized keys + correction terms. Score `Q @ K_3bit.T + QJL_correction` directly.
+
+```python
+class TurboQuantPolicy(KVCachePolicy):
+    BITS = 3
+    N_CENTROIDS = 8  # 2 ** BITS
+
+    def setup(self, config):
+        self.config = config
+        # Random rotation matrix per layer — fixed across the sequence.
+        torch.manual_seed(0xC0FFEE)  # deterministic for reproducibility
+        self.R = [
+            torch.linalg.qr(torch.randn(config.head_dim, config.head_dim, device="cuda"))[0]
+            for _ in range(config.num_layers)
+        ]
+        # Lloyd-Max centroids pre-computed for a standard normal.
+        self.centroids = self._compute_centroids()
+
+        self.k_quant = [[] for _ in range(config.num_layers)]
+        self.v_cache = [[] for _ in range(config.num_layers)]
+        self.qjl_signs = [[] for _ in range(config.num_layers)]
+
+    def write(self, keys, values, layer_idx, positions):
+        R = self.R[layer_idx]
+        k_rot = keys @ R                                   # rotated keys
+        k_3bit = self._quantize_lloyd_max(k_rot)           # [..., head_dim], values in [0, 7]
+        k_signs = (k_rot > 0).to(torch.uint8)              # QJL sign bits for correction
+
+        self.k_quant[layer_idx].append(k_3bit)
+        self.v_cache[layer_idx].append(values)             # V stays FP16 in this sketch
+        self.qjl_signs[layer_idx].append(k_signs)
+
+    def attend(self, query, layer_idx):
+        R = self.R[layer_idx]
+        q_rot = query @ R
+        K_3bit = torch.cat(self.k_quant[layer_idx], dim=2)
+        K_signs = torch.cat(self.qjl_signs[layer_idx], dim=2)
+        V = torch.cat(self.v_cache[layer_idx], dim=2)
+
+        # Score directly against centroid values, without expanding to FP16.
+        scores = self._fused_score(q_rot, K_3bit, K_signs)
+        weights = scores.softmax(dim=-1)
+        # GQA broadcast V for the aggregate
+        V = V.repeat_interleave(q_rot.shape[1] // V.shape[1], dim=1)
+        return AttentionOutput(output=weights @ V, attention_weights=None)
+
+    def _compute_centroids(self):
+        # Lloyd-Max optimal 8-level quantization of N(0, 1)
+        return torch.tensor([-2.152, -1.344, -0.756, -0.245, 0.245, 0.756, 1.344, 2.152])
+
+    def _quantize_lloyd_max(self, x):
+        # Map to nearest centroid index
+        ...
+
+    def _fused_score(self, q, k_idx, k_signs):
+        # Q @ K_reconstructed.T with bias correction from QJL signs
+        ...
+```
+
+**Expected result**: 8–10× memory reduction (16-bit → 3-bit, minus rotation + sign overhead). Latency gain depends on how efficiently `_fused_score` is implemented — the win comes from not materializing the decompressed K buffer.
+
+**Why this shape wins**: V and Q are both full-precision, so there's no quality loss from reconstructing them. K is the bandwidth-dominant tensor at long context, and you never decompress it. The QJL correction term recovers most of the precision lost in quantization.
+
+## What to try next
+
+- **Per-layer adaptive.** Different layers tolerate different compression. Early layers often need more precision than middle layers.
+- **Per-head adaptive.** Some heads are "retrieval" heads with concentrated attention; others are diffuse. Different policies per head.
+- **Hybrid.** Combine eviction with quantization. Heavy hitters stay in FP16; evicted-but-not-dropped tokens go to 4-bit; stale tokens drop entirely.
+- **Attention sinks.** The first few tokens in a sequence are disproportionately attended to. Keep them in full precision unconditionally.
+
+See [Allowed operations](/docs/miners/allowed-operations) for what's in bounds and what isn't.

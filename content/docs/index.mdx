@@ -1,0 +1,60 @@
+---
+title: Introduction
+description: Cacheon (Bittensor Subnet 14) is a live, on-chain competition for KV-cache optimization. Miners write code that makes a fixed LLM cheaper and faster without changing its answers.
+---
+
+**Cacheon** is Bittensor Subnet 14 (SN14). It is an open, on-chain competition for **inference-time optimization** of large language models.
+
+Miners submit a `KVCachePolicy` — a small Python class that controls how the model stores attention keys/values and how attention is computed against them. Validators run every submission against a fixed baseline on the same hardware and score it on **memory**, **latency**, and **output quality**. The best policy takes the throne; all emission flows to the king until someone beats them.
+
+<Callout title="TL;DR">
+  - **Model**: Qwen2.5-7B-Instruct on H100 80GB
+  - **Submit**: implement `KVCachePolicy.write` + `attend`, commit `{model, revision}` on-chain
+  - **Score**: `0.6 × memory_reduction + 0.4 × latency_improvement`, with a hard KL gate at `0.1` nats
+  - **Incentive**: king-of-the-hill, winner takes all emission
+</Callout>
+
+## Why Cacheon exists
+
+Training is no longer the real bottleneck for serving LLMs — **inference** is. At 100k-token context across 80 layers with `head_dim=128`, the KV cache alone consumes ~80 GB in FP16. That's the wall.
+
+There's a lot of research on KV-cache optimization (H2O, SnapKV, KIVI, TurboQuant, StreamingLLM), but everything is benchmarked differently and results don't compare. Cacheon turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring.
+
+See [Why it matters](/docs/concepts/why-it-matters) for the full problem statement.
+
+## Pick your path
+
+<Cards>
+  <Card
+    title="I want to mine"
+    href="/docs/miners/quickstart"
+    description="Ship a policy in five steps: clone the harness, implement KVCachePolicy, register on-chain."
+  />
+  <Card
+    title="I want to understand the system"
+    href="/docs/architecture/overview"
+    description="CPU/GPU split, validator loop, sandbox layers — how eval actually runs."
+  />
+  <Card
+    title="I want to know what's measured"
+    href="/docs/evaluation/scoring"
+    description="The scoring formula, the KL gate, and why 60% of the weight is memory."
+  />
+  <Card
+    title="I want to see the roadmap"
+    href="/docs/roadmap"
+    description="V1 KV cache → V2 expanded surface → V3 policy generation → V4 deployment."
+  />
+</Cards>
+
+## What the subnet is not
+
+- **Not a training subnet.** Weights are fixed at `Qwen2.5-7B-Instruct`. You do not finetune.
+- **Not a general inference subnet.** V1 is scoped to the **KV cache path only**. Attention mechanism redesigns and custom CUDA kernels are out of bounds in V1.
+- **Not a free hyperparameter search.** One commitment per hotkey. Test locally before you register.
+
+## Useful links
+
+- [GitHub — latent-to/cacheon](https://github.com/latent-to/cacheon)
+- [Discord (Bittensor)](https://discord.gg/bittensor)
+- [TAO.app subnet page](https://tao.app/subnets/14)

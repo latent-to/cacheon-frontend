@@ -1,31 +1,11 @@
-import { useEffect, useState } from "react";
-import FaultyTerminal from "./FaultyTerminal";
+import { lazy, Suspense, useEffect, useState } from "react";
 
-function useTheme(): "light" | "dark" {
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof document === "undefined") return "dark";
-    return (
-      (document.documentElement.getAttribute("data-theme") as
-        | "light"
-        | "dark") || "dark"
-    );
-  });
+const FaultyTerminal = lazy(() => import("./FaultyTerminal"));
 
-  useEffect(() => {
-    const root = document.documentElement;
-    const observer = new MutationObserver(() => {
-      const next =
-        (root.getAttribute("data-theme") as "light" | "dark") || "dark";
-      setTheme(next);
-    });
-    observer.observe(root, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
-
-  return theme;
+function ClientOnly({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted ? <>{children}</> : null;
 }
 
 const FEATURES = [
@@ -44,47 +24,41 @@ const FEATURES = [
 ];
 
 export default function Hero() {
-  const theme = useTheme();
-  const isLight = theme === "light";
-
   return (
     <section
       id="hero"
       className="relative flex min-h-screen flex-col overflow-hidden"
     >
-      {/* WebGL terminal background */}
-      <div
-        className={`absolute inset-0 z-0 ${
-          isLight ? "opacity-[0.45] mix-blend-multiply" : ""
-        }`}
-      >
-        <FaultyTerminal
-          key={theme}
-          scale={2.75}
-          gridMul={[2, 1]}
-          digitSize={1.25}
-          timeScale={0.33}
-          scanlineIntensity={0.2}
-          glitchAmount={0.2}
-          flickerAmount={0.4}
-          noiseAmp={0.45}
-          chromaticAberration={0}
-          dither={0.25}
-          curvature={0}
-          tint="#ffffff"
-          mouseReact
-          mouseStrength={0.2}
-          pageLoadAnimation
-          brightness={0.6}
-          className="h-full w-full"
-        />
+      {/* WebGL terminal background (client-only) */}
+      <div className="absolute inset-0 z-0">
+        <ClientOnly>
+          <Suspense fallback={null}>
+            <FaultyTerminal
+              scale={2.75}
+              gridMul={[2, 1]}
+              digitSize={1.25}
+              timeScale={0.33}
+              scanlineIntensity={0.2}
+              glitchAmount={0.2}
+              flickerAmount={0.4}
+              noiseAmp={0.45}
+              chromaticAberration={0}
+              dither={0.25}
+              curvature={0}
+              tint="#ffffff"
+              mouseReact
+              mouseStrength={0.2}
+              pageLoadAnimation
+              brightness={0.6}
+              className="h-full w-full"
+            />
+          </Suspense>
+        </ClientOnly>
       </div>
 
       {/* Readability scrim */}
       <div
-        className={`pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b ${
-          isLight ? "from-bg/70 via-bg/50 to-bg" : "from-bg/90 via-bg/70 to-bg"
-        }`}
+        className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-bg/90 via-bg/70 to-bg"
         aria-hidden
       />
 
@@ -97,25 +71,13 @@ export default function Hero() {
 
         {/* Headline — three beats, one size; accent bookends + primary center */}
         <h1 className="mb-6 max-w-[min(100%,48rem)] text-balance font-mono text-[clamp(1.75rem,4.6vw,3.15rem)] font-extrabold leading-[1.22] tracking-tight">
-          <span
-            className={
-              isLight
-                ? "text-accent"
-                : "text-accent [text-shadow:0_0_32px_rgba(45,212,191,0.18)]"
-            }
-          >
+          <span className="text-accent [text-shadow:0_0_32px_rgba(45,212,191,0.18)]">
             Faster Inference
           </span>
           <span className="text-secondary/45">, </span>
           <span className="text-primary">Better Performance</span>
           <span className="text-secondary/45">, </span>
-          <span
-            className={
-              isLight
-                ? "text-accent"
-                : "text-accent [text-shadow:0_0_24px_rgba(45,212,191,0.12)]"
-            }
-          >
+          <span className="text-accent [text-shadow:0_0_24px_rgba(45,212,191,0.12)]">
             Same Quality
           </span>
         </h1>

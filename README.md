@@ -11,7 +11,7 @@ Frontend (cacheon.ai) for **Cacheon** (Bittensor subnet SN14)
 | Styling    | Tailwind CSS v4 (`@import "tailwindcss"` in `src/index.css`)                      |
 | Background | [ogl](https://github.com/oframe/ogl) — `FaultyTerminal` shader (react-bits style) |
 
-Theme tokens live in `src/index.css` (`data-theme` for light/dark).
+Theme tokens live in `app/app.css`.
 
 ## Scripts
 
