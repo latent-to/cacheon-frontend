@@ -6,7 +6,7 @@ import {
   DocsPage,
   DocsTitle,
 } from "fumadocs-ui/layouts/docs/page";
-import type { PageTree } from "fumadocs-core/server";
+import { useFumadocsLoader } from "fumadocs-core/source/client";
 import browserCollections from "collections/browser";
 import { source } from "~/lib/source.server";
 import { baseOptions } from "~/lib/layout.shared";
@@ -38,7 +38,7 @@ export async function loader({ params }: Route.LoaderArgs) {
   await clientLoader.preload(page.path);
 
   return {
-    tree: source.pageTree,
+    tree: await source.serializePageTree(source.getPageTree()),
     path: page.path,
     title: page.data.title,
     description: page.data.description,
@@ -56,11 +56,9 @@ export function meta({ data }: Route.MetaArgs) {
 }
 
 export default function Page({ loaderData }: Route.ComponentProps) {
+  const { tree } = useFumadocsLoader(loaderData);
   return (
-    <DocsLayout
-      {...baseOptions()}
-      tree={loaderData.tree as unknown as PageTree.Root}
-    >
+    <DocsLayout {...baseOptions()} tree={tree}>
       {clientLoader.useContent(loaderData.path)}
     </DocsLayout>
   );
