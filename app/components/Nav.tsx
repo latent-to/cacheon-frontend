@@ -4,37 +4,15 @@ import { Link } from "react-router";
 const navLinkClass =
   "text-[0.82rem] font-medium uppercase tracking-[0.14em] text-secondary no-underline transition-colors hover:text-primary";
 
-function Icon({ id, size = 18 }: { id: string; size?: number }) {
-  return (
-    <svg width={size} height={size} className="fill-current">
-      <use href={`/icons.svg#${id}`} />
-    </svg>
-  );
-}
-
 export default function Nav() {
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    const current =
-      (document.documentElement.getAttribute("data-theme") as
-        | "light"
-        | "dark"
-        | null) || "dark";
-    setTheme(current);
     const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-
-  function toggleTheme() {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("theme", next);
-  }
 
   return (
     <nav
@@ -68,14 +46,6 @@ export default function Nav() {
           >
             GitHub
           </a>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label="Toggle color theme"
-            className="flex cursor-pointer items-center justify-center rounded-md border border-border/80 bg-transparent p-2 text-secondary transition-colors hover:border-border hover:text-primary"
-          >
-            <Icon id={theme === "dark" ? "icon-sun" : "icon-moon"} size={20} />
-          </button>
         </div>
 
         {/* Mobile hamburger */}
@@ -132,15 +102,6 @@ export default function Nav() {
           >
             GitHub
           </a>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label="Toggle color theme"
-            className="flex w-fit cursor-pointer items-center gap-2 rounded-md border border-border/80 bg-transparent px-3 py-1.5 text-sm text-secondary"
-          >
-            <Icon id={theme === "dark" ? "icon-sun" : "icon-moon"} />
-            {theme === "dark" ? "Light mode" : "Dark mode"}
-          </button>
         </div>
       )}
     </nav>

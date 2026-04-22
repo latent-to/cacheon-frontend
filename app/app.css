@@ -26,28 +26,10 @@
   --color-diagram-flow: var(--diagram-flow);
 }
 
-/* ── Theme tokens (dark default / light toggle) ─────── */
+/* ── Theme tokens (dark only) ───────────────────────── */
 
-:root,
-[data-theme="light"] {
-  --bg: #fafbfc;
-  --surface: #ffffff;
-  --text: #0a0e14;
-  --text-secondary: #475569;
-  --border: #e2e8f0;
-  --accent: #0d9488;
-  --accent-glow: rgba(13, 148, 136, 0.14);
-  --accent-surface: rgba(13, 148, 136, 0.06);
-  --btn-primary-bg: #0a0e14;
-  --btn-primary-fg: #ffffff;
-  --link: #1e293b;
-  --link-hover: #0d9488;
-  --diagram-bar: rgba(15, 23, 42, 0.14);
-  --diagram-bar-strong: rgba(15, 23, 42, 0.26);
-  --diagram-flow: rgba(15, 23, 42, 0.42);
-}
-
-[data-theme="dark"] {
+:root {
+  color-scheme: dark;
   --bg: #030405;
   --surface: #09090b;
   --text: #ffffff;
@@ -76,9 +58,6 @@
   body {
     @apply bg-bg text-primary font-sans antialiased;
     line-height: 1.65;
-    transition:
-      background 0.2s ease,
-      color 0.2s ease;
     background-image:
       radial-gradient(
         circle at top,
@@ -90,14 +69,6 @@
         rgba(45, 212, 191, 0.03) 0%,
         transparent 30%
       );
-  }
-
-  [data-theme="light"] body {
-    background-image: radial-gradient(
-      circle at top,
-      rgba(13, 148, 136, 0.04) 0%,
-      transparent 55%
-    );
   }
 
   ::selection {

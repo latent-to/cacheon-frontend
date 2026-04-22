@@ -11,5 +11,6 @@ export function baseOptions(): BaseLayoutProps {
       url: "/",
     },
     githubUrl: "https://github.com/latent-to/cacheon",
+    themeSwitch: { enabled: false },
   };
 }

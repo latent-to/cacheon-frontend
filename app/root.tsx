@@ -25,21 +25,18 @@ export const links: Route.LinksFunction = () => [
   },
 ];
 
-const themeBootstrap = `(function(){try{var t=localStorage.getItem("theme");document.documentElement.setAttribute("data-theme",t||"dark")}catch(e){}})();`;
-
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
+    <html lang="en" className="dark" style={{ colorScheme: "dark" }}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <Meta />
         <Links />
-        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
       <body>
         <ReactRouterProvider>
-          <RootProvider>{children}</RootProvider>
+          <RootProvider theme={{ enabled: false }}>{children}</RootProvider>
         </ReactRouterProvider>
         <ScrollRestoration />
         <Scripts />
