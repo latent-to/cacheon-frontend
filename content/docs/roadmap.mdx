@@ -23,15 +23,19 @@ The point of V1 is to prove the loop: someone submits a policy on-chain, the har
 
 ### V1 build phases
 
-| Phase         | What                                                                                            | Status         |
-| ------------- | ----------------------------------------------------------------------------------------------- | -------------- |
-| 1 — Harness   | Load Qwen2.5-7B, monkey-patch attention, passthrough policy, prefill + decode, logits + metrics | ✅ Complete    |
-| 2 — Scoring   | KL, memory delta, latency delta → `ScoreResult`                                                 | ✅ Complete    |
-| 3 — Sandbox   | AST analysis + firejail subprocess isolation + output validation                                | ✅ Complete    |
-| 4 — Prompts   | Block-hash seeded PG19 sampling                                                                 | ✅ Complete    |
-| 5 — Validator | CPU server loop + GPU eval transport + monitoring API                                           | 🟡 In progress |
+_Last updated: 2026-04-22._
 
-Phase 5 Part A (loop) is done. Parts B (SSH transport to GPU pod) and C (read-only API) are in progress.
+| Phase               | What                                                                                                                            | Status         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| 1 — Harness         | Load Qwen2.5-7B, monkey-patch attention, passthrough policy, prefill + decode, logits + metrics                                 | ✅ Complete    |
+| 2 — Scoring         | KL, memory delta, latency delta → `ScoreResult`                                                                                 | ✅ Complete    |
+| 3 — Sandbox         | AST analysis + firejail subprocess isolation + output validation                                                                | ✅ Complete    |
+| 4 — Prompts         | Block-hash seeded PG19 sampling                                                                                                 | ✅ Complete    |
+| 5A — Validator loop | CPU server: chain scan, challenger selection, state persistence, one-hot `set_weights`                                          | ✅ Complete    |
+| 5B — GPU transport  | CPU ↔ GPU pod: `EvaluationJob` / `EvaluationResult` wire format, `pod_eval.py`, baseline caching, 10-min per-challenger timeout | 🟡 In progress |
+| 5C — Monitoring API | Read-only FastAPI: `GET /health`, `GET /leaderboard`, `GET /scores/{hotkey}`                                                    | 🔲 Pending     |
+
+Phase 5 Part A runs today against a stubbed `eval_fn` — the loop, state machine, and weight-setting are exercised end to end. Part B wires it to real GPU inference on a single always-on pod. Part C is a read-only status surface for miners and the community; it does not participate in weight-setting.
 
 ## V2 — Expanded optimization surface
 
