@@ -111,12 +111,12 @@ Earlier designs split scoring and aggregation into separate methods (`score`, `a
 | ------------------------------- | --------------------------- |
 | sequence (before prefill)       | `setup(config)`             |
 | layer, per forward pass         | `write(...)`, `attend(...)` |
-| score reporting (informational) | `memory_bytes()`            |
+| score reporting (memory axis) | `memory_bytes()`            |
 
-`memory_bytes()` is **self-reported and not the score**. The harness uses `torch.cuda.max_memory_allocated()` to measure real peak memory. `memory_bytes()` exists for debugging and as a cross-check — a large discrepancy can flag a submission for manual review.
+`memory_bytes()` **is** the memory axis: scoring compares baseline vs miner KV-cache footprint from this method. The harness also records peak VRAM (`torch.cuda.max_memory_allocated()`) for monitoring; that value does not enter the score. Implement `memory_bytes()` to reflect the actual bytes occupied by your stored cache state.
 
 ## Reference: passthrough
 
 The baseline every miner is compared against. Stores K/V in FP16 and runs full-precision attention. See `inference_engine/passthrough.py` in the repo for the canonical implementation.
 
-When you score a policy, you're computing `(passthrough - yours) / passthrough` on the memory and latency axes. Beating it means beating this reference on the same model, same hardware, same prompts.
+When you score a policy, you're computing `(passthrough - yours) / passthrough` on the **KV-cache memory** and latency axes (cache bytes from `memory_bytes()`, not peak VRAM). Beating it means beating this reference on the same model, same hardware, same prompts.

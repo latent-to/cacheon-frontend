@@ -92,13 +92,15 @@ Byte-identical copies are caught in stage 1 by `source_hash` — faster and more
 
 **Rejected:** 50/50. Undersells how load-bearing memory is at long context. Rejected for now, could shift toward 50/50 if V2 expands to latency-sensitive workloads.
 
-## Memory measurement: CUDA allocator, not self-reported
+## Memory measurement: KV-cache bytes from `memory_bytes()`
 
-**Decision:** Memory score uses `torch.cuda.max_memory_allocated()`. The policy's `memory_bytes()` is informational only.
+**Decision:** Memory score uses `policy_memory_bytes` — each policy's `memory_bytes()` — not `torch.cuda.max_memory_allocated()`.
 
-**Reasoning:** Self-reported numbers can be faked. Allocator-level peak memory cannot — it measures real GPU pages. `memory_bytes()` stays in the interface as a debugging aid and cross-check; a large discrepancy flags the submission.
+**Reasoning:** Peak VRAM mixes model weights, transient attention buffers, and implementation details. After the baseline uses Flash Attention via SDPA, peak VRAM no longer reflects the KV-cache optimization goal. Scoring on cache footprint aligns incentives with the subnet objective. Peak VRAM is still recorded on every run for ops and regression tracking.
 
-**Rejected:** Trust `memory_bytes()`. Fine in a cooperative setting, indefensible in a competitive one.
+**Supersedes (2026):** Earlier we scored on allocator peak and treated `memory_bytes()` as informational only. That conflated cache compression with attention workspace size and broke comparability once the passthrough path stopped materializing O(N²) attention scores.
+
+**Rejected (for scoring):** `torch.cuda.max_memory_allocated()` as the memory axis — correct for "did this process fit on the GPU," wrong for "how much did you compress the KV cache."
 
 ## Operating model: single-validator V1
 

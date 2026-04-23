@@ -1,6 +1,6 @@
 ---
 title: Scoring
-description: The full scoring formula — hard KL gate at 0.1 nats, then 60% memory + 40% latency. Plus why we measure memory with the CUDA allocator and not self-reporting.
+description: The full scoring formula — hard KL gate at 0.1 nats, then 60% memory + 40% latency. Memory is the policy's KV-cache footprint, not transient GPU peak VRAM.
 ---
 
 ## The formula
@@ -46,27 +46,21 @@ This is tunable and will move as we see real submissions. Rough calibration:
 ## Memory reduction
 
 ```
-memory_reduction = (baseline_peak_memory - miner_peak_memory) / baseline_peak_memory
+memory_reduction = (baseline_cache_memory - miner_cache_memory) / baseline_cache_memory
 ```
 
-Clamped to `[-1, 1]`. Negative values (you use more memory than baseline) are allowed but hurt your score.
+Clamped to `[-1, 1]`. Negative values (your cache uses more memory than baseline) are allowed but hurt your score.
 
-### Measured with `torch.cuda.max_memory_allocated`
+### Measured via `policy.memory_bytes()`
 
-This is the real, allocator-level peak memory usage across the entire run. Not self-reported. Not approximated.
+Memory scoring uses `policy_memory_bytes` — the KV-cache footprint reported by each policy's `memory_bytes()` method. This directly measures the thing miners are optimizing: how much VRAM the stored cache occupies.
 
-```python
-torch.cuda.reset_peak_memory_stats()
-# ... run inference ...
-peak = torch.cuda.max_memory_allocated()
-```
+We deliberately do **not** use `torch.cuda.max_memory_allocated()` (peak VRAM) for scoring. Peak VRAM includes model weights, transient attention buffers, and implementation artifacts that have nothing to do with cache compression quality. The harness still records peak VRAM for monitoring, but it doesn't affect your score.
 
-Your policy's `memory_bytes()` method is **informational only** — the harness records it, but it doesn't affect your score. A large discrepancy between self-reported and measured memory flags the submission for manual review.
-
-<Callout type="warn" title="Peak memory, not average">
-  Compressing K/V for storage but decompressing to FP16 before `attend()` means your peak memory is
-  almost identical to baseline — the decompressed buffer dominates. **Fused scoring against the
-  compressed form** (TurboQuant path) is the only way to win the memory axis decisively.
+<Callout type="warn" title="Cache memory, not peak VRAM">
+  Your `memory_bytes()` implementation must accurately report the actual memory occupied by your
+  stored K/V state. The baseline (PassthroughPolicy) reports the raw FP16 KV cache size — your score
+  is the fractional reduction relative to that.
 </Callout>
 
 ### Why memory gets 60%

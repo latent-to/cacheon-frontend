@@ -82,11 +82,11 @@ RunResult
   output_ids          list[list[int]]   — token ids per prompt
   all_logits          list[Tensor]      — [num_generated, vocab_size] per prompt
   latency_s           float             — wall-clock time for the full run
-  peak_memory_bytes   int               — torch.cuda.max_memory_allocated()
-  policy_memory_bytes int               — policy.memory_bytes() (self-reported)
+  peak_memory_bytes   int               — torch.cuda.max_memory_allocated() (monitoring only)
+  policy_memory_bytes int               — policy.memory_bytes(); used for memory scoring
 ```
 
-`all_logits` is what the scoring module uses to compute KL against the baseline. It's per-position, so KL is averaged over every generated token.
+`all_logits` is what the scoring module uses to compute KL against the baseline. It's per-position, so KL is averaged over every generated token. **Memory scoring** uses `policy_memory_bytes`, not `peak_memory_bytes` — see [Scoring](/docs/evaluation/scoring).
 
 ## Qwen-specific gotchas
 
