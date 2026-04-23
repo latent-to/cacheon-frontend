@@ -13,7 +13,7 @@ Cacheon V1 runs as two machines that only talk over SSH:
 ```
 BITTENSOR CHAIN
   │
-  │  miner registers: {"model": "hf/repo", "revision": "sha"}
+  │  miner registers: {"repo": "namespace/repo", "revision": "<40-char hex sha>"}
   │  one commitment per hotkey — permanent, no re-do
   ▼
 CPU SERVER  ← remote_validator.py

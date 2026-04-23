@@ -91,7 +91,7 @@ The `eval_fn` is a thin wrapper around SSH/SFTP:
 def gpu_eval_fn(challengers, block_hash):
     job = EvaluationJob(
         prompts=sample_prompts(block_hash=block_hash, n=N_PROMPTS),
-        policies=[(c.model_ref, c.revision) for c in challengers],
+        policies=[(c.repo, c.revision) for c in challengers],
         block=current_block,
         block_hash=block_hash,
     )
