@@ -1,14 +1,15 @@
 ---
 title: Quickstart
-description: Ship your first KVCachePolicy in five steps — from cloning the harness to committing on-chain.
+description: Ship your first KVCachePolicy from a Linux GPU harness to on-chain commit — same inference stack the centralized validator runs for eval.
 ---
 
-This page gets you from zero to a registered policy. For deeper detail, see the [policy interface](/docs/miners/policy-interface) and [example policies](/docs/miners/example-policies) pages.
+The **inference engine** (harness, `setup.sh`, `python -m inference_engine`) is what the **centralized validator’s GPU side** uses to score policies. Miners can run the same stack to test locally before submitting. That environment is **Linux with CUDA and enough VRAM**.
 
 ## 0. Prerequisites
 
-- **Python 3.11+**
-- **CUDA-capable GPU** with ≥24 GB VRAM for local dev (RTX 4090 is enough for 7B inference at moderate context). Production eval runs on H100 80GB.
+- **Linux** (Debian/Ubuntu-style, or a GPU VM/pod where `apt-get` is available). For local dev on macOS or Windows, use a remote Linux GPU box or your own Docker/Linux setup; we do not document a first-class Mac path for the harness installer.
+- **Python 3.11+**.
+- **CUDA-capable GPU** with ≥24 GB VRAM for harness runs (RTX 4090 is enough for 7B inference at moderate context). Production eval runs on H100 80GB.
 - A **Bittensor wallet** registered on subnet 14. See the [Bittensor wallet docs](https://docs.bittensor.com/getting-started/wallets).
 - A **public Git repo** (GitHub or Hugging Face) to host your policy code.
 
@@ -20,7 +21,7 @@ cd cacheon
 bash inference_engine/setup.sh
 ```
 
-`setup.sh` installs the harness, grabs `Qwen2.5-7B-Instruct` weights, and sets up a venv.
+`setup.sh` installs system deps, the harness, grabs `Qwen2.5-7B-Instruct` weights, and sets up a venv.
 
 Once it finishes, run:
 
