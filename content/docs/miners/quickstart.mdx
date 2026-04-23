@@ -1,16 +1,21 @@
 ---
 title: Quickstart
-description: Ship your first KVCachePolicy in five steps — from cloning the harness to committing on-chain.
+description: Ship your first KVCachePolicy from a Linux GPU harness to on-chain commit — same inference stack the centralized validator runs for eval.
 ---
 
-This page gets you from zero to a registered policy. For deeper detail, see the [policy interface](/docs/miners/policy-interface) and [example policies](/docs/miners/example-policies) pages.
+<Callout title="Inference Engine Requirements" type="info">
+  The **inference engine** (harness, `setup.sh`, `python -m inference_engine`) is what the
+  **centralized validator’s GPU side** uses to score policies. Miners can run the same stack to test
+  locally before submitting. That environment is **Linux with CUDA and enough VRAM**.
+</Callout>
 
 ## 0. Prerequisites
 
-- **Python 3.11+**
-- **CUDA-capable GPU** with ≥24 GB VRAM for local dev (RTX 4090 is enough for 7B inference at moderate context). Production eval runs on H100 80GB.
+- **Linux** (Debian/Ubuntu-style, or a GPU VM/pod where `apt-get` is available). For local dev on macOS or Windows, use a remote Linux GPU box or your own Docker/Linux setup; we do not document a first-class Mac path for the harness installer.
+- **Python 3.11+**.
+- **CUDA-capable GPU** with ≥24 GB VRAM for harness runs (RTX 4090 is enough for 7B inference at moderate context). Production eval runs on H100 80GB.
 - A **Bittensor wallet** registered on subnet 14. See the [Bittensor wallet docs](https://docs.bittensor.com/getting-started/wallets).
-- A **public Git repo** (GitHub or Hugging Face) to host your policy code.
+- A **public Hugging Face repo** with a `policy.py` at the repo root to host your policy code.
 
 ## 1. Clone the harness
 
@@ -20,7 +25,7 @@ cd cacheon
 bash inference_engine/setup.sh
 ```
 
-`setup.sh` installs the harness, grabs `Qwen2.5-7B-Instruct` weights, and sets up a venv.
+`setup.sh` installs system deps, the harness, grabs `Qwen2.5-7B-Instruct` weights, and sets up a venv.
 
 Once it finishes, run:
 
@@ -95,17 +100,27 @@ Look for:
 
 If `disqualified == True`, check `result.disqualify_reason`. KL gate failure (`> 0.1` nats) means your policy is producing substantially different tokens from baseline. NaN/Inf means you have a numerical bug.
 
-## 4. Push to a public repo
+## 4. Push to a public Hugging Face repo
+
+Use the HuggingFace CLI or `huggingface_hub` to upload your `policy.py`:
 
 ```bash
-git init
-git add my_policy.py
-git commit -m "initial policy"
-git remote add origin git@github.com:you/my-kv-policy.git
-git push -u origin main
+huggingface-cli upload you/my-kv-policy policy.py policy.py
 ```
 
-Note the commit SHA. You need the exact SHA (not a branch name) — the validator pins to it for reproducibility.
+Or from Python:
+
+```python
+from huggingface_hub import upload_file
+
+upload_file(
+    path_or_fileobj="policy.py",
+    path_in_repo="policy.py",
+    repo_id="you/my-kv-policy",
+)
+```
+
+Note the **commit SHA** returned by the upload (or visible in the repo's commit history). You need the exact 40-character hex SHA — the validator pins to it for reproducibility. Branch names and short SHAs are rejected.
 
 ## 5. Register on-chain
 
@@ -117,8 +132,8 @@ wallet   = bt.wallet(name="my_wallet", hotkey="my_hotkey")
 subtensor = bt.subtensor(network="finney")
 
 commit_data = json.dumps({
-    "model":    "you/my-kv-policy",          # GitHub or HF repo
-    "revision": "abc123def456...",           # commit SHA
+    "repo":     "you/my-kv-policy",          # HF repo id
+    "revision": "abc123def456...",           # full 40-char hex SHA
 })
 
 subtensor.set_reveal_commitment(
@@ -150,3 +165,4 @@ Check your status:
 - **`seq_len=1` on decode.** During decode, `write()` receives a single new token's K/V. Your cache needs to grow, not replace. `attend()` is called with `q_len=1` and needs to attend over the full accumulated cache.
 - **Self-reported memory is not the score.** `memory_bytes()` is informational; the actual memory score uses `torch.cuda.max_memory_allocated()`. A large discrepancy flags the submission.
 - **No network, no filesystem, no `os`.** Your policy runs inside a sandbox. See [Allowed operations](/docs/miners/allowed-operations).
+- **Don't copy the king.** The validator computes a SHA-256 hash of your `policy.py` and rejects byte-identical copies of the current king's source with `duplicate_of_king`. Even a re-upload of the exact same file won't score — you need a genuinely different policy. See [Competition model](/docs/concepts/competition-model) for how the king-of-the-hill rules work.

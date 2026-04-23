@@ -88,6 +88,18 @@ Even if your policy passes sandbox checks, it will score `0` if any of the follo
 - **Output shape/dtype mismatch.** The harness validates `AttentionOutput.output` strictly.
 - **Attention weights don't sum to ~1** (when you return them). Indicates a bug in your score/softmax path.
 - **Wall-clock timeout.** Hard limit at 300 seconds per policy per evaluation run.
+- **Byte-identical `policy.py` to the current king (different hotkey, later commit).** When the result is recorded, matching `source_hash` triggers `disqualify_reason = "duplicate_of_king"` and score `0` — see [Defender's moat](/docs/concepts/competition-model#the-defenders-moat).
+
+## Beating the king
+
+Passing the quality gate is not enough. To dethrone the current king, your score must **strictly exceed** `king_score × (1 + ε(age))`, where ε starts at **1%** on the block the king is crowned and decays linearly to **0** over **~50,400 blocks (~7 days)**. After decay, the threshold is just `king_score` — any strict improvement wins.
+
+Practically:
+
+- A **fresh** king means you need roughly a **1%+ edge** on the weighted score; noise-level bumps should not flip the crown.
+- After **~7 days** without the moat refreshing, a **strict** beat is enough.
+
+Exact formula, edge cases, and env tunables: [Architecture → Validator → Dethrone rule](/docs/architecture/validator#dethrone-rule).
 
 ## A note on "allowed but scored low"
 

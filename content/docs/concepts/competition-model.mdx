@@ -11,13 +11,28 @@ Cacheon uses a **king-of-the-hill** incentive. There is always one reigning cham
 2. Any hotkey with a revealed commitment that hasn't been evaluated yet is a **challenger**.
 3. If there are no challengers, the king keeps its weight, no GPU runs, and the loop sleeps.
 4. If challengers exist, the validator dispatches eval jobs and compares scores.
-5. A challenger who beats the king's score takes the throne. Weights are updated: `winner = 1.0`, everyone else `= 0.0`.
+5. A challenger who beats the king's score **by more than a small, time-decaying margin** takes the throne—see [defender's moat](#the-defenders-moat) . Weights are updated: `winner = 1.0`, everyone else `= 0.0`.
 
 <Callout title="GPU time is only spent when something changed">
   If nobody has registered a new policy since the last round, no inference runs. The king keeps its
   emission and the validator simply re-sets the same weights and sleeps. This is the only way the
   cost model works — GPU eval at 32K context is minutes of H100 time per policy.
 </Callout>
+
+## The defender's moat
+
+The dethrone rule isn't a plain `>`. It must pass two checks:
+
+1. **Copycats get disqualified (DQ'd).** If a challenger's `policy.py` bytes hash to the same `source_hash` as the current king's, but the hotkey differs and the commitment block is later, the validator stores the run as disqualified (`reason = "duplicate_of_king"`). Copying someone else's winning code onto a fresh hotkey is not a strategy here.
+2. **Non-copies need a small edge.** A new policy has to strictly exceed `king_score × (1 + ε(age))`, where ε starts at **1%** at the block when the king is crowned and **decays linearly to 0** over **~50,400 blocks (~7 days)**. After that, the threshold is just `king_score` again — any strict improvement wins.
+
+Why:
+
+- Re-running the same policy on the same H100 can produce ±0.x% score wiggle from floating-point noise. Without the moat, rankings could flip arbitrarily.
+- Without the copycat DQ, the dominant strategy would be "wait, copy, register" — free incentive, zero research.
+- The decaying margin means a king can't sit on a free 1% edge indefinitely, without fresh competition.
+
+Numbers are tunable; see [key decisions](/docs/decisions#defenders-moat-decaying-epsilon--copycat-dq) for defaults and env vars.
 
 ## Winner-take-all vs. top-N split
 

@@ -15,11 +15,40 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 ## Incentive: king-of-the-hill, winner-take-all
 
-**Decision:** One reigning champion. All emission to the king. Challengers must strictly beat the king's score to dethrone them.
+**Decision:** One reigning champion. All emission to the king. Challengers must beat the king's score by more than a small, time-decaying margin (see [Defender's moat](#defenders-moat-decaying-epsilon--copycat-dq) below) to dethrone them.
 
 **Reasoning:** Creates a sharp optimization target — miners optimize for "best," not "good enough to be top-N." GPU eval only runs when new challengers exist, which amortizes the cost of expensive H100-hours.
 
 **Rejected:** Top-N split (e.g. 60/25/10/5%). Distributes incentive more broadly but weakens the signal. Miners optimize to land in the top bracket, which is noisier than optimizing to be best.
+
+## Defender's moat: decaying epsilon + copycat DQ
+
+**Decision:** The dethrone rule is two-stage.
+
+1. **Byte-identical copies are disqualified.** A challenger whose `policy.py` `source_hash` (SHA-256 of the file bytes, computed on the CPU validator) matches the current king's hash, on a **different hotkey**, with a **strictly later** `commit_block`, is stored with `disqualify_reason = "duplicate_of_king"` and score `0`. The king keeps the throne. Earliest commit wins by construction. (The GPU may still run; the rewrite happens when the result is recorded in `ValidatorState.record_evaluation`.)
+2. **Non-copies must exceed a decaying threshold.** A non-DQ'd challenger must strictly exceed `king_score × (1 + ε(age))` to take the crown, where:
+
+   ```
+   ε(age) = epsilon_initial × max(0, 1 − age / decay_blocks)
+   age    = current_block − king.crowned_at_block
+   ```
+
+   Defaults: `epsilon_initial = 0.01` (1%), `decay_blocks = 50_400` (~7 days at ~12 s/block). Tunable via `CACHEON_KING_EPSILON_INITIAL` and `CACHEON_KING_EPSILON_DECAY_BLOCKS` env vars (`validator/config.py`).
+
+**Reasoning:** Two problems motivated this:
+
+- **Float noise.** Re-running the same policy on a different H100 run can shift `memory_reduction` or `latency_improvement` by tenths of a percent. A strict `>` rule would let that noise dethrone a genuinely-winning king on a coin flip.
+- **Copycat submissions.** Without stage 1, the dominant strategy is "wait for someone to win, then copy their `policy.py` to a fresh hotkey and register." Free incentive with zero R&D.
+
+The epsilon starts at 1% on the block the king is crowned, which is wide enough to swallow hardware noise and discourage near-duplicates, and narrow enough that real improvements still dethrone quickly. It decays linearly to 0 over a week, so a stale king with no real challengers doesn't accumulate a moat they didn't earn. After the decay window, the threshold equals `king_score` and the rule is strict `stored.score > king.score` again.
+
+Byte-identical copies are caught in stage 1 by `source_hash` — faster and more decisive than relying on the score-noise band alone. See `validator/state.py`'s `_effective_dethrone_threshold` and `record_evaluation` for the full implementation.
+
+**Rejected:**
+
+- Strict `>` only: floats are noisy, this was too easy to game.
+- Fixed-forever ε: rewards kings who got lucky once and never improve.
+- Score smoothing (EMA): blurs which commit beat which, hurts auditability.
 
 ## Commitment model: one per hotkey, permanent
 
