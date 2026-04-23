@@ -13,17 +13,17 @@ This page is the cheat sheet. For the harness’s in-process types (`RunResult`,
 
 ## Summary
 
-| Schema             | Where it lives             | Role                                        | Key fields                                                                                                                                                     |
-| ------------------ | -------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CommitmentRecord` | `validator/chain.py`       | Parsed on-chain commitment                  | `uid`, `hotkey`, `commit_block`, `model`, `revision`, `raw`                                                                                                    |
-| `ChallengerJob`    | `validator/eval_schema.py` | One challenger on the CPU→pod wire          | `uid`, `hotkey`, `commit_block`, `model`, `revision`, `policy_path`                                                                                            |
-| `ChallengerResult` | `validator/eval_schema.py` | One challenger on the pod→CPU wire          | `uid`, `hotkey`, `commit_block`, `model`, `revision`, `score`, `kl_divergence`, `memory_reduction`, `latency_improvement`, `disqualified`, `disqualify_reason` |
-| `EvaluationRecord` | `validator/state.py`       | One completed evaluation in persisted state | Same scoring fields as `ChallengerResult`, plus `evaluated_at`, `evaluation_block`                                                                             |
-| `KingRecord`       | `validator/state.py`       | The reigning champion                       | Subset of `EvaluationRecord` (no disqualification fields)                                                                                                      |
-| `ValidatorState`   | `validator/state.py`       | Root object in `state.json`                 | `king`, `evaluations`, `precheck_failures`, `last_scan_block`, `last_weights_set_block`, `schema_version`                                                      |
-| `EvaluationJob`    | `validator/eval_schema.py` | Tick envelope CPU→pod                       | `job_id`, `current_block`, `block_hash`, `model_name`, `max_new_tokens`, `n_prompts`, `baseline_cache_*`, `challengers[]`                                      |
-| `EvaluationResult` | `validator/eval_schema.py` | Tick envelope pod→CPU                       | `job_id`, `current_block`, `block_hash`, `baseline`, `challenger_results[]`                                                                                    |
-| `BaselineMetrics`  | `validator/eval_schema.py` | Baseline run metadata in results            | `latency_s`, `peak_memory_bytes`, `cached`                                                                                                                     |
+| Schema             | Where it lives             | Role                                        | Key fields                                                                                                                                                                   |
+| ------------------ | -------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CommitmentRecord` | `validator/chain.py`       | Parsed on-chain commitment                  | `uid`, `hotkey`, `commit_block`, `repo`, `revision`, `raw`                                                                                                                   |
+| `ChallengerJob`    | `validator/eval_schema.py` | One challenger on the CPU→pod wire          | `uid`, `hotkey`, `commit_block`, `repo`, `revision`, `policy_path`, `source_hash`                                                                                            |
+| `ChallengerResult` | `validator/eval_schema.py` | One challenger on the pod→CPU wire          | `uid`, `hotkey`, `commit_block`, `repo`, `revision`, `score`, `kl_divergence`, `memory_reduction`, `latency_improvement`, `disqualified`, `disqualify_reason`, `source_hash` |
+| `EvaluationRecord` | `validator/state.py`       | One completed evaluation in persisted state | Same scoring fields as `ChallengerResult`, plus `evaluated_at`, `evaluation_block`                                                                                           |
+| `KingRecord`       | `validator/state.py`       | The reigning champion                       | Subset of `EvaluationRecord` (no disqualification fields)                                                                                                                    |
+| `ValidatorState`   | `validator/state.py`       | Root object in `state.json`                 | `king`, `evaluations`, `precheck_failures`, `last_scan_block`, `last_weights_set_block`, `schema_version`                                                                    |
+| `EvaluationJob`    | `validator/eval_schema.py` | Tick envelope CPU→pod                       | `job_id`, `current_block`, `block_hash`, `model_name`, `max_new_tokens`, `n_prompts`, `baseline_cache_*`, `challengers[]`                                                    |
+| `EvaluationResult` | `validator/eval_schema.py` | Tick envelope pod→CPU                       | `job_id`, `current_block`, `block_hash`, `baseline`, `challenger_results[]`                                                                                                  |
+| `BaselineMetrics`  | `validator/eval_schema.py` | Baseline run metadata in results            | `latency_s`, `peak_memory_bytes`, `cached`                                                                                                                                   |
 
 ## Schema versioning
 
@@ -36,7 +36,7 @@ They are **not** required to stay in lockstep.
 
 ## Why some rows look like duplicates
 
-- **`CommitmentRecord` vs `ChallengerJob`** — Same pointer fields (`model`, `revision`, hotkey identity) but different lifecycle: a commitment is what came off chain; a challenger job is what is ready for the pod after the CPU has fetched `policy.py` and staged it at `policy_path`. Collapsing them would mean optional half-filled objects.
+- **`CommitmentRecord` vs `ChallengerJob`** — Same pointer fields (`repo`, `revision`, hotkey identity) but different lifecycle: a commitment is what came off chain; a challenger job is what is ready for the pod after the CPU has fetched `policy.py` and staged it at `policy_path`. Collapsing them would mean optional half-filled objects.
 - **`ChallengerResult` vs `EvaluationRecord`** — Nearly the same scoring payload. The pod returns `ChallengerResult`; the CPU stamps `evaluated_at` and `evaluation_block` when appending to state. Keeping a separate wire type avoids putting CPU-only fields in JSON the pod writes, and lets the wire format evolve without forcing a state-file migration every time.
 
 ## Files on disk (validator I/O)

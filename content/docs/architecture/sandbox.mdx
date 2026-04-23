@@ -54,15 +54,19 @@ The submission must contain exactly one class inheriting from `KVCachePolicy` wi
 
 When the AST sandbox or fetch step rejects a submission, the validator records a prefixed reason so miners and operators know what failed:
 
-| Reason code                | Meaning                                                              |
-| -------------------------- | -------------------------------------------------------------------- |
-| `ast_blocked: <violation>` | The AST sandbox found a blocked import, call, or structural problem. |
-| `revision_unavailable`     | The repo or commit SHA does not exist on HuggingFace.                |
-| `policy_missing`           | The repo exists, but `policy.py` is not present at the root.         |
-| `fetch_forbidden`          | The repo is private, gated, or the token lacks access.               |
-| `too_large`                | `policy.py` exceeds the 1 MB hard size cap.                          |
+| Reason code                | Meaning                                                                                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ast_blocked: <violation>` | The AST sandbox found a blocked import, call, or structural problem.                                                                                              |
+| `invalid_repo`             | The `repo` id failed Hugging Face validation, or the fetch layer rejected an unsafe cache path.                                                                   |
+| `revision_unavailable`     | The repo or commit SHA does not exist on HuggingFace.                                                                                                             |
+| `policy_missing`           | The repo exists, but `policy.py` is not present at the root.                                                                                                      |
+| `fetch_forbidden`          | The repo is private, gated, or the token lacks access (HTTP 401/403).                                                                                             |
+| `hf_http_<status>`         | Other non-retriable Hugging Face HTTP client errors (e.g. 400, 410, 404 when surfaced as HTTP). Permanent rejection — retrying the same commitment will not help. |
+| `too_large`                | `policy.py` exceeds the 1 MB hard size cap.                                                                                                                       |
 
-Transient failures (HF 5xx, network timeout, connection error) do **not** produce permanent rejections. The validator defers the commitment and retries on the next tick.
+**Transient (deferred, retried next tick):** Hugging Face **5xx**, **429** (rate limit), **408** / **425** (timeout / too early), **OSError** during fetch, and errors with no HTTP status attached. **Network timeouts** and similar flakes also defer.
+
+**Permanent rejections** include most **4xx** responses (except the defer cases above), so miners are not stuck in an infinite retry loop for requests that will never succeed.
 
 ### Size cap
 
