@@ -107,10 +107,10 @@ Earlier designs split scoring and aggregation into separate methods (`score`, `a
 
 ## What runs each method
 
-| Called once per                 | Methods                     |
-| ------------------------------- | --------------------------- |
-| sequence (before prefill)       | `setup(config)`             |
-| layer, per forward pass         | `write(...)`, `attend(...)` |
+| Called once per               | Methods                     |
+| ----------------------------- | --------------------------- |
+| sequence (before prefill)     | `setup(config)`             |
+| layer, per forward pass       | `write(...)`, `attend(...)` |
 | score reporting (memory axis) | `memory_bytes()`            |
 
 `memory_bytes()` **is** the memory axis: scoring compares baseline vs miner KV-cache footprint from this method. The harness also records peak VRAM (`torch.cuda.max_memory_allocated()`) for monitoring; that value does not enter the score. Implement `memory_bytes()` to reflect the actual bytes occupied by your stored cache state.
