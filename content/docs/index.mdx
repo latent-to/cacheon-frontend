@@ -9,7 +9,7 @@ Miners submit a `KVCachePolicy` — a small Python class that controls how the m
 
 <Callout title="TL;DR">
   - **Model**: Qwen2.5-7B-Instruct on H100 80GB
-  - **Submit**: implement `KVCachePolicy.write` + `attend`, commit `{model, revision}` on-chain
+  - **Submit**: implement `KVCachePolicy.write` + `attend`, commit `{repo, revision}` on-chain (HF repo id + full commit SHA)
   - **Score**: `0.6 × memory_reduction + 0.4 × latency_improvement`, with a hard KL gate at `0.1` nats
   - **Incentive**: king-of-the-hill, winner takes all emission
 </Callout>

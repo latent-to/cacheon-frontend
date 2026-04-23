@@ -60,7 +60,7 @@ Byte-identical copies are caught in stage 1 by `source_hash` — faster and more
 
 ## Submission transport: on-chain commit pointer
 
-**Decision:** Miners publish policy source to a public repo and commit `{"model": "...", "revision": "..."}` on-chain.
+**Decision:** Miners publish policy source to a public Hugging Face repo and commit `{"repo": "<namespace>/<name>", "revision": "<40-char hex sha>"}` on-chain.
 
 **Reasoning:** Policy code lives where code lives (GitHub, Hugging Face). On-chain record is a lightweight pointer that the harness resolves and pins to the exact commit SHA. Cleaner and more auditable than uploading bytes directly.
 
