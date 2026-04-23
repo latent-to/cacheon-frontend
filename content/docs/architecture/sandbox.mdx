@@ -50,6 +50,24 @@ So `os.system("rm -rf /")` is rejected. A sufficiently clever miner could still 
 
 The submission must contain exactly one class inheriting from `KVCachePolicy` with all four required methods: `setup`, `write`, `attend`, `memory_bytes`. Missing any method, or defining multiple policy classes, is rejected.
 
+### Reject reason codes
+
+When the AST sandbox or fetch step rejects a submission, the validator records a prefixed reason so miners and operators know what failed:
+
+| Reason code                | Meaning                                                              |
+| -------------------------- | -------------------------------------------------------------------- |
+| `ast_blocked: <violation>` | The AST sandbox found a blocked import, call, or structural problem. |
+| `revision_unavailable`     | The repo or commit SHA does not exist on HuggingFace.                |
+| `policy_missing`           | The repo exists, but `policy.py` is not present at the root.         |
+| `fetch_forbidden`          | The repo is private, gated, or the token lacks access.               |
+| `too_large`                | `policy.py` exceeds the 1 MB hard size cap.                          |
+
+Transient failures (HF 5xx, network timeout, connection error) do **not** produce permanent rejections. The validator defers the commitment and retries on the next tick.
+
+### Size cap
+
+`policy.py` is capped at **1 MB** (configurable via `CACHEON_POLICY_MAX_BYTES`). Anything larger is rejected with `too_large`. This is a sanity limit: legitimate KV-cache policies are a few kilobytes.
+
 ### What Layer 1 is for
 
 Layer 1 is a **fast-feedback tool**, not the security boundary. A miner submitting `import os` gets a clear error in milliseconds instead of after a 300-second subprocess timeout.
