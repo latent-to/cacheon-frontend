@@ -92,15 +92,30 @@ Byte-identical copies are caught in stage 1 by `source_hash` — faster and more
 
 **Rejected:** 50/50. Undersells how load-bearing memory is at long context. Rejected for now, could shift toward 50/50 if V2 expands to latency-sensitive workloads.
 
-## Memory measurement: KV-cache bytes from `memory_bytes()`
+## Memory measurement: CUDA allocator delta around policy run
 
-**Decision:** Memory score uses `policy_memory_bytes` — each policy's `memory_bytes()` — not `torch.cuda.max_memory_allocated()`.
+**Decision:** Memory score uses `policy_memory_bytes` — the CUDA allocator delta measured by the harness after the full generation run (prefill + all decode steps), not `policy.memory_bytes()` (self-reported) or `torch.cuda.max_memory_allocated()` (peak VRAM).
 
-**Reasoning:** Peak VRAM mixes model weights, transient attention buffers, and implementation details. After the baseline uses Flash Attention via SDPA, peak VRAM no longer reflects the KV-cache optimization goal. Scoring on cache footprint aligns incentives with the subnet objective. Peak VRAM is still recorded on every run for ops and regression tracking.
+```python
+torch.cuda.synchronize(device)
+gc.collect()
+mem_before = torch.cuda.memory_allocated(device)
+# ... prefill + decode ...
+torch.cuda.synchronize(device)
+gc.collect()
+mem_after  = torch.cuda.memory_allocated(device)
+policy_memory_bytes = max(0, mem_after - mem_before)
+```
 
-**Supersedes (2026):** Earlier we scored on allocator peak and treated `memory_bytes()` as informational only. That conflated cache compression with attention workspace size and broke comparability once the passthrough path stopped materializing O(N²) attention scores.
+**Reasoning:** Self-reporting (`memory_bytes()`) is gameable — a policy can return `0` regardless of what it stores, inflating its apparent memory reduction. The CUDA allocator delta is non-gameable: it measures what the policy actually allocated on the GPU. `torch.cuda.empty_cache()` is intentionally omitted from the measurement block — it's expensive (forces allocator to release free blocks to the OS, adding hundreds of ms per run) and unnecessary (`memory_allocated()` counts live bytes only, not cached-free blocks). Measuring after the full run rather than after prefill is safe because the AST sandbox blocks all async/finalizer tricks, and the harness has no miner hook between the last `attend()` return and measurement.
 
-**Rejected (for scoring):** `torch.cuda.max_memory_allocated()` as the memory axis — correct for "did this process fit on the GPU," wrong for "how much did you compress the KV cache."
+**Supersedes (2026):** Earlier versions used `policy.memory_bytes()` (self-reported cache size). That was replaced first by `torch.cuda.max_memory_allocated()` (peak VRAM), then by the allocator-delta approach here. `memory_bytes()` has been removed from the `KVCachePolicy` interface and from `sandbox.REQUIRED_METHODS`.
+
+**Rejected:**
+
+- `policy.memory_bytes()` self-report: gameable, cannot be audited at runtime.
+- `torch.cuda.max_memory_allocated()` as the memory axis: correct for "did this process fit on the GPU," wrong for "how much did you compress the KV cache." Peak VRAM includes model weights, transient attention buffers, and implementation artifacts.
+- Measuring after prefill only: same result because the sandbox prevents timing attacks, but end-of-run is simpler and captures decode-appended cache entries too.
 
 ## Operating model: single-validator V1
 

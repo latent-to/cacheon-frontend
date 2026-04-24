@@ -19,12 +19,9 @@ class KVCachePolicy:
 
     def attend(self, query, layer_idx) -> AttentionOutput:
         """Full attention in one call: scoring + softmax + aggregation."""
-
-    def memory_bytes(self) -> int:
-        """Report current memory usage of all stored cache state."""
 ```
 
-All four methods are required. The sandbox rejects submissions missing any of them.
+All three methods are required. The sandbox rejects submissions missing any of them.
 
 ## Data types
 
@@ -107,16 +104,15 @@ Earlier designs split scoring and aggregation into separate methods (`score`, `a
 
 ## What runs each method
 
-| Called once per               | Methods                     |
-| ----------------------------- | --------------------------- |
-| sequence (before prefill)     | `setup(config)`             |
-| layer, per forward pass       | `write(...)`, `attend(...)` |
-| score reporting (memory axis) | `memory_bytes()`            |
+| Called once per           | Methods                     |
+| ------------------------- | --------------------------- |
+| sequence (before prefill) | `setup(config)`             |
+| layer, per forward pass   | `write(...)`, `attend(...)` |
 
-`memory_bytes()` **is** the memory axis: scoring compares baseline vs miner KV-cache footprint from this method. The harness also records peak VRAM (`torch.cuda.max_memory_allocated()`) for monitoring; that value does not enter the score. Implement `memory_bytes()` to reflect the actual bytes occupied by your stored cache state.
+Memory is **not** self-reported. After the full generation run (prefill + all decode steps), the harness measures `policy_memory_bytes` as a CUDA allocator delta: `torch.cuda.memory_allocated()` after the run minus before the run. This directly captures the GPU memory your stored cache occupies and cannot be gamed by a policy returning a fake number. The harness also records peak VRAM (`torch.cuda.max_memory_allocated()`) for monitoring; that value does not enter the score.
 
 ## Reference: passthrough
 
 The baseline every miner is compared against. Stores K/V in FP16 and runs full-precision attention. See `inference_engine/passthrough.py` in the repo for the canonical implementation.
 
-When you score a policy, you're computing `(passthrough - yours) / passthrough` on the **KV-cache memory** and latency axes (cache bytes from `memory_bytes()`, not peak VRAM). Beating it means beating this reference on the same model, same hardware, same prompts.
+When you score a policy, you're computing `(passthrough - yours) / passthrough` on the **KV-cache memory** and latency axes (cache bytes from the harness-measured CUDA allocator delta, not peak VRAM). Beating it means beating this reference on the same model, same hardware, same prompts.

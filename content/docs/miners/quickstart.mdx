@@ -60,13 +60,6 @@ class MyPolicy(KVCachePolicy):
         weights = torch.softmax(scores, dim=-1)
         output = torch.matmul(weights, V)
         return AttentionOutput(output=output, attention_weights=weights)
-
-    def memory_bytes(self) -> int:
-        total = 0
-        for k in self.k_cache:
-            for t in k:
-                total += t.element_size() * t.numel()
-        return total * 2  # K + V
 ```
 
 This is a naive passthrough that mirrors the reference implementation. It will produce a score of roughly 0 — no memory savings, no latency gain — but it's valid and the harness will run it.
@@ -163,6 +156,5 @@ Check your status:
 - **Forgot RoPE.** Qwen applies rotary position embeddings to Q/K _before_ your `write()` is called. If your policy internally rotates them again, attention breaks. The harness delivers post-RoPE tensors — just store them.
 - **GQA shapes.** `Qwen2.5-7B` has `num_kv_heads=4` (not 28). K and V come in with `num_kv_heads` on dim 1, Q with `num_heads=28`. Don't assume they match.
 - **`seq_len=1` on decode.** During decode, `write()` receives a single new token's K/V. Your cache needs to grow, not replace. `attend()` is called with `q_len=1` and needs to attend over the full accumulated cache.
-- **`memory_bytes()` must be honest.** The memory score is `(baseline_cache − yours) / baseline_cache` using each policy's `memory_bytes()`. Under-reporting your cache size inflates your score and is detectable in review; implement it to match what you actually store.
 - **No network, no filesystem, no `os`.** Your policy runs inside a sandbox. See [Allowed operations](/docs/miners/allowed-operations).
 - **Don't copy the king.** The validator computes a SHA-256 hash of your `policy.py` and rejects byte-identical copies of the current king's source with `duplicate_of_king`. Even a re-upload of the exact same file won't score — you need a genuinely different policy. See [Competition model](/docs/concepts/competition-model) for how the king-of-the-hill rules work.

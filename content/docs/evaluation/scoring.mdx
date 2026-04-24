@@ -1,6 +1,6 @@
 ---
 title: Scoring
-description: The full scoring formula — hard KL gate at 0.1 nats, then 60% memory + 40% latency. Memory is the policy's KV-cache footprint, not transient GPU peak VRAM.
+description: The full scoring formula — hard KL gate at 0.1 nats, then 60% memory + 40% latency. Memory is the harness-measured KV-cache footprint, not transient GPU peak VRAM.
 ---
 
 ## The formula
@@ -51,16 +51,31 @@ memory_reduction = (baseline_cache_memory - miner_cache_memory) / baseline_cache
 
 Clamped to `[-1, 1]`. Negative values (your cache uses more memory than baseline) are allowed but hurt your score.
 
-### Measured via `policy.memory_bytes()`
+### Measured by the harness — CUDA allocator delta
 
-Memory scoring uses `policy_memory_bytes` — the KV-cache footprint reported by each policy's `memory_bytes()` method. This directly measures the thing miners are optimizing: how much VRAM the stored cache occupies.
+Memory scoring uses `policy_memory_bytes` — measured by the harness as a CUDA allocator delta after the full generation run (prefill + all decode steps):
+
+```python
+torch.cuda.synchronize(device)
+gc.collect()
+mem_before = torch.cuda.memory_allocated(device)
+
+# ... prefill + decode loop ...
+
+torch.cuda.synchronize(device)
+gc.collect()
+mem_after = torch.cuda.memory_allocated(device)
+policy_memory_bytes = max(0, mem_after - mem_before)
+```
+
+This directly captures the GPU memory your stored cache added to the process. It cannot be gamed by returning a fake number from a method — the CUDA allocator is the source of truth.
 
 We deliberately do **not** use `torch.cuda.max_memory_allocated()` (peak VRAM) for scoring. Peak VRAM includes model weights, transient attention buffers, and implementation artifacts that have nothing to do with cache compression quality. The harness still records peak VRAM for monitoring, but it doesn't affect your score.
 
-<Callout type="warn" title="Cache memory, not peak VRAM">
-  Your `memory_bytes()` implementation must accurately report the actual memory occupied by your
-  stored K/V state. The baseline (PassthroughPolicy) reports the raw FP16 KV cache size — your score
-  is the fractional reduction relative to that.
+<Callout type="info" title="Cache memory, not peak VRAM">
+  Memory scoring measures what your policy actually allocated on the GPU during the run — the stored
+  K/V state. The baseline (PassthroughPolicy) stores raw FP16 tensors; your score is the fractional
+  reduction relative to that. You do not need to implement a <code>memory_bytes()</code> method.
 </Callout>
 
 ### Why memory gets 60%

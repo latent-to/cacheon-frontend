@@ -55,8 +55,8 @@ RunResult
   output_ids          list[list[int]]
   all_logits          list[Tensor]         # [num_generated, vocab_size] per prompt
   latency_s           float
-  peak_memory_bytes   int                  # torch.cuda.max_memory_allocated() (monitoring)
-  policy_memory_bytes int                  # policy.memory_bytes() — memory scoring uses this
+  peak_memory_bytes   int                  # torch.cuda.max_memory_allocated() (monitoring only)
+  policy_memory_bytes int                  # CUDA allocator delta after full run — memory scoring uses this
 ```
 
 ### `ScoreResult` — `scoring.py`
@@ -136,7 +136,7 @@ Failure here means the monkey-patch has a bug — RoPE ordering or GQA reshape. 
 2. **Prefill** — full prompt, one forward pass.
 3. **Decode loop** — one token at a time, until EOS or `max_new_tokens`.
 4. `_unpatch_attention()` — restore original forwards.
-5. Collect `RunResult` — latency (`time.monotonic`), peak VRAM (`torch.cuda.max_memory_allocated`), `policy.memory_bytes()`, logits, output_ids.
+5. Collect `RunResult` — latency (`time.monotonic`), peak VRAM (`torch.cuda.max_memory_allocated`), CUDA allocator delta (`policy_memory_bytes`), logits, output_ids.
 
 Per layer, per step:
 
@@ -164,7 +164,7 @@ parse ast
        ├─ blocked attribute targets?→ fail
        └─ _check_structure():
             - exactly one KVCachePolicy subclass
-            - setup, write, attend, memory_bytes all present
+            - setup, write, attend all present
        → CheckResult(ok=True)
 ```
 
