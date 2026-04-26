@@ -48,7 +48,7 @@ So `os.system("rm -rf /")` is rejected. A sufficiently clever miner could still 
 
 ### Structural check
 
-The submission must contain exactly one class inheriting from `KVCachePolicy` with all four required methods: `setup`, `write`, `attend`, `memory_bytes`. Missing any method, or defining multiple policy classes, is rejected.
+The submission must contain exactly one class inheriting from `KVCachePolicy` with all three required methods: `setup`, `write`, `attend`. Missing any method, or defining multiple policy classes, is rejected.
 
 ### Reject reason codes
 
