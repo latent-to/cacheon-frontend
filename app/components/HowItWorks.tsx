@@ -135,7 +135,7 @@ export default function HowItWorks() {
           ))}
         </div>
 
-        <p className="text-secondary max-w-xl font-sans text-[0.88rem] leading-[1.6]">
+        <p className="text-secondary border-border/40 mt-2 border-t pt-6 text-center font-sans text-[0.93rem] leading-[1.65]">
           Memory is harness-measured — a CUDA allocator delta around the policy run, not transient
           peak VRAM. Latency is wall-clock. Both relative to the same passthrough baseline on the
           same hardware.
