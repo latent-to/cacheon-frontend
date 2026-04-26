@@ -45,7 +45,7 @@ const METRICS: MetricRow[] = [
   {
     value: '60%',
     label: 'Memory weight',
-    desc: 'Peak GPU memory reduction vs. baseline. The primary bottleneck at scale.',
+    desc: 'KV-cache footprint reduction vs. baseline (harness-measured CUDA allocator delta). The primary bottleneck at scale.',
   },
   {
     value: '40%',
@@ -135,9 +135,10 @@ export default function HowItWorks() {
           ))}
         </div>
 
-        <p className="text-secondary max-w-xl font-sans text-[0.88rem] leading-[1.6]">
-          Memory via <code>torch.cuda.max_memory_allocated()</code> — not self-reported. Latency is
-          wall-clock. Both relative to the same passthrough baseline on the same hardware.
+        <p className="text-secondary border-border/40 mt-2 border-t pt-6 text-center font-sans text-[0.93rem] leading-[1.65]">
+          Memory is harness-measured — a CUDA allocator delta around the policy run, not transient
+          peak VRAM. Latency is wall-clock. Both relative to the same passthrough baseline on the
+          same hardware.
         </p>
       </div>
     </section>
