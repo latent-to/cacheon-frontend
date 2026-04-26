@@ -60,7 +60,7 @@ Each evaluation round computes three numbers per challenger:
 
 | Axis             | How it's measured                                                                  |
 | ---------------- | ---------------------------------------------------------------------------------- |
-| Quality (KL)     | Avg per-token KL divergence between baseline and miner logits. Hard gate at `0.1`. |
+| Quality (KL)     | Avg per-token KL divergence, teacher-forced on the baseline's token sequence. Hard gate at `0.1`. |
 | Memory reduction | `(baseline_mem - miner_mem) / baseline_mem`, clamped `[-1, 1]`                     |
 | Latency gain     | `(baseline_latency - miner_latency) / baseline_latency`, clamped `[-1, 1]`         |
 

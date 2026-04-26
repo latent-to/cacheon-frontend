@@ -107,7 +107,11 @@ harness.run(PassthroughPolicy, prompts)    →  RunResult (baseline)
 harness.run(MinerPolicy,        prompts)   →  RunResult (miner)
     │
     ▼
-scoring.score(baseline, miner)   →   ScoreResult
+harness.score_policy_on_sequence(          →  teacher-forced logits
+    MinerPolicy, prompts, baseline.output_ids)    (for KL scoring)
+    │
+    ▼
+scoring.score(baseline, miner_forced)   →   ScoreResult
     │
     ▼
 [SFTP back to CPU]
@@ -136,7 +140,13 @@ Failure here means the monkey-patch has a bug — RoPE ordering or GQA reshape. 
 2. **Prefill** — full prompt, one forward pass.
 3. **Decode loop** — one token at a time, until EOS or `max_new_tokens`.
 4. `_unpatch_attention()` — restore original forwards.
-5. Collect `RunResult` — latency (`time.monotonic`), peak VRAM (`torch.cuda.max_memory_allocated`), CUDA allocator delta (`policy_memory_bytes`), logits, output_ids.
+5. Collect `RunResult` — latency, peak VRAM (`torch.cuda.max_memory_allocated`), CUDA allocator delta (`policy_memory_bytes`), logits, output_ids.
+
+On baseline cache misses, the pod runs a throwaway warm-up pass (one prompt, one token) before the measured baseline to absorb one-time CUDA kernel compilation and allocator warm-up costs.
+
+### `score_policy_on_sequence(policy, prompts, reference_ids)` — teacher-forced KL
+
+After the autoregressive `run()`, the miner's policy is evaluated on the baseline's token sequence in a single forward pass per prompt. Both paths see identical tokens, so KL reflects only numerical policy differences. This eliminates autoregressive divergence (a single flipped greedy token cascading through the rest of the sequence).
 
 Per layer, per step:
 

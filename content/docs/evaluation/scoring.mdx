@@ -24,7 +24,13 @@ Three axes, in order of enforcement:
 kl = (1/N) * Σ_t KL( softmax(baseline_logits[t])  ||  softmax(miner_logits[t]) )   in nats
 ```
 
-Averaged over all decoded tokens, across all prompts. If it exceeds the threshold, the score is zero. No partial credit, no soft penalty.
+Averaged over all continuation positions, across all prompts. If it exceeds the threshold, the score is zero. No partial credit, no soft penalty.
+
+### Teacher-forced evaluation
+
+KL is **not** computed by comparing two independent autoregressive runs. Instead, the harness uses **teacher-forcing**: the baseline generates a token sequence, then the miner's policy processes that same sequence in a single forward pass. Both paths see identical input tokens, so KL reflects only numerical differences in the policy's attention — not autoregressive divergence from a single flipped token cascading through the rest of the sequence.
+
+This follows the same pattern as `verify()` (which validates the monkey-patch itself) and mirrors how distillation subnets evaluate student models.
 
 ### Why hard-gate, not soft-penalty
 
@@ -95,6 +101,10 @@ latency_improvement = (baseline_latency - miner_latency) / baseline_latency
 ```
 
 Clamped to `[-1, 1]`. Wall-clock seconds from first token to completion of the generation.
+
+### CUDA warm-up
+
+The baseline is measured after a throwaway warm-up pass (one prompt, one token). This absorbs one-time CUDA costs — kernel JIT compilation, memory allocator warm-up, clock ramping — that would otherwise inflate the baseline's latency and give every miner free latency points. The warm-up runs only on baseline cache misses (zero cost on cache hits).
 
 ### Why latency gets 40%
 

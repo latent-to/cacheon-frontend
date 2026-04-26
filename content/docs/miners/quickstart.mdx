@@ -93,6 +93,13 @@ Look for:
 
 If `disqualified == True`, check `result.disqualify_reason`. KL gate failure (`> 0.1` nats) means your policy is producing substantially different tokens from baseline. NaN/Inf means you have a numerical bug.
 
+<Callout type="info" title="Production uses teacher-forced KL">
+  The local test above compares autoregressive logits directly. Production eval uses **teacher-forced** KL:
+  the miner's policy processes the baseline's exact token sequence in a single forward pass, eliminating
+  autoregressive divergence. If your KL is close to the 0.1 threshold locally, it may be lower in
+  production eval. See [Scoring](/docs/evaluation/scoring#teacher-forced-evaluation) for details.
+</Callout>
+
 ## 4. Push to a public Hugging Face repo
 
 Use the HuggingFace CLI or `huggingface_hub` to upload your `policy.py`:

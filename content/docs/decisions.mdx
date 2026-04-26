@@ -117,6 +117,22 @@ policy_memory_bytes = max(0, mem_after - mem_before)
 - `torch.cuda.max_memory_allocated()` as the memory axis: correct for "did this process fit on the GPU," wrong for "how much did you compress the KV cache." Peak VRAM includes model weights, transient attention buffers, and implementation artifacts.
 - Measuring after prefill only: same result because the sandbox prevents timing attacks, but end-of-run is simpler and captures decode-appended cache entries too.
 
+## KL evaluation: teacher-forced, not autoregressive comparison
+
+**Decision:** KL divergence is computed by running the miner's policy on the **baseline's token sequence** in a single forward pass (`score_policy_on_sequence`), not by comparing logits from two independent autoregressive runs.
+
+**Reasoning:** Two independent greedy decode runs produce slightly different logits due to quantization error or CUDA non-determinism. If the argmax flips even one token early in the sequence, the two runs diverge catastrophically — the miner feeds token₁' while the baseline fed token₁, and from that point the models see completely different inputs. KL explodes to 10-20 nats despite the policy being correct. Teacher-forcing eliminates this: both paths see identical tokens, so KL reflects only the numerical difference in attention computation.
+
+**Rejected:** Comparing autoregressive logits directly. Produces false positives (correct policies DQ'd) due to greedy-argmax sensitivity. Even an identity passthrough policy can fail the KL gate this way due to Flash Attention FP non-determinism across separate invocations.
+
+## Baseline latency: CUDA kernel warm-up
+
+**Decision:** On baseline cache misses, `pod_eval.py` runs a throwaway single-prompt, single-token forward pass before the timed baseline.
+
+**Reasoning:** The baseline is the first inference after model load. CUDA pays one-time costs: kernel JIT compilation, memory allocator warm-up, and clock ramping. Every miner after that runs on a warm GPU and appears artificially faster. A do-nothing passthrough policy was scoring 0.91 on latency improvement purely from warmup savings. The throwaway pass absorbs these costs (~1 second) so baseline and miners start from the same GPU state.
+
+**Rejected:** Running baseline twice and using the second run's latency. Correct but doubles baseline time (~5 min → ~10 min) on cache misses. The single-token warm-up gets 95% of the benefit at 1% of the cost.
+
 ## Operating model: single-validator V1
 
 **Decision:** One validator (the subnet owner), one GPU pod, one person setting weights.
