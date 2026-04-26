@@ -80,7 +80,7 @@ We deliberately do **not** use `torch.cuda.max_memory_allocated()` (peak VRAM) f
 
 <Callout type="info" title="Cache memory, not peak VRAM">
   Memory scoring measures what your policy actually allocated on the GPU during the run — the stored
-  K/V state. The baseline (PassthroughPolicy) stores raw FP16 tensors; your score is the fractional
+  K/V state. The baseline (`PassthroughPolicy`) stores raw FP16 tensors; your score is the fractional
   reduction relative to that. You do not need to implement a <code>memory_bytes()</code> method.
 </Callout>
 
