@@ -10,13 +10,13 @@ import Footer from '~/components/Footer'
 
 export function meta(_: Route.MetaArgs) {
   return [
-    { title: 'Cacheon — Inference Optimization (Bittensor SN14)' },
+    { title: 'Cacheon: Inference Optimization (Bittensor SN14)' },
     {
       name: 'description',
       content:
         'Cacheon (Bittensor Subnet 14) optimizes inference-time KV-cache behavior. Miners compete to run models cheaper and faster while keeping output quality.',
     },
-    { property: 'og:title', content: 'Cacheon — Inference Optimization' },
+    { property: 'og:title', content: 'Cacheon: Inference Optimization' },
     {
       property: 'og:description',
       content:
