@@ -58,11 +58,11 @@ Unlimited resubmission would turn the subnet into a free hyperparameter search s
 
 Each evaluation round computes three numbers per challenger:
 
-| Axis             | How it's measured                                                                  |
-| ---------------- | ---------------------------------------------------------------------------------- |
+| Axis             | How it's measured                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
 | Quality (KL)     | Avg per-token KL divergence, teacher-forced on the baseline's token sequence. Hard gate at `0.1`. |
-| Memory reduction | `(baseline_mem - miner_mem) / baseline_mem`, clamped `[-1, 1]`                     |
-| Latency gain     | `(baseline_latency - miner_latency) / baseline_latency`, clamped `[-1, 1]`         |
+| Memory reduction | `(baseline_mem - miner_mem) / baseline_mem`, clamped `[-1, 1]`                                    |
+| Latency gain     | `(baseline_latency - miner_latency) / baseline_latency`, clamped `[-1, 1]`                        |
 
 The final score is:
 
