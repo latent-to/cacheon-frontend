@@ -3,7 +3,7 @@ title: Prompts
 description: Deterministic PG19 passage sampling, seeded by Bittensor block hash. Same hash always produces the same prompt set on any machine.
 ---
 
-Prompts are sampled from **PG19** (Project Gutenberg books) with a **block-hash-derived seed**. Same block, same prompts — anywhere, any machine.
+Prompts are sampled from [**PG19** (Project Gutenberg books)](https://www.tensorflow.org/datasets/catalog/pg19) with a **block-hash-derived seed**. Same block, same prompts — anywhere, any machine.
 
 ## Why PG19
 
@@ -13,7 +13,7 @@ KV-cache benchmarking needs long, continuous sequences that force the cache to g
 | -------------------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
 | FineWeb                          | Median &lt;1K tokens           | Too short — cache never gets large enough for signal                          |
 | MMLU / HellaSwag                 | ~100–500 tokens                | Evaluation benchmarks, not continuation prompts                               |
-| Synthetic (infilling, retrieval) | Variable                       | Deferred to V2+; want real text for V1                                        |
+| Synthetic (infilling, retrieval) | Variable                       | Deferred to [Cacheon V2+](../docs/roadmap#v2--expanded-optimization-surface); want real text for V1                                        |
 | **PG19**                         | **100K+ tokens (full novels)** | **Chosen** — long-form text pushes cache to ~12% of peak memory at 32K tokens |
 
 PG19 is pinned to a specific Hugging Face dataset revision. Row ordering is stable regardless of upstream changes — eval rounds from two years ago can be reproduced exactly.

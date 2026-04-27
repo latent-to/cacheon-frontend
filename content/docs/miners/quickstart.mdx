@@ -136,8 +136,8 @@ Use the Bittensor SDK to register submissions on chain as shown:
 import json
 import bittensor as bt
 
-wallet   = bt.wallet(name="my_wallet", hotkey="my_hotkey")
-subtensor = bt.subtensor(network="finney")
+wallet   = bt.Wallet(name="my_wallet", hotkey="my_hotkey")
+subtensor = bt.Subtensor(network="finney")
 
 commit_data = json.dumps({
     "repo":     "you/my-kv-policy",          # HF repo id

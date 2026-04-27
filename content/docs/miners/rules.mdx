@@ -1,11 +1,13 @@
 ---
-title: Allowed operations
-description: What's in bounds for V1 — and what isn't. The sandbox enforces the technical half; the scoring formula enforces the rest.
+title: Rules and contraints
+description: A clear guide to Cacheon V1—allowed scope, sandbox rules, and how scoring determines the winner. The sandbox enforces the technical half; the scoring formula enforces the rest.
 ---
 
-V1 is scoped deliberately narrowly. Two things define the perimeter: the scoring axes (memory, latency, KL) and the sandbox (import allowlist, execution isolation).
+Cacheon V1 is deliberately scoped narrowly. Two boundaries define the perimeter: [the scoring axes](../docs/concepts/competition-model#what-validators-score-on) (memory, latency, KL) and [the sandbox](../docs/architecture/sandbox) (import allowlist, execution isolation).
 
-## Allowed
+## Allowed strategies
+
+This section outlines operations and strategies that are permitted in V1:
 
 ### KV storage strategies
 
@@ -34,7 +36,8 @@ V1 is scoped deliberately narrowly. Two things define the perimeter: the scoring
 - **Per-head adaptive** — different strategies per attention head within a layer
 - **Context-length adaptive** — behavior changes as the cache grows
 
-## Not allowed
+## Restricted strategies
+This section covers operations that are excluded from the V1 release by category and the rationale behind each restriction:
 
 ### Model or architecture changes
 
@@ -52,7 +55,10 @@ V1 is scoped deliberately narrowly. Two things define the perimeter: the scoring
 | Custom CUDA kernels                   | Sandboxing cost not worth it in V1 — PyTorch ops can implement the algorithms |
 | **Triton kernels**                    | Same — Triton unlocks in V2 with additional isolation                         |
 
-### Import restrictions (enforced by sandbox)
+## Sandbox restrictions
+This section details the sandbox-enforced constraints, specifying the permitted and restricted import policies and function calls that govern the execution environment.
+
+### Import restrictions 
 
 **Allowed top-level imports:**
 
@@ -69,7 +75,7 @@ V1 is scoped deliberately narrowly. Two things define the perimeter: the scoring
 - All relative imports (`from .` / `from ..`)
 - All submodules of `inference_engine` except `policy` — internal modules could re-export stdlib objects
 
-### Blocked functions (enforced by sandbox)
+### Blocked functions 
 
 Bare calls to any of: `eval`, `exec`, `compile`, `open`, `input`, `breakpoint`, `__import__`, `getattr`, `setattr`, `delattr`, `globals`, `locals`, `vars`.
 
@@ -79,7 +85,12 @@ Bare calls to any of: `eval`, `exec`, `compile`, `open`, `input`, `breakpoint`, 
   boundary; AST-level checks are a fast-feedback tool, not the last line of defense.
 </Callout>
 
-## Quality requirements (enforced by scoring)
+
+## Scoring and evaluation
+
+Evaluation is simple: policies are measured on memory, latency, and KL, then ranked on a single score. The top score becomes the king, and every new submission is judged against it.
+
+### Quality requirements 
 
 Even if your policy passes sandbox checks, it will score `0` if any of the following fail:
 
@@ -88,9 +99,9 @@ Even if your policy passes sandbox checks, it will score `0` if any of the follo
 - **Output shape/dtype mismatch.** The harness validates `AttentionOutput.output` strictly.
 - **Attention weights don't sum to ~1** (when you return them). Indicates a bug in your score/softmax path.
 - **Wall-clock timeout.** Hard limit at 300 seconds per policy per evaluation run.
-- **Byte-identical `policy.py` to the current king (different hotkey, later commit).** When the result is recorded, matching `source_hash` triggers `disqualify_reason = "duplicate_of_king"` and score `0` — see [Defender's moat](/docs/concepts/competition-model#the-defenders-moat).
+- **Byte-identical `policy.py` to the current king (different hotkey, later commit).** When the result is recorded, a matching `source_hash` with the current king triggers `disqualify_reason = "duplicate_of_king"` and score `0` — see [Defender's moat](/docs/concepts/competition-model#the-defenders-moat).
 
-## Beating the king
+### Beating the king
 
 Passing the quality gate is not enough. To dethrone the current king, your score must **strictly exceed** `king_score × (1 + ε(age))`, where ε starts at **1%** on the block the king is crowned and decays linearly to **0** over **~50,400 blocks (~7 days)**. After decay, the threshold is just `king_score` — any strict improvement wins.
 
