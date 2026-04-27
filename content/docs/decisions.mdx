@@ -92,13 +92,46 @@ Byte-identical copies are caught in stage 1 by `source_hash` — faster and more
 
 **Rejected:** 50/50. Undersells how load-bearing memory is at long context. Rejected for now, could shift toward 50/50 if V2 expands to latency-sensitive workloads.
 
-## Memory measurement: CUDA allocator, not self-reported
+## Memory measurement: CUDA allocator delta around policy run
 
-**Decision:** Memory score uses `torch.cuda.max_memory_allocated()`. The policy's `memory_bytes()` is informational only.
+**Decision:** Memory score uses `policy_memory_bytes` — the CUDA allocator delta measured by the harness after the full generation run (prefill + all decode steps), not `policy.memory_bytes()` (self-reported) or `torch.cuda.max_memory_allocated()` (peak VRAM).
 
-**Reasoning:** Self-reported numbers can be faked. Allocator-level peak memory cannot — it measures real GPU pages. `memory_bytes()` stays in the interface as a debugging aid and cross-check; a large discrepancy flags the submission.
+```python
+torch.cuda.synchronize(device)
+gc.collect()
+mem_before = torch.cuda.memory_allocated(device)
+# ... prefill + decode ...
+torch.cuda.synchronize(device)
+gc.collect()
+mem_after  = torch.cuda.memory_allocated(device)
+policy_memory_bytes = max(0, mem_after - mem_before)
+```
 
-**Rejected:** Trust `memory_bytes()`. Fine in a cooperative setting, indefensible in a competitive one.
+**Reasoning:** Self-reporting (`memory_bytes()`) is gameable — a policy can return `0` regardless of what it stores, inflating its apparent memory reduction. The CUDA allocator delta is non-gameable: it measures what the policy actually allocated on the GPU. `torch.cuda.empty_cache()` is intentionally omitted from the measurement block — it's expensive (forces allocator to release free blocks to the OS, adding hundreds of ms per run) and unnecessary (`memory_allocated()` counts live bytes only, not cached-free blocks). Measuring after the full run rather than after prefill is safe because the AST sandbox blocks all async/finalizer tricks, and the harness has no miner hook between the last `attend()` return and measurement.
+
+**Supersedes (2026):** Earlier versions used `policy.memory_bytes()` (self-reported cache size). That was replaced first by `torch.cuda.max_memory_allocated()` (peak VRAM), then by the allocator-delta approach here. `memory_bytes()` has been removed from the `KVCachePolicy` interface and from `sandbox.REQUIRED_METHODS`.
+
+**Rejected:**
+
+- `policy.memory_bytes()` self-report: gameable, cannot be audited at runtime.
+- `torch.cuda.max_memory_allocated()` as the memory axis: correct for "did this process fit on the GPU," wrong for "how much did you compress the KV cache." Peak VRAM includes model weights, transient attention buffers, and implementation artifacts.
+- Measuring after prefill only: same result because the sandbox prevents timing attacks, but end-of-run is simpler and captures decode-appended cache entries too.
+
+## KL evaluation: teacher-forced, not autoregressive comparison
+
+**Decision:** KL divergence is computed by running the miner's policy on the **baseline's token sequence** in a single forward pass (`score_policy_on_sequence`), not by comparing logits from two independent autoregressive runs.
+
+**Reasoning:** Two independent greedy decode runs produce slightly different logits due to quantization error or CUDA non-determinism. If the argmax flips even one token early in the sequence, the two runs diverge catastrophically — the miner feeds token₁' while the baseline fed token₁, and from that point the models see completely different inputs. KL explodes to 10-20 nats despite the policy being correct. Teacher-forcing eliminates this: both paths see identical tokens, so KL reflects only the numerical difference in attention computation.
+
+**Rejected:** Comparing autoregressive logits directly. Produces false positives (correct policies DQ'd) due to greedy-argmax sensitivity. Even an identity passthrough policy can fail the KL gate this way due to Flash Attention FP non-determinism across separate invocations.
+
+## Baseline latency: CUDA kernel warm-up
+
+**Decision:** On baseline cache misses, `pod_eval.py` runs a throwaway single-prompt, single-token forward pass before the timed baseline.
+
+**Reasoning:** The baseline is the first inference after model load. CUDA pays one-time costs: kernel JIT compilation, memory allocator warm-up, and clock ramping. Every miner after that runs on a warm GPU and appears artificially faster. A do-nothing passthrough policy was scoring 0.91 on latency improvement purely from warmup savings. The throwaway pass absorbs these costs (~1 second) so baseline and miners start from the same GPU state.
+
+**Rejected:** Running baseline twice and using the second run's latency. Correct but doubles baseline time (~5 min → ~10 min) on cache misses. The single-token warm-up gets 95% of the benefit at 1% of the cost.
 
 ## Operating model: single-validator V1
 

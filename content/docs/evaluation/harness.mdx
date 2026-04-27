@@ -59,9 +59,19 @@ For each prompt:
 2. **Prefill** — one forward pass over the full prompt.
 3. **Decode loop** — generate tokens one at a time until EOS or `max_new_tokens`.
 4. Unpatch attention.
-5. Collect latency, peak memory, and logits into a `RunResult`.
+5. Collect latency, memory (CUDA allocator delta), and logits into a `RunResult`.
 
 Same sequence of calls whether it's the baseline or the miner — that's what makes the comparison valid.
+
+### `score_policy_on_sequence(policy, prompts, reference_ids)` — teacher-forced KL
+
+After both `run()` calls, the harness evaluates the miner's policy on the **baseline's token sequence** in a single forward pass per prompt. Both baseline and miner see identical input tokens, so the resulting KL divergence reflects only numerical differences in the policy's attention computation — not autoregressive divergence from a single flipped token cascading through the rest of the sequence.
+
+This is the same approach used by `verify()` (which validates the monkey-patch itself). The autoregressive `run()` logits are used for latency/memory measurement; the teacher-forced logits are used for KL scoring.
+
+### CUDA warm-up
+
+On baseline cache misses, the harness runs a throwaway single-prompt, single-token forward pass before the timed baseline. This compiles CUDA kernels and warms the memory allocator so the baseline latency measurement isn't inflated by one-time GPU costs that every subsequent miner run would skip.
 
 ## Prefill vs. decode
 
@@ -82,11 +92,11 @@ RunResult
   output_ids          list[list[int]]   — token ids per prompt
   all_logits          list[Tensor]      — [num_generated, vocab_size] per prompt
   latency_s           float             — wall-clock time for the full run
-  peak_memory_bytes   int               — torch.cuda.max_memory_allocated()
-  policy_memory_bytes int               — policy.memory_bytes() (self-reported)
+  peak_memory_bytes   int               — torch.cuda.max_memory_allocated() (monitoring only)
+  policy_memory_bytes int               — harness-measured KV-cache bytes (CUDA allocator delta around the full run); used for memory scoring
 ```
 
-`all_logits` is what the scoring module uses to compute KL against the baseline. It's per-position, so KL is averaged over every generated token.
+`all_logits` from `run()` captures the autoregressive generation logits. For **KL scoring**, the harness separately calls `score_policy_on_sequence()` which produces teacher-forced logits on the baseline's token sequence — these are what the scoring module actually uses for the KL gate. **Memory scoring** uses `policy_memory_bytes`, not `peak_memory_bytes` — see [Scoring](/docs/evaluation/scoring).
 
 ## Qwen-specific gotchas
 

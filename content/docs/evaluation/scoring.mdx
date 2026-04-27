@@ -1,6 +1,6 @@
 ---
 title: Scoring
-description: The full scoring formula — hard KL gate at 0.1 nats, then 60% memory + 40% latency. Plus why we measure memory with the CUDA allocator and not self-reporting.
+description: The full scoring formula — hard KL gate at 0.1 nats, then 60% memory + 40% latency. Memory is the harness-measured KV-cache footprint, not transient GPU peak VRAM.
 ---
 
 ## The formula
@@ -24,7 +24,13 @@ Three axes, in order of enforcement:
 kl = (1/N) * Σ_t KL( softmax(baseline_logits[t])  ||  softmax(miner_logits[t]) )   in nats
 ```
 
-Averaged over all decoded tokens, across all prompts. If it exceeds the threshold, the score is zero. No partial credit, no soft penalty.
+Averaged over all continuation positions, across all prompts. If it exceeds the threshold, the score is zero. No partial credit, no soft penalty.
+
+### Teacher-forced evaluation
+
+KL is **not** computed by comparing two independent autoregressive runs. Instead, the harness uses **teacher-forcing**: the baseline generates a token sequence, then the miner's policy processes that same sequence in a single forward pass. Both paths see identical input tokens, so KL reflects only numerical differences in the policy's attention — not autoregressive divergence from a single flipped token cascading through the rest of the sequence.
+
+This follows the same pattern as `verify()` (which validates the monkey-patch itself) and mirrors how distillation subnets evaluate student models.
 
 ### Why hard-gate, not soft-penalty
 
@@ -46,27 +52,37 @@ This is tunable and will move as we see real submissions. Rough calibration:
 ## Memory reduction
 
 ```
-memory_reduction = (baseline_peak_memory - miner_peak_memory) / baseline_peak_memory
+memory_reduction = (baseline_cache_memory - miner_cache_memory) / baseline_cache_memory
 ```
 
-Clamped to `[-1, 1]`. Negative values (you use more memory than baseline) are allowed but hurt your score.
+Clamped to `[-1, 1]`. Negative values (your cache uses more memory than baseline) are allowed but hurt your score.
 
-### Measured with `torch.cuda.max_memory_allocated`
+### Measured by the harness — CUDA allocator delta
 
-This is the real, allocator-level peak memory usage across the entire run. Not self-reported. Not approximated.
+Memory scoring uses `policy_memory_bytes` — measured by the harness as a CUDA allocator delta after the full generation run (prefill + all decode steps):
 
 ```python
-torch.cuda.reset_peak_memory_stats()
-# ... run inference ...
-peak = torch.cuda.max_memory_allocated()
+torch.cuda.synchronize(device)
+gc.collect()
+mem_before = torch.cuda.memory_allocated(device)
+
+# ... prefill + decode loop ...
+
+torch.cuda.synchronize(device)
+gc.collect()
+mem_after = torch.cuda.memory_allocated(device)
+policy_memory_bytes = max(0, mem_after - mem_before)
 ```
 
-Your policy's `memory_bytes()` method is **informational only** — the harness records it, but it doesn't affect your score. A large discrepancy between self-reported and measured memory flags the submission for manual review.
+This directly captures the GPU memory your stored cache added to the process. It cannot be gamed by returning a fake number from a method — the CUDA allocator is the source of truth.
 
-<Callout type="warn" title="Peak memory, not average">
-  Compressing K/V for storage but decompressing to FP16 before `attend()` means your peak memory is
-  almost identical to baseline — the decompressed buffer dominates. **Fused scoring against the
-  compressed form** (TurboQuant path) is the only way to win the memory axis decisively.
+We deliberately do **not** use `torch.cuda.max_memory_allocated()` (peak VRAM) for scoring. Peak VRAM includes model weights, transient attention buffers, and implementation artifacts that have nothing to do with cache compression quality. The harness still records peak VRAM for monitoring, but it doesn't affect your score.
+
+<Callout type="info" title="Cache memory, not peak VRAM">
+  Memory scoring measures what your policy actually allocated on the GPU during the run — the stored
+  K/V state. The baseline (`PassthroughPolicy`) stores raw FP16 tensors; your score is the
+  fractional reduction relative to that. You do not need to implement a <code>memory_bytes()</code>{" "}
+  method.
 </Callout>
 
 ### Why memory gets 60%
@@ -86,6 +102,10 @@ latency_improvement = (baseline_latency - miner_latency) / baseline_latency
 ```
 
 Clamped to `[-1, 1]`. Wall-clock seconds from first token to completion of the generation.
+
+### CUDA warm-up
+
+The baseline is measured after a throwaway warm-up pass (one prompt, one token). This absorbs one-time CUDA costs — kernel JIT compilation, memory allocator warm-up, clock ramping — that would otherwise inflate the baseline's latency and give every miner free latency points. The warm-up runs only on baseline cache misses (zero cost on cache hits).
 
 ### Why latency gets 40%
 

@@ -31,11 +31,14 @@ GPU POD  ← pod_eval.py
   │
   │  no wallet keys, no chain access
   │  load Qwen2.5-7B-Instruct
+  │  warm up CUDA kernels (throwaway 1-token pass)
   │  generate prompts (block-hash seeded PG19)
   │  for each challenger:
   │    baseline = harness.run(PassthroughPolicy, prompts)
   │    miner    = harness.run(MinerPolicy, prompts)
-  │    result   = scoring.score(baseline, miner)
+  │    forced   = harness.score_policy_on_sequence(   ← teacher-forced KL
+  │                 MinerPolicy, prompts, baseline.output_ids)
+  │    result   = scoring.score(baseline, miner_forced)
   │  write results.json
   │
   └──────── results.json back over SSH ───────────────────────▶ CPU SERVER
