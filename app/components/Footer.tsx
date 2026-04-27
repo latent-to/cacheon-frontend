@@ -13,9 +13,7 @@ export default function Footer() {
     <footer className="border-border/60 border-t px-6 py-8">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2 font-sans text-[0.88rem]">
-          <span className="text-primary font-semibold">
-            <span className="text-accent font-mono">C</span>acheon
-          </span>
+          <img src="/icon-192.png" alt="Cacheon" className="h-5 w-5" />
           <span className="text-secondary text-[0.78rem]">· SN14 · MIT License</span>
         </div>
 

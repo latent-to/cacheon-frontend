@@ -25,9 +25,10 @@ export default function Nav() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-4">
         <Link
           to="/"
-          className="text-primary flex items-center gap-0.5 text-2xl font-bold tracking-wide no-underline"
+          className="text-primary flex items-center gap-2.5 text-xl font-semibold tracking-tight no-underline"
         >
-          <span className="text-accent font-mono">C</span>acheon
+          <img src="/icon-192.png" alt="" className="h-7 w-7" />
+          <span>Cacheon</span>
         </Link>
 
         {/* Desktop */}
