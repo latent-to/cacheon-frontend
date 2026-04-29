@@ -149,7 +149,8 @@ The tradeoff — trust concentration — is real. V2's verifiable rollouts (publ
 
 **Reasoning:** If the GPU pod is compromised (it runs arbitrary miner code after sandboxing, so it's a realistic attack surface), the attacker gets model weights and in-flight eval results — not wallet keys, not weight-setting capability. SSH between the two machines narrows the blast radius.
 
-**Rejected:** 
+**Rejected:**
+
 - **Everything on one machine**: Miner code and wallet keys on the same host is reckless.
 - **HTTP service on the pod**: More moving parts, open port, auth layer. SSH is simpler and the pod's only interface becomes the SSH key.
 
@@ -159,7 +160,8 @@ The tradeoff — trust concentration — is real. V2's verifiable rollouts (publ
 
 **Reasoning:** Neither alone is enough. AST-only can be bypassed with enough cleverness. Subprocess-only gives miners terrible error messages—miner gets random timeouts at 300s rather than an `import os rejected` error in 5ms. Layered defense covers both.
 
-**Rejected:** 
+**Rejected:**
+
 - **AST-only**: Not airtight.
 - **Subprocess-only**: Bad UX for miners.
 
@@ -177,7 +179,8 @@ The tradeoff — trust concentration — is real. V2's verifiable rollouts (publ
 
 **Reasoning:** KV-cache benchmarking needs long, continuous sequences. At 2K tokens, the Qwen2.5-7B GQA cache is ~0.7% of peak memory — memory reduction is invisible to scoring. At 32K tokens it's ~12%, large enough for compression gains to register. Block-hash seeding makes prompt selection deterministic and auditable; PG19's full-novel passages force the cache to grow.
 
-**Rejected:** 
+**Rejected:**
+
 - **FineWeb. Median documents &lt;1K tokens**: cache too small for signal.
 - **Synthetic prompts (infilling, retrieval)**: Deferred to V2+ once V1 is running on real text.
 

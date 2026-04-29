@@ -37,6 +37,7 @@ This section outlines operations and strategies that are permitted in V1:
 - **Context-length adaptive** — behavior changes as the cache grows
 
 ## Restricted strategies
+
 This section covers operations that are excluded from the V1 release by category and the rationale behind each restriction:
 
 ### Model or architecture changes
@@ -56,9 +57,10 @@ This section covers operations that are excluded from the V1 release by category
 | **Triton kernels**                    | Same — Triton unlocks in V2 with additional isolation                         |
 
 ## Sandbox restrictions
+
 This section details the sandbox-enforced constraints, specifying the permitted and restricted import policies and function calls that govern the execution environment.
 
-### Import restrictions 
+### Import restrictions
 
 **Allowed top-level imports:**
 
@@ -75,7 +77,7 @@ This section details the sandbox-enforced constraints, specifying the permitted 
 - All relative imports (`from .` / `from ..`)
 - All submodules of `inference_engine` except `policy` — internal modules could re-export stdlib objects
 
-### Blocked functions 
+### Blocked functions
 
 Bare calls to any of: `eval`, `exec`, `compile`, `open`, `input`, `breakpoint`, `__import__`, `getattr`, `setattr`, `delattr`, `globals`, `locals`, `vars`.
 
@@ -85,12 +87,11 @@ Bare calls to any of: `eval`, `exec`, `compile`, `open`, `input`, `breakpoint`, 
   boundary; AST-level checks are a fast-feedback tool, not the last line of defense.
 </Callout>
 
-
 ## Scoring and evaluation
 
 Evaluation is simple: policies are measured on memory, latency, and KL, then ranked on a single score. The top score becomes the king, and every new submission is judged against it.
 
-### Quality requirements 
+### Quality requirements
 
 Even if your policy passes sandbox checks, it will score `0` if any of the following fail:
 
@@ -112,9 +113,9 @@ Practically:
 
 Exact formula, edge cases, and env tunables: [Architecture → Validator → Dethrone rule](/docs/architecture/validator#dethrone-rule).
 
-
 <Callout title="SCORING AND EVALUATION" type="info">
- For more information on how miner scoring and evalutaion works, see [Prompts](../docs/evaluation/prompts) and [Scoring](../docs/evaluation/scoring)
+  For more information on how miner scoring and evalutaion works, see
+  [Prompts](../docs/evaluation/prompts) and [Scoring](../docs/evaluation/scoring)
 </Callout>
 
 ## A note on "allowed but scored low"
@@ -126,4 +127,3 @@ Just because something passes the sandbox doesn't mean it's a good submission. S
 - **Very small cache budgets.** Cuts memory to near zero, destroys quality. The KL gate catches this.
 
 Reading the [scoring formula](/docs/evaluation/scoring#scoring-formula) carefully before implementing anything will save you a hotkey registration.
-

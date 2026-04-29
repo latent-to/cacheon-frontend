@@ -3,10 +3,10 @@ title: Scoring
 description: The full scoring formula — hard KL gate at 0.1 nats, then 60% memory + 40% latency. Memory is the harness-measured KV-cache footprint, not transient GPU peak VRAM.
 ---
 
-The scoring algorithm implements a quality-gated efficiency model. A strict threshold of 0.1 nats for KL divergence acts as a primary filter; 
+The scoring algorithm implements a quality-gated efficiency model. A strict threshold of 0.1 nats for KL divergence acts as a primary filter;
 submissions exceeding this limit are assigned a zero score to ensure integrity. For valid submissions, the final score combines memory and latency, with more weight placed on memory efficiency (60%) than latency improvements (40%).
 
-## Scoring formula 
+## Scoring formula
 
 ```python
 if kl_divergence > QUALITY_THRESHOLD:     # QUALITY_THRESHOLD = 0.1 nats
@@ -21,6 +21,7 @@ Three axes, in order of enforcement:
 1. **Quality gate** — fail this and nothing else matters.
 2. **Memory** — 60% of the remaining score.
 3. **Latency** — 40%.
+
 </Callout>
 
 ## Quality — KL divergence
@@ -55,7 +56,8 @@ This is tunable and will move as we see real submissions. Rough calibration:
 - **1.0 nats**: different model quality tier entirely
 
 <Callout title="CURRENT KL THRESHOLD" type="info">
-`0.1` is the current cutoff for "close enough to ship." We reserve the right to tighten it if policies cluster too close to the gate.
+  `0.1` is the current cutoff for "close enough to ship." We reserve the right to tighten it if
+  policies cluster too close to the gate.
 </Callout>
 
 ## Memory reduction
