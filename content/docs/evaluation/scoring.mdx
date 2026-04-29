@@ -3,7 +3,10 @@ title: Scoring
 description: The full scoring formula — hard KL gate at 0.1 nats, then 60% memory + 40% latency. Memory is the harness-measured KV-cache footprint, not transient GPU peak VRAM.
 ---
 
-## The formula
+The scoring algorithm implements a quality-gated efficiency model. A strict threshold of 0.1 nats for KL divergence acts as a primary filter; 
+submissions exceeding this limit are assigned a zero score to ensure integrity. For valid submissions, the final score combines memory and latency, with more weight placed on memory efficiency (60%) than latency improvements (40%).
+
+## Scoring formula 
 
 ```python
 if kl_divergence > QUALITY_THRESHOLD:     # QUALITY_THRESHOLD = 0.1 nats
@@ -12,13 +15,17 @@ else:
     score = (0.6 * memory_reduction) + (0.4 * latency_improvement)
 ```
 
+<Callout title="SCORING AXES" type="info">
 Three axes, in order of enforcement:
 
 1. **Quality gate** — fail this and nothing else matters.
 2. **Memory** — 60% of the remaining score.
 3. **Latency** — 40%.
+</Callout>
 
 ## Quality — KL divergence
+
+Quality is measured using KL divergence against the baseline. Policies must stay close enough to the reference distribution to preserve model behavior while improving efficiency.
 
 ```
 kl = (1/N) * Σ_t KL( softmax(baseline_logits[t])  ||  softmax(miner_logits[t]) )   in nats
@@ -30,7 +37,7 @@ Averaged over all continuation positions, across all prompts. If it exceeds the 
 
 KL is **not** computed by comparing two independent autoregressive runs. Instead, the harness uses **teacher-forcing**: the baseline generates a token sequence, then the miner's policy processes that same sequence in a single forward pass. Both paths see identical input tokens, so KL reflects only numerical differences in the policy's attention — not autoregressive divergence from a single flipped token cascading through the rest of the sequence.
 
-This follows the same pattern as `verify()` (which validates the monkey-patch itself) and mirrors how distillation subnets evaluate student models.
+This follows the same pattern as [`verify()`](../docs/evaluation/harness#verify--correctness-check) (which validates the monkey-patch itself) and mirrors how distillation subnets on Bittensor evaluate student models.
 
 ### Why hard-gate, not soft-penalty
 
@@ -47,9 +54,13 @@ This is tunable and will move as we see real submissions. Rough calibration:
 - **0.3 nats**: clearly different outputs, possibly still coherent
 - **1.0 nats**: different model quality tier entirely
 
+<Callout title="CURRENT KL THRESHOLD" type="info">
 `0.1` is the current cutoff for "close enough to ship." We reserve the right to tighten it if policies cluster too close to the gate.
+</Callout>
 
 ## Memory reduction
+
+Memory reduction measures how much a policy lowers KV-cache usage relative to the baseline. Policies that preserve quality while using less memory score higher.
 
 ```
 memory_reduction = (baseline_cache_memory - miner_cache_memory) / baseline_cache_memory
@@ -96,6 +107,8 @@ Memory is the primary bottleneck at scale. KV cache memory determines:
 Latency matters, but you can often cover a latency regression by adding hardware. You can't cover a memory regression — it's a hard failure.
 
 ## Latency improvement
+
+Latency improvement measures how much faster a policy runs compared to the baseline. Policies that reduce generation time without compromising quality score higher.
 
 ```
 latency_improvement = (baseline_latency - miner_latency) / baseline_latency

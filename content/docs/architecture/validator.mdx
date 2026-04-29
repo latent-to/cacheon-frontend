@@ -52,7 +52,7 @@ while True:
         time.sleep(360)
 ```
 
-`eval_fn` is injected — it's the SSH transport to the GPU pod. The whole loop is testable with a fake `eval_fn` that returns fixed scores.
+`eval_fn` is injected — it's the SSH transport to the GPU pod. The whole loop can be tested using a fake `eval_fn` that returns fixed scores.
 
 ## State
 
@@ -65,7 +65,7 @@ ValidatorState
   score_history       dict[hotkey, list]    — per-hotkey score trail
 ```
 
-Full field-level reference (including `EvaluationRecord`, `KingRecord`, and wire types): [Data contracts](/docs/architecture/data-contracts).
+Full field-level reference (including `EvaluationRecord`, `KingRecord`, and wire types): [Data contracts](/docs/architecture/data-contracts#summary).
 
 This is **not** the truth of the leaderboard — the chain is. State is a local cache that lets the loop answer "have I seen this commitment before?" without re-evaluating every commitment every epoch.
 
@@ -123,7 +123,7 @@ The philosophy is "fail forward slowly." Transient failures back off to 360s and
 
 ### Stage 1 — Duplicate-of-king DQ
 
-If the current king exists, the challenger's `source_hash` is non-empty and equals the king's, the hotkeys differ, and `ev.commit_block` is **strictly greater** than `king.commit_block`, the incoming record is rewritten **before** it is stored:
+If the current king exists, the challenger's `source_hash` is non-empty and equals the king's (but with a different hotkey and later commit block, i.e., `ev.commit_block` is **strictly greater** than `king.commit_block`), the incoming record is rewritten **before** it is stored:
 
 - `score = 0.0`
 - `disqualified = True`
@@ -157,7 +157,7 @@ When `decay_blocks <= 0` or `epsilon_initial <= 0`, `_effective_dethrone_thresho
 
 ## Weight setting
 
-One-hot. The king gets `1.0`, everyone else gets `0.0`, passed in one `set_weights` call with `other_uids_zeroed=True`.
+The system uses one-hot weighting. The king gets `1.0`, everyone else gets `0.0`, passed in one `set_weights` call with `other_uids_zeroed=True`.
 
 No partial weights, no smoothing. If a challenger dethrones the king, the transition is immediate and clean.
 

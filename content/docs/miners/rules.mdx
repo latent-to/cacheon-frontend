@@ -112,6 +112,11 @@ Practically:
 
 Exact formula, edge cases, and env tunables: [Architecture → Validator → Dethrone rule](/docs/architecture/validator#dethrone-rule).
 
+
+<Callout title="SCORING AND EVALUATION" type="info">
+ For more information on how miner scoring and evalutaion works, see [Prompts](../docs/evaluation/prompts) and [Scoring](../docs/evaluation/scoring)
+</Callout>
+
 ## A note on "allowed but scored low"
 
 Just because something passes the sandbox doesn't mean it's a good submission. Some patterns that are technically allowed but almost never competitive:
@@ -120,4 +125,5 @@ Just because something passes the sandbox doesn't mean it's a good submission. S
 - **Aggressive eviction without importance tracking.** Random or FIFO eviction fails the KL gate quickly on reasoning-heavy prompts.
 - **Very small cache budgets.** Cuts memory to near zero, destroys quality. The KL gate catches this.
 
-Reading the [scoring formula](/docs/evaluation/scoring) carefully before implementing anything will save you a hotkey registration.
+Reading the [scoring formula](/docs/evaluation/scoring#scoring-formula) carefully before implementing anything will save you a hotkey registration.
+

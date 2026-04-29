@@ -20,6 +20,10 @@ PG19 is pinned to a specific Hugging Face dataset revision. Row ordering is stab
 
 ## Seeding from block hash
 
+To ensure fair and reproducible evaluation, randomness is derived from the block hash. Each block produces a deterministic seed, which drives prompt sampling.
+
+Anyone with the block hash can reconstruct the exact prompt set used in that evaluation round. To do this:
+
 ```python
 import hashlib, random
 
@@ -43,7 +47,6 @@ def sample_prompts(block_hash: str, n: int, *, max_chars=131072, min_chars=1000)
             return out
 ```
 
-Anyone with the block hash can reconstruct the exact prompt set used in that eval round.
 
 ## Parameter defaults
 
