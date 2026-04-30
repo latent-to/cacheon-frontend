@@ -1,0 +1,78 @@
+---
+title: Testing locally
+description: Run the same inference harness the validator uses to verify your policy before committing on-chain.
+---
+
+<Callout type="info" title="This step is optional but strongly recommended">
+  You don't need to run the harness locally to register; you just need a `policy.py` in a public HF
+  repo and an on-chain commitment. But testing locally catches bugs before you burn a hotkey on a
+  policy that gets disqualified.
+</Callout>
+
+## Requirements
+
+- **Linux** (Debian/Ubuntu-style, or a GPU VM/pod with `apt-get`)
+- **Python 3.11+**
+- **CUDA-capable GPU** with ≥24 GB VRAM (RTX 4090 is sufficient for 7B at moderate context)
+
+Production eval runs on H100 80GB, so absolute numbers will differ, but relative behavior (KL, memory ratio, latency ratio) is comparable.
+
+## Setup
+
+```bash
+git clone https://github.com/latent-to/cacheon.git
+cd cacheon
+bash inference_engine/setup.sh
+```
+
+`setup.sh` installs system deps, creates a venv, installs the harness package, and downloads `Qwen2.5-7B-Instruct` weights.
+
+Verify the environment works:
+
+```bash
+python -m inference_engine
+```
+
+This loads the model, runs `Harness.verify()` (passthrough correctness check), and prints baseline latency + peak memory. If this doesn't complete cleanly, fix your environment before proceeding.
+
+## Run your policy
+
+```python
+from inference_engine import Harness, PassthroughPolicy, sample_prompts
+from inference_engine.scoring import score
+from my_policy import MyPolicy
+
+harness = Harness("Qwen/Qwen2.5-7B-Instruct")
+prompts = sample_prompts(block_hash="0x" + "aa" * 32, n=3)
+
+baseline = harness.run(PassthroughPolicy(), prompts)
+miner    = harness.run(MyPolicy(),         prompts)
+
+result = score(baseline, miner)
+print(result)
+```
+
+## What to look for
+
+- When `disqualified == False`, you haven't broken output quality
+- When `score > 0`, you're winning on at least one axis
+- When `memory_reduction > 0`, your cache is smaller than FP16 passthrough
+- When `latency_improvement > 0`, generation is faster
+
+If `disqualified == True`, check `result.disqualify_reason`:
+- **KL gate failure** (`> 0.1` nats): your policy produces substantially different tokens
+- **NaN / Inf**: numerical bug in your attention path
+
+<Callout type="info" title="Production uses teacher-forced KL">
+  The local test above compares autoregressive logits directly. Production eval uses
+  **teacher-forced** KL: the miner's policy processes the baseline's exact token sequence in a
+  single forward pass, eliminating autoregressive divergence. If your KL is close to the 0.1
+  threshold locally, it may be lower in production eval. See
+  [Scoring](/docs/evaluation/scoring#teacher-forced-evaluation) for details.
+</Callout>
+
+## Tips
+
+- Start with the [passthrough skeleton](/docs/miners/example-policies) and make one change at a time. If you go from zero to TurboQuant in one step, debugging is harder.
+- Use `n=1` or `n=2` prompts during development for fast iteration. Bump to `n=10` for a realistic score estimate.
+- Memory and latency are measured relative to the passthrough baseline on the same hardware. A policy that's 2× better on RTX 4090 will likely still be 2× better on H100.

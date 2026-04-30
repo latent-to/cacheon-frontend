@@ -1,0 +1,84 @@
+---
+title: Registration
+description: How to push your policy to Hugging Face and commit it on-chain so the validator picks it up.
+---
+
+Once your `policy.py` is ready (tested or not), these are the two steps to enter the competition.
+
+## 1. Push to a public Hugging Face repo
+
+Your repo must have a `policy.py` at the root. Use the HuggingFace CLI or Python SDK:
+
+```bash
+huggingface-cli upload you/my-kv-policy policy.py policy.py
+```
+
+Or from Python:
+
+```python
+from huggingface_hub import upload_file
+
+upload_file(
+    path_or_fileobj="policy.py",
+    path_in_repo="policy.py",
+    repo_id="you/my-kv-policy",
+)
+```
+
+Note the **commit SHA** returned by the upload (or visible in the repo's commit history). You need the exact 40-character hex SHA; the validator pins to it for reproducibility. Branch names and short SHAs are rejected.
+
+## 2. Commit on-chain
+
+```python
+import json
+import bittensor as bt
+
+wallet   = bt.wallet(name="my_wallet", hotkey="my_hotkey")
+subtensor = bt.subtensor(network="finney")
+
+commit_data = json.dumps({
+    "repo":     "you/my-kv-policy",          # HF repo id
+    "revision": "abc123def456...",           # full 40-char hex SHA
+})
+
+subtensor.set_reveal_commitment(
+    wallet=wallet,
+    netuid=14,
+    data=commit_data,
+    blocks_until_reveal=1,
+)
+```
+
+For testnet, use `network="test"` and `netuid=460`.
+
+<Callout type="warn" title="One commitment per hotkey">
+  This hotkey now permanently points to this commit. To submit a new policy, register a new hotkey.
+  See [Competition model](/docs/concepts/competition-model#one-commitment-per-hotkey) for why.
+</Callout>
+
+## 3. Wait for eval
+
+The validator scans commitments roughly every 360 seconds. Within a few epochs, your policy will be picked up as a challenger, evaluated on the GPU pod, and scored against the current king.
+
+### What happens during eval
+
+1. Validator fetches your `policy.py` from HF at the pinned revision
+2. Sandbox validates your code (AST checks for blocked imports/calls)
+3. Harness loads your class, runs inference on the eval prompts
+4. Scores memory reduction, latency improvement, KL divergence
+5. If you beat the king (with the moat threshold), you become the new king
+
+### Check your status
+
+- **Leaderboard API** (when live): `GET /api/leaderboard`
+- **On-chain weights**: `1.0` if you're the king, `0.0` otherwise. Intermediate states are transient between rounds.
+
+## Updating your policy
+
+You cannot update a commitment on an existing hotkey. To submit a new version:
+
+1. Register a new hotkey on subnet 14
+2. Push the updated `policy.py` (new commit SHA)
+3. Commit the new hotkey with the new repo/revision
+
+The old hotkey's commitment remains but will eventually be superseded if the new one scores higher.

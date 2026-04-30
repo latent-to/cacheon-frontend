@@ -1,0 +1,57 @@
+---
+title: Overview
+description: What Cacheon mining is, what you need, and the high-level flow from idea to on-chain submission.
+---
+
+## What you're building
+
+A single Python class (`KVCachePolicy`) that replaces how the KV cache is stored and scored during transformer inference. The validator loads your class, monkey-patches it into `Qwen2.5-7B-Instruct`, and measures how much memory and latency you save relative to a naive FP16 passthrough, subject to output-quality gates in scoring.
+
+You ship a `policy.py` file in a public Hugging Face repo. You commit the repo + revision hash on-chain. That's it.
+
+## Prerequisites
+
+| Requirement                      | Details                                                                                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bittensor wallet**             | Registered on subnet 14 (mainnet) or 460 (testnet). See the [Bittensor wallet docs](https://docs.bittensor.com/getting-started/wallets). |
+| **Public Hugging Face repo**     | Your `policy.py` lives at the repo root. The validator fetches it by repo ID + commit SHA.                                               |
+| **GPU (for local testing only)** | ≥24 GB VRAM (RTX 4090 is enough for 7B). Only needed if you want to test locally before committing; registering on-chain does not require a GPU. |
+| **Python 3.11+**                 | For local testing.                                                                                                                       |
+| **Linux**                        | The inference harness only runs on Linux with CUDA. Again, only needed for local testing.                                                |
+
+<Callout type="info" title="You don't need a GPU to register">
+  Registration is just a JSON commitment on-chain pointing to your HF repo. The validator's GPU pod
+  runs your code. You never need to host inference yourself. Local testing is recommended but not
+  required to participate.
+</Callout>
+
+## High-level flow
+
+```
+1. Understand the policy interface         → /docs/miners/policy-interface
+2. Write your KVCachePolicy class          → /docs/miners/example-policies
+3. (Recommended) Test locally on a GPU     → /docs/miners/testing-locally
+4. Push policy.py to a public HF repo
+5. Commit repo + revision SHA on-chain     → /docs/miners/registration
+6. Validator picks you up, evaluates, scores
+```
+
+Steps 4–5 are the only _required_ actions to participate. Everything else is preparation.
+
+## Scoring axes (quick summary)
+
+Your policy is scored on three axes, weighted and combined into a single score:
+
+- **Memory reduction**: how much smaller your KV cache is vs. FP16 passthrough (CUDA allocator delta)
+- **Latency improvement**: how much faster generation is with your policy
+- **KL divergence**: how much your output logits deviate from baseline (must stay below 0.1 nats or you're disqualified)
+
+Full details in [Scoring](/docs/evaluation/scoring).
+
+## Common pitfalls
+
+- **Forgot RoPE.** Qwen applies rotary position embeddings to Q/K _before_ your `write()` is called. The harness delivers post-RoPE tensors; store them as given. Don't re-apply rotation.
+- **GQA shapes.** `Qwen2.5-7B` has `num_kv_heads=4` (not 28). K and V come in with `num_kv_heads` on dim 1, Q with `num_heads=28`. Don't assume they match.
+- **`seq_len=1` on decode.** During decode, `write()` receives a single new token's K/V. Your cache needs to grow, not replace. `attend()` is called with `q_len=1` and needs to attend over the full accumulated cache.
+- **No network, no filesystem, no `os`.** Your policy runs inside a sandbox. See [Allowed operations](/docs/miners/allowed-operations).
+- **Don't copy the king.** The validator computes a SHA-256 hash of your `policy.py` and rejects byte-identical copies of the current king's source with `duplicate_of_king`. You need a genuinely different policy.
