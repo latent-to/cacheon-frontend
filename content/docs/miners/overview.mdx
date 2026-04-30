@@ -11,18 +11,18 @@ You ship a `policy.py` file in a public Hugging Face repo. You commit the repo +
 
 ## Prerequisites
 
-| Requirement                      | Details                                                                                                                                          |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Bittensor wallet**             | Registered on subnet 14 (mainnet) or 460 (testnet). See the [Bittensor wallet docs](https://docs.bittensor.com/getting-started/wallets).         |
-| **Public Hugging Face repo**     | Your `policy.py` lives at the repo root. The validator fetches it by repo ID + commit SHA.                                                       |
-| **GPU (for local testing only)** | ≥24 GB VRAM (RTX 4090 is enough for 7B). Only needed if you want to test locally before committing; registering on-chain does not require a GPU. |
-| **Python 3.11+**                 | For local testing.                                                                                                                               |
-| **Linux**                        | The inference harness only runs on Linux with CUDA. Again, only needed for local testing.                                                        |
+| Requirement                      | Details                                                                                                                                                                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bittensor wallet**             | Registered on subnet 14 (mainnet) or 460 (testnet). For more information, see [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets) and [Miner registration](https://docs.learnbittensor.org/miners#miner-registration). |
+| **Public Hugging Face repo**     | Your `policy.py` lives at the repo root. The validator fetches it by using the repo ID + commit SHA.                                                                                                                                          |
+| **GPU (for local testing only)** | ≥24 GB VRAM (RTX 4090 is enough for 7B). Only needed if you want to test locally before committing; registering on-chain does not require a GPU.                                                                                              |
+| **Python 3.11+**                 | For local testing.                                                                                                                                                                                                                            |
+| **Linux**                        | The inference harness only runs on Linux with CUDA. Again, only needed for local testing.                                                                                                                                                     |
 
-<Callout type="info" title="You don't need a GPU to register">
-  Registration is just a JSON commitment on-chain pointing to your HF repo. The validator's GPU pod
-  runs your code. You never need to host inference yourself. Local testing is recommended but not
-  required to participate.
+<Callout type="info" title="You don't need a GPU to participate">
+  Miner participation is just a JSON commitment on-chain pointing to your HF repo. The validator's
+  GPU pod runs your code. You never need to host inference yourself. Local testing is recommended
+  but not required to participate.
 </Callout>
 
 ## High-level flow
