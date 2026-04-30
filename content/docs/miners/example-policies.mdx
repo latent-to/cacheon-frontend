@@ -176,4 +176,4 @@ class TurboQuantPolicy(KVCachePolicy):
 - **Hybrid.** Combine eviction with quantization. Heavy hitters stay in FP16; evicted-but-not-dropped tokens go to 4-bit; stale tokens drop entirely.
 - **Attention sinks.** The first few tokens in a sequence are disproportionately attended to. Keep them in full precision unconditionally.
 
-See [Allowed operations](/docs/miners/allowed-operations) for what's in bounds and what isn't.
+See [Miner rules and constraints](/docs/miners/rules) for what's in bounds and what isn't.

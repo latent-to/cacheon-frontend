@@ -11,13 +11,18 @@ description: Ship your first KVCachePolicy from a Linux GPU harness to on-chain 
 
 ## 0. Prerequisites
 
+Before you begin, make sure you have the following:
+
 - **Linux** (Debian/Ubuntu-style, or a GPU VM/pod where `apt-get` is available). For local dev on macOS or Windows, use a remote Linux GPU box or your own Docker/Linux setup; we do not document a first-class Mac path for the harness installer.
 - **Python 3.11+**.
 - **CUDA-capable GPU** with ≥24 GB VRAM for harness runs (RTX 4090 is enough for 7B inference at moderate context). Production eval runs on H100 80GB.
-- A **Bittensor wallet** registered on subnet 14. See the [Bittensor wallet docs](https://docs.bittensor.com/getting-started/wallets).
+- [Install the Bittensor SDK](https://docs.learnbittensor.org/getting-started/installation). This is required to register submissions on chain.
+- A **Bittensor wallet** registered on Bittensor mainnet subnet 14. For more information, see [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets) and [Miner registration](https://docs.learnbittensor.org/miners#miner-registration).
 - A **public Hugging Face repo** with a `policy.py` at the repo root to host your policy code.
 
 ## 1. Clone the harness
+
+To begin, run the following command::
 
 ```bash
 git clone https://github.com/latent-to/cacheon.git
@@ -25,9 +30,9 @@ cd cacheon
 bash inference_engine/setup.sh
 ```
 
-`setup.sh` installs system deps, the harness, grabs `Qwen2.5-7B-Instruct` weights, and sets up a venv.
+`setup.sh` installs system deps, the harness, grabs `Qwen2.5-7B-Instruct` weights, and sets up a and sets up a virtual environment—`venv`.
 
-Once it finishes, run:
+Once the process completes, run:
 
 ```bash
 python -m inference_engine
@@ -37,7 +42,7 @@ This loads the model, runs `Harness.verify()` (the passthrough-equals-HF correct
 
 ## 2. Implement `KVCachePolicy`
 
-Create `my_policy.py` in a fresh repo (not inside `cacheon/`). The minimum viable skeleton:
+Create a `my_policy.py` file in a fresh folder, not inside the `cacheon/` directory. The minimum viable skeleton:
 
 ```python
 import torch
@@ -88,7 +93,7 @@ print(result)
 Look for:
 
 - `disqualified == False` — you haven't broken output quality
-- `score > 0` — you're actually winning at least one axis
+- `score > 0` — you're actually winning on at least one [evaluation axis](../docs/concepts/competition-model#what-validators-score-on)
 - `memory_reduction > 0` or `latency_improvement > 0`
 
 If `disqualified == True`, check `result.disqualify_reason`. KL gate failure (`> 0.1` nats) means your policy is producing substantially different tokens from baseline. NaN/Inf means you have a numerical bug.
@@ -125,12 +130,14 @@ Note the **commit SHA** returned by the upload (or visible in the repo's commit 
 
 ## 5. Register on-chain
 
+Use the Bittensor SDK to register submissions on chain as shown:
+
 ```python
 import json
 import bittensor as bt
 
-wallet   = bt.wallet(name="my_wallet", hotkey="my_hotkey")
-subtensor = bt.subtensor(network="finney")
+wallet   = bt.Wallet(name="my_wallet", hotkey="my_hotkey")
+subtensor = bt.Subtensor(network="finney")
 
 commit_data = json.dumps({
     "repo":     "you/my-kv-policy",          # HF repo id
@@ -158,6 +165,8 @@ Check your status:
 
 - **Leaderboard API** (when live): `GET /scores/{your_hotkey}`
 - **On-chain**: your weight will show `1.0` if you're the king, `0.0` otherwise. Intermediate states are transient between rounds.
+
+View your weight in the **Incentive** tab on the [Cacheon subnet page](https://www.tao.app/subnets/14?active_tab=metagraph) on Tao.app.
 
 ## Common pitfalls
 
