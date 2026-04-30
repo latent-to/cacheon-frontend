@@ -1,6 +1,6 @@
 ---
 title: Competition model
-description: King-of-the-hill with winner-take-all emission. One commitment per hotkey. GPU eval only runs when new challengers exist.
+description: King-of-the-hill with winner-take-all emission. One commitment per hotkey. GPU evaluation only runs when new challengers exist.
 ---
 
 Cacheon uses a **king-of-the-hill** incentive. There is always one reigning champion — the miner with the best score on record. **All subnet emission flows to the king.** Challengers compete to dethrone them.
@@ -38,21 +38,21 @@ Numbers are tunable; see [key decisions](/docs/decisions#defenders-moat-decaying
 
 Top-N split (e.g. 60/25/10/5%) is the usual Bittensor pattern. Cacheon explicitly rejects it:
 
-- **Winner-take-all** creates a sharp optimization target. Miners optimize for "better than the king," period.
-- **Top-N** blurs the signal. Miners optimize for "good enough to be top-4," which produces slower convergence toward the true frontier.
+- **Winner-take-all** creates a sharp optimization target. Miners optimize to be "better than the king," period.
+- **Top-N** blurs the signal. Miners simply optimize to be "good enough to be top-4," which produces slower convergence toward the true frontier.
 
 The goal is to find the best policy, not to keep a stable of similar ones.
 
 ## One commitment per hotkey
 
-Each hotkey gets **exactly one policy**. To submit a new policy, register a new hotkey.
+Each hotkey gets **exactly one policy**. To submit a new policy, miners must register a new hotkey.
 
 This is a deliberate design choice:
 
 - **Commitment pressure.** Every submission costs something (registration fee + time). You will test locally before registering.
 - **Clean on-chain record.** One hotkey maps to one policy version, at one pinned commit. No ambiguity about which code produced which score.
 
-Unlimited resubmission would turn the subnet into a free hyperparameter search service. We're not that.
+Unlimited resubmission would turn the subnet into a free hyperparameter search service. We're not that. For more information, see [What the subnet is not](/docs#what-the-subnet-is-not).
 
 ## What validators score on
 

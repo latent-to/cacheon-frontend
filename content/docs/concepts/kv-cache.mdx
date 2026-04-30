@@ -5,7 +5,7 @@ description: How transformers reuse past work during decoding, why the cache gro
 
 ## The plain-English version
 
-Language models generate text one token at a time. To pick the next token, the model needs access to everything that came before in the sequence. Recomputing the past from scratch every step would be impossibly slow — so the model **caches** some of that work.
+Language models generate text one token at a time. To pick the next token, the model needs access to everything that came before in the sequence. Recalculating historical context from scratch at every step is too slow. Therefore, to optimize performance, the model caches intermediate states to minimize redundant processing.
 
 For each layer and each position already processed, the model stores two vectors per attention head:
 

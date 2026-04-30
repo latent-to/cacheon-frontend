@@ -39,7 +39,7 @@ Phase 5 Part A runs today against a stubbed `eval_fn` — the loop, state machin
 
 ## V2 — Expanded optimization surface
 
-After V1 is running stably and producing a real leaderboard, V2 expands what miners can optimize. Candidate features:
+After V1 stabilizes and begins producing a real leaderboard, V2 expands what miners can optimize. Candidate features:
 
 - **Triton kernel support** with additional isolation (static analysis of Triton IR, constrained GPU allocator)
 - **Hybrid KV strategies** — quantization + eviction combined, per-layer adaptive mixes
@@ -79,4 +79,4 @@ A user points Cacheon at their deployment and gets back a config that runs. The 
 
 Cacheon becomes a system that continuously learns how to run LLMs optimally across environments and hardware targets, and produces inference configurations that actually get deployed.
 
-The phase structure is deliberate: **prove the loop works (V1), expand what it optimizes (V2), learn to generate policies (V3), deploy them (V4).** Skipping phases breaks. V2 before V1 is stable means optimizing the wrong things. V3 before V2 means a narrow dataset. V4 before V3 means shipping handcrafted policies that don't generalize.
+The phase structure is deliberate: **prove the loop works (V1), expand what it optimizes (V2), learn to generate policies (V3), deploy them (V4).** Skipping phases breaks the progression. Pursuing V2 before V1 has stabilized risks optimizing the wrong signals. V3 before V2 means a narrow dataset. V4 before V3 means shipping handcrafted policies that don't generalize.

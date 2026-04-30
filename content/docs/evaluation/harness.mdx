@@ -38,7 +38,9 @@ def _patched_forward(self, hidden_states, attention_mask, position_ids, ...):
 
 The original forwards are saved and restored after the run — no permanent model mutation.
 
-## The two execution modes
+## The three execution modes
+
+Policies pass through three execution modes during evaluation. Each mode checks a different part of the system—correctness, production evaluation and KL scoring.
 
 ### `verify()` — correctness check
 
@@ -65,7 +67,7 @@ Same sequence of calls whether it's the baseline or the miner — that's what ma
 
 ### `score_policy_on_sequence(policy, prompts, reference_ids)` — teacher-forced KL
 
-After both `run()` calls, the harness evaluates the miner's policy on the **baseline's token sequence** in a single forward pass per prompt. Both baseline and miner see identical input tokens, so the resulting KL divergence reflects only numerical differences in the policy's attention computation — not autoregressive divergence from a single flipped token cascading through the rest of the sequence.
+After both `run()` calls, the harness evaluates the miner's policy on the **baseline's token sequence** in a single forward pass per prompt. Both the baseline and miner see identical input tokens, so the resulting KL divergence reflects only numerical differences in the policy's attention computation — not autoregressive divergence from a single flipped token cascading through the rest of the sequence.
 
 This is the same approach used by `verify()` (which validates the monkey-patch itself). The autoregressive `run()` logits are used for latency/memory measurement; the teacher-forced logits are used for KL scoring.
 

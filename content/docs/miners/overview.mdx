@@ -53,5 +53,5 @@ Full details in [Scoring](/docs/evaluation/scoring).
 - **Forgot RoPE.** Qwen applies rotary position embeddings to Q/K _before_ your `write()` is called. The harness delivers post-RoPE tensors; store them as given. Don't re-apply rotation.
 - **GQA shapes.** `Qwen2.5-7B` has `num_kv_heads=4` (not 28). K and V come in with `num_kv_heads` on dim 1, Q with `num_heads=28`. Don't assume they match.
 - **`seq_len=1` on decode.** During decode, `write()` receives a single new token's K/V. Your cache needs to grow, not replace. `attend()` is called with `q_len=1` and needs to attend over the full accumulated cache.
-- **No network, no filesystem, no `os`.** Your policy runs inside a sandbox. See [Allowed operations](/docs/miners/allowed-operations).
+- **No network, no filesystem, no `os`.** Your policy runs inside a sandbox. See [Rules](/docs/miners/rules).
 - **Don't copy the king.** The validator computes a SHA-256 hash of your `policy.py` and rejects byte-identical copies of the current king's source with `duplicate_of_king`. You need a genuinely different policy.

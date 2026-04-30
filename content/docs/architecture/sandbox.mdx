@@ -8,7 +8,9 @@ Miner code is arbitrary Python hosted on a public repo. The validator has to run
 ## Layer 1 — Static AST analysis
 
 **Where it runs:** CPU server, before any subprocess is spawned.
+
 **What it is:** parse the source with Python's `ast` module and walk the tree looking for violations.
+
 **Cost:** milliseconds.
 
 ### Import allowlist
@@ -81,7 +83,9 @@ It is not airtight. Dynamic access patterns (`__import__` obfuscated, chained at
 ## Layer 2 — Subprocess isolation
 
 **Where it runs:** CPU server, when Layer 1 passes.
+
 **What it is:** write the policy + a worker script to a temp directory, spawn a subprocess, wait for `result.json`.
+
 **Cost:** one process startup + the worker's runtime (bounded at 300s).
 
 ### firejail mode (production)
