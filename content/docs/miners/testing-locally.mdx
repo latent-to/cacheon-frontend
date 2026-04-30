@@ -60,6 +60,7 @@ print(result)
 - When `latency_improvement > 0`, generation is faster
 
 If `disqualified == True`, check `result.disqualify_reason`:
+
 - **KL gate failure** (`> 0.1` nats): your policy produces substantially different tokens
 - **NaN / Inf**: numerical bug in your attention path
 
