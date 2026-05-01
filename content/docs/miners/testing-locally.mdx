@@ -4,9 +4,9 @@ description: Run the same inference harness the validator uses to verify your po
 ---
 
 <Callout type="info" title="This step is optional but strongly recommended">
-  You don't need to run the harness locally to register; you just need a `policy.py` in a public HF
-  repo and an on-chain commitment. But testing locally catches bugs before you burn a hotkey on a
-  policy that gets disqualified.
+  You don't need to run the harness locally to register; you just need a `policy.py` in a public
+  Hugging Face repo and an on-chain commitment. But testing locally helps you catch bugs locally
+  before you burn a hotkey on a policy that gets disqualified.
 </Callout>
 
 ## Requirements
@@ -18,6 +18,8 @@ description: Run the same inference harness the validator uses to verify your po
 Production eval runs on H100 80GB, so absolute numbers will differ, but relative behavior (KL, memory ratio, latency ratio) is comparable.
 
 ## Setup
+
+To begin, run the following command in the terminal:
 
 ```bash
 git clone https://github.com/latent-to/cacheon.git
