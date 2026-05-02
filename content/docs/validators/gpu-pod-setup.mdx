@@ -1,0 +1,121 @@
+---
+title: GPU pod setup
+description: Provision an H100 pod on Targon or Lium, install dependencies, download model weights, and verify with e2e tests.
+---
+
+The GPU pod runs the inference harness. It needs an NVIDIA H100 80GB SXM, a persistent volume, and SSH access from your CPU host.
+
+## 1. Create the pod
+
+We provide helper scripts for two providers. Both inject SSH keys and `.env` vars automatically.
+
+### Targon
+
+```bash
+export TARGON_API_KEY=...
+python scripts/create_targon_gpu_pod.py
+```
+
+### Lium
+
+```bash
+export LIUM_API_KEY=...
+python scripts/create_lium_gpu_pod.py
+```
+
+Both scripts:
+
+- Register your SSH keys with the provider
+- Attach the persistent volume at `/workspace`
+- Inject environment variables from `.env`
+- Poll until the pod is running and print the SSH command
+
+<Callout type="info" title="Manual / bare metal">
+  Any machine with an H100 80GB SXM, Ubuntu 22.04+, and SSH access will work. Mount or symlink your
+  persistent storage at `/workspace`.
+</Callout>
+
+## 2. Run the setup script
+
+SSH into the pod and run the one-liner. This clones the repo, creates a Python venv, installs PyTorch + dependencies, downloads Qwen2.5-7B-Instruct weights, and runs a smoke test.
+
+```bash
+export GITHUB_PAT=your_github_pat_here
+export HF_TOKEN=your_hf_token_here
+
+bash -c "$(curl -fsSL -H "Authorization: token $GITHUB_PAT" \
+  https://raw.githubusercontent.com/latent-to/cacheon/main/inference_engine/setup.sh)"
+```
+
+This takes 10-20 minutes on a cold pod (mostly model download). Subsequent runs are fast since weights are cached on the volume.
+
+### What it installs
+
+| Path                            | Role                                        |
+| ------------------------------- | ------------------------------------------- |
+| `/workspace/cacheon`            | Git checkout                                |
+| `/workspace/venv`               | Python venv (PyTorch CUDA 12.8 wheels)      |
+| `/workspace/.cache/huggingface` | Model weights (Qwen2.5-7B-Instruct, ~14 GB) |
+
+### Re-running after code updates
+
+The script is safe to re-run. It pulls instead of re-cloning and skips the model download if weights already exist.
+
+To skip the model download entirely (deps only):
+
+```bash
+bash inference_engine/setup.sh --no-model
+```
+
+## 3. Activate and verify
+
+```bash
+source /workspace/venv/bin/activate
+cd /workspace/cacheon
+```
+
+Run the test layers in order. Each catches different bugs.
+
+### Unit tests (no GPU, ~4s)
+
+```bash
+pytest tests/test_inference_engine.py tests/test_harness_arch.py -v
+```
+
+### Integration tests (0.5B model on CUDA, ~13s)
+
+```bash
+pytest tests/test_harness_integration.py -v -m integration
+```
+
+### End-to-end test (7B model on CUDA)
+
+This seeds example policy repos on Hugging Face, then runs the full harness against them.
+
+```bash
+export HF_TOKEN=your_hf_token_here
+
+# Seed fixture policies (one-time)
+python tests/e2e/e2e_seed_hf.py
+
+# Run e2e eval with 2 prompts
+python tests/e2e/e2e_pod.py --device cuda --n-prompts 2
+```
+
+The e2e test takes a few minutes. If it completes without errors, the pod is ready for production eval.
+
+## 4. Note the SSH connection details
+
+The CPU host needs these to connect:
+
+- **SSH host**: the pod's IP or hostname (shown by the provider or the creation script)
+- **SSH user**: usually `root`
+- **SSH port**: usually `22` (check your provider)
+
+You'll configure these on the CPU host in the next step.
+
+## Storage notes
+
+The persistent volume at `/workspace` survives pod restarts. Model weights, the venv, and the repo checkout all live there. If you destroy the volume, the next setup run re-downloads everything from scratch.
+
+On providers like Targon and Lium, the volume is a named resource you attach at pod creation time. The helper scripts handle this automatically.
