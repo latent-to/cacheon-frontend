@@ -124,7 +124,15 @@ python ~/cacheon/scripts/remote_validator.py \
   --dry-run -v
 ```
 
-The GPU pod SSH flags (`--gpu-pod-ssh-host`, `--gpu-pod-ssh-user`) can also be set via env vars `CACHEON_GPU_POD_SSH_HOST` and `CACHEON_GPU_POD_SSH_USER`.
+All SSH flags can be set via env vars instead of CLI flags:
+
+| Flag                     | Env var                          |
+| ------------------------ | -------------------------------- |
+| `--gpu-pod-ssh-host`     | `CACHEON_GPU_POD_SSH_HOST`       |
+| `--gpu-pod-ssh-user`     | `CACHEON_GPU_POD_SSH_USER`       |
+| `--gpu-pod-ssh-port`     | `CACHEON_GPU_POD_SSH_PORT`       |
+| `--gpu-pod-eval-timeout` | `CACHEON_GPU_POD_EVAL_TIMEOUT_S` |
+| `--gpu-pod-work-dir`     | `CACHEON_GPU_POD_WORK_DIR`       |
 
 <Callout type="info" title="Cold pod timeout">
   The first eval on a cold GPU pod can take many minutes (model download, dataset caching, CUDA
