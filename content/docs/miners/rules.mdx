@@ -1,6 +1,6 @@
 ---
-title: Rules and contraints
-description: A clear guide to Cacheon V1—allowed scope, sandbox rules, and how scoring determines the winner. The sandbox enforces the technical half; the scoring formula enforces the rest.
+title: Rules
+description: What is in bounds for V1 and what is not. The sandbox enforces the technical half; the scoring formula enforces the rest.
 ---
 
 Cacheon V1 is deliberately scoped narrowly. Two boundaries define the perimeter: [the scoring axes](../docs/concepts/competition-model#what-validators-score-on) (memory, latency, KL) and [the sandbox](../docs/architecture/sandbox) (import allowlist, execution isolation).
@@ -11,30 +11,30 @@ This section outlines operations and strategies that are permitted in V1:
 
 ### KV storage strategies
 
-- **Quantization of K and/or V** — INT8, INT4, FP8, 3-bit Lloyd-Max, asymmetric bit allocation, mixed precision per-layer
-- **Lossless layout changes** — reorder, chunk, pack, group heads differently
-- **Rotation-based schemes** — random rotation + QJL correction (TurboQuant), structured rotations
+- **Quantization of K and/or V**: INT8, INT4, FP8, 3-bit Lloyd-Max, asymmetric bit allocation, mixed precision per-layer
+- **Lossless layout changes**: reorder, chunk, pack, group heads differently
+- **Rotation-based schemes**: random rotation + QJL correction (TurboQuant), structured rotations
 
 ### Eviction and pruning
 
-- **H2O-style importance tracking** — drop tokens with lowest accumulated attention mass
-- **StreamingLLM attention sinks** — keep first N + last M tokens, drop middle
-- **SnapKV observation windows** — aggregate importance over a trailing window
-- **Scissorhands** — saliency-based eviction
-- **Attention-score-driven eviction** — any heuristic that uses the attention distribution
+- **H2O-style importance tracking**: drop tokens with lowest accumulated attention mass
+- **StreamingLLM attention sinks**: keep first N + last M tokens, drop middle
+- **SnapKV observation windows**: aggregate importance over a trailing window
+- **Scissorhands**: saliency-based eviction
+- **Attention-score-driven eviction**: any heuristic that uses the attention distribution
 
 ### Scoring strategies
 
 - **Full attention** with standard score + softmax + aggregate
-- **Fused scoring against compressed representations** — `Q @ K_compressed.T + correction`
-- **Approximate attention** — as long as it passes the KL gate
-- **Top-k attention** — materialize weights only for the top-k keys
+- **Fused scoring against compressed representations**: `Q @ K_compressed.T + correction`
+- **Approximate attention**: permitted if it passes the KL gate
+- **Top-k attention**: materialize weights only for the top-k keys
 
 ### Policy variation
 
-- **Per-layer adaptive** — different strategies for layer 0 vs. layer 14 vs. layer 27
-- **Per-head adaptive** — different strategies per attention head within a layer
-- **Context-length adaptive** — behavior changes as the cache grows
+- **Per-layer adaptive**: different strategies for layer 0 vs. layer 14 vs. layer 27
+- **Per-head adaptive**: different strategies per attention head within a layer
+- **Context-length adaptive**: behavior changes as the cache grows
 
 ## Restricted strategies
 
@@ -42,19 +42,19 @@ This section covers operations that are excluded from the V1 release by category
 
 ### Model or architecture changes
 
-| Operation                                 | Why blocked                                                       |
-| ----------------------------------------- | ----------------------------------------------------------------- |
-| Model weight changes / finetuning         | Violates fixed "global model" premise — eval no longer comparable |
-| Attention mechanism redesign              | Outside the scope of KV-cache optimization                        |
-| Replacing `Qwen2.5-7B` with anything else | V1 is model-pinned                                                |
+| Operation                                 | Why blocked                                                                |
+| ----------------------------------------- | -------------------------------------------------------------------------- |
+| Model weight changes / finetuning         | Violates fixed "global model" premise (eval would no longer be comparable) |
+| Attention mechanism redesign              | Outside the scope of KV-cache optimization                                 |
+| Replacing `Qwen2.5-7B` with anything else | V1 is model-pinned                                                         |
 
 ### Infrastructure scope
 
 | Operation                             | Why blocked                                                                   |
 | ------------------------------------- | ----------------------------------------------------------------------------- |
-| Batching- or scheduling-level changes | Outside the KV path — V2 roadmap item                                         |
-| Custom CUDA kernels                   | Sandboxing cost not worth it in V1 — PyTorch ops can implement the algorithms |
-| **Triton kernels**                    | Same — Triton unlocks in V2 with additional isolation                         |
+| Batching- or scheduling-level changes | Outside the KV path (V2 roadmap item)                                         |
+| Custom CUDA kernels                   | Sandboxing cost not worth it in V1 (PyTorch ops can implement the algorithms) |
+| **Triton kernels**                    | Same rationale; Triton is a V2 item with additional isolation                 |
 
 ## Sandbox restrictions
 
@@ -68,21 +68,21 @@ This section details the sandbox-enforced constraints, specifying the permitted 
 - `numpy`
 - `math`
 - `einops`
-- `inference_engine` — only the package root and `inference_engine.policy`
+- `inference_engine` at the package root and `inference_engine.policy` only
 
 **Blocked:**
 
 - `os`, `sys`, `subprocess`, `socket`, `importlib`, `ctypes`, `cffi`
 - `builtins`, `__builtins__`, `pickle`, `shelve`
 - All relative imports (`from .` / `from ..`)
-- All submodules of `inference_engine` except `policy` — internal modules could re-export stdlib objects
+- All submodules of `inference_engine` except `policy`, because internal modules could re-export stdlib objects
 
 ### Blocked functions
 
 Bare calls to any of: `eval`, `exec`, `compile`, `open`, `input`, `breakpoint`, `__import__`, `getattr`, `setattr`, `delattr`, `globals`, `locals`, `vars`.
 
 <Callout type="info" title="What's NOT blocked">
-  `super()`, `type()`, `dir()` are explicitly allowed — they're standard Python patterns that miners
+  `super()`, `type()`, `dir()` are explicitly allowed: they're standard Python patterns that miners
   legitimately need. The OS-level sandbox (firejail on the CPU validator) is the actual security
   boundary; AST-level checks are a fast-feedback tool, not the last line of defense.
 </Callout>
@@ -100,11 +100,11 @@ Even if your policy passes sandbox checks, it will score `0` if any of the follo
 - **Output shape/dtype mismatch.** The harness validates `AttentionOutput.output` strictly.
 - **Attention weights don't sum to ~1** (when you return them). Indicates a bug in your score/softmax path.
 - **Wall-clock timeout.** Hard limit at 300 seconds per policy per evaluation run.
-- **Byte-identical `policy.py` to the current king (different hotkey, later commit).** When the result is recorded, a matching `source_hash` with the current king triggers `disqualify_reason = "duplicate_of_king"` and score `0` — see [Defender's moat](/docs/concepts/competition-model#the-defenders-moat).
+- **Byte-identical `policy.py` to the current king (different hotkey, later commit).** When the result is recorded, a matching `source_hash` with the current king triggers `disqualify_reason = "duplicate_of_king"` and score `0`. See [Defender's moat](/docs/concepts/competition-model#the-defenders-moat).
 
 ### Beating the king
 
-Passing the quality gate is not enough. To dethrone the current king, your score must **strictly exceed** `king_score × (1 + ε(age))`, where ε starts at **1%** on the block the king is crowned and decays linearly to **0** over **~50,400 blocks (~7 days)**. After decay, the threshold is just `king_score` — any strict improvement wins.
+Passing the quality gate is not enough. To dethrone the current king, your score must **strictly exceed** `king_score × (1 + ε(age))`, where ε starts at **1%** on the block the king is crowned and decays linearly to **0** over **~50,400 blocks (~7 days)**. After decay, the threshold is just `king_score`; any strict improvement wins.
 
 Practically:
 
@@ -113,16 +113,16 @@ Practically:
 
 Exact formula, edge cases, and env tunables: [Architecture → Validator → Dethrone rule](/docs/architecture/validator#dethrone-rule).
 
-<Callout title="SCORING AND EVALUATION" type="info">
-  For more information on how miner scoring and evalutaion works, see
-  [Prompts](../docs/evaluation/prompts) and [Scoring](../docs/evaluation/scoring)
+<Callout title="Scoring and evaluation" type="info">
+  For more information on how miner scoring and evaluation work, see
+  [Prompts](/docs/evaluation/prompts) and [Scoring](/docs/evaluation/scoring).
 </Callout>
 
 ## A note on "allowed but scored low"
 
 Just because something passes the sandbox doesn't mean it's a good submission. Some patterns that are technically allowed but almost never competitive:
 
-- **Pure storage reduction without attend changes.** You save memory on disk but not at peak — the decompressed buffer during `attend` dominates.
+- **Pure storage reduction without attend changes.** You save memory on disk but not at peak: the decompressed buffer during `attend` dominates.
 - **Aggressive eviction without importance tracking.** Random or FIFO eviction fails the KL gate quickly on reasoning-heavy prompts.
 - **Very small cache budgets.** Cuts memory to near zero, destroys quality. The KL gate catches this.
 

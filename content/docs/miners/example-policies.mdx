@@ -1,15 +1,13 @@
 ---
 title: Example policies
-description: Reference sketches of three well-known KV optimization strategies — INT8 quantization, H2O eviction, and TurboQuant fused scoring.
+description: Reference sketches of INT8 quantization, H2O eviction, and a TurboQuant-style fused scoring pattern.
 ---
 
-These are **sketches**, not submission-ready code. They show the shape of each approach — what goes in `setup`, `write`, and `attend` — so you can see how the `KVCachePolicy` interface maps onto real strategies.
-
-None of them will win the subnet as written. They exist as starting points. The subnet exists because someone will do each of these better.
+These are **sketches**, not submission-ready code. They show the shape of each approach: what goes in `setup`, `write`, and `attend`, so you can see how the `KVCachePolicy` interface maps onto real strategies.
 
 ## INT8 quantization
 
-Simplest possible non-trivial policy. Quantize K and V to INT8 with per-row symmetric scales. Dequantize on attend.
+Quantize K and V to INT8 with per-row symmetric scales on write, dequantize back to full precision on attend.
 
 ```python
 class Int8Policy(KVCachePolicy):
@@ -44,13 +42,11 @@ class Int8Policy(KVCachePolicy):
         return AttentionOutput(output=weights @ V, attention_weights=weights)
 ```
 
-**Expected result**: ~2× memory reduction (16-bit → 8-bit plus scale overhead). Latency roughly neutral — you pay a dequant cost but cut memory bandwidth by half, and those mostly cancel.
-
-**Why it's a weak submission**: Path 1 (decompress-before-score) leaves the full-precision buffer in memory during attend. Your _peak_ memory isn't much better than FP16. Path 2 does the math against the compressed form and wins on both axes.
+**Limitation**: Decompresses K/V back to full precision during `attend`, so the full-size buffer exists in memory at scoring time. The storage savings don't fully translate to peak memory savings.
 
 ## H2O eviction
 
-Heavy-hitter oracle. Track per-token attention mass over time; evict the lowest-importance tokens when over budget.
+Tracks per-token attention mass over time and evicts the lowest-importance tokens when the cache exceeds a fixed budget.
 
 ```python
 class H2OPolicy(KVCachePolicy):
@@ -100,13 +96,11 @@ class H2OPolicy(KVCachePolicy):
         return AttentionOutput(output=weights @ V, attention_weights=weights)
 ```
 
-**Expected result**: 5–10× memory reduction at long context. Latency gain scales with how aggressive the eviction budget is. KL risk: if you evict too aggressively on reasoning prompts, output quality degrades fast.
-
-**Tuning points**: `heavy_budget` vs. `recent_budget` split, eviction cadence (every step vs. every N steps), whether to track importance per-head or per-layer.
+**Limitation**: Aggressive eviction budgets risk failing the KL gate on reasoning-heavy prompts where dropped tokens turn out to matter. The `_evict` logic here is incomplete; the full indexing is left as an exercise.
 
 ## TurboQuant (fused scoring sketch)
 
-Path 2 — never decompress. Rotate K, quantize to 3 bits, store rotation + quantized keys + correction terms. Score `Q @ K_3bit.T + QJL_correction` directly.
+Rotates K into a random orthonormal basis, quantizes to 3 bits with Lloyd-Max centroids, and scores directly against the compressed representation using a QJL correction term. K is not expanded back to full precision in this sketch.
 
 ```python
 class TurboQuantPolicy(KVCachePolicy):
@@ -115,7 +109,7 @@ class TurboQuantPolicy(KVCachePolicy):
 
     def setup(self, config):
         self.config = config
-        # Random rotation matrix per layer — fixed across the sequence.
+        # Random rotation matrix per layer, fixed for the whole sequence.
         torch.manual_seed(0xC0FFEE)  # deterministic for reproducibility
         self.R = [
             torch.linalg.qr(torch.randn(config.head_dim, config.head_dim, device="cuda"))[0]
@@ -165,15 +159,8 @@ class TurboQuantPolicy(KVCachePolicy):
         ...
 ```
 
-**Expected result**: 8–10× memory reduction (16-bit → 3-bit, minus rotation + sign overhead). Latency gain depends on how efficiently `_fused_score` is implemented — the win comes from not materializing the decompressed K buffer.
+**Limitation**: The `_fused_score` and `_quantize_lloyd_max` implementations are left as stubs. V stays in FP16 here, so half the cache is still uncompressed. The rotation matrices add per-layer overhead during setup.
 
-**Why this shape wins**: V and Q are both full-precision, so there's no quality loss from reconstructing them. K is the bandwidth-dominant tensor at long context, and you never decompress it. The QJL correction term recovers most of the precision lost in quantization.
+## Other directions
 
-## What to try next
-
-- **Per-layer adaptive.** Different layers tolerate different compression. Early layers often need more precision than middle layers.
-- **Per-head adaptive.** Some heads are "retrieval" heads with concentrated attention; others are diffuse. Different policies per head.
-- **Hybrid.** Combine eviction with quantization. Heavy hitters stay in FP16; evicted-but-not-dropped tokens go to 4-bit; stale tokens drop entirely.
-- **Attention sinks.** The first few tokens in a sequence are disproportionately attended to. Keep them in full precision unconditionally.
-
-See [Miner rules and constraints](/docs/miners/rules) for what's in bounds and what isn't.
+These sketches are not exhaustive. The policy interface supports any combination of storage, eviction, and scoring strategies (for example per-layer, per-head, or context-length-adaptive). See [Rules](/docs/miners/rules) for what's in bounds.

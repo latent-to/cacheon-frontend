@@ -1,4 +1,11 @@
 {
   "title": "Miners",
-  "pages": ["quickstart", "policy-interface", "example-policies", "rules"]
+  "pages": [
+    "overview",
+    "policy-interface",
+    "example-policies",
+    "testing-locally",
+    "registration",
+    "rules"
+  ]
 }
