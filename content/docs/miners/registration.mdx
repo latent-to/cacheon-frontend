@@ -1,70 +1,66 @@
 ---
-title: Registration
-description: How to push your policy to Hugging Face and commit it on-chain so the validator picks it up.
+title: Policy Registration
+description: How to register as a miner on the subnet, push your policy to Hugging Face, and commit it on-chain.
 ---
 
-Once your `policy.py` is ready (tested or not), these are the two steps to enter the competition.
+Once your `policy.py` is ready (tested or not), there are three steps to enter the competition.
 
-<Callout type="info" title="BEFORE YOU BEGIN">
-  To complete the steps outlined in this guide, ensure that you have a miner hotkey registered on
-  Bittensor mainnet subnet 14
-</Callout>
+## 1. Register on the subnet
 
-## 1. Push to a public Hugging Face repo
-
-Your repo must have a `policy.py` at the root. Use the HuggingFace CLI or Python SDK:
+Register a hotkey on subnet 14 (mainnet) or 460 (testnet). Skip if already registered.
 
 ```bash
-huggingface-cli upload you/my-kv-policy policy.py policy.py
+# mainnet
+btcli subnet register --netuid 14 --wallet-name my-miner --wallet-hotkey default
+
+# testnet
+btcli subnet register --network test --netuid 460 --wallet-name my-miner --wallet-hotkey default
 ```
 
-Or from Python:
+Registration costs a small recycle fee (fractions of TAO). Confirm with `btcli subnet metagraph --netuid 14` — your hotkey should appear with a UID.
 
-```python
-from huggingface_hub import upload_file
+## 2. Upload and commit
 
-upload_file(
-    path_or_fileobj="policy.py",
-    path_in_repo="policy.py",
-    repo_id="you/my-kv-policy",
-)
+The `miner/commit.py` script handles everything in one command: creates the HF repo, uploads your `policy.py`, and commits the repo + pinned revision SHA on-chain. Make sure your `HF_TOKEN` has write access to upload.
+
+```bash
+export HF_TOKEN=hf_...
+
+python miner/commit.py \
+  --policy-file policy.py \
+  --repo you/my-kv-policy \
+  --wallet-name my-miner --wallet-hotkey default \
+  --network test --netuid 460
 ```
 
-Note the **commit SHA** returned by the upload (or visible in the repo's commit history). You need the exact 40-character hex SHA; the validator pins to it for reproducibility. Branch names and short SHAs are rejected.
+The script checks that your hotkey is registered and has no existing commitment before doing anything. After committing, it verifies the commitment is visible on-chain.
 
-## 2. Commit on-chain
+You can also do a dry run first:
 
-```python twoslash lineNumbers
-import json
-import bittensor as bt
-
-wallet   = bt.Wallet(name="my_wallet", hotkey="my_hotkey")
-subtensor = bt.Subtensor(network="finney")
-
-commit_data = json.dumps({
-    "repo":     "you/my-kv-policy",          # HF repo id
-    "revision": "abc123def456...",           # full 40-char hex SHA
-})
-
-subtensor.set_reveal_commitment(
-    wallet=wallet,
-    netuid=14,
-    data=commit_data,
-    blocks_until_reveal=1,
-)
+```bash
+python miner/commit.py \
+  --policy-file policy.py \
+  --repo you/my-kv-policy \
+  --wallet-name my-miner --wallet-hotkey default \
+  --network test --netuid 460 \
+  --dry-run
 ```
 
-For testnet, use `network="test"` on line 5 and `netuid=460` on line 14.
+For mainnet, use `--network finney --netuid 14`.
+
+<Callout type="info" title="Manual alternative">
+  If you prefer to do this yourself: upload `policy.py` to a public HF repo, note the full 40-char commit SHA, then call `subtensor.set_reveal_commitment()` with `{"repo": "you/my-kv-policy", "revision": "<sha>"}`. Branch names and short SHAs are rejected.
+</Callout>
 
 <Callout type="warn" title="One commitment per hotkey">
-  After commiting on chain, the hotkey used to submit the policy on chain now permanently points to
-  this commit. To submit a new policy, you must register a new hotkey. See [Competition
-  model](/docs/concepts/competition-model#one-commitment-per-hotkey) for why.
+  A hotkey permanently points to its committed revision. To submit a new policy, register a new
+  hotkey. See [Competition model](/docs/concepts/competition-model#one-commitment-per-hotkey) for
+  why.
 </Callout>
 
 ## 3. Wait for eval
 
-The validator scans commitments roughly every 360 seconds. Within a few epochs, your policy will be picked up as a challenger, evaluated on the GPU pod, and scored against the current king.
+The validator scans commitments roughly every 6 minutes. Your policy will be picked up as a challenger, evaluated on the GPU pod, and scored against the current king.
 
 ### What happens during eval
 
@@ -74,17 +70,12 @@ The validator scans commitments roughly every 360 seconds. Within a few epochs, 
 4. Scores memory reduction, latency improvement, KL divergence
 5. If you beat the king (with the moat threshold), you become the new king
 
-### Check your status
-
-- **Leaderboard API** (when live): `GET /api/leaderboard`
-- **On-chain weights**: `1.0` if you're the king, `0.0` otherwise. Intermediate states are transient between rounds.
-
 ## Updating your policy
 
 You cannot update a commitment on an existing hotkey. To submit a new version:
 
-1. Register a new hotkey on subnet 14
-2. Push the updated `policy.py` with a new commit SHA to Hugging Face
-3. Commit the new hotkey with the new repo/revision
+1. Register a new hotkey on the subnet
+2. Push the updated `policy.py` to a new (or existing) HF repo
+3. Run `miner/commit.py` with the new hotkey and repo
 
-The old hotkey's commitment remains but will eventually be superseded if the new one scores higher.
+The old hotkey's commitment remains but will be superseded if the new one scores higher.
