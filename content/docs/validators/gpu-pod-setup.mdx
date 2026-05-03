@@ -1,47 +1,55 @@
 ---
 title: GPU pod setup
-description: Provision an H100 pod on Targon or Lium, install dependencies, download model weights, and verify with e2e tests.
+description: Provision a GPU pod on Targon or Lium, install dependencies, download model weights, and verify with e2e tests.
 ---
 
-The GPU pod runs the inference harness. It needs an NVIDIA H100 80GB SXM, a persistent volume, and SSH access from your CPU host.
+The GPU pod runs the inference harness. It needs a high-end NVIDIA GPU (H100 SXM, H200, or B200), a persistent volume, and SSH access from your CPU host.
 
 ## 1. Create the pod
 
-We provide helper scripts for two providers. Both inject SSH keys and `.env` vars automatically.
+We provide scripts for two providers under `scripts/gpu_setup/`. Both inject SSH keys and `.env` vars automatically.
+
+**Targon:** Open `scripts/gpu_setup/create_targon_pod.py` and replace every `# TODO` at the top of the file with your values. That includes picking **one** GPU tier (`TARGON_GPU`, one of `H100`, `H200`, or `B200`). The Targon API does not walk a fallback list for you; the script provisions exactly what you configure.
+
+**Lium:** The script walks a fixed preference list (1x GPU only). It tries each tier in order and rents the first one that has capacity:
+
+1. **H100 SXM** (PCIe variants excluded)
+2. **H200**
+3. **B200**
+
+Also edit `# TODO` fields at the top of `scripts/gpu_setup/create_lium_pod.py` (pod name, volume name, and so on).
 
 ### Targon
 
 ```bash
 export TARGON_API_KEY=...
-python scripts/create_targon_gpu_pod.py
+python scripts/gpu_setup/create_targon_pod.py
 ```
 
 ### Lium
 
 ```bash
 export LIUM_API_KEY=...
-python scripts/create_lium_gpu_pod.py
+python scripts/gpu_setup/create_lium_pod.py
 ```
 
-Both scripts:
-
-- Register your SSH keys with the provider
-- Attach the persistent volume at `/workspace`
-- Inject environment variables from `.env`
-- Poll until the pod is running and print the SSH command
+Both scripts register your SSH keys with the provider, attach the persistent volume at `/workspace`, inject environment variables from `.env`, and poll until the pod is running and print the SSH command.
 
 <Callout type="info" title="Manual / bare metal">
-  Any machine with an H100 80GB SXM, Ubuntu 22.04+, and SSH access will work. Mount or symlink your
-  persistent storage at `/workspace`.
+  Any machine with an H100 80GB SXM (or comparable H200/B200), Ubuntu 22.04+, and SSH access will
+  work. Mount or symlink your persistent storage at `/workspace`.
 </Callout>
 
 ## 2. Run the setup script
 
-SSH into the pod and run the one-liner. This clones the repo, creates a Python venv, installs PyTorch + dependencies, downloads Qwen2.5-7B-Instruct weights, and runs a smoke test.
+SSH into the pod and run the one-liner. If you created the pod with the scripts in step 1 and your repo-root `.env` already defines `GITHUB_PAT` and `HF_TOKEN`, those values were injected into the pod environment, so you do not need to export them again.
+
+This clones the repo, creates a Python venv, installs PyTorch + dependencies, downloads Qwen2.5-7B-Instruct weights, and runs a smoke test.
 
 ```bash
-export GITHUB_PAT=your_github_pat_here
-export HF_TOKEN=your_hf_token_here
+# Only if these are not already set on the pod (e.g. manual bare metal):
+# export GITHUB_PAT=your_github_pat_here
+# export HF_TOKEN=your_hf_token_here
 
 bash -c "$(curl -fsSL -H "Authorization: token $GITHUB_PAT" \
   https://raw.githubusercontent.com/latent-to/cacheon/main/inference_engine/setup.sh)"
@@ -93,7 +101,8 @@ pytest tests/test_harness_integration.py -v -m integration
 This seeds example policy repos on Hugging Face, then runs the full harness against them.
 
 ```bash
-export HF_TOKEN=your_hf_token_here
+# Skip if HF_TOKEN is already set from injected .env:
+# export HF_TOKEN=your_hf_token_here
 
 # Seed fixture policies (one-time)
 python tests/e2e/e2e_seed_hf.py
