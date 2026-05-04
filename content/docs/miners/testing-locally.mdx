@@ -32,15 +32,20 @@ docker run --gpus '"device=0,1,2,3"' -p 8000:8000 \
 
 Wait for `GET http://localhost:8000/health` to return 200.
 
-## Step 2: Run the benchmark prompts
+## Step 2: Verify the baseline responds
 
-Send the same instruct-style prompts the validator uses:
+Send a test request to confirm the baseline is working:
 
 ```bash
-python scripts/local_benchmark.py --target http://localhost:8000 --prompts hybrid
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen2.5-72B-Instruct",
+    "messages": [{"role": "user", "content": "Hello"}],
+    "max_tokens": 16,
+    "temperature": 0
+  }'
 ```
-
-This records baseline TTFT and throughput numbers (median across 10 prompts).
 
 ## Step 3: Start your server
 
@@ -52,13 +57,9 @@ docker run --gpus '"device=0,1,2,3"' -p 8001:8000 \
 
 Wait for `GET http://localhost:8001/health` to return 200.
 
-## Step 4: Benchmark your server
+## Step 4: Compare against the baseline
 
-```bash
-python scripts/local_benchmark.py --target http://localhost:8001 --prompts hybrid --baseline-results baseline.json
-```
-
-This compares your server against the baseline and prints:
+Send identical requests to both servers and compare TTFT, throughput, and output tokens. The validator uses streaming for speed measurement and non-streaming with `logprobs: true, top_logprobs: 5` for correctness. Example expected output from a comparison:
 
 ```
 TTFT improvement:       +23.4%  (median)

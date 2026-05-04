@@ -27,7 +27,7 @@ Internal data structure representing one evaluation tick:
 
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 1,
   "job_id": "uuid",
   "challenger_hotkey": "5F...",
   "image": "docker.io/miner/server:v1",
@@ -48,7 +48,7 @@ Result of one challenger evaluation:
 
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 1,
   "job_id": "uuid",
   "challenger_hotkey": "5F...",
   "baseline_ttft_median_s": 1.42,
@@ -88,4 +88,4 @@ Result of one challenger evaluation:
 
 ## Schema versioning
 
-Both job and result payloads include a `schema_version` field (V1 uses version 3). This allows rolling upgrades without breaking compatibility with persisted state files.
+Both job and result payloads include a `schema_version` field (V1 starts at version 1). This allows rolling upgrades without breaking compatibility with persisted state files.

@@ -42,7 +42,7 @@ A commitment becomes a challenger when:
 For each challenger, the validator runs a local Docker evaluation:
 
 1. Pull the miner's Docker image by digest
-2. Start the container with GPU access, model volume mount, no network
+2. Start the container with GPU access, model volume mount, internal network (no egress)
 3. Wait for `/health` (timeout: 10 min)
 4. Send 1-2 warmup prompts (discarded)
 5. Run two-pass evaluation: speed (streaming, 10 prompts) then correctness (logprobs)
@@ -89,10 +89,13 @@ The validator supports `--dry-run` mode which runs the full loop (chain scanning
 
 Key configuration via CLI flags or environment variables:
 
-| Flag              | Env var                   | Default  | Description                          |
-| ----------------- | ------------------------- | -------- | ------------------------------------ |
-| `--network`       | `CACHEON_NETWORK`         | `finney` | `finney` or `test`                   |
-| `--netuid`        | `CACHEON_NETUID`          | `14`     | Subnet UID                           |
-| `--poll-interval` | `CACHEON_POLL_INTERVAL_S` | `360`    | Seconds between main-loop iterations |
-| `--eval-timeout`  | `CACHEON_EVAL_TIMEOUT`    | `1800`   | Max seconds per eval                 |
-| `--dry-run`       | --                        | `false`  | Skip Docker eval + weights           |
+| Flag                | Env var                   | Default                   | Description                          |
+| ------------------- | ------------------------- | ------------------------- | ------------------------------------ |
+| `--network`         | `CACHEON_NETWORK`         | `finney`                  | `finney` or `test`                   |
+| `--netuid`          | `CACHEON_NETUID`          | `14`                      | Subnet UID                           |
+| `--poll-interval`   | `CACHEON_POLL_INTERVAL_S` | `360`                     | Seconds between main-loop iterations |
+| `--model-volume`    | --                        | `/models`                 | Path to model weights on host        |
+| `--gpus`            | --                        | `'"device=0,1,2,3"'`      | Docker GPU device string             |
+| `--baseline-image`  | --                        | `vllm/vllm-openai:latest` | Baseline Docker image                |
+| `--baseline-digest` | --                        | --                        | Baseline image digest (required)     |
+| `--dry-run`         | `CACHEON_DRY_RUN`         | `false`                   | Skip Docker eval + weights           |

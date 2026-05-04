@@ -22,7 +22,7 @@ For each challenger:
 
 ```
 1. Pull Docker image by digest
-2. Start container with --gpus '"device=0,1,2,3"', model volume mount, port mapping, no network
+2. Start container with --gpus '"device=0,1,2,3"', model volume mount, port mapping, internal network
 3. Poll GET /health every 5s until 200 (startup timeout: 10 min)
 4. Send 1-2 warmup prompts (discarded, not scored)
 5. Run speed pass: 10 streaming requests, measure TTFT + throughput
@@ -39,11 +39,10 @@ Before scored prompts, the harness sends 1-2 warmup requests that are discarded.
 
 ### Timeouts
 
-| Timeout        | Value                         | What happens if exceeded |
-| -------------- | ----------------------------- | ------------------------ |
-| **Startup**    | 10 minutes                    | Container killed, DQ     |
-| **Per-prompt** | 120 seconds                   | Request cancelled, DQ    |
-| **Total eval** | Configurable (default 30 min) | Eval aborted, DQ         |
+| Timeout        | Value       | What happens if exceeded |
+| -------------- | ----------- | ------------------------ |
+| **Startup**    | 10 minutes  | Container killed, DQ     |
+| **Per-prompt** | 120 seconds | Request cancelled, DQ    |
 
 ### GPU state cleanup
 
@@ -57,7 +56,7 @@ This ensures each miner starts from a clean GPU state, identical to what the bas
 
 ## vLLM baseline
 
-The baseline is a pinned version of vLLM serving `Qwen2.5-72B-Instruct` on the same 4x H200 with tensor parallelism. It runs as an always-on container alongside the evaluation harness.
+The baseline is a pinned version of vLLM serving `Qwen2.5-72B-Instruct` on the same 4x H200 with tensor parallelism. The validator starts the baseline container on demand when prompts change, runs evaluation, caches the results, then tears it down.
 
 Baseline results are **pre-computed and cached** per prompt set. When the block hash changes (producing new prompts), the baseline runs once. All challengers in that round are compared against the same cached baseline numbers. This saves ~50% of eval wall time per challenger.
 
