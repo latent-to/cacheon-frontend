@@ -25,7 +25,7 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 **Decision:** Require only the chat completions endpoint. Do not require `/v1/completions`.
 
-**Reasoning:** The target model is an instruct model (Qwen2.5-72B-Instruct) and the long-term positioning is "fastest backend for agent workflows." Chat completions is the standard endpoint for instruct models. Requiring both endpoints doubles the API surface miners must implement. Raw completions (no chat template) is less aligned with production serving patterns.
+**Reasoning:** The target model is an instruct model (Qwen2.5-72B-Instruct) and the long-term positioning is "fastest backend for agentic workflows." Chat completions is the standard endpoint for instruct models. Requiring both endpoints doubles the API surface miners must implement. Raw completions (no chat template) is less aligned with production serving patterns.
 
 **Rejected:** Requiring both `/v1/completions` and `/v1/chat/completions`. Unnecessary surface area.
 
