@@ -38,12 +38,12 @@ export const TEAM: TeamMember[] = [
     github: 'https://github.com/chideraao',
     linkedin: 'https://www.linkedin.com/in/dera-okeke/',
   },
-  {
-    name: 'Maciej Kula',
-    role: 'Education',
-    image: '/team/maciej-ad6ccfbd.jpg',
-    twitter: 'https://x.com/mcjkula',
-    github: 'https://github.com/mcjkula',
-    linkedin: 'https://www.linkedin.com/in/mcjkula',
-  },
+  // {
+  //   name: 'Maciej Kula',
+  //   role: 'Education',
+  //   image: '/team/maciej-ad6ccfbd.jpg',
+  //   twitter: 'https://x.com/mcjkula',
+  //   github: 'https://github.com/mcjkula',
+  //   linkedin: 'https://www.linkedin.com/in/mcjkula',
+  // },
 ]

@@ -3,16 +3,26 @@ title: Introduction
 description: Cacheon (Bittensor Subnet 14) is a live, on-chain competition to build the fastest inference server for a fixed open-source model. Miners submit containerized servers and compete on speed while maintaining output correctness.
 ---
 
-**Cacheon** is Bittensor Subnet 14 (SN14). It is an open, on-chain competition for **production-grade inference optimization** of large language models.
+**Cacheon** is Bittensor Subnet 14 (SN14). It is an open, on-chain competition for **production-grade inference optimization** of LLMs.
 
-Miners submit a **containerized inference server** that serves a fixed model via an OpenAI-compatible API. Validators run every submission against a vLLM baseline on the same hardware and score it on **time-to-first-token**, **throughput**, and **output correctness**. The best server takes the throne; all emission flows to the king until someone beats them.
+Miners submit a **containerized inference server** that serves a fixed model via an OpenAI-compatible API. Validators run every submission against a vLLM baseline on the same hardware and score it on **time-to-first-token**, **throughput**, and **output correctness**. The best server takes the throne; all token emission flows to the king until someone beats them.
 
-<Callout title="TL;DR">
-  - **Model**: Qwen2.5-72B-Instruct on 4x H200 (fixed topology) - **Submit**: build a Docker image
-  that serves the model via `/v1/chat/completions`, commit the image reference on-chain - **Score**:
-  `0.5 x TTFT_improvement + 0.5 x throughput_improvement` (floored at 0), with a 99%+ greedy token
-  match correctness gate. See [Scoring](./evaluation/scoring). - **Incentive**: king-of-the-hill,
-  winner takes all emission
+<Callout title="TL;DR" className="my-2 gap-2 p-2 [&>*:last-child]:gap-1">
+  <ul className="marker:text-fd-muted-foreground my-0 list-disc space-y-0.5 pl-4 leading-snug">
+    <li>
+      <b>Model:</b> Qwen2.5-72B-Instruct, 4× H200
+    </li>
+    <li>
+      <b>Submit:</b> Docker image w/ <code>/v1/chat/completions</code>; commit image on-chain
+    </li>
+    <li>
+      <b>Score:</b> <code>0.5 × TTFT + 0.5 × throughput</code>, &gt;99% token match.{" "}
+      <a href="./evaluation/scoring">Scoring</a>
+    </li>
+    <li>
+      <b>Incentive:</b> Winner takes all
+    </li>
+  </ul>
 </Callout>
 
 ## Why Cacheon exists
@@ -20,6 +30,8 @@ Miners submit a **containerized inference server** that serves a fixed model via
 Inference has been the bottleneck for serving LLMs at scale. Latency, memory, and cost determine whether a model is usable in production. There is no shortage of optimization techniques (FlashAttention, PagedAttention, speculative decoding, KV cache quantization, custom kernels) but they are benchmarked in isolation and results are impossible to compare fairly.
 
 Cacheon turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring. Miners are free to use any technique, any language, any runtime. The only thing that matters is serving the model faster while keeping outputs correct.
+
+The product-market fit is straightforward: if Cacheon can consistently produce the fastest and most cost-efficient way to serve a high-value open-source model, then developers will route inference through us because better performance directly improves their product margins and UX. Over time, that creates a clear business model: Cacheon becomes both the optimization layer where better inference systems are discovered and the serving layer that monetizes demand for production-grade inference. It can serve agentic workflows, developer APIs, and other inference-heavy products that depend on fast, reliable long-context generation.
 
 See [Why it matters](/docs/concepts/why-it-matters) for the full problem statement.
 
@@ -34,7 +46,7 @@ See [Why it matters](/docs/concepts/why-it-matters) for the full problem stateme
   <Card
     title="I want to understand the system"
     href="/docs/architecture/overview"
-    description="Validator loop, container orchestration, CPU/GPU split, and security model."
+    description="Validator loop, container orchestration, single-machine architecture, and security model."
   />
   <Card
     title="I want to know what's measured"

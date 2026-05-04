@@ -111,9 +111,9 @@ Both TTFT and throughput are aggregated using the **median** across the 10 score
 
 Measured from the non-streaming correctness pass. Token-by-token comparison against baseline output, plus logprob spot-checks at divergent positions. See [Scoring](/docs/evaluation/scoring) for the full correctness gate specification.
 
-## Why V1 runs on a single GPU pod
+## Why V1 runs on a single machine
 
-Eval happens on one 4x H200 pod, run by one operator (the subnet owner). This is not a decentralization statement; it is operational reality:
+Eval happens on one 4x H200 machine, run by one operator (the subnet owner). This is not a decentralization statement; it is operational reality:
 
 - **Cross-hardware reproducibility.** Different GPU generations and interconnect topologies produce different floating-point results and different latency profiles. Multiple validators would disagree on scores.
 - **Container overhead variance.** Docker startup, GPU initialization, and network stack behavior vary between hosts. Centralizing eval eliminates that variance.
@@ -121,4 +121,4 @@ Eval happens on one 4x H200 pod, run by one operator (the subnet owner). This is
 
 The V2 mitigation is publishing full eval artifacts (prompts, baseline outputs, miner outputs, scores) to verifiable storage so anyone can audit.
 
-See [Architecture: validator](/docs/architecture/validator) for the CPU/GPU split.
+See [Architecture: validator](/docs/architecture/validator) for the full validator design.

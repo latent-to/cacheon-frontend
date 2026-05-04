@@ -1,9 +1,9 @@
 ---
 title: Validator
-description: The validator loop, challenger detection, evaluation dispatch, king comparison, and weight-setting. How the CPU host orchestrates the competition.
+description: The validator loop, challenger detection, Docker evaluation, king comparison, and weight-setting. How the single-process validator orchestrates the competition.
 ---
 
-The validator is the CPU-side component that drives the competition loop.
+The validator is a single process running on the GPU machine. It owns the wallet, reads the chain, orchestrates Docker-based evaluations, and sets weights.
 
 ## The main loop
 
@@ -18,7 +18,7 @@ while True:
         continue
 
     for challenger in challengers:
-        result = dispatch_eval_to_gpu_pod(challenger)
+        result = evaluate_in_docker(challenger)
         record_result(result)
 
     king = determine_king()
@@ -37,23 +37,17 @@ A commitment becomes a challenger when:
 2. It has not been evaluated by this validator instance
 3. Its image digest is not identical to the current king's (copycat DQ)
 
-### Evaluation dispatch
+### Evaluation
 
-For each challenger, the validator sends an `EvaluationJob` to the GPU pod over SSH/SFTP:
+For each challenger, the validator runs a local Docker evaluation:
 
-```json
-{
-  "challenger_hotkey": "5F...",
-  "image": "docker.io/miner/server:v1",
-  "digest": "sha256:abc...",
-  "prompts": ["<passage1>", "<passage2>", "..."],
-  "block_hash": "0xabc...",
-  "max_tokens": 256,
-  "schema_version": 2
-}
-```
-
-The GPU pod pulls the image, runs the evaluation, and returns an `EvaluationResult`.
+1. Pull the miner's Docker image by digest
+2. Start the container with GPU access, model volume mount, no network
+3. Wait for `/health` (timeout: 10 min)
+4. Send 1-2 warmup prompts (discarded)
+5. Run two-pass evaluation: speed (streaming, 10 prompts) then correctness (logprobs)
+6. Stop the container, clean up GPU state
+7. Compute score: `0.5 * max(0, ttft_improvement) + 0.5 * max(0, throughput_improvement)`
 
 ### King comparison
 
@@ -89,17 +83,16 @@ State is stored as JSON files in a configurable state directory.
 
 ## Dry-run mode
 
-The validator supports `--dry-run` mode which runs the full loop (chain scanning, commitment parsing, state management) without dispatching real GPU evaluations. Useful for testing the chain integration.
+The validator supports `--dry-run` mode which runs the full loop (chain scanning, commitment parsing, state management) without running Docker evaluations or setting weights. Useful for testing chain integration before the GPU machine is ready.
 
 ## Configuration
 
 Key configuration via CLI flags or environment variables:
 
-| Flag                     | Env var                        | Default  | Description              |
-| ------------------------ | ------------------------------ | -------- | ------------------------ |
-| `--network`              | `CACHEON_NETWORK`              | `finney` | `finney` or `test`       |
-| `--netuid`               | `CACHEON_NETUID`               | `14`     | Subnet UID               |
-| `--poll-interval`        | `CACHEON_POLL_INTERVAL`        | `360`    | Seconds between scans    |
-| `--gpu-pod-ssh-host`     | `CACHEON_GPU_POD_SSH_HOST`     | --       | GPU pod SSH host         |
-| `--gpu-pod-eval-timeout` | `CACHEON_GPU_POD_EVAL_TIMEOUT` | `1800`   | Max seconds per eval     |
-| `--dry-run`              | --                             | `false`  | Skip real GPU evaluation |
+| Flag              | Env var                 | Default  | Description                |
+| ----------------- | ----------------------- | -------- | -------------------------- |
+| `--network`       | `CACHEON_NETWORK`       | `finney` | `finney` or `test`         |
+| `--netuid`        | `CACHEON_NETUID`        | `14`     | Subnet UID                 |
+| `--poll-interval` | `CACHEON_POLL_INTERVAL` | `360`    | Seconds between scans      |
+| `--eval-timeout`  | `CACHEON_EVAL_TIMEOUT`  | `1800`   | Max seconds per eval       |
+| `--dry-run`       | --                      | `false`  | Skip Docker eval + weights |

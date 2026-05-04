@@ -1,6 +1,6 @@
 ---
 title: Validator setup
-description: How to run a Cacheon validator. Two machines, one SSH tunnel, Docker on the GPU pod with 4x H200.
+description: How to run a Cacheon validator. Single GPU machine with 4x H200, Docker, chain access, and evaluation on one box.
 ---
 
 <Callout type="info">
@@ -9,59 +9,36 @@ description: How to run a Cacheon validator. Two machines, one SSH tunnel, Docke
   decentralized validation in V2.
 </Callout>
 
-Running the Cacheon validator requires two machines connected over SSH:
+Running the Cacheon validator requires one GPU machine:
 
-| Machine      | Hardware                               | Role                                                                                        |
-| ------------ | -------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **GPU pod**  | 4x NVIDIA H200 (fixed NVLink topology) | Hosts vLLM baseline, pulls and runs miner Docker containers, measures speed and correctness |
-| **CPU host** | Any Linux box (2+ cores, 4 GB RAM)     | Holds wallet keys, reads chain, dispatches eval jobs over SSH, sets weights                 |
+| Requirement | Specification                                      |
+| ----------- | -------------------------------------------------- |
+| **GPUs**    | 4x NVIDIA H200 (fixed NVLink topology)             |
+| **Docker**  | With NVIDIA Container Toolkit                      |
+| **Storage** | ~300 GB (model weights + Docker images + state)    |
+| **Wallet**  | Registered on subnet 14 (mainnet) or 460 (testnet) |
 
-The GPU pod has **no wallet keys and no chain access**. It receives eval jobs, runs containers, and returns results. The CPU host orchestrates everything.
+The validator process runs directly on this machine. It holds the wallet keys, reads the chain, orchestrates Docker evaluations, and sets weights. No separate CPU host, no SSH tunnels.
+
+## What the validator does
+
+```
+scan chain ──> find challengers ──> pull image ──> start container
+     ^                                                    |
+     |             evaluate (speed + correctness)         |
+     |                                                    v
+set_weights <── compare against king <── stop container, GPU cleanup
+```
 
 ## What you need before starting
 
 - A Bittensor wallet registered on subnet 14 (mainnet) or 460 (testnet)
-- Docker with NVIDIA Container Toolkit on the GPU pod
+- Docker with NVIDIA Container Toolkit on the GPU machine
 - A Hugging Face token (`HF_TOKEN`) for downloading model weights
-- SSH key pair for CPU-to-GPU communication
-- GPU pod with 4x H200 (Targon, Lium, or your own bare metal)
+- A 4x H200 GPU machine (Targon, Lium, or your own bare metal)
 
-Simplified loop:
+## Setup
 
-```
-                    challengers     eval job      results    set_weights
-              chain ──────────> CPU ────────> GPU ────────> CPU ────────> chain
-                ^                                                           |
-                └──────────────────────── loop ─────────────────────────────┘
-```
-
-## Setup order
-
-1. [Provision and configure the GPU pod](/docs/validators/gpu-pod-setup)
-2. [Set up the CPU host and start the validator](/docs/validators/cpu-host-setup)
-
-Do the GPU pod first. The CPU host needs SSH access to the pod.
-
-## How they connect
-
-```
-CPU HOST                           GPU POD (4x H200)
-(wallet keys, chain access)        (Docker, 4x GPU, vLLM, /models)
-
-remote_validator.py
-  |-- fetch metagraph
-  |-- find new challengers
-  |
-  |-- SFTP write job.json ────────> /tmp/job.json
-  |-- SSH run eval_pod.py ────────> pulls image, starts container
-  |                                  (mounts /models:ro),
-  |                                  runs two-pass eval with warmup
-  |-- SFTP read results.json <──── /tmp/results.json
-  |
-  |-- update king if beaten
-  └── set_weights(king=1.0)
-```
-
-No HTTP server, no open ports, no auth layer. The pod's only interface is the SSH key the CPU host holds.
+Follow the [machine setup guide](/docs/validators/machine-setup) to provision the GPU machine, install dependencies, download model weights, and start the validator.
 
 For full architecture details, see [System overview](/docs/architecture/overview).

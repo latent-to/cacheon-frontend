@@ -1,9 +1,9 @@
 ---
 title: Architecture overview
-description: CPU validator host, GPU evaluation pod (4x H200), Docker container orchestration, mounted model weights, and the vLLM baseline. How the pieces fit together.
+description: Single GPU machine running chain interaction, Docker container orchestration, vLLM baseline, and evaluation. 4x H200, mounted model weights, one process.
 ---
 
-Cacheon's architecture separates chain interaction (CPU) from inference evaluation (GPU). Miner servers run in isolated Docker containers on the GPU pod. Model weights are mounted as a read-only volume.
+Cacheon runs on a single GPU machine. The validator process handles chain interaction, Docker orchestration, evaluation, and weight-setting. Miner servers run in isolated Docker containers on the same machine. Model weights are mounted as a read-only volume.
 
 ## High-level topology
 
@@ -12,42 +12,26 @@ Bittensor chain
     |
     | (reads commitments, sets weights)
     v
-CPU validator host
+GPU machine (4x H200, fixed NVLink topology)
     |
-    | (SSH/SFTP: sends eval jobs, receives results)
-    v
-GPU pod (4x H200, fixed NVLink topology)
-    |
+    |-- Validator process (chain, eval loop, weight-setting)
     |-- vLLM baseline (always-on, tensor-parallel)
     |-- Miner container (started per eval, isolated)
     |-- Model weights volume (/models, read-only)
-    |-- Evaluation orchestrator
 ```
 
-## CPU validator host
+## The validator process
 
-The CPU server is the chain-facing component:
+The validator is a single long-running process on the GPU machine:
 
+- Holds the wallet keys and interacts with the Bittensor chain
 - Scans on-chain commitments for new challengers every epoch (~360s)
-- Validates commitment format (image reference, digest)
-- Dispatches evaluation jobs to the GPU pod
-- Receives results and compares against the king
+- Validates commitment format (Docker image reference, sha256 digest)
+- Pulls miner Docker images and runs containerized evaluations locally
+- Compares results against the current king
 - Sets one-hot weights (`winner = 1.0`, everyone else `= 0.0`)
-- **Holds the wallet keys.** The GPU pod has no chain access.
 
-The CPU host runs on commodity hardware. It does not need a GPU.
-
-## GPU evaluation pod
-
-The GPU pod runs the actual inference evaluation on **4x H200** with fixed NVLink topology:
-
-- Hosts the vLLM baseline (always-on, tensor-parallel across all 4 GPUs)
-- Stores model weights at a known path, mounted read-only into containers
-- Pulls and starts miner Docker containers
-- Runs the two-pass evaluation (speed + correctness) with warmup
-- Returns structured results to the CPU host
-
-The GPU pod has **no wallet keys** and **no chain access**. If it is compromised, the attacker gets model weights (which are public) and evaluation results, not control over subnet weights.
+Everything happens on one machine. There is no SSH, no SFTP, no remote dispatch.
 
 ## Container orchestration
 
@@ -65,37 +49,36 @@ Containers run without `--privileged`, with restricted capabilities, read-only r
 
 ## Model weight delivery
 
-Model weights are stored on the GPU pod at `/workspace/models/Qwen2.5-72B-Instruct` and mounted read-only into every container at `/models`. This guarantees:
+Model weights are stored on the machine at `/workspace/models/Qwen2.5-72B-Instruct` and mounted read-only into every container at `/models`. This guarantees:
 
 - **Weight identity**: every miner and the baseline load the exact same bytes
 - **Practical image sizes**: miner Docker images are 1-20 GB (runtime only), not 140 GB+
 - **Fast pull times**: no model weights in the registry
 
-## Why CPU/GPU split
+## Why a single machine
 
-The split is a security decision:
+The original design split chain interaction (CPU host) from evaluation (GPU pod) over SSH, with the rationale that the GPU pod runs arbitrary code and should not hold wallet keys. This added real operational complexity (SSH tunnels, SFTP file transfers, detached processes, timeout polling) for a threat that is already mitigated by Docker container isolation.
 
-- **GPU pod runs arbitrary code.** Miner containers are sandboxed but the GPU is a real attack surface. Isolating it from wallet keys limits blast radius.
-- **CPU host is lightweight.** Chain scanning, job dispatch, and weight-setting are cheap operations that don't need GPU access.
-- **SSH narrows the interface.** The GPU pod's only external interface is the SSH connection to the CPU host.
+In the collapsed design:
+
+- **Miner code runs inside containers**, not on the host. The container cannot access the host filesystem, wallet keys, or chain connection.
+- **One fewer failure mode.** No SSH timeouts, no SFTP transfer errors, no detached-process polling.
+- **Simpler deployment.** One machine, one setup script, one process.
 
 ## Data flow
 
 ```
-CPU host                          GPU pod (4x H200)
-   |                                 |
-   | -- EvaluationJob (JSON) ------> |
-   |    (image ref, prompts,         |
-   |     block hash, params)         |
-   |                                 | -- pull image
-   |                                 | -- start container (mount /models:ro)
-   |                                 | -- warmup (1-2 prompts, discarded)
-   |                                 | -- evaluate (speed + correctness)
-   |                                 | -- stop container, GPU cleanup
-   |                                 |
-   | <-- EvaluationResult (JSON) --- |
-   |     (median ttft, median tps,   |
-   |      token_match, score)        |
-   |                                 |
-   | -- set_weights() to chain       |
+Validator process (on GPU machine)
+    |
+    |-- scan chain for commitments
+    |-- parse commitment (image + digest)
+    |-- pull Docker image
+    |-- start container (mount /models:ro, --network none)
+    |-- warmup (1-2 prompts, discarded)
+    |-- evaluate (speed + correctness, 10 prompts)
+    |-- stop container, GPU cleanup
+    |-- compare against king (decaying moat)
+    |-- set_weights() to chain
+    |-- sleep(poll_interval)
+    |-- repeat
 ```

@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Common issues when setting up and running the Cacheon validator.
 ---
 
-## GPU pod
+## Docker
 
 ### Docker not using GPU
 
@@ -28,6 +28,8 @@ Check that all 4 H200 GPUs appear in `nvidia-smi`. If only a subset is visible, 
 nvidia-smi topo -m
 ```
 
+## vLLM baseline
+
 ### vLLM baseline not starting
 
 Common causes:
@@ -38,10 +40,12 @@ Common causes:
 4. **Port conflict**: Another process on port 8000. Check with `ss -tlnp | grep 8000`.
 5. **CUDA version mismatch**: Ensure the vLLM image supports your CUDA driver version.
 
+## Miner containers
+
 ### Miner container pull fails
 
 - Verify the image reference and digest are correct
-- Ensure the pod has internet access for pulling images (network is only blocked inside miner containers during eval, not on the host)
+- Ensure the machine has internet access for pulling images (network is only blocked inside miner containers during eval, not on the host)
 - Check disk space: `df -h`
 
 ### Miner container times out
@@ -56,31 +60,9 @@ If scores seem inconsistent between runs, check that GPU state is being properly
 nvidia-smi --query-gpu=memory.used --format=csv
 ```
 
-All GPUs should show near-zero memory usage between evaluations.
+All GPUs should show near-zero memory usage between evaluations (aside from the vLLM baseline).
 
-## CPU host
-
-### SSH to GPU pod fails
-
-Common causes:
-
-1. **Wrong host/port**: double-check `--gpu-pod-ssh-host` and `--gpu-pod-ssh-port`
-2. **SSH key not authorized**: add your public key to `~/.ssh/authorized_keys` on the pod
-3. **Pod not running**: check with your provider's dashboard
-
-Test connectivity:
-
-```bash
-ssh -o ConnectTimeout=10 root@<pod-ip> "echo ok"
-```
-
-### First eval times out
-
-The first eval on a cold pod involves pulling Docker images. Model weights should already be downloaded (see GPU pod setup). Raise the timeout for the first run:
-
-```bash
-python scripts/remote_validator.py ... --gpu-pod-eval-timeout 2400
-```
+## Chain interaction
 
 ### `set_weights` fails
 
@@ -93,7 +75,11 @@ python scripts/remote_validator.py ... --gpu-pod-eval-timeout 2400
 If the state format changes between versions, delete the state directory:
 
 ```bash
-rm -rf ~/cacheon/state
+rm -rf /workspace/cacheon/state
 ```
 
 The loop rebuilds by evaluating all revealed commitments fresh.
+
+### First eval takes very long
+
+The first eval on a cold machine involves pulling Docker images. Model weights should already be downloaded (see [machine setup](/docs/validators/machine-setup)). The vLLM baseline also needs time to warm up on the first request.

@@ -1,4 +1,4 @@
 {
   "title": "Validators",
-  "pages": ["overview", "gpu-pod-setup", "cpu-host-setup", "troubleshooting"]
+  "pages": ["overview", "machine-setup", "troubleshooting"]
 }

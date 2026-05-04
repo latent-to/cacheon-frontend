@@ -31,7 +31,7 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 ## Model weights: mounted read-only, not baked into images
 
-**Decision:** Model weights are stored on the GPU pod and mounted into containers at `/models` as a read-only volume.
+**Decision:** Model weights are stored on the validator machine and mounted into containers at `/models` as a read-only volume.
 
 **Reasoning:** 72B BF16 weights are ~140 GB. Baking them into Docker images makes images 140 GB+, which is impractical for pull times, registry storage, and bandwidth. Mounting weights guarantees every miner loads the exact same bytes (weight identity) without any in-container verification. Miner images stay small (1-20 GB of runtime only).
 
@@ -109,9 +109,9 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 ## Operating model: single-validator V1
 
-**Decision:** One validator (the subnet owner), one GPU pod, one person setting weights.
+**Decision:** One validator (the subnet owner), one GPU machine, one person setting weights.
 
-**Reasoning:** Container evaluation on multi-GPU has significant variance sources (NVLink topology, GPU interconnect, thermal state, Docker startup). Centralizing eval on one fixed-topology 4x H200 pod eliminates cross-machine variance. V2 mitigates trust concentration via published eval artifacts.
+**Reasoning:** Container evaluation on multi-GPU has significant variance sources (NVLink topology, GPU interconnect, thermal state, Docker startup). Centralizing eval on one fixed-topology 4x H200 machine eliminates cross-machine variance. The validator process runs directly on the GPU machine (no CPU/GPU split) for operational simplicity. V2 mitigates trust concentration via published eval artifacts.
 
 ---
 
