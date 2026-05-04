@@ -25,7 +25,7 @@ GPU machine (4x H200, fixed NVLink topology)
 The validator is a single long-running process on the GPU machine:
 
 - Holds the wallet keys and interacts with the Bittensor chain
-- Scans on-chain commitments for new challengers every epoch (~360s)
+- Scans on-chain commitments for new challengers every block
 - Validates commitment format (Docker image reference, sha256 digest)
 - Pulls miner Docker images and runs containerized evaluations locally
 - Compares results against the current king
@@ -55,20 +55,10 @@ Model weights are stored on the machine at `/workspace/models/Qwen2.5-72B-Instru
 - **Practical image sizes**: miner Docker images are 1-20 GB (runtime only), not 140 GB+
 - **Fast pull times**: no model weights in the registry
 
-## Why a single machine
-
-The original design split chain interaction (CPU host) from evaluation (GPU pod) over SSH, with the rationale that the GPU pod runs arbitrary code and should not hold wallet keys. This added real operational complexity (SSH tunnels, SFTP file transfers, detached processes, timeout polling) for a threat that is already mitigated by Docker container isolation.
-
-In the collapsed design:
-
-- **Miner code runs inside containers**, not on the host. The container cannot access the host filesystem, wallet keys, or chain connection.
-- **One fewer failure mode.** No SSH timeouts, no SFTP transfer errors, no detached-process polling.
-- **Simpler deployment.** One machine, one setup script, one process.
-
 ## Data flow
 
 ```
-Validator process (on GPU machine)
+Validator process (on GPU)
     |
     |-- scan chain for commitments
     |-- parse commitment (image + digest)

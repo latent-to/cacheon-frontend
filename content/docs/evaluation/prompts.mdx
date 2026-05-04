@@ -7,7 +7,7 @@ Prompts are **instruct-style requests** built from curated instruction templates
 
 ## Why instruct format
 
-The target model is `Qwen2.5-72B-Instruct` and the long-term positioning is "fastest backend for agent workflows." Benchmarking with raw text continuation does not reflect real serving workloads. Instruct-format prompts test what production deployments actually send.
+The target model is `Qwen2.5-72B-Instruct` and the long-term positioning is "fastest backend for agenic workflows." Benchmarking with raw text continuation does not reflect real serving workloads. Instruct-format prompts test what production deployments actually send.
 
 ## Hybrid prompt design
 
@@ -20,13 +20,13 @@ Both are selected deterministically via the block-hash seed.
 
 ### Template categories
 
-| Category           | Example instruction                                                  | Tests                            |
-| ------------------ | -------------------------------------------------------------------- | -------------------------------- |
-| **Summarization**  | "Summarize the following document in 3 paragraphs."                  | Long-context prefill, generation |
-| **Document QA**    | "Answer the following question based on the document: {question}"    | Prefill + targeted decode        |
-| **Agent trace**    | "Given the tool outputs below, decide the next action."              | Short decode, high TTFT pressure |
-| **Code/retrieval** | "Extract all function signatures from the following code listing."   | Structured output decode         |
-| **Long text wrap** | "Continue writing in the style of the author, starting from: {text}" | Raw generation from long context |
+| Category           | Example instruction                                                    | Tests                            |
+| ------------------ | ---------------------------------------------------------------------- | -------------------------------- |
+| **Summarization**  | "Summarize the following document in 3 paragraphs."                    | Long-context prefill, generation |
+| **Document QA**    | "Answer the following question based on the document: `{question}`"    | Prefill + targeted decode        |
+| **Agent trace**    | "Given the tool outputs below, decide the next action."                | Short decode, high TTFT pressure |
+| **Code/retrieval** | "Extract all function signatures from the following code listing."     | Structured output decode         |
+| **Long text wrap** | "Continue writing in the style of the author, starting from: `{text}`" | Raw generation from long context |
 
 ~20 curated templates, rotated per block hash. The template determines the workload shape; the PG19 passage provides the context fill.
 

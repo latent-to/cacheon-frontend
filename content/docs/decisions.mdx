@@ -5,14 +5,6 @@ description: A single-page log of the major design decisions for Cacheon V1, why
 
 This page exists so contributors and miners can answer "why does it work this way?" without re-reading the whole architecture doc. Decisions are listed roughly in order of how load-bearing they are.
 
-## Unit of optimization: full inference server, not component hooks
-
-**Decision:** Miners submit a complete containerized inference server, not a plugin/policy that runs inside the evaluator's process.
-
-**Reasoning:** Component-level hooks (e.g., a KV cache policy function) limit optimization to one axis and one language. The real optimization surface spans attention kernels, memory layout, scheduling, decoding strategy, and runtime choice. A containerized server lets miners use any combination of techniques in any language. The benchmark evaluates the stack end-to-end, which is what matters in production.
-
-**Rejected:** In-process Python policy hooks with monkey-patched attention. Limits miners to PyTorch ops, blocks custom CUDA/Triton, forces Python-only implementations.
-
 ## Model: Qwen2.5-72B-Instruct on 4x H200
 
 **Decision:** Start with 72B on multi-GPU from V1.
@@ -25,17 +17,9 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 **Decision:** Require only the chat completions endpoint. Do not require `/v1/completions`.
 
-**Reasoning:** The target model is an instruct model (Qwen2.5-72B-Instruct) and the long-term positioning is "fastest backend for agent workflows." Chat completions is the standard endpoint for instruct models. Requiring both endpoints doubles the API surface miners must implement. Raw completions (no chat template) is less aligned with production serving patterns.
+**Reasoning:** The target model is an instruct model (Qwen2.5-72B-Instruct) and the long-term positioning is "fastest backend for agentic workflows." Chat completions is the standard endpoint for instruct models. Requiring both endpoints doubles the API surface miners must implement. Raw completions (no chat template) is less aligned with production serving patterns.
 
 **Rejected:** Requiring both `/v1/completions` and `/v1/chat/completions`. Unnecessary surface area.
-
-## Model weights: mounted read-only, not baked into images
-
-**Decision:** Model weights are stored on the validator machine and mounted into containers at `/models` as a read-only volume.
-
-**Reasoning:** 72B BF16 weights are ~140 GB. Baking them into Docker images makes images 140 GB+, which is impractical for pull times, registry storage, and bandwidth. Mounting weights guarantees every miner loads the exact same bytes (weight identity) without any in-container verification. Miner images stay small (1-20 GB of runtime only).
-
-**Rejected:** Baking weights into Docker images. 140 GB+ images are a non-starter.
 
 ## Baseline: vLLM, not HuggingFace Transformers
 
@@ -44,12 +28,6 @@ This page exists so contributors and miners can answer "why does it work this wa
 **Reasoning:** vLLM is the de facto standard for production LLM serving. It implements PagedAttention, continuous batching, FlashAttention, and other optimizations. Beating it requires genuine innovation. A HuggingFace Transformers baseline would be too easy to beat and would not produce a useful signal about production readiness.
 
 **Rejected:** HuggingFace Transformers as baseline. Too slow. Beating vanilla HF is not impressive; beating vLLM is.
-
-## Baseline caching
-
-**Decision:** Baseline results are pre-computed once per prompt set and cached across challengers.
-
-**Reasoning:** Running the baseline per-challenger doubles eval wall time. At 72B on 4x H200, each prompt takes real time. Pre-computing baseline TTFT/throughput/outputs when prompts rotate (new block hash) and caching them saves ~50% of eval time per challenger. The baseline only re-runs when the prompt set changes.
 
 ## Correctness: 99% greedy token match
 
@@ -65,14 +43,6 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 **Reasoning:** Both techniques can produce legitimate token divergence that complicates correctness checking. Speculative decoding with draft model rejection sampling is mathematically equivalent to greedy decoding, but implementation bugs can cause subtle output differences. Quantization inherently changes the computation. Banning both in V1 lets us ship a tight 99% correctness gate without false positives. V2 relaxes these restrictions with more nuanced correctness checking.
 
-## Scoring: 50% TTFT, 50% throughput, floored at zero
-
-**Decision:** `score = 0.5 * max(0, ttft_improvement) + 0.5 * max(0, throughput_improvement)`
-
-**Reasoning:** The `max(0, ...)` floor ensures miners slower than vLLM on one axis get zero contribution from that axis, not a negative. This prevents a miner who is 50% faster on TTFT but 50% slower on throughput from being penalized below a miner who is 25% faster on both. Equal weighting in V1 is a neutral starting point. Can be rebalanced in V2.
-
-**Rejected:** Clamped [-1, 1] without floor. Negative contributions obscure signal.
-
 ## Aggregation: median across prompts
 
 **Decision:** Per-prompt TTFT and throughput are aggregated using the median across 10 prompts.
@@ -84,14 +54,6 @@ This page exists so contributors and miners can answer "why does it work this wa
 **Decision:** Before scored prompts, the harness sends 1-2 warmup prompts that are discarded.
 
 **Reasoning:** First inference after model load is slower on every framework (CUDA graph compilation, KV cache pre-allocation, JIT warmup, GPU clock ramping). Including startup costs in the score would reward miners who optimize for fast warmup rather than fast steady-state serving. The competition should measure steady-state performance.
-
-## Incentive: king-of-the-hill, winner-take-all
-
-**Decision:** One reigning champion. All emission to the king. Challengers must beat the king's score by more than a small, time-decaying margin.
-
-**Reasoning:** Creates a sharp optimization target. Miners optimize for "best," not "good enough for top-N." GPU eval only runs when new challengers exist, which amortizes the cost.
-
-**Rejected:** Top-N split (e.g. 60/25/10/5%). Distributes incentive more broadly but weakens the signal.
 
 ## Memory: constraint, not score axis
 
@@ -106,12 +68,6 @@ This page exists so contributors and miners can answer "why does it work this wa
 **Reasoning:** The target model is an instruct model and the long-term story is "fastest backend for agent workflows." Raw PG19 text continuation does not reflect real serving workloads. Hybrid prompts test realistic request shapes (summarization, QA, agent traces) while preserving the deterministic, long-context properties of PG19 that differentiate servers on prefill.
 
 **Rejected:** Raw PG19 continuation only. Not aligned with instruct model or production workloads.
-
-## Operating model: single-validator V1
-
-**Decision:** One validator (the subnet owner), one GPU machine, one person setting weights.
-
-**Reasoning:** Container evaluation on multi-GPU has significant variance sources (NVLink topology, GPU interconnect, thermal state, Docker startup). Centralizing eval on one fixed-topology 4x H200 machine eliminates cross-machine variance. The validator process runs directly on the GPU machine (no CPU/GPU split) for operational simplicity. V2 mitigates trust concentration via published eval artifacts.
 
 ---
 
