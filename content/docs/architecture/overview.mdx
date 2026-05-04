@@ -25,7 +25,7 @@ GPU machine (4x H200, fixed NVLink topology)
 The validator is a single long-running process on the GPU machine:
 
 - Holds the wallet keys and interacts with the Bittensor chain
-- Scans on-chain commitments for new challengers every epoch (~360s)
+- Scans on-chain commitments for new challengers every block
 - Validates commitment format (Docker image reference, sha256 digest)
 - Pulls miner Docker images and runs containerized evaluations locally
 - Compares results against the current king

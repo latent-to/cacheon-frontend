@@ -10,7 +10,7 @@ Registration is two steps:
 1. Push your Docker image to a public registry
 2. Commit the image reference on-chain using your Bittensor wallet
 
-The validator scans for new commitments every epoch (~360s). When it finds yours, it pulls your image and evaluates it.
+The validator scans for new commitments every block. When it finds yours, it pulls your image and evaluates it.
 
 ## Step 1: Push your image
 
@@ -59,7 +59,7 @@ This calls `subtensor.set_reveal_commitment()` with a JSON payload:
 
 ## What happens after
 
-1. Validator detects your commitment in the next epoch scan
+1. Validator detects your commitment on the next block
 2. Validator pulls your Docker image by digest
 3. Container starts with GPU access, validator polls `/health`
 4. Prompts are sent, speed and correctness are measured

@@ -7,17 +7,11 @@ Cacheon uses a **king-of-the-hill** incentive. There is always one reigning cham
 
 ## How a round works
 
-1. The validator scans on-chain commitments on every epoch (~360s).
+1. The validator scans on-chain commitments on every block.
 2. Any hotkey with a revealed commitment that hasn't been evaluated yet is a **challenger**.
 3. If there are no challengers, the king keeps its weight, no GPU runs, and the loop sleeps.
 4. If challengers exist, the validator dispatches eval jobs and compares scores.
 5. A challenger who beats the king's score **by more than a small, time-decaying margin** takes the throne -- see [defender's moat](#the-defenders-moat). Weights are updated: `winner = 1.0`, everyone else `= 0.0`.
-
-<Callout title="GPU time is only spent when something changed">
-  If nobody has registered a new server since the last round, no inference runs. The king keeps its
-  emission and the validator sleeps. GPU eval is expensive -- each challenger's Docker container
-  must start up, load the model, warm up, and serve a full prompt suite.
-</Callout>
 
 ## The defender's moat
 
@@ -31,15 +25,6 @@ Why:
 - Running the same server twice can produce small score variance from GPU clock drift, scheduling jitter, and network overhead. Without the moat, rankings could flip on noise.
 - Without the copycat DQ, the dominant strategy would be "wait, copy, register."
 - The decaying margin means a king cannot sit on a free 1% edge indefinitely.
-
-## Winner-take-all vs. top-N split
-
-Top-N split (e.g. 60/25/10/5%) is the usual Bittensor pattern. Cacheon explicitly rejects it:
-
-- **Winner-take-all** creates a sharp optimization target. Miners optimize to be the fastest, period.
-- **Top-N** blurs the signal. Miners optimize to be "good enough to be top-4," which produces slower convergence.
-
-The goal is to find the single best inference server, not to maintain a stable of similar ones.
 
 ## One commitment per hotkey
 

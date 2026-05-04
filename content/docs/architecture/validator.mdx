@@ -27,7 +27,7 @@ while True:
 
 ### Commitment scanning
 
-Every epoch (~360s), the validator reads on-chain commitments. Each commitment contains a Docker image reference and digest. The validator filters for commitments it has not yet evaluated.
+Every block, the validator reads on-chain commitments. Each commitment contains a Docker image reference and digest. The validator filters for commitments it has not yet evaluated.
 
 ### Challenger detection
 
@@ -89,10 +89,10 @@ The validator supports `--dry-run` mode which runs the full loop (chain scanning
 
 Key configuration via CLI flags or environment variables:
 
-| Flag              | Env var                 | Default  | Description                |
-| ----------------- | ----------------------- | -------- | -------------------------- |
-| `--network`       | `CACHEON_NETWORK`       | `finney` | `finney` or `test`         |
-| `--netuid`        | `CACHEON_NETUID`        | `14`     | Subnet UID                 |
-| `--poll-interval` | `CACHEON_POLL_INTERVAL` | `360`    | Seconds between scans      |
-| `--eval-timeout`  | `CACHEON_EVAL_TIMEOUT`  | `1800`   | Max seconds per eval       |
-| `--dry-run`       | --                      | `false`  | Skip Docker eval + weights |
+| Flag              | Env var                   | Default  | Description                          |
+| ----------------- | ------------------------- | -------- | ------------------------------------ |
+| `--network`       | `CACHEON_NETWORK`         | `finney` | `finney` or `test`                   |
+| `--netuid`        | `CACHEON_NETUID`          | `14`     | Subnet UID                           |
+| `--poll-interval` | `CACHEON_POLL_INTERVAL_S` | `360`    | Seconds between main-loop iterations |
+| `--eval-timeout`  | `CACHEON_EVAL_TIMEOUT`    | `1800`   | Max seconds per eval                 |
+| `--dry-run`       | --                        | `false`  | Skip Docker eval + weights           |
