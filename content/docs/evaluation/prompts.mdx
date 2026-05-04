@@ -20,13 +20,13 @@ Both are selected deterministically via the block-hash seed.
 
 ### Template categories
 
-| Category           | Example instruction                                                   | Tests                             |
-| ------------------ | --------------------------------------------------------------------- | --------------------------------- |
-| **Summarization**  | "Summarize the following document in 3 paragraphs."                   | Long-context prefill, generation  |
-| **Document QA**    | "Answer the following question based on the document: {question}"     | Prefill + targeted decode         |
-| **Agent trace**    | "Given the tool outputs below, decide the next action."              | Short decode, high TTFT pressure  |
-| **Code/retrieval** | "Extract all function signatures from the following code listing."    | Structured output decode          |
-| **Long text wrap** | "Continue writing in the style of the author, starting from: {text}" | Raw generation from long context  |
+| Category           | Example instruction                                                  | Tests                            |
+| ------------------ | -------------------------------------------------------------------- | -------------------------------- |
+| **Summarization**  | "Summarize the following document in 3 paragraphs."                  | Long-context prefill, generation |
+| **Document QA**    | "Answer the following question based on the document: {question}"    | Prefill + targeted decode        |
+| **Agent trace**    | "Given the tool outputs below, decide the next action."              | Short decode, high TTFT pressure |
+| **Code/retrieval** | "Extract all function signatures from the following code listing."   | Structured output decode         |
+| **Long text wrap** | "Continue writing in the style of the author, starting from: {text}" | Raw generation from long context |
 
 ~20 curated templates, rotated per block hash. The template determines the workload shape; the PG19 passage provides the context fill.
 
@@ -34,11 +34,11 @@ Both are selected deterministically via the block-hash seed.
 
 Inference benchmarking needs long, continuous sequences that stress prefill, attention, and KV cache. Short documents produce trivially fast responses where optimization differences are lost in noise.
 
-| Dataset                     | Typical doc length             | Why rejected or chosen                                    |
-| --------------------------- | ------------------------------ | --------------------------------------------------------- |
-| FineWeb                     | Median &lt;1K tokens           | Too short -- prefill is trivial, no differentiation       |
-| MMLU / HellaSwag            | ~100-500 tokens                | Evaluation benchmarks, not serving workloads              |
-| **PG19**                    | **100K+ tokens (full novels)** | **Chosen** -- long-form text forces real serving at scale |
+| Dataset          | Typical doc length             | Why rejected or chosen                                    |
+| ---------------- | ------------------------------ | --------------------------------------------------------- |
+| FineWeb          | Median &lt;1K tokens           | Too short -- prefill is trivial, no differentiation       |
+| MMLU / HellaSwag | ~100-500 tokens                | Evaluation benchmarks, not serving workloads              |
+| **PG19**         | **100K+ tokens (full novels)** | **Chosen** -- long-form text forces real serving at scale |
 
 PG19 is pinned to a specific Hugging Face dataset revision. Row ordering is stable.
 
@@ -81,10 +81,10 @@ Prompt order is shuffled per challenger, seeded by `block_hash + challenger_hotk
 At short context, every server is fast. The differences that matter show up at scale:
 
 | Context length | Prefill time (vLLM baseline, 4x H200) | Differentiation potential |
-| -------------- | -------------------------------------- | ------------------------- |
-| 2K tokens      | ~20ms                                  | Invisible                 |
-| 8K tokens      | ~100ms                                 | Marginal                  |
-| **32K tokens** | **~1-2s**                              | **Clear**                 |
+| -------------- | ------------------------------------- | ------------------------- |
+| 2K tokens      | ~20ms                                 | Invisible                 |
+| 8K tokens      | ~100ms                                | Marginal                  |
+| **32K tokens** | **~1-2s**                             | **Clear**                 |
 
 The `max_chars` default is tuned for the 32K regime. This is where prefill optimization, chunked prefill, attention kernel choice, and KV cache management actually differentiate servers.
 

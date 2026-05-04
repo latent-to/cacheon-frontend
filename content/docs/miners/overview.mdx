@@ -11,16 +11,17 @@ You build a Docker image, push it to a container registry, and commit the image 
 
 ## Prerequisites
 
-| Requirement | Details |
-| --- | --- |
-| **Bittensor wallet** | Registered on subnet 14 (mainnet) or 460 (testnet). See [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets). |
-| **Container registry** | Your Docker image must be publicly pullable. Docker Hub, GitHub Container Registry, or any public registry works. |
-| **GPU (for local testing)** | 4x H200 (or multi-GPU setup with enough VRAM for 72B in BF16). Needed to verify your server works and to benchmark locally. |
-| **Model weights** | `Qwen2.5-72B-Instruct` from Hugging Face. On the real validator, weights are provided as a read-only volume mount. |
+| Requirement                 | Details                                                                                                                             |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Bittensor wallet**        | Registered on subnet 14 (mainnet) or 460 (testnet). See [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets). |
+| **Container registry**      | Your Docker image must be publicly pullable. Docker Hub, GitHub Container Registry, or any public registry works.                   |
+| **GPU (for local testing)** | 4x H200 (or multi-GPU setup with enough VRAM for 72B in BF16). Needed to verify your server works and to benchmark locally.         |
+| **Model weights**           | `Qwen2.5-72B-Instruct` from Hugging Face. On the real validator, weights are provided as a read-only volume mount.                  |
 
 <Callout type="info" title="You don't need your own GPU to register">
   Registration is just a commitment on-chain pointing to your Docker image. The validator's GPU pod
-  runs your container with model weights mounted. Local testing is strongly recommended but not required.
+  runs your container with model weights mounted. Local testing is strongly recommended but not
+  required.
 </Callout>
 
 ## High-level flow

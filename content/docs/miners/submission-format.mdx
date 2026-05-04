@@ -7,14 +7,14 @@ Miners submit Docker images. The validator pulls your image, starts it with GPU 
 
 ## Docker image requirements
 
-| Requirement         | Value                                                  |
-| ------------------- | ------------------------------------------------------ |
-| **Max image size**  | 20 GB (weights are NOT in the image)                   |
-| **Base image**      | Any (Ubuntu, Alpine, scratch, etc.)                    |
+| Requirement         | Value                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
+| **Max image size**  | 20 GB (weights are NOT in the image)                                  |
+| **Base image**      | Any (Ubuntu, Alpine, scratch, etc.)                                   |
 | **GPU runtime**     | Must work with `--gpus '"device=0,1,2,3"'` (NVIDIA Container Toolkit) |
-| **Exposed port**    | Your server must listen on port `8000`                 |
-| **Health endpoint** | `GET /health` must return 200 when ready               |
-| **Startup timeout** | 10 minutes from container start to healthy             |
+| **Exposed port**    | Your server must listen on port `8000`                                |
+| **Health endpoint** | `GET /health` must return 200 when ready                              |
+| **Startup timeout** | 10 minutes from container start to healthy                            |
 
 ## Model weights: mounted, not baked
 

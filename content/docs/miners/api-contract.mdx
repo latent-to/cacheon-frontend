@@ -24,9 +24,7 @@ Standard OpenAI chat completions endpoint. The validator sends all prompts here 
 ```json
 {
   "model": "Qwen2.5-72B-Instruct",
-  "messages": [
-    {"role": "user", "content": "<instruction with long-context passage>"}
-  ],
+  "messages": [{ "role": "user", "content": "<instruction with long-context passage>" }],
   "max_tokens": 256,
   "temperature": 0,
   "stream": true,
@@ -55,15 +53,15 @@ Standard SSE with `data: {"choices": [{"delta": {"content": "..."}, "logprobs": 
 {
   "choices": [
     {
-      "message": {"role": "assistant", "content": "..."},
+      "message": { "role": "assistant", "content": "..." },
       "logprobs": {
         "content": [
           {
             "token": "token1",
             "logprob": -0.12,
             "top_logprobs": [
-              {"token": "token1", "logprob": -0.12},
-              {"token": "token2", "logprob": -2.3}
+              { "token": "token1", "logprob": -0.12 },
+              { "token": "token2", "logprob": -2.3 }
             ]
           }
         ]
@@ -82,7 +80,7 @@ The validator evaluates your server in two passes:
 ```json
 {
   "model": "Qwen2.5-72B-Instruct",
-  "messages": [{"role": "user", "content": "..."}],
+  "messages": [{ "role": "user", "content": "..." }],
   "max_tokens": 256,
   "temperature": 0,
   "stream": true
@@ -101,7 +99,7 @@ No logprobs are requested. This ensures logprob serialization overhead does not 
 ```json
 {
   "model": "Qwen2.5-72B-Instruct",
-  "messages": [{"role": "user", "content": "..."}],
+  "messages": [{ "role": "user", "content": "..." }],
   "max_tokens": 256,
   "temperature": 0,
   "stream": false,
@@ -125,12 +123,12 @@ Your server must serve the exact `Qwen2.5-72B-Instruct` model weights in BF16. T
 
 ## What you can and cannot do
 
-| Allowed                              | Not allowed (V1)                            |
-| ------------------------------------ | ------------------------------------------- |
-| Custom attention kernels             | Speculative decoding / draft models         |
+| Allowed                              | Not allowed (V1)                           |
+| ------------------------------------ | ------------------------------------------ |
+| Custom attention kernels             | Speculative decoding / draft models        |
 | KV cache layout optimization         | Weight quantization (GPTQ, AWQ, FP8, INT4) |
-| Custom memory allocators             | Modified model weights                      |
-| Rust / C++ / any language            | Network access during eval                  |
-| Chunked prefill, continuous batching | Caching previous eval prompts across runs   |
-| Fused operations, custom scheduling  | Returning fabricated logprobs               |
-| Tensor parallel communication opts   | Exceeding the GPU resource allocation       |
+| Custom memory allocators             | Modified model weights                     |
+| Rust / C++ / any language            | Network access during eval                 |
+| Chunked prefill, continuous batching | Caching previous eval prompts across runs  |
+| Fused operations, custom scheduling  | Returning fabricated logprobs              |
+| Tensor parallel communication opts   | Exceeding the GPU resource allocation      |

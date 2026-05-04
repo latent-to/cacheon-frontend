@@ -11,10 +11,10 @@ description: How to run a Cacheon validator. Two machines, one SSH tunnel, Docke
 
 Running the Cacheon validator requires two machines connected over SSH:
 
-| Machine      | Hardware                              | Role                                                                                        |
-| ------------ | ------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **GPU pod**  | 4x NVIDIA H200 (fixed NVLink topology)| Hosts vLLM baseline, pulls and runs miner Docker containers, measures speed and correctness |
-| **CPU host** | Any Linux box (2+ cores, 4 GB RAM)    | Holds wallet keys, reads chain, dispatches eval jobs over SSH, sets weights                 |
+| Machine      | Hardware                               | Role                                                                                        |
+| ------------ | -------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **GPU pod**  | 4x NVIDIA H200 (fixed NVLink topology) | Hosts vLLM baseline, pulls and runs miner Docker containers, measures speed and correctness |
+| **CPU host** | Any Linux box (2+ cores, 4 GB RAM)     | Holds wallet keys, reads chain, dispatches eval jobs over SSH, sets weights                 |
 
 The GPU pod has **no wallet keys and no chain access**. It receives eval jobs, runs containers, and returns results. The CPU host orchestrates everything.
 

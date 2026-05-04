@@ -7,16 +7,16 @@ description: What your container can and cannot do during evaluation. Network is
 
 During evaluation, your container runs with:
 
-| Resource        | Value                                            |
-| --------------- | ------------------------------------------------ |
-| GPU             | 4x H200, exclusive access, fixed NVLink topology |
-| CPU             | Shared host CPU                                  |
-| RAM             | Host memory available                            |
-| Model weights   | Read-only volume mounted at `/models`            |
-| Network         | **None** -- all egress blocked                   |
-| Filesystem      | Read-only root, writable tmpfs for runtime       |
-| Startup timeout | 10 minutes                                       |
-| Per-prompt timeout | 120 seconds                                   |
+| Resource           | Value                                            |
+| ------------------ | ------------------------------------------------ |
+| GPU                | 4x H200, exclusive access, fixed NVLink topology |
+| CPU                | Shared host CPU                                  |
+| RAM                | Host memory available                            |
+| Model weights      | Read-only volume mounted at `/models`            |
+| Network            | **None** -- all egress blocked                   |
+| Filesystem         | Read-only root, writable tmpfs for runtime       |
+| Startup timeout    | 10 minutes                                       |
+| Per-prompt timeout | 120 seconds                                      |
 
 ## What is allowed
 

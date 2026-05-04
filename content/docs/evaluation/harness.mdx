@@ -39,11 +39,11 @@ Before scored prompts, the harness sends 1-2 warmup requests that are discarded.
 
 ### Timeouts
 
-| Timeout          | Value      | What happens if exceeded |
-| ---------------- | ---------- | ------------------------ |
-| **Startup**      | 10 minutes | Container killed, DQ     |
-| **Per-prompt**   | 120 seconds | Request cancelled, DQ   |
-| **Total eval**   | Configurable (default 30 min) | Eval aborted, DQ |
+| Timeout        | Value                         | What happens if exceeded |
+| -------------- | ----------------------------- | ------------------------ |
+| **Startup**    | 10 minutes                    | Container killed, DQ     |
+| **Per-prompt** | 120 seconds                   | Request cancelled, DQ    |
+| **Total eval** | Configurable (default 30 min) | Eval aborted, DQ         |
 
 ### GPU state cleanup
 
@@ -72,9 +72,7 @@ Prompts are delivered as OpenAI-compatible chat completion requests over HTTP:
 ```json
 {
   "model": "Qwen2.5-72B-Instruct",
-  "messages": [
-    {"role": "user", "content": "<instruction with passage context>"}
-  ],
+  "messages": [{ "role": "user", "content": "<instruction with passage context>" }],
   "max_tokens": 256,
   "temperature": 0,
   "stream": true

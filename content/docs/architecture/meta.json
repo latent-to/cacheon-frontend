@@ -1,4 +1,4 @@
 {
   "title": "Architecture",
-  "pages": ["overview", "validator", "data-contracts", "container-isolation"]
+  "pages": ["overview", "validator", "container-isolation"]
 }

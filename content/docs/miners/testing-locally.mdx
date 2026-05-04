@@ -81,10 +81,10 @@ Common causes of correctness failure:
 
 ## Interpreting results
 
-| Metric                 | Good  | Needs work                      |
-| ---------------------- | ----- | ------------------------------- |
-| TTFT improvement       | > 10% | 0% (you are no faster than vLLM) |
-| Throughput improvement | > 10% | 0%                              |
-| Token match rate       | > 99.5% | < 99% (will be DQ'd)          |
+| Metric                 | Good    | Needs work                       |
+| ---------------------- | ------- | -------------------------------- |
+| TTFT improvement       | > 10%   | 0% (you are no faster than vLLM) |
+| Throughput improvement | > 10%   | 0%                               |
+| Token match rate       | > 99.5% | < 99% (will be DQ'd)             |
 
 The local benchmark uses the same scoring formula as the validator (median aggregation, `max(0, ...)` floor). If your score is positive locally, it should be positive on the real evaluation (modulo hardware differences between your GPUs and the validator's 4x H200).
