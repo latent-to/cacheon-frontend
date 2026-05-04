@@ -267,7 +267,7 @@ export default function FaultyTerminal({
   tint = '#ffffff',
   mouseReact = true,
   mouseStrength = 0.2,
-  dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1,
+  dpr = 1,
   pageLoadAnimation = true,
   brightness = 1,
   className,
@@ -279,6 +279,7 @@ export default function FaultyTerminal({
   const smoothMouseRef = useRef({ x: 0.5, y: 0.5 })
   const frozenTimeRef = useRef(0)
   const rafRef = useRef(0)
+  const visibleRef = useRef(true)
   const loadAnimationStartRef = useRef(0)
   const timeOffsetRef = useRef(Math.random() * 100)
 
@@ -356,8 +357,18 @@ export default function FaultyTerminal({
     resizeObserver.observe(ctn)
     resize()
 
+    const visibilityObserver = new IntersectionObserver(
+      ([entry]) => {
+        visibleRef.current = entry.isIntersecting
+      },
+      { threshold: 0 },
+    )
+    visibilityObserver.observe(ctn)
+
     const update = (t: number) => {
       rafRef.current = requestAnimationFrame(update)
+
+      if (!visibleRef.current) return
 
       if (pageLoadAnimation && loadAnimationStartRef.current === 0) {
         loadAnimationStartRef.current = t
@@ -400,6 +411,7 @@ export default function FaultyTerminal({
     return () => {
       cancelAnimationFrame(rafRef.current)
       resizeObserver.disconnect()
+      visibilityObserver.disconnect()
       if (mouseReact) window.removeEventListener('mousemove', handleMouseMove)
       if (gl.canvas.parentElement === ctn) ctn.removeChild(gl.canvas)
       gl.getExtension('WEBGL_lose_context')?.loseContext()

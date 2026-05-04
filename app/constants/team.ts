@@ -9,14 +9,6 @@ export interface TeamMember {
 
 export const TEAM: TeamMember[] = [
   {
-    name: 'Cameron Fairchild',
-    role: 'Co-Founder',
-    image: '/team/cam-2da56378.jpg',
-    twitter: 'https://x.com/KibibyteMe',
-    github: 'https://github.com/camfairchild',
-    linkedin: 'https://www.linkedin.com/in/cameron-fairchild',
-  },
-  {
     name: 'Xavier Lyu',
     role: 'Research',
     image: '/team/xavier-29b60b7a.jpg',
@@ -37,6 +29,14 @@ export const TEAM: TeamMember[] = [
     image: '/team/dera.jpg',
     github: 'https://github.com/chideraao',
     linkedin: 'https://www.linkedin.com/in/dera-okeke/',
+  },
+  {
+    name: 'Cameron Fairchild',
+    role: 'Advisor',
+    image: '/team/cam-2da56378.jpg',
+    twitter: 'https://x.com/KibibyteMe',
+    github: 'https://github.com/camfairchild',
+    linkedin: 'https://www.linkedin.com/in/cameron-fairchild',
   },
   // {
   //   name: 'Maciej Kula',
