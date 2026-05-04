@@ -1,9 +1,9 @@
 ---
 title: Competition model
-description: King-of-the-hill with winner-take-all emission. One commitment per hotkey. GPU evaluation only runs when new challengers exist.
+description: King-of-the-hill with winner-take-all emission. Miners submit containerized inference servers. The fastest correct server wins.
 ---
 
-Cacheon uses a **king-of-the-hill** incentive. There is always one reigning champion — the miner with the best score on record. **All subnet emission flows to the king.** Challengers compete to dethrone them.
+Cacheon uses a **king-of-the-hill** incentive. There is always one reigning champion -- the miner with the fastest inference server on record. **All subnet emission flows to the king.** Challengers compete to dethrone them.
 
 ## How a round works
 
@@ -11,72 +11,70 @@ Cacheon uses a **king-of-the-hill** incentive. There is always one reigning cham
 2. Any hotkey with a revealed commitment that hasn't been evaluated yet is a **challenger**.
 3. If there are no challengers, the king keeps its weight, no GPU runs, and the loop sleeps.
 4. If challengers exist, the validator dispatches eval jobs and compares scores.
-5. A challenger who beats the king's score **by more than a small, time-decaying margin** takes the throne—see [defender's moat](#the-defenders-moat) . Weights are updated: `winner = 1.0`, everyone else `= 0.0`.
+5. A challenger who beats the king's score **by more than a small, time-decaying margin** takes the throne -- see [defender's moat](#the-defenders-moat). Weights are updated: `winner = 1.0`, everyone else `= 0.0`.
 
 <Callout title="GPU time is only spent when something changed">
-  If nobody has registered a new policy since the last round, no inference runs. The king keeps its
-  emission and the validator simply re-sets the same weights and sleeps. This is the only way the
-  cost model works — GPU eval at 32K context is minutes of H100 time per policy.
+  If nobody has registered a new server since the last round, no inference runs. The king keeps its
+  emission and the validator sleeps. GPU eval is expensive -- each challenger's Docker container
+  must start up, load the model, warm up, and serve a full prompt suite.
 </Callout>
 
 ## The defender's moat
 
-The dethrone rule isn't a plain `>`. It must pass two checks:
+The dethrone rule is not a plain `>`. It must pass two checks:
 
-1. **Copycats get disqualified (DQ'd).** If a challenger's `policy.py` bytes hash to the same `source_hash` as the current king's, but the hotkey differs and the commitment block is later, the validator stores the run as disqualified (`reason = "duplicate_of_king"`). Copying someone else's winning code onto a fresh hotkey is not a strategy here.
-2. **Non-copies need a small edge.** A new policy has to strictly exceed `king_score × (1 + ε(age))`, where ε starts at **1%** at the block when the king is crowned and **decays linearly to 0** over **~50,400 blocks (~7 days)**. After that, the threshold is just `king_score` again — any strict improvement wins.
+1. **Copycats get disqualified.** If a challenger's Docker image hash matches the current king's, but the hotkey differs and the commitment block is later, the challenger is DQ'd (`reason = "duplicate_of_king"`).
+2. **Non-copies need a small edge.** A new server must strictly exceed `king_score x (1 + e(age))`, where e starts at **1%** at the block when the king is crowned and **decays linearly to 0** over **~50,400 blocks (~7 days)**. After that, the threshold is just `king_score` -- any strict improvement wins.
 
 Why:
 
-- Re-running the same policy on the same H100 can produce ±0.x% score wiggle from floating-point noise. Without the moat, rankings could flip arbitrarily.
-- Without the copycat DQ, the dominant strategy would be "wait, copy, register" — free incentive, zero research.
-- The decaying margin means a king can't sit on a free 1% edge indefinitely, without fresh competition.
-
-Numbers are tunable; see [key decisions](/docs/decisions#defenders-moat-decaying-epsilon--copycat-dq) for defaults and env vars.
+- Running the same server twice can produce small score variance from GPU clock drift, scheduling jitter, and network overhead. Without the moat, rankings could flip on noise.
+- Without the copycat DQ, the dominant strategy would be "wait, copy, register."
+- The decaying margin means a king cannot sit on a free 1% edge indefinitely.
 
 ## Winner-take-all vs. top-N split
 
 Top-N split (e.g. 60/25/10/5%) is the usual Bittensor pattern. Cacheon explicitly rejects it:
 
-- **Winner-take-all** creates a sharp optimization target. Miners optimize to be "better than the king," period.
-- **Top-N** blurs the signal. Miners simply optimize to be "good enough to be top-4," which produces slower convergence toward the true frontier.
+- **Winner-take-all** creates a sharp optimization target. Miners optimize to be the fastest, period.
+- **Top-N** blurs the signal. Miners optimize to be "good enough to be top-4," which produces slower convergence.
 
-The goal is to find the best policy, not to keep a stable of similar ones.
+The goal is to find the single best inference server, not to maintain a stable of similar ones.
 
 ## One commitment per hotkey
 
-Each hotkey gets **exactly one policy**. To submit a new policy, miners must register a new hotkey.
+Each hotkey gets **exactly one submission**. To submit a new server, miners must register a new hotkey.
 
-This is a deliberate design choice:
+This is deliberate:
 
 - **Commitment pressure.** Every submission costs something (registration fee + time). You will test locally before registering.
-- **Clean on-chain record.** One hotkey maps to one policy version, at one pinned commit. No ambiguity about which code produced which score.
-
-Unlimited resubmission would turn the subnet into a free hyperparameter search service. We're not that. For more information, see [What the subnet is not](/docs#what-the-subnet-is-not).
+- **Clean on-chain record.** One hotkey maps to one Docker image at one pinned digest. No ambiguity about which server produced which score.
 
 ## What validators score on
 
-Each evaluation round computes three numbers per challenger:
+Each evaluation round measures three properties per challenger:
 
-| Axis             | How it's measured                                                                                 |
-| ---------------- | ------------------------------------------------------------------------------------------------- |
-| Quality (KL)     | Avg per-token KL divergence, teacher-forced on the baseline's token sequence. Hard gate at `0.1`. |
-| Memory reduction | `(baseline_mem - miner_mem) / baseline_mem`, clamped `[-1, 1]`                                    |
-| Latency gain     | `(baseline_latency - miner_latency) / baseline_latency`, clamped `[-1, 1]`                        |
+| Axis        | How it's measured                                                     |
+| ----------- | --------------------------------------------------------------------- |
+| Correctness | Greedy token match against baseline + logprob spot-checks. Hard gate. |
+| TTFT        | Time-to-first-token improvement vs. vLLM baseline                     |
+| Throughput  | Output tokens/sec improvement vs. vLLM baseline                       |
 
 The final score is:
 
 ```python
-if kl_divergence > 0.1:
+if not correctness_pass:
     score = 0.0
 else:
-    score = 0.6 * memory_reduction + 0.4 * latency_improvement
+    ttft_imp = max(0, (baseline_ttft - miner_ttft) / baseline_ttft)
+    tps_imp  = max(0, (miner_tps - baseline_tps) / baseline_tps)
+    score = 0.5 * ttft_imp + 0.5 * tps_imp
 ```
 
-See [Scoring](/docs/evaluation/scoring) for the full rationale on the 60/40 split and why the KL gate is hard-reject rather than soft-penalty.
+See [Scoring](/docs/evaluation/scoring) for the full rationale.
 
 ## Who sets weights
 
-V1 runs a single validator (the subnet owner). Other validator hotkeys may exist on-chain and set their own weights independently, but in practice nobody else runs independent eval — it requires matching hardware and methodology. Decentralized eval is on the [V2 roadmap](/docs/roadmap) via verifiable rollouts.
+V1 runs a single validator (the subnet owner). Decentralized eval is on the [V2 roadmap](/docs/roadmap).
 
-See [Architecture: validator](/docs/architecture/validator) for the CPU/GPU split and why it exists.
+See [Architecture: validator](/docs/architecture/validator) for the validator design and security model.

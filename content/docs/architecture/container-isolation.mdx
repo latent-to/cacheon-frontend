@@ -1,0 +1,87 @@
+---
+title: Container isolation
+description: Docker-based security model for miner containers. Network isolation, resource limits, GPU access controls, and the threat model.
+---
+
+Miner containers run arbitrary code with GPU access. The isolation model must prevent a malicious container from affecting evaluations, accessing secrets, or escaping to the host.
+
+## Isolation layers
+
+### Layer 1: Docker container
+
+Containers run with restricted capabilities:
+
+```bash
+docker run \
+  --gpus '"device=0,1,2,3"' \
+  --network none \
+  --read-only \
+  --tmpfs /tmp:rw,size=16g \
+  --memory 200g \
+  --cpus 32 \
+  --pids-limit 4096 \
+  --security-opt no-new-privileges \
+  --cap-drop ALL \
+  -v /workspace/models/Qwen2.5-72B-Instruct:/models:ro \
+  -p 127.0.0.1:8080:8000 \
+  <miner-image>
+```
+
+| Flag                               | Purpose                                                          |
+| ---------------------------------- | ---------------------------------------------------------------- |
+| `--network none`                   | No network access. Cannot exfiltrate data or download anything.  |
+| `--read-only`                      | Root filesystem is read-only. Cannot persist state between runs. |
+| `--tmpfs /tmp`                     | Writable scratch space for runtime. Destroyed on container stop. |
+| `-v ...:/models:ro`                | Model weights mounted read-only. Guarantees weight identity.     |
+| `--memory 200g`                    | OOM-kill if memory usage exceeds limit                           |
+| `--cap-drop ALL`                   | No Linux capabilities (no mount, no ptrace, no raw sockets)      |
+| `--security-opt no-new-privileges` | Cannot escalate privileges via setuid/setgid                     |
+| `-p 127.0.0.1:8080:8000`           | Only accessible from localhost                                   |
+
+### Layer 2: GPU isolation
+
+The container gets exclusive access to all 4x H200 GPUs during its evaluation window. Between evaluations:
+
+- CUDA contexts from the previous container are destroyed
+- GPU memory is fully reclaimed
+- GPU clocks are reset to default frequencies
+
+V1 runs evaluations sequentially (one container at a time). There is no GPU sharing between concurrent containers.
+
+### Layer 3: Temporal isolation
+
+Each evaluation starts from a clean state:
+
+- Fresh container (no state from previous runs)
+- Clean GPU (no leaked memory or cached kernels from previous miner)
+- Freshly seeded prompts (unpredictable before the eval block)
+
+## Threat model
+
+| Threat                   | Mitigation                                                                       |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| **Network exfiltration** | `--network none`. Container cannot reach the internet.                           |
+| **Host escape**          | Dropped capabilities, no privileged mode, no new privileges.                     |
+| **GPU memory snooping**  | Sequential evaluation + GPU state cleanup between runs.                          |
+| **Prompt prediction**    | Block-hash seeded prompts, per-challenger shuffling.                             |
+| **Result manipulation**  | Evaluation runs outside the container; the container only serves HTTP responses. |
+| **Resource exhaustion**  | Memory limits, PID limits, eval timeout. OOM = DQ.                               |
+| **Cryptomining**         | Eval timeout + no network. Mining with no payout destination is pointless.       |
+| **Model weight theft**   | Weights are public (Hugging Face). No secret to steal.                           |
+
+## What is not isolated
+
+- **CPU scheduling.** The container shares the host CPU. A miner could burn CPU cycles to slow down subsequent evaluations. Mitigated by per-container CPU limits and the sequential evaluation model.
+- **PCIe bandwidth.** GPU memory transfers share the PCIe bus with the host. In practice, this does not affect single-container evaluations.
+
+## Comparison to previous design
+
+The previous Cacheon design used AST-based static analysis + firejail subprocess isolation for in-process Python code. The containerized approach is simpler and more powerful:
+
+| Property             | AST + firejail                   | Docker containers                |
+| -------------------- | -------------------------------- | -------------------------------- |
+| Language support     | Python only                      | Any                              |
+| Optimization surface | KV cache hooks only              | Full inference stack             |
+| Isolation strength   | Medium (firejail bypasses exist) | Strong (kernel-level namespaces) |
+| Miner UX             | Constrained (allowlisted ops)    | Free (anything in a container)   |
+| Infra complexity     | Low                              | Medium                           |

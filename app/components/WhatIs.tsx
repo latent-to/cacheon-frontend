@@ -10,31 +10,29 @@ export default function WhatIs() {
           <Card
             title="For everyone"
             items={[
-              'LLM inference is slow and expensive. Memory has been the bottleneck',
-              'Cacheon is a live benchmark where engineers compete to run the same AI faster and cheaper',
-              'Results are on-chain and auditable. The best submission wins real rewards',
-              'Winning policies ship to real infrastructure',
+              'LLM inference is slow and expensive. Speed is the bottleneck.',
+              'Cacheon is a live arena where engineers compete to build the fastest server for a top open-source model.',
+              'Results are on-chain and auditable: the fastest correct server wins real rewards.',
+              'Cacheon becoming the default high-performance inference provider for a valuable open-source model.',
             ]}
           />
           <Card
             title="For ML engineers"
             items={[
               <>
-                Implement <code>KVCachePolicy</code> — <code>write()</code> stores K/V,{' '}
-                <code>attend()</code> owns the full attention pass
+                Build a Docker container that serves <code>Qwen2.5-72B-Instruct</code> on 4x H200
+                via <code>/v1/chat/completions</code>
               </>,
               <>
                 King of the hill, winner-take-all: champion earns <code>up to 28 TAO</code>/day
                 (prices fluctuate).
               </>,
               <>
-                Scoring: <code>0.6 × memory_reduction + 0.4 × latency_improvement</code>
+                Use any technique: custom CUDA kernels, Rust servers, KV cache optimization, tensor
+                parallel tuning, anything.
               </>,
               <>
-                Hard KL gate at <code>0.1 nats</code> — exceed it and score is 0
-              </>,
-              <>
-                Model: <code>Qwen2.5-7B-Instruct</code> on H100 80 GB
+                Scoring: <code>0.5 x TTFT + 0.5 x throughput</code>, correctness gated
               </>,
             ]}
           />

@@ -3,11 +3,12 @@ import SectionHeader from './SectionHeader'
 const STEPS = [
   {
     num: '01',
-    title: 'Submit a policy',
+    title: 'Build a server',
     desc: (
       <>
-        Write a <code>KVCachePolicy</code>: Python that controls how KV pairs are stored and how
-        attention is computed. Commit it on-chain with a pointer to a public repo.
+        Package your inference server in a Docker container. Any language, any framework, any
+        optimization. Serve <code>Qwen2.5-72B-Instruct</code> on 4x H200 via{' '}
+        <code>/v1/chat/completions</code>.
       </>
     ),
   },
@@ -16,19 +17,19 @@ const STEPS = [
     title: 'Validator evaluates',
     desc: (
       <>
-        Fetches your policy, runs static analysis and sandbox isolation, then executes it on the
-        same prompts, model, and hardware as the baseline. Memory, latency, and output quality are
-        measured.
+        The validator pulls your image, starts the container with GPU access, and runs a two-pass
+        evaluation: streaming for speed (TTFT + throughput), then non-streaming for correctness
+        (token match + logprob checks).
       </>
     ),
   },
   {
     num: '03',
-    title: 'Best policy wins',
+    title: 'Fastest server wins',
     desc: (
       <>
-        Beat the king's score and pass the KL quality gate: you're the new king. All emission flows
-        to the winner. No partial credit.
+        Beat the king's speed while passing the correctness gate: you're the new king. All emission
+        flows to the winner. No partial credit.
       </>
     ),
   },
@@ -43,19 +44,19 @@ type MetricRow = {
 
 const METRICS: MetricRow[] = [
   {
-    value: '60%',
-    label: 'Memory weight',
-    desc: 'KV-cache footprint reduction vs. baseline (harness-measured CUDA allocator delta). The primary bottleneck at scale.',
+    value: '50%',
+    label: 'TTFT weight',
+    desc: 'Time-to-first-token improvement vs. vLLM baseline. Measures prefill efficiency.',
   },
   {
-    value: '40%',
-    label: 'Latency weight',
-    desc: 'Time-to-first-token and tokens/sec vs. baseline.',
+    value: '50%',
+    label: 'Throughput weight',
+    desc: 'Output tokens/sec improvement vs. vLLM baseline. Measures decode speed.',
   },
   {
-    value: '0.1',
-    label: 'KL gate (nats)',
-    desc: 'Hard reject threshold. Exceed it and your score is zero.',
+    value: '99%',
+    label: 'Token match gate',
+    desc: 'Minimum greedy token match rate. Below this, your score is zero.',
   },
 ]
 
@@ -93,25 +94,29 @@ export default function HowItWorks() {
         {/* Score formula */}
         <div className="border-border/60 bg-surface/60 mb-8 rounded-xl border p-7 backdrop-blur-sm">
           <div className="text-accent mb-4 font-mono text-[0.7rem] font-semibold tracking-[0.22em] uppercase">
-            scoring.py
+            scoring
           </div>
           <pre className="text-primary m-0 overflow-auto font-mono text-[0.85rem] leading-[1.85]">
-            <span className="text-secondary">{'// Quality gate — hard reject'}</span>
+            <span className="text-secondary">{'// Correctness gate'}</span>
             {'\n'}
             <span className="text-secondary">if</span>
-            {' kl_divergence > '}
-            <span className="text-accent">0.1</span>
-            {'  '}
-            <span className="text-secondary">{'// nats'}</span>
+            {' token_match_rate < '}
+            <span className="text-accent">0.99</span>
             {'\n    score = '}
             <span className="text-secondary">0.0</span>
             {'\n'}
             <span className="text-secondary">else</span>
-            {'\n    score = '}
-            <span className="text-accent">0.6</span>
-            {' × memory_reduction + '}
-            <span className="text-accent">0.4</span>
-            {' × latency_improvement'}
+            {'\n    ttft_imp = '}
+            <span className="text-accent">max</span>
+            {'(0, (baseline - miner) / baseline)'}
+            {'\n    tps_imp  = '}
+            <span className="text-accent">max</span>
+            {'(0, (miner - baseline) / baseline)'}
+            {'\n    score    = '}
+            <span className="text-accent">0.5</span>
+            {' x ttft_imp + '}
+            <span className="text-accent">0.5</span>
+            {' x tps_imp'}
           </pre>
         </div>
 
@@ -136,9 +141,8 @@ export default function HowItWorks() {
         </div>
 
         <p className="text-secondary border-border/40 mt-2 border-t pt-6 text-center font-sans text-[0.93rem] leading-[1.65]">
-          Memory is harness-measured — a CUDA allocator delta around the policy run, not transient
-          peak VRAM. Latency is wall-clock. Both relative to the same passthrough baseline on the
-          same hardware.
+          Speed is measured in a streaming pass without logprobs. Correctness is measured separately
+          with logprobs enabled. Both relative to the same vLLM baseline on the same hardware.
         </p>
       </div>
     </section>

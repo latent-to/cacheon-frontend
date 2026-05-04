@@ -1,52 +1,49 @@
 ---
 title: Why inference optimization matters
-description: In production, training is no longer the bottleneck — latency, memory, and cost are. The KV cache is the single largest memory constraint, and existing research is impossible to compare fairly.
+description: Training is solved. Serving is the bottleneck. Latency, throughput, and cost determine whether a model is usable in production, and existing benchmarks are fragmented.
 ---
 
-## Training is no longer the bottleneck
+## Training is solved. Serving is the bottleneck.
 
-Most of the public attention on LLMs still goes to training. In production, the constraints that actually determine whether a model is usable are different:
+Most public attention still goes to training. In production, the constraints that determine whether a model is usable are different:
 
-- **Latency** — tokens/sec and time-to-first-token. Users feel the delay.
-- **Memory** — KV cache scaling with context length. More context means more memory.
-- **Cost** — GPU utilization and serving efficiency. Dollars per million tokens.
+- **Latency** -- time-to-first-token and tokens/sec. Users and agents feel the delay.
+- **Throughput** -- how many concurrent requests you can serve on fixed hardware.
+- **Cost** -- GPU utilization and serving efficiency. Dollars per million tokens.
 
-These are **inference-time** problems. Cacheon treats inference optimization as a search problem and asks the subnet to measure it in the open.
+These are **inference-time** problems. Cacheon treats inference optimization as a competition and asks the network to find the best serving stack in the open.
 
-## The memory wall
+## The optimization surface
 
-Every transformer model stores a key-value cache that grows linearly with sequence length. The math is unforgiving:
+Modern inference has dozens of knobs, and each one interacts with the others:
 
-```
-KV cache memory = 2 × num_layers × num_kv_heads × head_dim × seq_len × dtype_bytes
-```
+| Layer          | Techniques                                                  | Impact                             |
+| -------------- | ----------------------------------------------------------- | ---------------------------------- |
+| **Memory**     | KV cache quantization, eviction, paging, offloading         | Max context length, max batch size |
+| **Compute**    | FlashAttention, custom CUDA kernels, fused operations       | Tokens/sec, prefill speed          |
+| **Scheduling** | Continuous batching, chunked prefill, preemptive scheduling | Throughput under load              |
+| **Decoding**   | Speculative decoding, Medusa heads, lookahead               | Output tokens/sec                  |
+| **Runtime**    | Rust/C++ servers, kernel-level optimizations, memory layout | End-to-end latency                 |
 
-At **100k tokens × 80 layers × `head_dim=128`** in FP16, the KV cache alone is **~80 GB**. That's the size of an entire NVIDIA H100 GPU. This means you run out of memory before you start generating.
-
-This is why longer context, larger batches, and cheaper serving all run into the same wall: the cache.
+Existing solutions like vLLM, TensorRT-LLM, and SGLang each make different tradeoffs across these axes. No single team has tried every combination. Cacheon creates an incentive to search this space exhaustively.
 
 ## The benchmark problem
 
-There's no shortage of research on KV-cache optimization. What's missing is a shared, verifiable benchmark:
+There is no shared, verifiable benchmark for full-stack inference performance:
 
-| Approach     | What it does                               | Typical reported savings |
-| ------------ | ------------------------------------------ | ------------------------ |
-| H2O          | Evict tokens by attention importance       | 5–10× memory             |
-| SnapKV       | Compress by observation windows            | 4–8×                     |
-| KIVI         | 2-bit quantization of keys + values        | 4–6×                     |
-| TurboQuant   | Rotated 3-bit quantization + QJL scoring   | 8–10×                    |
-| StreamingLLM | Keep first + last sliding window of tokens | 10× at long context      |
+- vLLM publishes its own benchmarks against its own baselines
+- Academic papers measure individual techniques in isolation
+- Inference providers report numbers against undisclosed configurations
 
-Each paper uses its own prompts, its own hardware, its own quality metric, so the **numbers don't compare.** Teams shipping production inference have no way to know which approach actually works for their specific workload.
+The **numbers don't compare.** Teams shipping production inference have no way to know which combination of techniques actually wins for their specific model and workload.
 
 <Callout title="What Cacheon does">
-  Fix the model, fix the hardware, fix the prompts, fix the scoring — and let anyone submit a
-  policy. The subnet produces an ordered leaderboard of policies that are apples-to-apples
-  comparable.
+  Fix the model, fix the hardware, fix the prompts, fix the scoring, and let anyone submit a full
+  serving stack. The subnet produces an ordered ranking that is apples-to-apples comparable.
 </Callout>
 
 ## What winning looks like
 
-The endpoint isn't "publish a paper." The endpoint is a policy ranked #1 on the leaderboard, at a pinned commit, running on the canonical model, with auditable logs. That's a config someone can ship directly into vLLM, Hugging Face Transformers, or TensorRT-LLM.
+The endpoint is not a paper or a blog post. The endpoint is an inference server ranked #1 on the leaderboard, serving a top open-source model faster than vLLM on identical hardware. That is a product: the fastest way to run that model, discovered through open competition.
 
-See the [roadmap](/docs/roadmap) for how V2–V4 expand the scope beyond KV cache to full inference policy generation and deployment.
+See the [roadmap](/docs/roadmap) for how V1 through V4 scale from single-model arena to production inference marketplace.

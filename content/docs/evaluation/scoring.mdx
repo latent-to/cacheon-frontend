@@ -1,151 +1,149 @@
 ---
 title: Scoring
-description: The full scoring formula — hard KL gate at 0.1 nats, then 60% memory + 40% latency. Memory is the harness-measured KV-cache footprint, not transient GPU peak VRAM.
+description: Two-pass evaluation. 99%+ greedy token match correctness gate. Speed score is 50% TTFT + 50% throughput, both relative to vLLM baseline, floored at zero. Median across prompts.
 ---
 
-The scoring algorithm implements a quality-gated efficiency model. A strict threshold of 0.1 nats for KL divergence acts as a primary filter;
-submissions exceeding this limit are assigned a zero score to ensure integrity. For valid submissions, the final score combines memory and latency, with more weight placed on memory efficiency (60%) than latency improvements (40%).
+The scoring algorithm uses a **correctness-gated speed model**. A strict correctness check acts as a primary filter; submissions that fail it receive a zero score. For valid submissions, the final score combines TTFT and throughput improvements against the vLLM baseline.
 
 ## Scoring formula
 
 ```python
-if kl_divergence > QUALITY_THRESHOLD:     # QUALITY_THRESHOLD = 0.1 nats
+if not correctness_pass:
     score = 0.0
 else:
-    score = (0.6 * memory_reduction) + (0.4 * latency_improvement)
+    ttft_imp = max(0, (baseline_ttft - miner_ttft) / baseline_ttft)
+    tps_imp  = max(0, (miner_tps - baseline_tps) / baseline_tps)
+    score = 0.5 * ttft_imp + 0.5 * tps_imp
 ```
 
-<Callout title="SCORING AXES" type="info">
+<Callout title="Scoring axes" type="info">
 Three axes, in order of enforcement:
 
-1. **Quality gate** — fail this and nothing else matters.
-2. **Memory** — 60% of the remaining score.
-3. **Latency** — 40%.
+1. **Correctness gate** -- fail this and nothing else matters.
+2. **TTFT** -- 50% of the remaining score.
+3. **Throughput** -- 50%.
+
+Improvements are floored at zero. If your server is slower than vLLM on one axis, that axis contributes 0, not a negative number.
 
 </Callout>
 
-## Quality — KL divergence
+## Aggregation
 
-Quality is measured using KL divergence against the baseline. Policies must stay close enough to the reference distribution to preserve model behavior while improving efficiency.
+Each evaluation round sends **10 prompts** to both baseline and miner. Per-prompt TTFT and throughput are computed, then aggregated using the **median** across prompts.
 
-```
-kl = (1/N) * Σ_t KL( softmax(baseline_logits[t])  ||  softmax(miner_logits[t]) )   in nats
-```
+Why median: it is robust to outliers (a single GC pause or memory allocation spike does not tank your score) and prevents gaming by being fast on easy prompts but slow on hard ones.
 
-Averaged over all continuation positions, across all prompts. If it exceeds the threshold, the score is zero. No partial credit, no soft penalty.
+## Two-pass evaluation
 
-### Teacher-forced evaluation
+Speed and correctness are measured in separate passes to prevent logprob serialization overhead from distorting speed measurements.
 
-KL is **not** computed by comparing two independent autoregressive runs. Instead, the harness uses **teacher-forcing**: the baseline generates a token sequence, then the miner's policy processes that same sequence in a single forward pass. Both paths see identical input tokens, so KL reflects only numerical differences in the policy's attention — not autoregressive divergence from a single flipped token cascading through the rest of the sequence.
+### Pass 1: Speed
 
-This follows the same pattern as [`verify()`](../docs/evaluation/harness#verify--correctness-check) (which validates the monkey-patch itself) and mirrors how distillation subnets on Bittensor evaluate student models.
+Prompts are sent with `stream=true` and no logprobs requested. The validator measures:
 
-### Why hard-gate, not soft-penalty
+- **TTFT**: wall-clock time from HTTP request send to first SSE data chunk
+- **Throughput**: total output tokens divided by wall-clock time from first token to last token
 
-A soft KL penalty (e.g. `score = ... - 0.5 * kl`) creates an incentive to trade output quality for compression — small degradations in output in exchange for bigger memory/latency wins. Over many rounds, the subnet ends up optimizing a model that's slightly worse at everything in exchange for being faster.
+Both baseline (vLLM) and miner are measured identically.
 
-A hard gate says: **your job is to match baseline quality, then optimize.** If you can't hold quality, you're not participating. The bar is non-negotiable.
+### Pass 2: Correctness
 
-### The 0.1 nats threshold
+Same prompts are sent with `stream=false` and `logprobs=5`. The validator collects full output tokens and per-token logprobs. This pass is not timed.
 
-This is tunable and will move as we see real submissions. Rough calibration:
+## Warmup
 
-- **0.01 nats**: indistinguishable outputs, token-level agreement on ~99% of positions
-- **0.1 nats**: noticeable but minor differences, same semantic content
-- **0.3 nats**: clearly different outputs, possibly still coherent
-- **1.0 nats**: different model quality tier entirely
+Before the scored prompts, the validator sends **1-2 warmup prompts** that are discarded. This absorbs one-time costs: CUDA graph compilation, KV cache pre-allocation, GPU clock ramping. Both baseline and miner receive the same warmup. The competition measures steady-state serving speed, not startup optimization.
 
-<Callout title="CURRENT KL THRESHOLD" type="info">
-  `0.1` is the current cutoff for "close enough to ship." We reserve the right to tighten it if
-  policies cluster too close to the gate.
-</Callout>
+## Correctness gate
 
-## Memory reduction
+Correctness is enforced via greedy token matching with logprob spot-checks. Both the baseline and the miner run with `temperature=0` (greedy decoding) on identical model weights.
 
-Memory reduction measures how much a policy lowers KV-cache usage relative to the baseline. Policies that preserve quality while using less memory score higher.
+### Token match
 
 ```
-memory_reduction = (baseline_cache_memory - miner_cache_memory) / baseline_cache_memory
+token_match_rate = matching_tokens / total_tokens
 ```
 
-Clamped to `[-1, 1]`. Negative values (your cache uses more memory than baseline) are allowed but hurt your score.
+Across all prompts. Must be >= 99%.
 
-### Measured by the harness — CUDA allocator delta
+V1 bans quantization and speculative decoding. With identical BF16 weights, greedy decoding, and temperature=0, token divergence should be extremely rare. Different attention kernel implementations can occasionally flip the argmax at positions where the top-2 logprobs are very close, but this should affect fewer than 1% of tokens. The 99% threshold catches any real divergence while allowing the occasional numerical edge case.
 
-Memory scoring uses `policy_memory_bytes` — measured by the harness as a CUDA allocator delta after the full generation run (prefill + all decode steps):
+### Logprob verification
 
-```python
-torch.cuda.synchronize(device)
-gc.collect()
-mem_before = torch.cuda.memory_allocated(device)
+At positions where the miner's output token differs from the baseline's:
 
-# ... prefill + decode loop ...
+1. The baseline's chosen token must appear in the miner's **top-2** logprobs
+2. The logprob gap between the miner's top-1 and the baseline's token must be **< 0.05**
 
-torch.cuda.synchronize(device)
-gc.collect()
-mem_after = torch.cuda.memory_allocated(device)
-policy_memory_bytes = max(0, mem_after - mem_before)
-```
+If either check fails at any position, the submission is DQ'd.
 
-This directly captures the GPU memory your stored cache added to the process. It cannot be gamed by returning a fake number from a method — the CUDA allocator is the source of truth.
+This catches:
 
-We deliberately do **not** use `torch.cuda.max_memory_allocated()` (peak VRAM) for scoring. Peak VRAM includes model weights, transient attention buffers, and implementation artifacts that have nothing to do with cache compression quality. The harness still records peak VRAM for monitoring, but it doesn't affect your score.
+- Modified model weights (would show large logprob divergence)
+- Truncated models (missing layers change the distribution)
+- Wrong sampling (non-greedy decoding)
+- Fabricated outputs (random tokens won't have correct logprob structure)
 
-<Callout type="info" title="Cache memory, not peak VRAM">
-  Memory scoring measures what your policy actually allocated on the GPU during the run — the stored
-  K/V state. The baseline (`PassthroughPolicy`) stores raw FP16 tensors; your score is the
-  fractional reduction relative to that. You do not need to implement a <code>memory_bytes()</code>{" "}
-  method.
-</Callout>
+### Why token match, not full KL divergence
 
-### Why memory gets 60%
+The OpenAI-compatible API returns top-N logprobs, not the full vocabulary distribution. True KL divergence requires the full ~152K-token distribution per position. Returning that through an HTTP API would be:
 
-Memory is the primary bottleneck at scale. KV cache memory determines:
+- ~600KB per token position at float32
+- ~150MB per prompt at 256 generated tokens
 
-- Maximum context length you can serve
-- Maximum batch size (requests served in parallel)
-- Whether the model fits on one GPU at all
+This is impractical for an API benchmark and would itself distort speed measurements. Greedy token match + logprob spot-checks achieves the same goal with minimal overhead.
 
-Latency matters, but you can often cover a latency regression by adding hardware. You can't cover a memory regression — it's a hard failure.
-
-## Latency improvement
-
-Latency improvement measures how much faster a policy runs compared to the baseline. Policies that reduce generation time without compromising quality score higher.
+## TTFT improvement
 
 ```
-latency_improvement = (baseline_latency - miner_latency) / baseline_latency
+ttft_improvement = max(0, (baseline_ttft - miner_ttft) / baseline_ttft)
 ```
 
-Clamped to `[-1, 1]`. Wall-clock seconds from first token to completion of the generation.
+Median across prompts. Floored at zero: if your server is slower than the baseline on TTFT, this axis contributes nothing to your score.
 
-### CUDA warm-up
+TTFT captures prefill efficiency: how fast the server processes the full input prompt and produces the first output token. At 32K input tokens on 4x H200, this is dominated by the attention computation during prefill.
 
-The baseline is measured after a throwaway warm-up pass (one prompt, one token). This absorbs one-time CUDA costs — kernel JIT compilation, memory allocator warm-up, clock ramping — that would otherwise inflate the baseline's latency and give every miner free latency points. The warm-up runs only on baseline cache misses (zero cost on cache hits).
+### Why TTFT gets 50%
 
-### Why latency gets 40%
+Time-to-first-token is the user-facing latency. In agentic workflows, tool calls and chain-of-thought steps are gated on TTFT. Optimizing prefill directly reduces perceived latency in production.
 
-Latency gains from KV optimization are real but bounded. You can save memory bandwidth (reading compressed keys is cheaper), avoid recomputation (fused scoring skips decompression), and shrink working sets so more fits in cache. Typical gains in the 10–30% range.
+## Throughput improvement
 
-But latency has other contributors Cacheon doesn't control in V1 — scheduling, batching, kernel choice, the actual matmul performance. Weighting latency higher would distort the signal.
+```
+throughput_improvement = max(0, (miner_tps - baseline_tps) / baseline_tps)
+```
+
+Median across prompts. Floored at zero.
+
+Throughput captures decode efficiency: how fast the server generates output tokens once prefill is complete.
+
+### Why throughput gets 50%
+
+Throughput determines cost-per-token in production. Higher throughput means more requests served per GPU-hour. For long-form generation (summaries, code, analysis), throughput dominates total response time.
 
 ## Disqualification vs. low score
 
-| Outcome          | Cause                                             | What happens                  |
-| ---------------- | ------------------------------------------------- | ----------------------------- |
-| **Disqualified** | KL > 0.1, NaN/Inf in logits, invalid output shape | `score = 0`, not a challenger |
-| **Low score**    | Passes KL gate but doesn't beat king              | Recorded, not king            |
-| **Wins**         | Passes KL, beats king's score                     | New king, takes all emission  |
+| Outcome          | Cause                                                       | What happens                  |
+| ---------------- | ----------------------------------------------------------- | ----------------------------- |
+| **Disqualified** | Token match < 99%, logprob check fails, timeout, crash, OOM | `score = 0`, not a challenger |
+| **Low score**    | Passes correctness but doesn't beat king                    | Recorded, not king            |
+| **Wins**         | Passes correctness, beats king's score                      | New king, takes all emission  |
 
-A disqualified submission still burns the hotkey — you can't re-register the same hotkey with different code. That's the commitment pressure.
+## Baseline: vLLM
 
-## Degenerate-policy checks
+The baseline is a pinned version of vLLM serving `Qwen2.5-72B-Instruct` on the same 4x H200 hardware. Baseline results are **pre-computed and cached** per prompt set: the baseline runs once when prompts rotate (new block hash), and all challengers in that round are compared against the same cached baseline numbers.
 
-Some policies can pass the KL gate by accident — e.g. a policy that collapses attention to a single token might still produce plausible outputs on some prompts. The harness occasionally runs lightweight additional checks:
+vLLM is a strong baseline. It implements PagedAttention, continuous batching, FlashAttention, and other production optimizations. Beating it requires genuine innovation, not just a different framework.
 
-- **Attention weight sanity.** Weights should sum to ~1 per query position (when a policy returns them). Deviation flags the submission.
-- **Output value range.** Attention outputs should land in `[-100, 100]`. Values outside this range indicate numerical instability and are treated as disqualification.
+## Explicitly not in V1
 
-These aren't score inputs — they're sanity filters that catch a class of exploits before they reach the king comparison.
+- **Speculative decoding** -- banned. Simplifies correctness checking.
+- **Weight quantization** -- banned. All servers must load exact BF16 weights.
+- **Alternate models** -- banned. Same model, same weights.
+- **Approximate attention** -- banned if it changes outputs beyond the 99% threshold.
+- **Sampling-based evaluation** -- all eval is greedy (temperature=0).
+
+These restrictions will be relaxed in V2 once the eval pipeline is proven.
 
 ## Reproducibility
 
@@ -153,12 +151,13 @@ Every scored run produces a `ScoreResult`:
 
 ```
 ScoreResult
-  kl_divergence       float
-  memory_reduction    float
-  latency_improvement float
-  score               float
-  disqualified        bool
-  disqualify_reason   str | None
+  ttft_improvement     float
+  throughput_improvement float
+  token_match_rate     float
+  correctness_pass     bool
+  score                float
+  disqualified         bool
+  disqualify_reason    str | None
 ```
 
-Combined with the block hash that seeded the prompts and the pinned commit SHA of the policy, anyone can replay the eval offline and verify the result. V2 will publish full eval rollouts (prompts + baseline logits + KL values) for auditability.
+Combined with the block hash that seeded the prompts and the pinned Docker image digest, anyone can replay the eval and verify the result.

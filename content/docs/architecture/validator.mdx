@@ -1,176 +1,98 @@
 ---
 title: Validator
-description: The CPU-side loop. Scan chain, pre-check new submissions, SSH to the GPU pod for eval, update king, set weights.
+description: The validator loop, challenger detection, Docker evaluation, king comparison, and weight-setting. How the single-process validator orchestrates the competition.
 ---
 
-The validator is a single Python program on a CPU server. It runs forever. There is no FastAPI in the weight-setting path — just direct Python calls to subtensor.
+The validator is a single process running on the GPU machine. It owns the wallet, reads the chain, orchestrates Docker-based evaluations, and sets weights.
 
-## The loop
+## The main loop
 
-```python
+```
 while True:
-    try:
-        # 1. Read chain
-        metagraph = subtensor.metagraph(netuid=14)
-        commitments = subtensor.get_all_revealed_commitments(netuid=14)
+    sleep(poll_interval)
+    commitments = scan_chain_for_new_commitments()
+    challengers = filter_unevaluated(commitments)
 
-        # 2. Identify challengers
-        challengers = [
-            c for c in commitments
-            if (c.hotkey, c.block) not in state.evaluated_set
-        ]
+    if not challengers:
+        re_set_weights(king)
+        continue
 
-        # 3. Sandbox-precheck (fast feedback — AST only)
-        challengers = [c for c in challengers if sandbox.check(c.source).ok]
+    for challenger in challengers:
+        result = evaluate_in_docker(challenger)
+        record_result(result)
 
-        # 4. If nothing new, hold the king
-        if not challengers:
-            subtensor.set_weights(
-                uids=[state.king.uid], weights=[1.0],
-                other_uids_zeroed=True,
-            )
-            time.sleep(360)
-            continue
-
-        # 5. Dispatch to GPU pod
-        results = eval_fn(challengers, block_hash=current_block_hash)
-
-        # 6. Update king
-        for r in results:
-            state.record(r)
-            if r.score > state.king.score:
-                state.king = r
-
-        # 7. Set weights
-        subtensor.set_weights(
-            uids=[state.king.uid], weights=[1.0],
-            other_uids_zeroed=True,
-        )
-
-    except Exception as e:
-        log.exception(e)
-        time.sleep(360)
+    king = determine_king()
+    set_weights(king)
 ```
 
-`eval_fn` is injected — it's the SSH transport to the GPU pod. The whole loop can be tested using a fake `eval_fn` that returns fixed scores.
+### Commitment scanning
 
-## State
+Every epoch (~360s), the validator reads on-chain commitments. Each commitment contains a Docker image reference and digest. The validator filters for commitments it has not yet evaluated.
 
-The validator persists a small amount of state to disk (atomic JSON writes):
+### Challenger detection
 
-```
-ValidatorState
-  king                CurrentKing          — uid, hotkey, score, block when crowned
-  evaluated_set       set[(hotkey, block)]  — what's been scored
-  score_history       dict[hotkey, list]    — per-hotkey score trail
-```
+A commitment becomes a challenger when:
 
-Full field-level reference (including `EvaluationRecord`, `KingRecord`, and wire types): [Data contracts](/docs/architecture/data-contracts#summary).
+1. It has been revealed on-chain (past the commit-reveal delay)
+2. It has not been evaluated by this validator instance
+3. Its image digest is not identical to the current king's (copycat DQ)
 
-This is **not** the truth of the leaderboard — the chain is. State is a local cache that lets the loop answer "have I seen this commitment before?" without re-evaluating every commitment every epoch.
+### Evaluation
 
-If state is lost, the loop rebuilds by evaluating all revealed commitments fresh. Expensive, but recoverable.
+For each challenger, the validator runs a local Docker evaluation:
 
-## Challenger selection
+1. Pull the miner's Docker image by digest
+2. Start the container with GPU access, model volume mount, no network
+3. Wait for `/health` (timeout: 10 min)
+4. Send 1-2 warmup prompts (discarded)
+5. Run two-pass evaluation: speed (streaming, 10 prompts) then correctness (logprobs)
+6. Stop the container, clean up GPU state
+7. Compute score: `0.5 * max(0, ttft_improvement) + 0.5 * max(0, throughput_improvement)`
 
-A hotkey is a challenger iff:
+### King comparison
 
-1. It has a revealed commitment on-chain
-2. `(hotkey, commit_block)` is not in `state.evaluated_set`
-3. Its source code passes sandbox pre-check (syntax, imports, blocked calls)
-
-Sandbox pre-check happens on the CPU server, before any SSH round-trip. It's cheap — milliseconds. Rejected submissions are recorded in `evaluated_set` with a disqualify reason, so they don't get retried every epoch.
-
-Challengers passing pre-check are batched into a single eval job per epoch. Typical batch size: 1–3 per epoch in steady state.
-
-## SSH transport
-
-The `eval_fn` is a thin wrapper around SSH/SFTP:
+After evaluation, the result is compared against the king using the decaying moat:
 
 ```python
-def gpu_eval_fn(challengers, block_hash):
-    job = EvaluationJob(
-        prompts=sample_prompts(block_hash=block_hash, n=N_PROMPTS),
-        policies=[(c.repo, c.revision) for c in challengers],
-        block=current_block,
-        block_hash=block_hash,
-    )
-    sftp_write(pod, "/tmp/job.json", job.to_json())
-    ssh_run(pod, "python scripts/pod_eval.py /tmp/job.json /tmp/results.json")
-    raw = sftp_read(pod, "/tmp/results.json")
-    return [EvaluationRecord(**r) for r in json.loads(raw)]
+threshold = king_score * (1 + epsilon(age))
+if result.score > threshold and result.correctness_pass:
+    new_king = challenger
 ```
 
-The pod has no wallet keys. It cannot read the chain. It receives prompts + policy pointers and returns scores. That's its only interface.
+Where `epsilon(age)` starts at 1% and decays linearly to 0 over ~7 days.
 
-## Error handling
+### Weight-setting
 
-Things that can go wrong mid-eval and how the loop handles them:
+Weights are one-hot:
 
-| Failure                       | Handling                                                                             |
-| ----------------------------- | ------------------------------------------------------------------------------------ |
-| Pod is unreachable            | `ssh_run` raises → caught by outer `try` → sleep 360, retry                          |
-| Pod crashes mid-eval          | Partial results in `results.json` → loop takes what's there, retries rest next epoch |
-| Individual policy crashes     | Sandbox runner catches it → `disqualified = True`, score = 0                         |
-| `set_weights` fails           | Caught → log → sleep 360 → retry next epoch                                          |
-| Chain returns stale metagraph | `evaluated_set` dedupes; no harm                                                     |
-
-The philosophy is "fail forward slowly." Transient failures back off to 360s and retry. Persistent failures show up in logs loud and clear.
-
-## Dethrone rule
-
-`ValidatorState.record_evaluation` decides whether an incoming `EvaluationRecord` becomes the new king. The rule is two-stage; both are implemented in `validator/state.py`.
-
-### Stage 1 — Duplicate-of-king DQ
-
-If the current king exists, the challenger's `source_hash` is non-empty and equals the king's (but with a different hotkey and later commit block, i.e., `ev.commit_block` is **strictly greater** than `king.commit_block`), the incoming record is rewritten **before** it is stored:
-
-- `score = 0.0`
-- `disqualified = True`
-- `disqualify_reason = "duplicate_of_king"`
-
-Callers should use `RecordResult.stored`, not the raw input, for logs and audit trails. Empty `source_hash` on legacy rows is ignored so this rule never misfires.
-
-### Stage 2 — Decaying-epsilon threshold
-
-A non-DQ'd challenger with finite `score > 0` becomes king if either there is **no** king yet, or:
-
-```
-stored.score > threshold
-threshold   = king.score × (1 + ε(age))
-ε(age)      = epsilon_initial × max(0, 1 − age / decay_blocks)
-age         = current_block − king.crowned_at_block
+```python
+weights[king_uid] = 1.0
+weights[everyone_else] = 0.0
+subtensor.set_weights(netuid, weights, version_key=VERSION_KEY)
 ```
 
-(`current_block` is the chain height passed into `record_evaluation`.)
+## State persistence
 
-Defaults (tunable via env in `validator/config.py`):
+The validator maintains state across restarts:
 
-| Constant                    | Default  | Env var                             | Meaning                                                               |
-| --------------------------- | -------- | ----------------------------------- | --------------------------------------------------------------------- |
-| `KING_EPSILON_INITIAL`      | `0.01`   | `CACHEON_KING_EPSILON_INITIAL`      | Moat when the king is fresh: threshold starts at `king.score × 1.01`. |
-| `KING_EPSILON_DECAY_BLOCKS` | `50_400` | `CACHEON_KING_EPSILON_DECAY_BLOCKS` | Blocks over which ε decays linearly to `0` (~7 days at ~12 s/block).  |
+- **King record** -- current king's hotkey, score, image digest, crowned-at block
+- **Evaluation history** -- all past evaluation results
+- **Commitment cache** -- which commitments have been seen and evaluated
 
-When `decay_blocks <= 0` or `epsilon_initial <= 0`, `_effective_dethrone_threshold` returns `king_score` — strict improvement only. That shape is useful for tests.
+State is stored as JSON files in a configurable state directory.
 
-`RecordResult.dethrone_threshold` is the threshold that was in force for that call (`0.0` when there was no king).
+## Dry-run mode
 
-## Weight setting
+The validator supports `--dry-run` mode which runs the full loop (chain scanning, commitment parsing, state management) without running Docker evaluations or setting weights. Useful for testing chain integration before the GPU machine is ready.
 
-The system uses one-hot weighting. The king gets `1.0`, everyone else gets `0.0`, passed in one `set_weights` call with `other_uids_zeroed=True`.
+## Configuration
 
-No partial weights, no smoothing. If a challenger dethrones the king, the transition is immediate and clean.
+Key configuration via CLI flags or environment variables:
 
-## Phase status
-
-The validator is Phase 5 of the build. Current state:
-
-| Part | Scope                                                         | Status         |
-| ---- | ------------------------------------------------------------- | -------------- |
-| A    | Validator loop, state, challenger selection, set_weights      | ✅ Complete    |
-| B    | GPU eval transport — `pod_eval.py` + SSH client on CPU side   | 🟡 In progress |
-| C    | Read-only monitoring API (`/leaderboard`, `/scores/{hotkey}`) | 🔲 Pending     |
-
-Phase A works end-to-end with a stubbed `eval_fn` — the loop logic, state persistence, and weight-setting are all exercised. Part B wires it to real GPU inference.
-
-See [Overview](/docs/architecture/overview) for the full system diagram.
+| Flag              | Env var                 | Default  | Description                |
+| ----------------- | ----------------------- | -------- | -------------------------- |
+| `--network`       | `CACHEON_NETWORK`       | `finney` | `finney` or `test`         |
+| `--netuid`        | `CACHEON_NETUID`        | `14`     | Subnet UID                 |
+| `--poll-interval` | `CACHEON_POLL_INTERVAL` | `360`    | Seconds between scans      |
+| `--eval-timeout`  | `CACHEON_EVAL_TIMEOUT`  | `1800`   | Max seconds per eval       |
+| `--dry-run`       | --                      | `false`  | Skip Docker eval + weights |

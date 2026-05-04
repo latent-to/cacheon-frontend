@@ -2,8 +2,8 @@
   "title": "Miners",
   "pages": [
     "overview",
-    "policy-interface",
-    "example-policies",
+    "api-contract",
+    "submission-format",
     "testing-locally",
     "registration",
     "rules"

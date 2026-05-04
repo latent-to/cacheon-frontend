@@ -1,4 +1,4 @@
 {
   "title": "Concepts",
-  "pages": ["why-it-matters", "kv-cache", "competition-model"]
+  "pages": ["why-it-matters", "inference-optimization", "competition-model"]
 }

@@ -1,90 +1,87 @@
 ---
 title: Registration
-description: How to push your policy to Hugging Face and commit it on-chain so the validator picks it up.
+description: How to commit your Docker image reference on-chain and register as a Cacheon miner.
 ---
 
-Once your `policy.py` is ready (tested or not), these are the two steps to enter the competition.
+## Overview
 
-<Callout type="info" title="BEFORE YOU BEGIN">
-  To complete the steps outlined in this guide, ensure that you have a miner hotkey registered on
-  Bittensor mainnet subnet 14
-</Callout>
+Registration is two steps:
 
-## 1. Push to a public Hugging Face repo
+1. Push your Docker image to a public registry
+2. Commit the image reference on-chain using your Bittensor wallet
 
-Your repo must have a `policy.py` at the root. Use the HuggingFace CLI or Python SDK:
+The validator scans for new commitments every epoch (~360s). When it finds yours, it pulls your image and evaluates it.
+
+## Step 1: Push your image
+
+Tag and push your image to a public registry:
 
 ```bash
-huggingface-cli upload you/my-kv-policy policy.py policy.py
+docker tag my-server:latest docker.io/myuser/cacheon-miner:v1
+docker push docker.io/myuser/cacheon-miner:v1
 ```
 
-Or from Python:
+Note the image digest (the `sha256:...` printed after push). You will need this.
 
-```python
-from huggingface_hub import upload_file
+To get the digest after pushing:
 
-upload_file(
-    path_or_fileobj="policy.py",
-    path_in_repo="policy.py",
-    repo_id="you/my-kv-policy",
-)
+```bash
+docker inspect --format='{{index .RepoDigests 0}}' docker.io/myuser/cacheon-miner:v1
 ```
 
-Note the **commit SHA** returned by the upload (or visible in the repo's commit history). You need the exact 40-character hex SHA; the validator pins to it for reproducibility. Branch names and short SHAs are rejected.
+## Step 2: Commit on-chain
 
-## 2. Commit on-chain
+Use the Cacheon commit script:
 
-```python twoslash lineNumbers
-import json
-import bittensor as bt
-
-wallet   = bt.Wallet(name="my_wallet", hotkey="my_hotkey")
-subtensor = bt.Subtensor(network="finney")
-
-commit_data = json.dumps({
-    "repo":     "you/my-kv-policy",          # HF repo id
-    "revision": "abc123def456...",           # full 40-char hex SHA
-})
-
-subtensor.set_reveal_commitment(
-    wallet=wallet,
-    netuid=14,
-    data=commit_data,
-    blocks_until_reveal=1,
-)
+```bash
+python miner/commit.py \
+  --wallet-name <your-wallet> \
+  --wallet-hotkey <your-hotkey> \
+  --image "docker.io/myuser/cacheon-miner:v1" \
+  --digest "sha256:abc123..." \
+  --network finney \
+  --netuid 14
 ```
 
-For testnet, use `network="test"` on line 5 and `netuid=460` on line 14.
+This calls `subtensor.set_reveal_commitment()` with a JSON payload:
 
-<Callout type="warn" title="One commitment per hotkey">
-  After commiting on chain, the hotkey used to submit the policy on chain now permanently points to
-  this commit. To submit a new policy, you must register a new hotkey. See [Competition
-  model](/docs/concepts/competition-model#one-commitment-per-hotkey) for why.
+```json
+{
+  "image": "docker.io/myuser/cacheon-miner:v1",
+  "digest": "sha256:abc123..."
+}
+```
+
+<Callout type="warn" title="One shot per hotkey">
+  Each hotkey can only commit once. If you need to submit a new server, register a new hotkey. Test
+  locally before committing.
 </Callout>
 
-## 3. Wait for eval
+## What happens after
 
-The validator scans commitments roughly every 360 seconds. Within a few epochs, your policy will be picked up as a challenger, evaluated on the GPU pod, and scored against the current king.
+1. Validator detects your commitment in the next epoch scan
+2. Validator pulls your Docker image by digest
+3. Container starts with GPU access, validator polls `/health`
+4. Prompts are sent, speed and correctness are measured
+5. Score is computed and compared against the king
+6. If you beat the king (with margin), you take the throne
 
-### What happens during eval
+## Testnet
 
-1. Validator fetches your `policy.py` from Hugging Face at the pinned revision
-2. Sandbox validates your code (AST checks for blocked imports/calls)
-3. Harness loads your class and runs inference on the eval prompts
-4. Scores memory reduction, latency improvement, KL divergence
-5. If you beat the king (with the moat threshold), you become the new king
+For testnet (netuid 460), the flow is identical but uses `--network test`:
 
-### Check your status
+```bash
+python miner/commit.py \
+  --wallet-name <your-wallet> \
+  --wallet-hotkey <your-hotkey> \
+  --image "docker.io/myuser/cacheon-miner:v1" \
+  --digest "sha256:abc123..." \
+  --network test \
+  --netuid 460
+```
 
-- **Leaderboard API** (when live): `GET /api/leaderboard`
-- **On-chain weights**: `1.0` if you're the king, `0.0` otherwise. Intermediate states are transient between rounds.
+## Troubleshooting
 
-## Updating your policy
-
-You cannot update a commitment on an existing hotkey. To submit a new version:
-
-1. Register a new hotkey on subnet 14
-2. Push the updated `policy.py` with a new commit SHA to Hugging Face
-3. Commit the new hotkey with the new repo/revision
-
-The old hotkey's commitment remains but will eventually be superseded if the new one scores higher.
+- **Image not found.** Make sure the image is publicly pullable without authentication. Test with `docker pull <image>@<digest>` from a clean machine.
+- **Digest mismatch.** The on-chain digest must match the registry's manifest digest exactly. Use `docker inspect` to verify.
+- **Already committed.** If you already committed on this hotkey, you cannot change it. Register a new hotkey.

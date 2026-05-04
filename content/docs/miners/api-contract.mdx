@@ -1,0 +1,134 @@
+---
+title: API contract
+description: The OpenAI-compatible HTTP API your inference server must implement. Chat completions endpoint, request format, response format, and required capabilities.
+---
+
+Your server must expose an OpenAI-compatible HTTP API. The validator sends standard chat completion requests and measures responses. If your server does not comply with this contract, it will be disqualified.
+
+## Required endpoints
+
+### `GET /health`
+
+Returns HTTP 200 when the server is ready to serve requests. The validator polls this endpoint after starting your container. If it does not return 200 within the startup timeout (10 minutes), the container is killed and the submission is DQ'd.
+
+```json
+{ "status": "ok" }
+```
+
+### `POST /v1/chat/completions`
+
+Standard OpenAI chat completions endpoint. The validator sends all prompts here during both the speed pass and the correctness pass.
+
+**Request format:**
+
+```json
+{
+  "model": "Qwen2.5-72B-Instruct",
+  "messages": [{ "role": "user", "content": "<instruction with long-context passage>" }],
+  "max_tokens": 256,
+  "temperature": 0,
+  "stream": true,
+  "logprobs": true,
+  "top_logprobs": 5
+}
+```
+
+**Required capabilities:**
+
+| Parameter      | Requirement                                                         |
+| -------------- | ------------------------------------------------------------------- |
+| `temperature`  | Must support `0` (greedy decoding)                                  |
+| `stream`       | Must support `true` (SSE streaming) and `false`                     |
+| `logprobs`     | Must return top-N log probabilities per output token when requested |
+| `top_logprobs` | Must support values up to 5                                         |
+| `max_tokens`   | Must respect the requested generation length                        |
+
+**Response format (streaming):**
+
+Standard SSE with `data: {"choices": [{"delta": {"content": "..."}, "logprobs": {...}}]}` chunks. Final chunk is `data: [DONE]`.
+
+**Response format (non-streaming):**
+
+```json
+{
+  "choices": [
+    {
+      "message": { "role": "assistant", "content": "..." },
+      "logprobs": {
+        "content": [
+          {
+            "token": "token1",
+            "logprob": -0.12,
+            "top_logprobs": [
+              { "token": "token1", "logprob": -0.12 },
+              { "token": "token2", "logprob": -2.3 }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+## Two-pass evaluation
+
+The validator evaluates your server in two passes:
+
+### Pass 1: Speed (streaming, no logprobs)
+
+```json
+{
+  "model": "Qwen2.5-72B-Instruct",
+  "messages": [{ "role": "user", "content": "..." }],
+  "max_tokens": 256,
+  "temperature": 0,
+  "stream": true
+}
+```
+
+The validator measures:
+
+- **TTFT**: wall-clock time from request send to first SSE data chunk
+- **Throughput**: output tokens per second, measured from SSE timestamps
+
+No logprobs are requested. This ensures logprob serialization overhead does not affect speed measurements.
+
+### Pass 2: Correctness (non-streaming, logprobs requested)
+
+```json
+{
+  "model": "Qwen2.5-72B-Instruct",
+  "messages": [{ "role": "user", "content": "..." }],
+  "max_tokens": 256,
+  "temperature": 0,
+  "stream": false,
+  "logprobs": true,
+  "top_logprobs": 5
+}
+```
+
+The validator compares:
+
+- **Token match**: your output tokens vs. the baseline's output tokens (must be >= 99%)
+- **Logprob verification**: at divergent positions, checks that the baseline's token appears in your top-2 and the logprob gap is small
+
+This pass is not timed. Take as long as you need.
+
+## Model identity
+
+Your server must serve the exact `Qwen2.5-72B-Instruct` model weights in BF16. The weights are provided as a read-only volume mount at `/models`. The correctness gate enforces weight identity: if your outputs diverge from the baseline beyond the 99% tolerance threshold, you fail.
+
+**V1 does not allow weight quantization.** All servers must load the exact BF16 weights. This restriction simplifies correctness checking and will be relaxed in V2.
+
+## What you can and cannot do
+
+| Allowed                              | Not allowed (V1)                           |
+| ------------------------------------ | ------------------------------------------ |
+| Custom attention kernels             | Speculative decoding / draft models        |
+| KV cache layout optimization         | Weight quantization (GPTQ, AWQ, FP8, INT4) |
+| Custom memory allocators             | Modified model weights                     |
+| Rust / C++ / any language            | Network access during eval                 |
+| Chunked prefill, continuous batching | Caching previous eval prompts across runs  |
+| Fused operations, custom scheduling  | Returning fabricated logprobs              |
+| Tensor parallel communication opts   | Exceeding the GPU resource allocation      |
