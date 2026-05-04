@@ -5,7 +5,7 @@ export default function Roadmap() {
   return (
     <section id="roadmap" className="border-border/50 relative border-t">
       <div className="mx-auto max-w-6xl px-6 py-28 max-sm:py-16">
-        <SectionHeader eyebrow="04 — Roadmap" title="From KV cache to full inference." />
+        <SectionHeader eyebrow="04 — Roadmap" title="From arena to production." />
 
         <div className="relative pl-8">
           <div className="bg-border/80 absolute top-2 bottom-2 left-[0.45rem] w-px" />

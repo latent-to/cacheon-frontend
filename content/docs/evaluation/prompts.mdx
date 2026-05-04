@@ -1,82 +1,97 @@
 ---
 title: Prompts
-description: Deterministic PG19 passage sampling, seeded by Bittensor block hash. Same hash always produces the same prompt set on any machine.
+description: Hybrid instruct prompts with PG19 context, seeded by Bittensor block hash. Same hash always produces the same prompt set on any machine.
 ---
 
-Prompts are sampled from [**PG19** (Project Gutenberg books)](https://www.tensorflow.org/datasets/catalog/pg19) with a **block-hash-derived seed**. Same block, same prompts — anywhere, any machine.
+Prompts are **instruct-style requests** built from curated instruction templates filled with long-context passages from [**PG19** (Project Gutenberg books)](https://www.tensorflow.org/datasets/catalog/pg19). A **block-hash-derived seed** makes them deterministic: same block, same prompts, anywhere, any machine.
 
-## Why PG19
+## Why instruct format
 
-KV-cache benchmarking needs long, continuous sequences that force the cache to grow. Short documents produce trivially small caches where memory reduction is lost in noise.
+The target model is `Qwen2.5-72B-Instruct` and the long-term positioning is "fastest backend for agent workflows." Benchmarking with raw text continuation does not reflect real serving workloads. Instruct-format prompts test what production deployments actually send.
 
-| Dataset                          | Typical doc length             | Why rejected or chosen                                                                              |
-| -------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------- |
-| FineWeb                          | Median &lt;1K tokens           | Too short — cache never gets large enough for signal                                                |
-| MMLU / HellaSwag                 | ~100–500 tokens                | Evaluation benchmarks, not continuation prompts                                                     |
-| Synthetic (infilling, retrieval) | Variable                       | Deferred to [Cacheon V2+](../docs/roadmap#v2--expanded-optimization-surface); want real text for V1 |
-| **PG19**                         | **100K+ tokens (full novels)** | **Chosen** — long-form text pushes cache to ~12% of peak memory at 32K tokens                       |
+## Hybrid prompt design
 
-PG19 is pinned to a specific Hugging Face dataset revision. Row ordering is stable regardless of upstream changes — eval rounds from two years ago can be reproduced exactly.
+Each prompt combines two pieces:
+
+1. **Instruction template** -- curated templates that reflect real workload shapes
+2. **Context passage** -- long text sampled from PG19
+
+Both are selected deterministically via the block-hash seed.
+
+### Template categories
+
+| Category           | Example instruction                                                   | Tests                             |
+| ------------------ | --------------------------------------------------------------------- | --------------------------------- |
+| **Summarization**  | "Summarize the following document in 3 paragraphs."                   | Long-context prefill, generation  |
+| **Document QA**    | "Answer the following question based on the document: {question}"     | Prefill + targeted decode         |
+| **Agent trace**    | "Given the tool outputs below, decide the next action."              | Short decode, high TTFT pressure  |
+| **Code/retrieval** | "Extract all function signatures from the following code listing."    | Structured output decode          |
+| **Long text wrap** | "Continue writing in the style of the author, starting from: {text}" | Raw generation from long context  |
+
+~20 curated templates, rotated per block hash. The template determines the workload shape; the PG19 passage provides the context fill.
+
+## Why PG19 for context
+
+Inference benchmarking needs long, continuous sequences that stress prefill, attention, and KV cache. Short documents produce trivially fast responses where optimization differences are lost in noise.
+
+| Dataset                     | Typical doc length             | Why rejected or chosen                                    |
+| --------------------------- | ------------------------------ | --------------------------------------------------------- |
+| FineWeb                     | Median &lt;1K tokens           | Too short -- prefill is trivial, no differentiation       |
+| MMLU / HellaSwag            | ~100-500 tokens                | Evaluation benchmarks, not serving workloads              |
+| **PG19**                    | **100K+ tokens (full novels)** | **Chosen** -- long-form text forces real serving at scale |
+
+PG19 is pinned to a specific Hugging Face dataset revision. Row ordering is stable.
 
 ## Seeding from block hash
 
-To ensure fair and reproducible evaluation, randomness is derived from the block hash. Each block produces a deterministic seed, which drives prompt sampling.
-
-Anyone with the block hash can reconstruct the exact prompt set used in that evaluation round. To do this:
+Randomness is derived from the block hash. Each block produces a deterministic seed:
 
 ```python
 import hashlib, random
 
 def derive_seed(block_hash: str) -> int:
-    # block_hash is the hex string from the Bittensor chain
     h = hashlib.sha256(block_hash.encode()).digest()
     return int.from_bytes(h[:8], "big")
 
-def sample_prompts(block_hash: str, n: int, *, max_chars=131072, min_chars=1000):
+def sample_prompts(block_hash: str, n: int = 10):
     seed = derive_seed(block_hash)
     rng = random.Random(seed)
-    indices = list(range(len(PG19_ROWS)))
-    rng.shuffle(indices)
-    out = []
-    for idx in indices:
-        passage = PG19_ROWS[idx]
-        if len(passage) < min_chars:
-            continue
-        out.append(_truncate_at_boundary(passage, max_chars))
-        if len(out) == n:
-            return out
+    templates = rng.sample(INSTRUCTION_TEMPLATES, n)
+    passages = _sample_pg19_passages(rng, n, max_chars=131072, min_chars=1000)
+    return [template.format(context=passage) for template, passage in zip(templates, passages)]
 ```
+
+Anyone with the block hash can reconstruct the exact prompt set used in that evaluation round.
 
 ## Parameter defaults
 
-| Parameter   | Value             | Why                                                                                                                                       |
-| ----------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `max_chars` | 131,072           | ~32K tokens. At this length the Qwen2.5-7B KV cache is ~1.8 GB (~12% of peak memory) — large enough for the memory axis to produce signal |
-| `min_chars` | 1,000             | Filters PG19 frontmatter, chapter headers, OCR artifacts                                                                                  |
-| `revision`  | pinned commit SHA | Row ordering stable across upstream dataset updates                                                                                       |
+| Parameter           | Value             | Why                                                          |
+| ------------------- | ----------------- | ------------------------------------------------------------ |
+| `n` (prompts/round) | 10                | Balance between statistical signal and eval time             |
+| `max_chars`         | 131,072           | ~32K tokens. Long enough for prefill to be a real bottleneck |
+| `min_chars`         | 1,000             | Filters PG19 frontmatter, chapter headers, OCR artifacts     |
+| `revision`          | pinned commit SHA | Row ordering stable across upstream dataset updates          |
 
-Passages are truncated at **sentence boundaries first, word boundaries as fallback** — avoiding mid-word cuts that waste tokens.
+## Prompt order randomization
 
-## Why long context matters for scoring
+Prompt order is shuffled per challenger, seeded by `block_hash + challenger_hotkey`. This prevents miners from optimizing for "first prompt is always the longest" patterns.
 
-Qwen2.5-7B-Instruct uses **grouped-query attention (GQA)** with `num_kv_heads=4` vs. `num_attention_heads=28`. The KV cache is already 7× smaller than a full MHA model. That means at short context, there's almost nothing to optimize:
+## Why long context matters
 
-| Context length | KV cache size | % of peak memory | Memory axis signal |
-| -------------- | ------------- | ---------------- | ------------------ |
-| 2K tokens      | ~113 MB       | ~0.7%            | Invisible          |
-| 8K tokens      | ~450 MB       | ~3%              | Marginal           |
-| **32K tokens** | **~1.8 GB**   | **~12%**         | **Clear**          |
+At short context, every server is fast. The differences that matter show up at scale:
 
-The `max_chars` default is tuned for this regime. Submitting at shorter context would mean the memory axis contributes nothing to your score.
+| Context length | Prefill time (vLLM baseline, 4x H200) | Differentiation potential |
+| -------------- | -------------------------------------- | ------------------------- |
+| 2K tokens      | ~20ms                                  | Invisible                 |
+| 8K tokens      | ~100ms                                 | Marginal                  |
+| **32K tokens** | **~1-2s**                              | **Clear**                 |
+
+The `max_chars` default is tuned for the 32K regime. This is where prefill optimization, chunked prefill, attention kernel choice, and KV cache management actually differentiate servers.
 
 ## Decode length
 
-The harness generates **256 tokens** per prompt after prefill. This is enough time for eviction and compression policies to diverge from baseline — aggressive compression usually degrades gradually over many decode steps, not instantly.
-
-At 256 tokens × N prompts × 28 layers, `policy.write` is called several thousand times per evaluation. Your policy code runs a lot; micro-optimizations matter.
+The validator requests **256 tokens** per prompt via `max_tokens=256`. This is enough time for decode-phase optimizations (memory layout, scheduling, communication) to differentiate from baseline.
 
 ## V2 direction
 
-If the memory axis becomes noisy after launch, the upgrade path is **Qwen2.5-14B**, not a new dataset. The 14B model's KV cache is ~5× larger per token and still fits on one H100. The harness is already parameterized by `model_name` — swap is one constant.
-
-Additional prompt datasets (infilling, multi-turn, RAG-style) come in V2+ once V1 is running reliably.
+V2 adds multi-turn conversations, RAG-style workloads with variable-length context, and concurrent request batches. V1 focuses on single-request instruct workloads with long context.

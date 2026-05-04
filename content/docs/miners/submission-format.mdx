@@ -1,0 +1,88 @@
+---
+title: Submission format
+description: How to package your inference server as a Docker image. Model weights are mounted, not baked in. Registry requirements and on-chain commitment format.
+---
+
+Miners submit Docker images. The validator pulls your image, starts it with GPU access and model weights mounted as a read-only volume, and evaluates it.
+
+## Docker image requirements
+
+| Requirement         | Value                                                  |
+| ------------------- | ------------------------------------------------------ |
+| **Max image size**  | 20 GB (weights are NOT in the image)                   |
+| **Base image**      | Any (Ubuntu, Alpine, scratch, etc.)                    |
+| **GPU runtime**     | Must work with `--gpus '"device=0,1,2,3"'` (NVIDIA Container Toolkit) |
+| **Exposed port**    | Your server must listen on port `8000`                 |
+| **Health endpoint** | `GET /health` must return 200 when ready               |
+| **Startup timeout** | 10 minutes from container start to healthy             |
+
+## Model weights: mounted, not baked
+
+Model weights are provided as a **read-only volume** at `/models`. The validator mounts the Hugging Face snapshot:
+
+```bash
+docker run --gpus '"device=0,1,2,3"' \
+  -v /workspace/models/Qwen2.5-72B-Instruct:/models:ro \
+  -p 127.0.0.1:8080:8000 \
+  --network none --read-only \
+  <your-image>
+```
+
+Your server must load weights from `/models`. Do not bake 72B weights into your Docker image (it would be 140GB+ and impractical to pull).
+
+This also guarantees **weight identity**: every miner loads the exact same bytes. The validator does not need to verify weights inside your container.
+
+## Example Dockerfile
+
+A minimal example using vLLM as a starting point:
+
+```dockerfile
+FROM vllm/vllm-openai:latest
+
+EXPOSE 8000
+
+CMD ["python", "-m", "vllm.entrypoints.openai.api_server", \
+     "--model", "/models", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--dtype", "bfloat16", \
+     "--tensor-parallel-size", "4"]
+```
+
+<Callout type="info" title="This is the baseline">
+  Submitting stock vLLM will get you a score of approximately zero (no improvement over baseline).
+  This example exists so you can verify the contract works. Your job is to beat it.
+</Callout>
+
+## Registry requirements
+
+Your image must be publicly pullable without authentication. Supported registries:
+
+- Docker Hub (`docker.io/youruser/cacheon-miner:v1`)
+- GitHub Container Registry (`ghcr.io/yourorg/cacheon-miner:v1`)
+- Any registry accessible via `docker pull`
+
+## On-chain commitment format
+
+The commitment you post on-chain is a JSON object:
+
+```json
+{
+  "image": "docker.io/youruser/cacheon-miner:v1",
+  "digest": "sha256:abc123..."
+}
+```
+
+The `digest` is the image manifest digest. This pins the exact image content so the validator always pulls the same bytes, regardless of tag mutations.
+
+## GPU resource allocation
+
+V1 evaluation runs on **4x H200** with fixed NVLink topology. Your container gets exclusive access to all 4 GPUs during evaluation. Other containers are not running simultaneously.
+
+Plan your resource budget:
+
+- Model weights (BF16): ~140 GB across 4 GPUs with tensor parallelism
+- KV cache at 32K context: several GB per GPU depending on your implementation
+- Runtime overhead: varies by framework
+
+If your server OOMs, it is disqualified.

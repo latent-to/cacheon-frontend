@@ -5,37 +5,58 @@ description: Common issues when setting up and running the Cacheon validator.
 
 ## GPU pod
 
-### "driver too old" error on `import torch`
+### Docker not using GPU
 
-The default PyPI torch build targets a newer CUDA than many cloud GPU drivers. The setup script installs torch from PyTorch's CUDA 12.8 wheel index to avoid this. If you installed deps manually, reinstall torch:
-
-```bash
-pip install --index-url https://download.pytorch.org/whl/cu128 "torch>=2.4,<3"
-```
-
-### Model download hangs or times out
-
-Large downloads to `/workspace/.cache/huggingface` can take 10-20 minutes on a cold pod. If it stalls:
-
-1. Check your `HF_TOKEN` is valid: `huggingface-cli whoami`
-2. Check disk space: `df -h /workspace`
-3. Re-run `setup.sh` -- it skips the download if weights already exist
-
-### `e2e_pod.py` fails with "Descriptors file not found"
-
-You need to seed the fixture policies first:
+Verify NVIDIA Container Toolkit is installed and configured:
 
 ```bash
-export HF_TOKEN=your_token
-python tests/e2e/e2e_seed_hf.py
+docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi
 ```
 
-Then re-run the e2e test.
+If this fails, reinstall the toolkit and restart Docker:
 
-### `e2e_pod.py` OOM or CUDA errors
+```bash
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
 
-- Make sure no other processes are using the GPU: `nvidia-smi`
-- The 7B model in fp16 needs ~15 GB VRAM. With KV cache at 32K context, peak can reach 30+ GB. An H100 80GB handles this comfortably.
+### Not all 4 GPUs visible
+
+Check that all 4 H200 GPUs appear in `nvidia-smi`. If only a subset is visible, verify GPU topology and CUDA device ordering:
+
+```bash
+nvidia-smi topo -m
+```
+
+### vLLM baseline not starting
+
+Common causes:
+
+1. **Insufficient GPU memory**: Qwen2.5-72B in BF16 needs ~140 GB total across 4 GPUs. Check `nvidia-smi` on all GPUs.
+2. **Tensor parallel mismatch**: ensure `--tensor-parallel-size 4` matches the number of available GPUs.
+3. **Model path wrong**: the mounted volume must contain the full HF snapshot. Check `ls /models` inside the container.
+4. **Port conflict**: Another process on port 8000. Check with `ss -tlnp | grep 8000`.
+5. **CUDA version mismatch**: Ensure the vLLM image supports your CUDA driver version.
+
+### Miner container pull fails
+
+- Verify the image reference and digest are correct
+- Ensure the pod has internet access for pulling images (network is only blocked inside miner containers during eval, not on the host)
+- Check disk space: `df -h`
+
+### Miner container times out
+
+The default startup timeout is 10 minutes. 72B model loading on 4x H200 takes 2-5 minutes with weights mounted. If the miner's server legitimately needs more startup time, this is a problem with their implementation.
+
+### GPU cleanup not working
+
+If scores seem inconsistent between runs, check that GPU state is being properly reset. Verify all 4 GPUs are being cleaned:
+
+```bash
+nvidia-smi --query-gpu=memory.used --format=csv
+```
+
+All GPUs should show near-zero memory usage between evaluations.
 
 ## CPU host
 
@@ -44,11 +65,10 @@ Then re-run the e2e test.
 Common causes:
 
 1. **Wrong host/port**: double-check `--gpu-pod-ssh-host` and `--gpu-pod-ssh-port`
-2. **SSH key not authorized**: the GPU pod creation scripts register SSH keys automatically; for manual setups, add your public key to `~/.ssh/authorized_keys` on the pod
-3. **Pod not running**: check with your provider's dashboard or CLI
-4. **Firewall**: some providers block SSH on non-standard ports
+2. **SSH key not authorized**: add your public key to `~/.ssh/authorized_keys` on the pod
+3. **Pod not running**: check with your provider's dashboard
 
-Test connectivity manually:
+Test connectivity:
 
 ```bash
 ssh -o ConnectTimeout=10 root@<pod-ip> "echo ok"
@@ -56,46 +76,24 @@ ssh -o ConnectTimeout=10 root@<pod-ip> "echo ok"
 
 ### First eval times out
 
-The first remote eval on a cold pod can spend many minutes on:
-
-- Hugging Face model/dataset download
-- CUDA kernel compilation (JIT warmup)
-- Baseline warmup pass
-
-Raise the timeout for the first run:
+The first eval on a cold pod involves pulling Docker images. Model weights should already be downloaded (see GPU pod setup). Raise the timeout for the first run:
 
 ```bash
 python scripts/remote_validator.py ... --gpu-pod-eval-timeout 2400
 ```
 
-Subsequent evals are much faster once the pod cache is warm.
-
 ### `set_weights` fails
 
-Common causes:
-
-1. **Wallet not registered on the subnet**: verify with `btcli wallet overview`
+1. **Wallet not registered**: verify with `btcli wallet overview`
 2. **Insufficient stake**: weight-setting requires minimum stake
-3. **Network issues**: transient chain connectivity; the loop retries on the next poll
-
-The validator loop catches `set_weights` failures and retries after the poll interval (default 360s). Check logs for details.
-
-### firejail not found (warning logged)
-
-The sandbox pre-check falls back to a bare subprocess without firejail. This is unsafe in production. Install it:
-
-```bash
-sudo apt install firejail
-```
-
-The `setup-cpu.sh` script installs firejail automatically.
+3. **Network issues**: the loop retries on the next poll
 
 ### Stale state after code update
 
-If the state format changes between versions, the validator may error on startup. Delete the state directory and let it rebuild:
+If the state format changes between versions, delete the state directory:
 
 ```bash
 rm -rf ~/cacheon/state
 ```
 
-The loop rebuilds by evaluating all revealed commitments fresh. Expensive, but recoverable.
+The loop rebuilds by evaluating all revealed commitments fresh.

@@ -1,23 +1,17 @@
 ---
 title: GPU pod setup
-description: Provision a GPU pod on Targon or Lium, install dependencies, download model weights, and verify with e2e tests.
+description: Provision a 4x H200 GPU pod, install Docker with NVIDIA support, download model weights, set up the vLLM baseline, and verify the evaluation harness.
 ---
 
-The GPU pod runs the inference harness. It needs a high-end NVIDIA GPU (H100 SXM, H200, or B200), a persistent volume, and SSH access from your CPU host.
+The GPU pod runs the evaluation harness. It needs **4x NVIDIA H200** (or comparable multi-GPU setup with enough VRAM for 72B BF16), Docker with NVIDIA Container Toolkit, and SSH access from your CPU host.
 
 ## 1. Create the pod
 
 We provide scripts for two providers under `scripts/gpu_setup/`. Both inject SSH keys and `.env` vars automatically.
 
-**Targon:** Open `scripts/gpu_setup/create_targon_pod.py` and replace every `# TODO` at the top of the file with your values. That includes picking **one** GPU tier (`TARGON_GPU`, one of `H100`, `H200`, or `B200`). The Targon API does not walk a fallback list for you; the script provisions exactly what you configure.
+**Targon:** Open `scripts/gpu_setup/create_targon_pod.py` and replace every `# TODO` at the top with your values.
 
-**Lium:** The script walks a fixed preference list (1x GPU only). It tries each tier in order and rents the first one that has capacity:
-
-1. **H100 SXM** (PCIe variants excluded)
-2. **H200**
-3. **B200**
-
-Also edit `# TODO` fields at the top of `scripts/gpu_setup/create_lium_pod.py` (pod name, volume name, and so on).
+**Lium:** Edit `# TODO` fields at the top of `scripts/gpu_setup/create_lium_pod.py`.
 
 ### Targon
 
@@ -33,98 +27,101 @@ export LIUM_API_KEY=...
 python scripts/gpu_setup/create_lium_pod.py
 ```
 
-Both scripts register your SSH keys with the provider, attach the persistent volume at `/workspace`, inject environment variables from `.env`, and poll until the pod is running and print the SSH command.
-
 <Callout type="info" title="Manual / bare metal">
-  Any machine with an H100 80GB SXM (or comparable H200/B200), Ubuntu 22.04+, and SSH access will
-  work. Mount or symlink your persistent storage at `/workspace`.
+  Any machine with 4x H200 (or similar multi-GPU with NVLink), Ubuntu 22.04+, Docker with NVIDIA
+  Container Toolkit, and SSH access will work. Fixed GPU topology is important for reproducible
+  results.
 </Callout>
 
-## 2. Run the setup script
+## 2. Install Docker + NVIDIA Container Toolkit
 
-SSH into the pod and run the one-liner. If you created the pod with the scripts in step 1 and your repo-root `.env` already defines `GITHUB_PAT` and `HF_TOKEN`, those values were injected into the pod environment, so you do not need to export them again.
-
-This clones the repo, creates a Python venv, installs PyTorch + dependencies, downloads Qwen2.5-7B-Instruct weights, and runs a smoke test.
+If not already installed on your pod:
 
 ```bash
-# Only if these are not already set on the pod (e.g. manual bare metal):
-# export GITHUB_PAT=your_github_pat_here
-# export HF_TOKEN=your_hf_token_here
+curl -fsSL https://get.docker.com | sh
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+Verify all 4 GPUs are visible:
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi
+```
+
+## 3. Download model weights
+
+```bash
+export HF_TOKEN=your_hf_token_here
+huggingface-cli download Qwen/Qwen2.5-72B-Instruct \
+  --local-dir /workspace/models/Qwen2.5-72B-Instruct
+```
+
+This creates the weight directory that will be mounted read-only into every container at `/models`.
+
+## 4. Pull the vLLM baseline
+
+The vLLM baseline runs as an always-on container:
+
+```bash
+docker pull vllm/vllm-openai:latest
+```
+
+## 5. Run the setup script
+
+SSH into the pod and run:
+
+```bash
+export GITHUB_PAT=your_github_pat_here
 
 bash -c "$(curl -fsSL -H "Authorization: token $GITHUB_PAT" \
-  https://raw.githubusercontent.com/latent-to/cacheon/main/inference_engine/setup.sh)"
+  https://raw.githubusercontent.com/latent-to/cacheon/main/scripts/gpu_setup/setup.sh)"
 ```
 
-This takes 10-20 minutes on a cold pod (mostly model download). Subsequent runs are fast since weights are cached on the volume.
+This clones the repo, creates a Python venv, and installs dependencies.
 
-### What it installs
-
-| Path                            | Role                                        |
-| ------------------------------- | ------------------------------------------- |
-| `/workspace/cacheon`            | Git checkout                                |
-| `/workspace/venv`               | Python venv (PyTorch CUDA 12.8 wheels)      |
-| `/workspace/.cache/huggingface` | Model weights (Qwen2.5-7B-Instruct, ~14 GB) |
-
-### Re-running after code updates
-
-The script is safe to re-run. It pulls instead of re-cloning and skips the model download if weights already exist.
-
-To skip the model download entirely (deps only):
+## 6. Start the vLLM baseline
 
 ```bash
-bash inference_engine/setup.sh --no-model
+docker run -d --gpus all \
+  --name cacheon-baseline \
+  -p 127.0.0.1:8000:8000 \
+  -v /workspace/models/Qwen2.5-72B-Instruct:/models:ro \
+  vllm/vllm-openai:latest \
+  --model /models \
+  --host 0.0.0.0 --port 8000 \
+  --dtype bfloat16 --tensor-parallel-size 4
 ```
 
-## 3. Activate and verify
+Verify:
+
+```bash
+curl http://localhost:8000/health
+```
+
+## 7. Verify the evaluation harness
 
 ```bash
 source /workspace/venv/bin/activate
 cd /workspace/cacheon
-```
-
-Run the test layers in order. Each catches different bugs.
-
-### Unit tests (no GPU, ~4s)
-
-```bash
-pytest tests/test_inference_engine.py tests/test_harness_arch.py -v
-```
-
-### Integration tests (0.5B model on CUDA, ~13s)
-
-```bash
-pytest tests/test_harness_integration.py -v -m integration
-```
-
-### End-to-end test (7B model on CUDA)
-
-This seeds example policy repos on Hugging Face, then runs the full harness against them.
-
-```bash
-# Skip if HF_TOKEN is already set from injected .env:
-# export HF_TOKEN=your_hf_token_here
-
-# Seed fixture policies (one-time)
-python tests/e2e/e2e_seed_hf.py
-
-# Run e2e eval with 2 prompts
 python tests/e2e/e2e_pod.py --device cuda --n-prompts 2
 ```
 
-The e2e test takes a few minutes. If it completes without errors, the pod is ready for production eval.
+## 8. Note the SSH connection details
 
-## 4. Note the SSH connection details
+The CPU host needs:
 
-The CPU host needs these to connect:
-
-- **SSH host**: the pod's IP or hostname (shown by the provider or the creation script)
+- **SSH host**: the pod's IP or hostname
 - **SSH user**: usually `root`
-- **SSH port**: usually `22` (check your provider)
-
-You'll configure these on the CPU host in the next step.
+- **SSH port**: usually `22`
 
 ## Storage notes
 
-The persistent volume at `/workspace` survives pod restarts. Model weights, the venv, and the repo checkout all live there. If you destroy the volume, the next setup run re-downloads everything from scratch.
-
-On providers like Targon and Lium, the volume is a named resource you attach at pod creation time. The helper scripts handle this automatically.
+The persistent volume at `/workspace` survives pod restarts. Model weights, venv, Docker images, and the repo checkout all live there.

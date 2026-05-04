@@ -1,137 +1,126 @@
 ---
-title: Harness
-description: How the harness runs inference. HuggingFace Transformers with runtime attention monkey-patching, not vLLM. Why, and what the tradeoffs are.
+title: Evaluation harness
+description: How the harness orchestrates containerized evaluation. Docker lifecycle, vLLM baseline, two-pass measurement, warmup, and median aggregation.
 ---
 
-The harness is the thing that actually loads the model, runs the policy, and measures the three score axes.
+The harness is the system that pulls miner containers, starts them, sends prompts, and measures performance against the vLLM baseline.
 
-## HuggingFace Transformers, not vLLM
+## Containerized evaluation, not in-process hooks
 
-vLLM is faster and more production-grade. It's also the wrong choice for Cacheon's V1.
+Some benchmarks run miner code inside the evaluator's process. Cacheon deliberately avoids this:
 
-| Stack                        | Pros                                                                            | Cons                                                                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **vLLM / PagedAttention**    | Fast. Production-grade. Handles batching, scheduling.                           | Manages its own KV cache internally. Replacing it requires fighting undocumented internals that change between versions. |
-| **HuggingFace Transformers** | Plain Python. Every attention layer is a `forward()` method. Exact hook points. | Slower. Not production-grade. But we're measuring _relative_ improvements, not absolute throughput.                      |
+| Approach                  | Pros                                                               | Cons                                                           |
+| ------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
+| **In-process hooks**      | Simple. Direct measurement.                                        | Limits miners to one language, one framework, one API surface. |
+| **Containerized servers** | Any language, any runtime, any optimization technique. Full-stack. | Container overhead. Harder to measure. More infra.             |
 
-vLLM's `PagedAttention` is deeply intertwined with its paged-memory allocator. You can't insert a custom policy without forking vLLM. Even if you did, the baseline would be measured against vLLM-specific behavior and not generalize.
+Containers let miners use Rust, custom CUDA, custom memory allocators -- anything that makes inference faster. The trade-off is infrastructure complexity, which is the validator's problem, not the miner's.
 
-HuggingFace gives you plain attention layers you can swap at runtime. Baseline and miner both run on the same HF stack, so relative comparisons are valid.
+## Evaluation lifecycle
 
-## How attention is patched
-
-For each of the 28 attention layers in `Qwen2.5-7B-Instruct`, the harness replaces `self_attn.forward` with a function that calls the policy:
-
-```python
-def _patched_forward(self, hidden_states, attention_mask, position_ids, ...):
-    q = self.q_proj(hidden_states)
-    k = self.k_proj(hidden_states)
-    v = self.v_proj(hidden_states)
-
-    q, k = apply_rotary_pos_emb(q, k, cos, sin)   # RoPE applied BEFORE policy sees K
-
-    policy.write(k, v, layer_idx=self.layer_idx, positions=position_ids)
-    attn_out = policy.attend(q, layer_idx=self.layer_idx)
-
-    return self.o_proj(attn_out.output)
-```
-
-The original forwards are saved and restored after the run — no permanent model mutation.
-
-## The three execution modes
-
-Policies pass through three execution modes during evaluation. Each mode checks a different part of the system—correctness, production evaluation and KL scoring.
-
-### `verify()` — correctness check
-
-Run once at harness startup, before any eval:
-
-1. Generate a reference output using the **unpatched** model.
-2. Feed that exact token sequence through the **patched** model using `PassthroughPolicy`.
-3. Compute per-token KL between the two.
-4. Assert `KL < 1e-4` for every token.
-
-If this fails, the monkey-patch has a bug — typically a RoPE ordering mistake or GQA reshape error. Nothing else will work until `verify()` passes.
-
-### `run(policy, prompts)` — production eval
-
-For each prompt:
-
-1. Patch attention layers with the policy's `write`/`attend` hooks.
-2. **Prefill** — one forward pass over the full prompt.
-3. **Decode loop** — generate tokens one at a time until EOS or `max_new_tokens`.
-4. Unpatch attention.
-5. Collect latency, memory (CUDA allocator delta), and logits into a `RunResult`.
-
-Same sequence of calls whether it's the baseline or the miner — that's what makes the comparison valid.
-
-### `score_policy_on_sequence(policy, prompts, reference_ids)` — teacher-forced KL
-
-After both `run()` calls, the harness evaluates the miner's policy on the **baseline's token sequence** in a single forward pass per prompt. Both the baseline and miner see identical input tokens, so the resulting KL divergence reflects only numerical differences in the policy's attention computation — not autoregressive divergence from a single flipped token cascading through the rest of the sequence.
-
-This is the same approach used by `verify()` (which validates the monkey-patch itself). The autoregressive `run()` logits are used for latency/memory measurement; the teacher-forced logits are used for KL scoring.
-
-### CUDA warm-up
-
-On baseline cache misses, the harness runs a throwaway single-prompt, single-token forward pass before the timed baseline. This compiles CUDA kernels and warms the memory allocator so the baseline latency measurement isn't inflated by one-time GPU costs that every subsequent miner run would skip.
-
-## Prefill vs. decode
-
-The distinction matters because the shapes `policy.write` receives are different:
-
-| Phase   | `policy.write` `seq_len`  | `policy.attend` `q_len` |
-| ------- | ------------------------- | ----------------------- |
-| Prefill | full prompt length (~32K) | full prompt length      |
-| Decode  | 1                         | 1                       |
-
-Your cache must grow on each decode step, not replace. The harness delivers `positions` so you always know where you are in the sequence.
-
-## What the harness returns
+For each challenger:
 
 ```
-RunResult
-  output_texts        list[str]         — decoded text per prompt
-  output_ids          list[list[int]]   — token ids per prompt
-  all_logits          list[Tensor]      — [num_generated, vocab_size] per prompt
-  latency_s           float             — wall-clock time for the full run
-  peak_memory_bytes   int               — torch.cuda.max_memory_allocated() (monitoring only)
-  policy_memory_bytes int               — harness-measured KV-cache bytes (CUDA allocator delta around the full run); used for memory scoring
+1. Pull Docker image by digest
+2. Start container with --gpus '"device=0,1,2,3"', model volume mount, port mapping, no network
+3. Poll GET /health every 5s until 200 (startup timeout: 10 min)
+4. Send 1-2 warmup prompts (discarded, not scored)
+5. Run speed pass: 10 streaming requests, measure TTFT + throughput
+6. Run correctness pass: 10 non-streaming requests with logprobs
+7. Stop and remove container
+8. Clean up GPU state (reset clocks, clear caches, all 4 GPUs)
+9. Compute median TTFT/throughput, correctness check, score
+10. Compare against king
 ```
 
-`all_logits` from `run()` captures the autoregressive generation logits. For **KL scoring**, the harness separately calls `score_policy_on_sequence()` which produces teacher-forced logits on the baseline's token sequence — these are what the scoring module actually uses for the KL gate. **Memory scoring** uses `policy_memory_bytes`, not `peak_memory_bytes` — see [Scoring](/docs/evaluation/scoring).
+### Warmup
 
-## Qwen-specific gotchas
+Before scored prompts, the harness sends 1-2 warmup requests that are discarded. This absorbs one-time costs: CUDA graph compilation, KV cache pre-allocation, GPU clock ramping. Both baseline and miner receive the same warmup treatment. The competition measures steady-state serving speed.
 
-These are the places the monkey-patch has to get right:
+### Timeouts
 
-### Grouped-query attention
+| Timeout          | Value      | What happens if exceeded |
+| ---------------- | ---------- | ------------------------ |
+| **Startup**      | 10 minutes | Container killed, DQ     |
+| **Per-prompt**   | 120 seconds | Request cancelled, DQ   |
+| **Total eval**   | Configurable (default 30 min) | Eval aborted, DQ |
 
-`num_attention_heads = 28` but `num_key_value_heads = 4`. When the layer reshapes after projection:
+### GPU state cleanup
 
-- Q: `[batch, seq_len, 28, 128]`
-- K, V: `[batch, seq_len, 4, 128]`
+Between evaluations, the harness resets GPU state across all 4 GPUs to prevent one miner's run from affecting the next:
 
-Your `write()` receives K and V with `num_kv_heads = 4` on the head dim. `attend()` receives Q with `num_heads = 28`. You handle the broadcast — typical pattern is `K.repeat_interleave(28 // 4, dim=1)` inside `attend`.
+- CUDA contexts are destroyed
+- GPU clocks are reset to default
+- Memory allocator caches are cleared
 
-### RoPE ordering
+This ensures each miner starts from a clean GPU state, identical to what the baseline saw.
 
-Qwen applies rotary position embeddings to Q and K **after** projection but **before** attention. The harness applies RoPE to K before calling `policy.write()`. If your cache stores pre-RoPE keys and you try to re-apply rotation later, scores are wrong.
+## vLLM baseline
 
-Just store what you're given.
+The baseline is a pinned version of vLLM serving `Qwen2.5-72B-Instruct` on the same 4x H200 with tensor parallelism. It runs as an always-on container alongside the evaluation harness.
 
-### Attention mask
+Baseline results are **pre-computed and cached** per prompt set. When the block hash changes (producing new prompts), the baseline runs once. All challengers in that round are compared against the same cached baseline numbers. This saves ~50% of eval wall time per challenger.
 
-The harness does not pass an attention mask to `policy.attend()`. Causal masking is implicit: your cache only contains tokens at positions `< current position`, because `write` is called before `attend` in each step, and the cache at step `t` only contains keys/values from steps `≤ t`.
+### Baseline warmup
 
-If you materialize a score tensor across all cached positions, you don't need to mask — there's nothing illegitimate there.
+The baseline receives the same 1-2 warmup prompts before its measured run. Baseline measurement follows the same two-pass protocol as miner evaluation.
+
+## Prompt delivery
+
+Prompts are delivered as OpenAI-compatible chat completion requests over HTTP:
+
+```json
+{
+  "model": "Qwen2.5-72B-Instruct",
+  "messages": [
+    {"role": "user", "content": "<instruction with passage context>"}
+  ],
+  "max_tokens": 256,
+  "temperature": 0,
+  "stream": true
+}
+```
+
+The same prompts are sent to both baseline and miner. Prompt order is shuffled per challenger to prevent order-dependent optimizations.
+
+## Measurement
+
+### TTFT
+
+Measured as wall-clock time from the moment the HTTP request is sent to the moment the first SSE data chunk arrives. This includes:
+
+- Server-side prefill computation
+- First token sampling
+- HTTP response serialization
+
+It does not include container startup (that happens before evaluation begins).
+
+### Throughput
+
+Measured as output tokens per second, computed from SSE chunk timestamps:
+
+```
+throughput = total_output_tokens / (last_chunk_time - first_chunk_time)
+```
+
+This measures sustained decode speed, not including prefill.
+
+### Aggregation
+
+Both TTFT and throughput are aggregated using the **median** across the 10 scored prompts. Median is robust to outliers (GC pauses, memory pressure spikes) and prevents gaming by being fast on easy prompts but slow on hard ones.
+
+### Correctness
+
+Measured from the non-streaming correctness pass. Token-by-token comparison against baseline output, plus logprob spot-checks at divergent positions. See [Scoring](/docs/evaluation/scoring) for the full correctness gate specification.
 
 ## Why V1 runs on a single GPU pod
 
-Eval happens on one H100 80GB, run by one operator (the subnet owner). This isn't a decentralization statement — it's operational reality:
+Eval happens on one 4x H200 pod, run by one operator (the subnet owner). This is not a decentralization statement; it is operational reality:
 
-- **Cross-hardware reproducibility.** An H100 and an A100 running the same policy produce slightly different floating-point results. If multiple validators ran eval independently, KL values would disagree, and rankings would be inconsistent.
-- **Centralized eval eliminates that variance.** Everyone sees the same numbers because everyone's numbers come from the same hardware.
+- **Cross-hardware reproducibility.** Different GPU generations and interconnect topologies produce different floating-point results and different latency profiles. Multiple validators would disagree on scores.
+- **Container overhead variance.** Docker startup, GPU initialization, and network stack behavior vary between hosts. Centralizing eval eliminates that variance.
+- **Multi-GPU topology sensitivity.** Tensor parallel performance depends on NVLink topology. A 4-GPU all-connected NVSwitch setup behaves differently from a 2+2 PCIe bridge setup. Fixing the topology is essential for fair comparison.
 
-The trust concentration is real. The V2 mitigation is **publishing eval rollouts** — prompts, baseline logits, KL per token — to verifiable storage (Cloudflare R2 is the candidate). Anyone can then recompute scores offline and verify. Verify-after-the-fact, not run-it-yourself.
+The V2 mitigation is publishing full eval artifacts (prompts, baseline outputs, miner outputs, scores) to verifiable storage so anyone can audit.
 
-See [Architecture: validator](/docs/architecture/validator) for the CPU/GPU split and how policies get from chain commit to GPU.
+See [Architecture: validator](/docs/architecture/validator) for the CPU/GPU split.

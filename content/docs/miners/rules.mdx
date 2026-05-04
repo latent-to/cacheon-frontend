@@ -1,129 +1,63 @@
 ---
 title: Rules
-description: What is in bounds for V1 and what is not. The sandbox enforces the technical half; the scoring formula enforces the rest.
+description: What your container can and cannot do during evaluation. Network isolation, resource limits, V1 restrictions, and disqualification conditions.
 ---
 
-Cacheon V1 is deliberately scoped narrowly. Two boundaries define the perimeter: [the scoring axes](../docs/concepts/competition-model#what-validators-score-on) (memory, latency, KL) and [the sandbox](../docs/architecture/sandbox) (import allowlist, execution isolation).
+## Container environment
 
-## Allowed strategies
+During evaluation, your container runs with:
 
-This section outlines operations and strategies that are permitted in V1:
+| Resource        | Value                                            |
+| --------------- | ------------------------------------------------ |
+| GPU             | 4x H200, exclusive access, fixed NVLink topology |
+| CPU             | Shared host CPU                                  |
+| RAM             | Host memory available                            |
+| Model weights   | Read-only volume mounted at `/models`            |
+| Network         | **None** -- all egress blocked                   |
+| Filesystem      | Read-only root, writable tmpfs for runtime       |
+| Startup timeout | 10 minutes                                       |
+| Per-prompt timeout | 120 seconds                                   |
 
-### KV storage strategies
+## What is allowed
 
-- **Quantization of K and/or V**: INT8, INT4, FP8, 3-bit Lloyd-Max, asymmetric bit allocation, mixed precision per-layer
-- **Lossless layout changes**: reorder, chunk, pack, group heads differently
-- **Rotation-based schemes**: random rotation + QJL correction (TurboQuant), structured rotations
+- Any programming language (Rust, C++, Python, Go, etc.)
+- Any inference framework or custom implementation
+- Custom CUDA kernels, Triton kernels, custom attention implementations
+- KV cache optimization (layout, paging, compression, offloading)
+- Custom memory allocators and memory management
+- Tensor parallel communication optimization
+- Any serving architecture (single process, multi-process, etc.)
+- Chunked prefill, continuous batching, fused operations
 
-### Eviction and pruning
+## What is not allowed (V1)
 
-- **H2O-style importance tracking**: drop tokens with lowest accumulated attention mass
-- **StreamingLLM attention sinks**: keep first N + last M tokens, drop middle
-- **SnapKV observation windows**: aggregate importance over a trailing window
-- **Scissorhands**: saliency-based eviction
-- **Attention-score-driven eviction**: any heuristic that uses the attention distribution
+- **Speculative decoding.** Draft models, lookahead, and Medusa heads are banned in V1. This simplifies correctness checking. Will be allowed in V2.
+- **Weight quantization.** GPTQ, AWQ, FP8, INT4, or any other quantization scheme is banned in V1. Must load exact BF16 weights from the mounted volume.
+- **Network access.** Your container has no network during evaluation. All dependencies must be baked into the image. Model weights are provided via volume mount.
+- **Modified model weights.** You must serve the canonical `Qwen2.5-72B-Instruct` weights. Fine-tuned or distilled weights will fail the correctness gate.
+- **Fabricated outputs.** Returning cached or pre-computed responses instead of running actual inference. The validator uses block-hash-seeded prompts that are unpredictable.
+- **Container escape attempts.** The container runs without `--privileged` and with restricted capabilities. Attempting to escape the sandbox results in permanent DQ.
+- **Excessive resource usage.** If your container OOMs or exceeds resource limits, it is killed and DQ'd.
 
-### Scoring strategies
+## Disqualification conditions
 
-- **Full attention** with standard score + softmax + aggregate
-- **Fused scoring against compressed representations**: `Q @ K_compressed.T + correction`
-- **Approximate attention**: permitted if it passes the KL gate
-- **Top-k attention**: materialize weights only for the top-k keys
+| Condition                                           | Result        |
+| --------------------------------------------------- | ------------- |
+| Startup timeout exceeded (10 min)                   | DQ            |
+| Per-prompt timeout exceeded (120s)                  | DQ            |
+| `/health` never returns 200                         | DQ            |
+| Correctness gate fails (token match < 99%)          | DQ, score = 0 |
+| OOM or container crash during eval                  | DQ            |
+| Duplicate of king's image digest                    | DQ            |
+| Non-compliant API (missing endpoints, wrong format) | DQ            |
+| Speculative decoding detected                       | DQ            |
+| Quantized weights detected (via correctness gate)   | DQ            |
 
-### Policy variation
+## Prompt unpredictability
 
-- **Per-layer adaptive**: different strategies for layer 0 vs. layer 14 vs. layer 27
-- **Per-head adaptive**: different strategies per attention head within a layer
-- **Context-length adaptive**: behavior changes as the cache grows
+Prompts are derived from a block-hash seed combined with curated instruction templates. You cannot predict which prompts will be used for your evaluation. Any attempt to optimize for specific prompts (e.g., caching results from a previous evaluation) will not work because:
 
-## Restricted strategies
-
-This section covers operations that are excluded from the V1 release by category and the rationale behind each restriction:
-
-### Model or architecture changes
-
-| Operation                                 | Why blocked                                                                |
-| ----------------------------------------- | -------------------------------------------------------------------------- |
-| Model weight changes / finetuning         | Violates fixed "global model" premise (eval would no longer be comparable) |
-| Attention mechanism redesign              | Outside the scope of KV-cache optimization                                 |
-| Replacing `Qwen2.5-7B` with anything else | V1 is model-pinned                                                         |
-
-### Infrastructure scope
-
-| Operation                             | Why blocked                                                                   |
-| ------------------------------------- | ----------------------------------------------------------------------------- |
-| Batching- or scheduling-level changes | Outside the KV path (V2 roadmap item)                                         |
-| Custom CUDA kernels                   | Sandboxing cost not worth it in V1 (PyTorch ops can implement the algorithms) |
-| **Triton kernels**                    | Same rationale; Triton is a V2 item with additional isolation                 |
-
-## Sandbox restrictions
-
-This section details the sandbox-enforced constraints, specifying the permitted and restricted import policies and function calls that govern the execution environment.
-
-### Import restrictions
-
-**Allowed top-level imports:**
-
-- `torch`
-- `numpy`
-- `math`
-- `einops`
-- `inference_engine` at the package root and `inference_engine.policy` only
-
-**Blocked:**
-
-- `os`, `sys`, `subprocess`, `socket`, `importlib`, `ctypes`, `cffi`
-- `builtins`, `__builtins__`, `pickle`, `shelve`
-- All relative imports (`from .` / `from ..`)
-- All submodules of `inference_engine` except `policy`, because internal modules could re-export stdlib objects
-
-### Blocked functions
-
-Bare calls to any of: `eval`, `exec`, `compile`, `open`, `input`, `breakpoint`, `__import__`, `getattr`, `setattr`, `delattr`, `globals`, `locals`, `vars`.
-
-<Callout type="info" title="What's NOT blocked">
-  `super()`, `type()`, `dir()` are explicitly allowed: they're standard Python patterns that miners
-  legitimately need. The OS-level sandbox (firejail on the CPU validator) is the actual security
-  boundary; AST-level checks are a fast-feedback tool, not the last line of defense.
-</Callout>
-
-## Scoring and evaluation
-
-Evaluation is simple: policies are measured on memory, latency, and KL, then ranked on a single score. The top score becomes the king, and every new submission is judged against it.
-
-### Quality requirements
-
-Even if your policy passes sandbox checks, it will score `0` if any of the following fail:
-
-- **KL divergence > 0.1 nats.** Your logits diverge too far from baseline.
-- **NaN / Inf in output.** Numerical blowup somewhere.
-- **Output shape/dtype mismatch.** The harness validates `AttentionOutput.output` strictly.
-- **Attention weights don't sum to ~1** (when you return them). Indicates a bug in your score/softmax path.
-- **Wall-clock timeout.** Hard limit at 300 seconds per policy per evaluation run.
-- **Byte-identical `policy.py` to the current king (different hotkey, later commit).** When the result is recorded, a matching `source_hash` with the current king triggers `disqualify_reason = "duplicate_of_king"` and score `0`. See [Defender's moat](/docs/concepts/competition-model#the-defenders-moat).
-
-### Beating the king
-
-Passing the quality gate is not enough. To dethrone the current king, your score must **strictly exceed** `king_score × (1 + ε(age))`, where ε starts at **1%** on the block the king is crowned and decays linearly to **0** over **~50,400 blocks (~7 days)**. After decay, the threshold is just `king_score`; any strict improvement wins.
-
-Practically:
-
-- A **fresh** king means you need roughly a **1%+ edge** on the weighted score; noise-level bumps should not flip the crown.
-- After **~7 days** without the moat refreshing, a **strict** beat is enough.
-
-Exact formula, edge cases, and env tunables: [Architecture → Validator → Dethrone rule](/docs/architecture/validator#dethrone-rule).
-
-<Callout title="Scoring and evaluation" type="info">
-  For more information on how miner scoring and evaluation work, see
-  [Prompts](/docs/evaluation/prompts) and [Scoring](/docs/evaluation/scoring).
-</Callout>
-
-## A note on "allowed but scored low"
-
-Just because something passes the sandbox doesn't mean it's a good submission. Some patterns that are technically allowed but almost never competitive:
-
-- **Pure storage reduction without attend changes.** You save memory on disk but not at peak: the decompressed buffer during `attend` dominates.
-- **Aggressive eviction without importance tracking.** Random or FIFO eviction fails the KL gate quickly on reasoning-heavy prompts.
-- **Very small cache budgets.** Cuts memory to near zero, destroys quality. The KL gate catches this.
-
-Reading the [scoring formula](/docs/evaluation/scoring#scoring-formula) carefully before implementing anything will save you a hotkey registration.
+1. The block hash changes every block
+2. Your container is freshly started for each evaluation
+3. Prompt order is shuffled per challenger (seeded by block_hash + hotkey)
+4. No network access means no external coordination

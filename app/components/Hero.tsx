@@ -10,16 +10,16 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
 
 const FEATURES = [
   {
-    title: 'KV cache competition',
-    body: 'Compete to optimize how models store attention memory. King of the hill, winner-take-all.',
+    title: 'Inference arena',
+    body: 'Build the fastest server for a top open-source model. King of the hill, winner-take-all.',
   },
   {
-    title: 'Open & auditable',
-    body: 'Commitments and scoring live on-chain so progress and rankings stay transparent to the community.',
+    title: 'Any stack, any language',
+    body: 'Submit a Docker container. Use any language, framework, custom CUDA, or your own crazy optimizations. Anything that makes inference faster.',
   },
   {
-    title: 'From competition to product',
-    body: 'Turn winning policies into ready-to-deploy configs for vLLM, Hugging Face, and beyond.',
+    title: 'Beat vLLM or go home',
+    body: 'The baseline is production vLLM. Beating it means your server is genuinely best-in-class.',
   },
 ]
 
@@ -59,31 +59,28 @@ export default function Hero() {
         aria-hidden
       />
 
-      {/* Hero content — vertically centered in viewport */}
+      {/* Hero content */}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-24 pb-0 text-center">
         {/* Pill */}
         <div className="border-accent/40 bg-accent-surface text-accent mb-8 inline-flex items-center rounded-full border px-3.5 py-1 font-mono text-[0.62rem] font-semibold tracking-[0.22em] uppercase">
           Bittensor subnet · SN14
         </div>
 
-        {/* Headline — three beats, one size; accent bookends + primary center */}
+        {/* Headline */}
         <h1 className="mb-6 max-w-[min(100%,48rem)] font-mono text-[clamp(1.75rem,4.6vw,3.15rem)] leading-[1.22] font-extrabold tracking-tight text-balance">
           <span className="text-accent [text-shadow:0_0_32px_rgba(45,212,191,0.18)]">
-            Faster Inference
+            Build the Fastest
           </span>
-          <span className="text-secondary/45">, </span>
-          <span className="text-primary">Better Performance</span>
-          <span className="text-secondary/45">, </span>
-          <span className="text-accent [text-shadow:0_0_24px_rgba(45,212,191,0.12)]">
-            Same Quality
-          </span>
+          <span className="text-secondary/45"> </span>
+          <span className="text-primary">Inference Server</span>
         </h1>
 
         {/* Sub-copy */}
         <p className="text-secondary mb-10 max-w-xl font-sans text-base leading-[1.65] sm:text-lg sm:leading-[1.6]">
-          KV cache has been the bottleneck for LLM inference at scale.{' '}
-          <span className="text-primary font-medium">Cacheon</span> turns it into a live
-          competition: submit a smarter memory policy, beat the reigning champion, and earn{' '}
+          Inference has been the bottleneck.{' '}
+          <span className="text-primary font-medium">Cacheon</span> is a live competition to serve{' '}
+          <code className="text-accent text-[0.88em]">Qwen2.5-72B</code> on 4x H200 faster than
+          anyone else. Submit a containerized server, beat vLLM, and earn{' '}
           <span className="group relative inline-block">
             <span className="border-primary/45 text-primary cursor-help border-b border-dotted font-medium whitespace-nowrap">
               up to 28 TAO
@@ -92,8 +89,8 @@ export default function Hero() {
               role="tooltip"
               className="border-border bg-surface/95 text-secondary pointer-events-none absolute top-full left-1/2 z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-md border px-3 py-2 text-xs break-words opacity-0 shadow-md transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100"
             >
-              Rewards are paid in SN14 tokens. Both the SN14/TAO price and the TAO/USD (and other
-              fiat) exchange rates fluctuate, so fiat values will vary over time.
+              Rewards are paid in SN14 tokens. Both the SN14/TAO price and the TAO/USD exchange
+              rates fluctuate, so fiat values will vary over time.
             </span>
           </span>{' '}
           per day.
@@ -102,9 +99,7 @@ export default function Hero() {
         {/* CTAs */}
         <div className="flex flex-wrap items-center justify-center gap-3">
           <a
-            href="https://github.com/latent-to/cacheon"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="/docs"
             className="bg-btn-primary text-btn-primary-fg inline-flex items-center gap-2 rounded-md px-6 py-2.5 font-sans text-[0.92rem] font-semibold no-underline transition-opacity hover:opacity-85"
           >
             Read the docs <span aria-hidden>→</span>
@@ -120,7 +115,7 @@ export default function Hero() {
         </div>
       </div>
 
-      {/* Feature strip — pinned to the bottom of the viewport */}
+      {/* Feature strip */}
       <div className="relative z-10 mt-auto px-6 pt-10 pb-12 sm:px-8 lg:px-10">
         <div className="border-border/40 mx-auto grid max-w-6xl grid-cols-1 gap-y-10 border-t pt-10 sm:grid-cols-3 sm:gap-x-12 sm:gap-y-8 lg:gap-x-16 xl:gap-x-20">
           {FEATURES.map((f) => (

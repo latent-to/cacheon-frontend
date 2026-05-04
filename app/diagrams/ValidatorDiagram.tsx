@@ -1,7 +1,6 @@
 /**
- * Validator flow: chain → CPU (validator) → GPU (eval) → results back.
- * Large viewBox + readable font sizes so it scales well on all screens.
- * Flow lines use neutral grays; electric teal is not used for large fills.
+ * Validator flow: chain -> CPU (validator) -> GPU (Docker eval) -> results back.
+ * Reflects the new containerized architecture.
  */
 export default function ValidatorDiagram() {
   const flow = 'var(--diagram-flow)'
@@ -12,7 +11,7 @@ export default function ValidatorDiagram() {
       viewBox="0 0 1000 260"
       fill="none"
       role="img"
-      aria-label="Architecture: Bittensor chain connects to a CPU validator server, which talks over SSH to a GPU pod that runs evals; results return to the CPU server."
+      aria-label="Architecture: Bittensor chain connects to a CPU validator server, which talks over SSH to a GPU pod that runs Docker containers for evaluation; results return to the CPU server."
       style={{
         width: '100%',
         maxWidth: 'min(100%, 56rem)',
@@ -53,7 +52,7 @@ export default function ValidatorDiagram() {
         chain
       </text>
 
-      {/* Arrow chain → CPU */}
+      {/* Arrow chain -> CPU */}
       <line
         x1="192"
         y1="116"
@@ -65,7 +64,7 @@ export default function ValidatorDiagram() {
         opacity="0.85"
       />
 
-      {/* CPU Server — same visual weight as GPU; subtle raised surface */}
+      {/* CPU Server */}
       <rect
         x="248"
         y="32"
@@ -105,7 +104,7 @@ export default function ValidatorDiagram() {
         fontSize="12.5"
         fontFamily="var(--mono)"
       >
-        sandbox safety check
+        dispatches eval jobs
       </text>
       <text
         x="392"
@@ -128,7 +127,7 @@ export default function ValidatorDiagram() {
         holds wallet keys
       </text>
 
-      {/* Arrow CPU → GPU */}
+      {/* Arrow CPU -> GPU */}
       <line
         x1="536"
         y1="116"
@@ -170,7 +169,7 @@ export default function ValidatorDiagram() {
         fontWeight="600"
         fontFamily="var(--mono)"
       >
-        GPU pod
+        GPU pod (4x H200)
       </text>
       <text
         x="736"
@@ -180,7 +179,7 @@ export default function ValidatorDiagram() {
         fontSize="12.5"
         fontFamily="var(--mono)"
       >
-        loads model, runs eval
+        vLLM baseline (always-on)
       </text>
       <text
         x="736"
@@ -190,7 +189,7 @@ export default function ValidatorDiagram() {
         fontSize="12.5"
         fontFamily="var(--mono)"
       >
-        {'measures memory & speed'}
+        pulls miner Docker images
       </text>
       <text
         x="736"
@@ -200,10 +199,20 @@ export default function ValidatorDiagram() {
         fontSize="12.5"
         fontFamily="var(--mono)"
       >
+        {'measures TTFT & throughput'}
+      </text>
+      <text
+        x="736"
+        y="170"
+        textAnchor="middle"
+        fill="var(--text-secondary)"
+        fontSize="12.5"
+        fontFamily="var(--mono)"
+      >
         no chain, no wallet keys
       </text>
 
-      {/* Return path GPU → CPU */}
+      {/* Return path GPU -> CPU */}
       <path
         d="M736 228 L736 248 L392 248 L392 228"
         stroke={flow}

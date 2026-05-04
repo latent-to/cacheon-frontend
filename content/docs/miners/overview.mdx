@@ -5,55 +5,60 @@ description: What Cacheon mining is, what you need, and the high-level flow from
 
 ## What you're building
 
-A single Python class (`KVCachePolicy`) that replaces how the KV cache is stored and scored during transformer inference. The validator loads your class, monkey-patches it into `Qwen2.5-7B-Instruct`, and measures how much memory and latency you save relative to a naive FP16 passthrough, subject to output-quality gates in scoring.
+A containerized inference server that serves `Qwen2.5-72B-Instruct` via an OpenAI-compatible chat completions API. The validator pulls your Docker image, starts it with 4x H200 GPU access, sends instruct-style prompts, and measures how fast your server responds compared to a vLLM baseline.
 
-You ship a `policy.py` file in a public Hugging Face repo. You commit the repo + revision hash on-chain. That's it.
+You build a Docker image, push it to a container registry, and commit the image reference on-chain. That's it.
 
 ## Prerequisites
 
-| Requirement                      | Details                                                                                                                                                                                                                                       |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Bittensor wallet**             | Registered on subnet 14 (mainnet) or 460 (testnet). For more information, see [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets) and [Miner registration](https://docs.learnbittensor.org/miners#miner-registration). |
-| **Public Hugging Face repo**     | Your `policy.py` lives at the repo root. The validator fetches it by using the repo ID + commit SHA.                                                                                                                                          |
-| **GPU (for local testing only)** | ≥24 GB VRAM (RTX 4090 is enough for 7B). Only needed if you want to test locally before committing; registering on-chain does not require a GPU.                                                                                              |
-| **Python 3.11+**                 | For local testing.                                                                                                                                                                                                                            |
-| **Linux**                        | The inference harness only runs on Linux with CUDA. Again, only needed for local testing.                                                                                                                                                     |
+| Requirement | Details |
+| --- | --- |
+| **Bittensor wallet** | Registered on subnet 14 (mainnet) or 460 (testnet). See [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets). |
+| **Container registry** | Your Docker image must be publicly pullable. Docker Hub, GitHub Container Registry, or any public registry works. |
+| **GPU (for local testing)** | 4x H200 (or multi-GPU setup with enough VRAM for 72B in BF16). Needed to verify your server works and to benchmark locally. |
+| **Model weights** | `Qwen2.5-72B-Instruct` from Hugging Face. On the real validator, weights are provided as a read-only volume mount. |
 
-<Callout type="info" title="You don't need a GPU to register">
-  Registration is just a JSON commitment on-chain pointing to your Hugging Face repo. The
-  validator's GPU pod runs your code. You never need to host inference yourself. Local testing is
-  recommended but not required to participate.
+<Callout type="info" title="You don't need your own GPU to register">
+  Registration is just a commitment on-chain pointing to your Docker image. The validator's GPU pod
+  runs your container with model weights mounted. Local testing is strongly recommended but not required.
 </Callout>
 
 ## High-level flow
 
-The following list outlines the end-to-end flow, from implementing a policy to getting it evaluated and scored:
+1. Understand the API contract. See [API contract](/docs/miners/api-contract)
+2. Build your inference server and Dockerfile. See [Submission format](/docs/miners/submission-format)
+3. (Recommended) Test locally against vLLM. See [Testing locally](/docs/miners/testing-locally)
+4. Push your Docker image to a public registry
+5. Commit the image reference on-chain. See [Registration](/docs/miners/registration)
+6. Validator picks you up, pulls your image, evaluates, scores
 
-1. Understand the policy interface. See [Policy interface](../docs/miners/policy-interface)
-2. Write your `KVCachePolicy` class. See [Example policies](/docs/miners/example-policies)
-3. (Recommended) Test locally on a GPU. See [Testing locally](/docs/miners/testing-locally)
-4. Push policy.py to a public Hugging Face repo
-5. Commit repo + revision SHA on-chain. See [Policy registration](/docs/miners/registration)
-6. Validator picks you up, evaluates, scores
-
-<Callout type="info" title="REQUIRED STEPS">
-  Steps 4–5 are the only _required_ actions to participate. Everything else is preparation.
+<Callout type="info" title="Required steps">
+  Steps 4 and 5 are the only required actions. Everything else is preparation.
 </Callout>
 
 ## Scoring axes (quick summary)
 
-Your policy is scored on three axes, weighted and combined into a single score:
+Your server is scored on three axes:
 
-- **Memory reduction**: how much smaller your KV cache is vs. FP16 passthrough (CUDA allocator delta)
-- **Latency improvement**: how much faster generation is with your policy
-- **KL divergence**: how much your output logits deviate from baseline (must stay below 0.1 nats or you're disqualified)
+- **TTFT improvement**: how much faster your server produces the first token vs. vLLM (median across 10 prompts, floored at 0)
+- **Throughput improvement**: how many more output tokens/sec your server achieves vs. vLLM (median, floored at 0)
+- **Correctness**: your outputs must match the baseline (99%+ greedy token match + logprob verification). Fail this and your score is zero.
 
 Full details in [Scoring](/docs/evaluation/scoring).
 
+## V1 constraints
+
+V1 deliberately restricts the optimization surface to keep correctness checking simple:
+
+- **No speculative decoding** -- draft models / lookahead are banned
+- **No weight quantization** -- must load exact BF16 weights from the mounted volume
+- **No alternate models** -- same model, same weights as the baseline
+
+These restrictions will be relaxed in V2. See [Roadmap](/docs/roadmap).
+
 ## Common pitfalls
 
-- **Forgot RoPE.** Qwen applies rotary position embeddings to Q/K _before_ your `write()` is called. The harness delivers post-RoPE tensors; store them as given. **Don't re-apply rotation.**
-- **GQA shapes.** `Qwen2.5-7B` has `num_kv_heads=4` (not 28). K and V come in with `num_kv_heads` on dim 1, Q with `num_heads=28`. **Don't assume they match.**
-- **`seq_len=1` on decode.** During decode, `write()` receives a single new token's K/V. Your cache needs to grow, not replace. `attend()` is called with `q_len=1` and needs to attend over the full accumulated cache.
-- **No network, no filesystem, no `os`.** Your policy runs inside a sandbox. See [Rules](/docs/miners/rules).
-- **Don't copy the king.** The validator computes a SHA-256 hash of your `policy.py` and rejects byte-identical copies of the current king's source with `duplicate_of_king`. You need a genuinely different policy.
+- **Wrong model weights.** Your server must load the exact `Qwen2.5-72B-Instruct` BF16 weights from the mounted volume at `/models`. Modified, quantized, or distilled weights will fail the correctness gate.
+- **Slow startup.** The validator gives your container 10 minutes to respond on `/health`. 72B model loading on 4x H200 takes 2-5 minutes. Budget accordingly.
+- **Non-compliant API.** Your server must implement `/v1/chat/completions` with logprobs support. See [API contract](/docs/miners/api-contract).
+- **Don't copy the king.** The validator computes a digest of your Docker image. Byte-identical copies of the current king's image are rejected.

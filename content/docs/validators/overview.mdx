@@ -1,40 +1,37 @@
 ---
 title: Validator setup
-description: How to run a Cacheon validator. Two machines, one SSH tunnel.
+description: How to run a Cacheon validator. Two machines, one SSH tunnel, Docker on the GPU pod with 4x H200.
 ---
 
 <Callout type="info">
   V1 launches with a single validator run by the core team, a pragmatic starting point while the
-  subnet is early-stage. This is a deliberate short-term choice. Decentralized validation is the
-  long-term goal. This documentation exists for transparency and to lay the groundwork for that
-  transition. It is not intended for spinning up your own validator today.
+  subnet is early-stage. This documentation exists for transparency and to lay the groundwork for
+  decentralized validation in V2.
 </Callout>
 
 Running the Cacheon validator requires two machines connected over SSH:
 
-| Machine      | Hardware                           | Role                                                                        |
-| ------------ | ---------------------------------- | --------------------------------------------------------------------------- |
-| **GPU pod**  | NVIDIA H100 80GB SXM               | Loads Qwen2.5-7B-Instruct, runs inference harness, scores policies          |
-| **CPU host** | Any Linux box (2+ cores, 4 GB RAM) | Holds wallet keys, reads chain, dispatches eval jobs over SSH, sets weights |
+| Machine      | Hardware                              | Role                                                                                        |
+| ------------ | ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **GPU pod**  | 4x NVIDIA H200 (fixed NVLink topology)| Hosts vLLM baseline, pulls and runs miner Docker containers, measures speed and correctness |
+| **CPU host** | Any Linux box (2+ cores, 4 GB RAM)    | Holds wallet keys, reads chain, dispatches eval jobs over SSH, sets weights                 |
 
-The GPU pod has **no wallet keys and no chain access**. It receives prompts and policy pointers, runs the harness, and returns a results JSON. The CPU host orchestrates everything.
-
-We may move to a **single-machine** setup in the future, where the same box runs inference and holds wallet keys with full chain access. For now, the split is deliberate: miner code runs on the GPU path, and isolating keys from that machine narrows the blast radius before the subnet expands to many independent validators.
+The GPU pod has **no wallet keys and no chain access**. It receives eval jobs, runs containers, and returns results. The CPU host orchestrates everything.
 
 ## What you need before starting
 
 - A Bittensor wallet registered on subnet 14 (mainnet) or 460 (testnet)
-- A GitHub Personal Access Token (PAT) with read access to the `latent-to/cacheon` repo
+- Docker with NVIDIA Container Toolkit on the GPU pod
 - A Hugging Face token (`HF_TOKEN`) for downloading model weights
 - SSH key pair for CPU-to-GPU communication
-- GPU (Targon, Lium, or your own bare metal)
+- GPU pod with 4x H200 (Targon, Lium, or your own bare metal)
 
-Very simplified loop:
+Simplified loop:
 
 ```
                     challengers     eval job      results    set_weights
-              chain ──────────▶ CPU ────────▶ GPU ────────▶ CPU ────────▶ chain
-                ▲                                                           │
+              chain ──────────> CPU ────────> GPU ────────> CPU ────────> chain
+                ^                                                           |
                 └──────────────────────── loop ─────────────────────────────┘
 ```
 
@@ -43,24 +40,25 @@ Very simplified loop:
 1. [Provision and configure the GPU pod](/docs/validators/gpu-pod-setup)
 2. [Set up the CPU host and start the validator](/docs/validators/cpu-host-setup)
 
-Do the GPU pod first. The CPU host needs SSH access to the pod, so the pod must be running before you can configure and test the connection.
+Do the GPU pod first. The CPU host needs SSH access to the pod.
 
 ## How they connect
 
 ```
-CPU HOST                           GPU POD
-(wallet keys, chain access)        (model weights, CUDA)
+CPU HOST                           GPU POD (4x H200)
+(wallet keys, chain access)        (Docker, 4x GPU, vLLM, /models)
 
 remote_validator.py
-  ├── fetch metagraph
-  ├── find new challengers
-  ├── sandbox-precheck (AST)
-  │
-  ├── SFTP write job.json ────────▶ /tmp/job.json
-  ├── SSH run pod_eval.py ────────▶ loads model, runs harness
-  ├── SFTP read results.json ◀──── /tmp/results.json
-  │
-  ├── update king if beaten
+  |-- fetch metagraph
+  |-- find new challengers
+  |
+  |-- SFTP write job.json ────────> /tmp/job.json
+  |-- SSH run eval_pod.py ────────> pulls image, starts container
+  |                                  (mounts /models:ro),
+  |                                  runs two-pass eval with warmup
+  |-- SFTP read results.json <──── /tmp/results.json
+  |
+  |-- update king if beaten
   └── set_weights(king=1.0)
 ```
 

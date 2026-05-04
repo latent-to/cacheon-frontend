@@ -1,81 +1,90 @@
 ---
 title: Testing locally
-description: Run the same inference harness the validator uses to verify your policy before committing on-chain.
+description: How to test your inference server locally before committing on-chain. Run the same evaluation the validator runs.
 ---
 
-<Callout type="info" title="This step is optional but strongly recommended">
-  You don't need to run the harness locally to register; you just need a `policy.py` in a public
-  Hugging Face repo and an on-chain commitment. But testing locally helps you catch bugs locally
-  before you burn a hotkey on a policy that gets disqualified.
-</Callout>
+Local testing lets you verify your server is compliant and benchmark it against the vLLM baseline before spending a registration fee.
 
-## Requirements
+## Prerequisites
 
-- **Linux** (Debian/Ubuntu-style, or a GPU VM/pod with `apt-get`)
-- **Python 3.11+**
-- **CUDA-capable GPU** with ≥24 GB VRAM (RTX 4090 is sufficient for 7B at moderate context)
+- Docker with NVIDIA Container Toolkit (`--gpus` support)
+- 4x H200 or equivalent multi-GPU setup (enough VRAM for 72B BF16)
+- Model weights downloaded to a local directory
+- The vLLM baseline image (for comparison)
 
-Production eval runs on H100 80GB, so absolute numbers will differ, but relative behavior (KL, memory ratio, latency ratio) is comparable.
-
-## Setup
-
-To begin, run the following command in the terminal:
+## Step 0: Download model weights
 
 ```bash
-git clone https://github.com/latent-to/cacheon.git
-cd cacheon
-bash inference_engine/setup.sh
+huggingface-cli download Qwen/Qwen2.5-72B-Instruct --local-dir /workspace/models/Qwen2.5-72B-Instruct
 ```
 
-`setup.sh` installs system deps, creates a venv, installs the harness package, and downloads `Qwen2.5-7B-Instruct` weights.
+These weights will be mounted into both baseline and miner containers.
 
-Verify the environment works:
+## Step 1: Start the vLLM baseline
 
 ```bash
-python -m inference_engine
+docker run --gpus '"device=0,1,2,3"' -p 8000:8000 \
+  -v /workspace/models/Qwen2.5-72B-Instruct:/models:ro \
+  vllm/vllm-openai:latest \
+  --model /models --host 0.0.0.0 --port 8000 \
+  --dtype bfloat16 --tensor-parallel-size 4
 ```
 
-This loads the model, runs `Harness.verify()` (passthrough correctness check), and prints baseline latency + peak memory. If this doesn't complete cleanly, fix your environment before proceeding.
+Wait for `GET http://localhost:8000/health` to return 200.
 
-## Run your policy
+## Step 2: Run the benchmark prompts
 
-```python
-from inference_engine import Harness, PassthroughPolicy, sample_prompts
-from inference_engine.scoring import score
-from my_policy import MyPolicy
+Send the same instruct-style prompts the validator uses:
 
-harness = Harness("Qwen/Qwen2.5-7B-Instruct")
-prompts = sample_prompts(block_hash="0x" + "aa" * 32, n=3)
-
-baseline = harness.run(PassthroughPolicy(), prompts)
-miner    = harness.run(MyPolicy(),         prompts)
-
-result = score(baseline, miner)
-print(result)
+```bash
+python scripts/local_benchmark.py --target http://localhost:8000 --prompts hybrid
 ```
 
-## What to look for
+This records baseline TTFT and throughput numbers (median across 10 prompts).
 
-- When `disqualified == False`, you haven't broken output quality
-- When `score > 0`, you're winning on at least one axis
-- When `memory_reduction > 0`, your cache is smaller than FP16 passthrough
-- When `latency_improvement > 0`, generation is faster
+## Step 3: Start your server
 
-If `disqualified == True`, check `result.disqualify_reason`:
+```bash
+docker run --gpus '"device=0,1,2,3"' -p 8001:8000 \
+  -v /workspace/models/Qwen2.5-72B-Instruct:/models:ro \
+  your-image:latest
+```
 
-- **KL gate failure** (`> 0.1` nats): your policy produces substantially different tokens
-- **NaN / Inf**: numerical bug in your attention path
+Wait for `GET http://localhost:8001/health` to return 200.
 
-<Callout type="info" title="Production uses teacher-forced KL">
-  The local test above compares autoregressive logits directly. Production eval uses
-  **teacher-forced** KL: the miner's policy processes the baseline's exact token sequence in a
-  single forward pass, eliminating autoregressive divergence. If your KL is close to the 0.1
-  threshold locally, it may be lower in production eval. See
-  [Scoring](/docs/evaluation/scoring#teacher-forced-evaluation) for details.
-</Callout>
+## Step 4: Benchmark your server
 
-## Tips
+```bash
+python scripts/local_benchmark.py --target http://localhost:8001 --prompts hybrid --baseline-results baseline.json
+```
 
-- Start with the [passthrough skeleton](/docs/miners/example-policies) and make one change at a time. If you go from zero to TurboQuant in one step, debugging is harder.
-- Use `n=1` or `n=2` prompts during development for fast iteration. Bump to `n=10` for a realistic score estimate.
-- Memory and latency are measured relative to the passthrough baseline on the same hardware. A policy that's 2× better on RTX 4090 will likely still be 2× better on H100.
+This compares your server against the baseline and prints:
+
+```
+TTFT improvement:       +23.4%  (median)
+Throughput improvement:  +31.2%  (median)
+Token match rate:        99.6%  (threshold: 99%)
+Correctness:             PASS
+Final score:             0.273
+```
+
+## Step 5: Check correctness
+
+The correctness check is the most important part. If your server fails the 99% token match threshold, it will be DQ'd on the real validator regardless of speed.
+
+Common causes of correctness failure:
+
+- **Wrong model weights.** Use the exact same weights directory mounted into both containers.
+- **Weight quantization.** Not allowed in V1. All servers must load BF16 weights.
+- **Modified sampling.** Ensure `temperature=0` produces deterministic greedy output.
+- **Speculative decoding.** Not allowed in V1.
+
+## Interpreting results
+
+| Metric                 | Good  | Needs work                      |
+| ---------------------- | ----- | ------------------------------- |
+| TTFT improvement       | > 10% | 0% (you are no faster than vLLM) |
+| Throughput improvement | > 10% | 0%                              |
+| Token match rate       | > 99.5% | < 99% (will be DQ'd)          |
+
+The local benchmark uses the same scoring formula as the validator (median aggregation, `max(0, ...)` floor). If your score is positive locally, it should be positive on the real evaluation (modulo hardware differences between your GPUs and the validator's 4x H200).
