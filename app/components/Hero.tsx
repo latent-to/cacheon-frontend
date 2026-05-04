@@ -18,8 +18,8 @@ const FEATURES = [
     body: 'Submit a Docker container. Use any language, framework, custom CUDA, or your own crazy optimizations. Anything that makes inference faster.',
   },
   {
-    title: 'Beat vLLM or go home',
-    body: 'The baseline is production vLLM. Beating it means your server is genuinely best-in-class.',
+    title: 'vLLM is the line',
+    body: 'Same model, same machine class, same prompts. Beat the king to claim you are actually faster.',
   },
 ]
 

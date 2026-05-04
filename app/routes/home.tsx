@@ -10,17 +10,17 @@ import Footer from '~/components/Footer'
 
 export function meta(_: Route.MetaArgs) {
   return [
-    { title: 'Cacheon: Fastest Inference Arena (Bittensor SN14)' },
+    { title: 'Cacheon: Inference Optimization Arena' },
     {
       name: 'description',
       content:
-        'Cacheon (Bittensor Subnet 14) is a live competition to build the fastest inference server for top open-source models. Submit a Docker container, beat vLLM, win emission.',
+        'Compete on speed for a flagship OSS model. Fair benchmark, clear winner, real reason to route traffic.',
     },
-    { property: 'og:title', content: 'Cacheon: Fastest Inference Arena' },
+    { property: 'og:title', content: 'Cacheon: Inference Optimization Arena' },
     {
       property: 'og:description',
       content:
-        'Build the fastest inference server on Bittensor. Any language, any runtime. Beat vLLM or go home.',
+        'Compete on speed for a flagship OSS model. Fair benchmark, clear winner, real reason to route traffic.',
     },
     { property: 'og:type', content: 'website' },
     { property: 'og:url', content: 'https://cacheon.ai' },
