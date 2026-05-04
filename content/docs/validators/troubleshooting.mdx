@@ -1,0 +1,101 @@
+---
+title: Troubleshooting
+description: Common issues when setting up and running the Cacheon validator.
+---
+
+## GPU pod
+
+### "driver too old" error on `import torch`
+
+The default PyPI torch build targets a newer CUDA than many cloud GPU drivers. The setup script installs torch from PyTorch's CUDA 12.8 wheel index to avoid this. If you installed deps manually, reinstall torch:
+
+```bash
+pip install --index-url https://download.pytorch.org/whl/cu128 "torch>=2.4,<3"
+```
+
+### Model download hangs or times out
+
+Large downloads to `/workspace/.cache/huggingface` can take 10-20 minutes on a cold pod. If it stalls:
+
+1. Check your `HF_TOKEN` is valid: `huggingface-cli whoami`
+2. Check disk space: `df -h /workspace`
+3. Re-run `setup.sh` -- it skips the download if weights already exist
+
+### `e2e_pod.py` fails with "Descriptors file not found"
+
+You need to seed the fixture policies first:
+
+```bash
+export HF_TOKEN=your_token
+python tests/e2e/e2e_seed_hf.py
+```
+
+Then re-run the e2e test.
+
+### `e2e_pod.py` OOM or CUDA errors
+
+- Make sure no other processes are using the GPU: `nvidia-smi`
+- The 7B model in fp16 needs ~15 GB VRAM. With KV cache at 32K context, peak can reach 30+ GB. An H100 80GB handles this comfortably.
+
+## CPU host
+
+### SSH to GPU pod fails
+
+Common causes:
+
+1. **Wrong host/port**: double-check `--gpu-pod-ssh-host` and `--gpu-pod-ssh-port`
+2. **SSH key not authorized**: the GPU pod creation scripts register SSH keys automatically; for manual setups, add your public key to `~/.ssh/authorized_keys` on the pod
+3. **Pod not running**: check with your provider's dashboard or CLI
+4. **Firewall**: some providers block SSH on non-standard ports
+
+Test connectivity manually:
+
+```bash
+ssh -o ConnectTimeout=10 root@<pod-ip> "echo ok"
+```
+
+### First eval times out
+
+The first remote eval on a cold pod can spend many minutes on:
+
+- Hugging Face model/dataset download
+- CUDA kernel compilation (JIT warmup)
+- Baseline warmup pass
+
+Raise the timeout for the first run:
+
+```bash
+python scripts/remote_validator.py ... --gpu-pod-eval-timeout 2400
+```
+
+Subsequent evals are much faster once the pod cache is warm.
+
+### `set_weights` fails
+
+Common causes:
+
+1. **Wallet not registered on the subnet**: verify with `btcli wallet overview`
+2. **Insufficient stake**: weight-setting requires minimum stake
+3. **Network issues**: transient chain connectivity; the loop retries on the next poll
+
+The validator loop catches `set_weights` failures and retries after the poll interval (default 360s). Check logs for details.
+
+### firejail not found (warning logged)
+
+The sandbox pre-check falls back to a bare subprocess without firejail. This is unsafe in production. Install it:
+
+```bash
+sudo apt install firejail
+```
+
+The `setup-cpu.sh` script installs firejail automatically.
+
+### Stale state after code update
+
+If the state format changes between versions, the validator may error on startup. Delete the state directory and let it rebuild:
+
+```bash
+rm -rf ~/cacheon/state
+```
+
+The loop rebuilds by evaluating all revealed commitments fresh. Expensive, but recoverable.

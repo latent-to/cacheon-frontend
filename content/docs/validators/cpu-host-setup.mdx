@@ -1,0 +1,167 @@
+---
+title: CPU host setup
+description: Set up the validator host, configure wallet and SSH, and start the validator loop.
+---
+
+The CPU host runs the validator loop: it scans the chain for new commitments, pre-checks submissions in a sandbox, dispatches eval jobs to the GPU pod over SSH, and sets weights on-chain.
+
+## Prerequisites
+
+- Ubuntu 22.04+ (or any Debian-based distro)
+- Python 3.10+
+- A GitHub PAT with read access to the `latent-to/cacheon` repo
+- SSH access to your GPU pod (see [GPU pod setup](/docs/validators/gpu-pod-setup))
+
+## 1. Run the setup script
+
+```bash
+export GITHUB_PAT=your_github_pat_here
+
+# One-liner
+curl -fsSL https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup-cpu.sh | bash
+
+# Or clone first
+git clone https://$GITHUB_PAT@github.com/latent-to/cacheon.git ~/cacheon
+bash ~/cacheon/validator/setup-cpu.sh
+```
+
+The script installs system deps (`git`, `python3-venv`, `firejail`), clones the repo to `~/cacheon`, creates a venv at `~/venv-cacheon`, and installs the CPU-side Python deps (`bittensor`, `bittensor-cli`).
+
+### Re-running after code updates
+
+```bash
+export GITHUB_PAT=your_github_pat_here
+bash ~/cacheon/validator/setup-cpu.sh --pull
+```
+
+`--pull` skips apt and venv steps; just pulls the latest code.
+
+## 2. Register on the subnet
+
+You need a Bittensor wallet with a hotkey registered on subnet 14 (mainnet) or 460 (testnet).
+
+```bash
+# Mainnet
+btcli subnet register --netuid 14 \
+  --wallet-name <name> --wallet-hotkey <hotkey>
+
+# Testnet
+btcli subnet register --network test --netuid 460 \
+  --wallet-name <name> --wallet-hotkey <hotkey>
+```
+
+Verify registration:
+
+```bash
+btcli wallet overview --wallet-name <name>
+```
+
+For a full walkthrough on Bittensor wallets and keys, see the [official key management docs](https://docs.learnbittensor.org/keys/working-with-keys).
+
+## 3. Configure environment
+
+Copy the example env file and fill in your values:
+
+```bash
+cp ~/cacheon/validator/.env.validator.example ~/.env.validator
+```
+
+Then edit `~/.env.validator`:
+
+```bash
+CACHEON_NETWORK=finney              # or "test" for testnet
+CACHEON_NETUID=14                   # or 460 for testnet
+CACHEON_WALLET_NAME=my-validator
+CACHEON_WALLET_HOTKEY=default
+CACHEON_POLL_INTERVAL_S=360
+CACHEON_STATE_DIR=~/cacheon/state
+CACHEON_DRY_RUN=0
+```
+
+Source it before running:
+
+```bash
+source ~/.env.validator
+```
+
+### Environment variable reference
+
+| Variable                    | Default                    | Description                                                 |
+| --------------------------- | -------------------------- | ----------------------------------------------------------- |
+| `CACHEON_NETWORK`           | `finney`                   | Bittensor network (`finney`, `test`, or `ws://...`)         |
+| `CACHEON_NETUID`            | `14`                       | Subnet UID                                                  |
+| `CACHEON_WALLET_NAME`       | `default`                  | Wallet name                                                 |
+| `CACHEON_WALLET_HOTKEY`     | `default`                  | Hotkey name                                                 |
+| `CACHEON_POLL_INTERVAL_S`   | `360`                      | Seconds between idle scans                                  |
+| `CACHEON_STATE_DIR`         | `<repo>/state`             | Path for `state.json` persistence                           |
+| `CACHEON_DRY_RUN`           | `0`                        | Set to `1` to skip `set_weights` and GPU eval               |
+| `CACHEON_POLICY_CACHE_DIR`  | `<STATE_DIR>/policy-cache` | Where fetched `policy.py` files are cached                  |
+| `CACHEON_POLICY_MAX_BYTES`  | `1048576`                  | Hard size cap (bytes) on a single `policy.py` download      |
+| `CACHEON_HF_ETAG_TIMEOUT_S` | `30.0`                     | Timeout (s) for HEAD/etag revalidation in `hf_hub_download` |
+| `CACHEON_HF_TOKEN`          | _(none)_                   | Optional HF token for private/gated repos                   |
+
+## 4. Run the validator
+
+```bash
+source ~/venv-cacheon/bin/activate
+source ~/.env.validator
+
+# Mainnet
+python ~/cacheon/scripts/remote_validator.py \
+  --network finney \
+  --netuid 14 \
+  --wallet-name <name> \
+  --wallet-hotkey <hotkey> \
+  --gpu-pod-ssh-host <pod-ip-or-hostname> \
+  --gpu-pod-ssh-user root
+
+# Testnet (dry run, no weights set)
+python ~/cacheon/scripts/remote_validator.py \
+  --network test \
+  --netuid 460 \
+  --wallet-name <name> \
+  --wallet-hotkey <hotkey> \
+  --dry-run -v
+```
+
+All SSH flags can be set via env vars instead of CLI flags:
+
+| Flag                     | Env var                          |
+| ------------------------ | -------------------------------- |
+| `--gpu-pod-ssh-host`     | `CACHEON_GPU_POD_SSH_HOST`       |
+| `--gpu-pod-ssh-user`     | `CACHEON_GPU_POD_SSH_USER`       |
+| `--gpu-pod-ssh-port`     | `CACHEON_GPU_POD_SSH_PORT`       |
+| `--gpu-pod-eval-timeout` | `CACHEON_GPU_POD_EVAL_TIMEOUT_S` |
+| `--gpu-pod-work-dir`     | `CACHEON_GPU_POD_WORK_DIR`       |
+
+<Callout type="info" title="Cold pod timeout">
+  The first eval on a cold GPU pod can take many minutes (model download, dataset caching, CUDA
+  warmup). If this exceeds `--gpu-pod-eval-timeout` (default 1200s), raise it (e.g.
+  `--gpu-pod-eval-timeout 2400`) or let the next poll retry once the pod cache is warm.
+</Callout>
+
+### Running in the background
+
+Use `tmux` or `screen` to keep the validator running after you disconnect:
+
+```bash
+tmux new -s validator
+source ~/venv-cacheon/bin/activate
+source ~/.env.validator
+python ~/cacheon/scripts/remote_validator.py \
+  --network finney --netuid 14 \
+  --wallet-name <name> --wallet-hotkey <hotkey> \
+  --gpu-pod-ssh-host <pod-ip> --gpu-pod-ssh-user root
+# Ctrl+B, D to detach
+```
+
+## Why firejail?
+
+The sandbox pre-check (`inference_engine/runner.py`) executes miner-submitted code in a subprocess. When `firejail` is on `PATH`, the subprocess runs with:
+
+- `--net=none` -- no network access
+- `--private=<workdir>` -- isolated filesystem
+- `--rlimit-as=8g` -- 8 GB memory cap
+- `--rlimit-nproc=64` -- process limit
+
+Without firejail, the pre-check falls back to a bare subprocess (warning logged). This is **not safe in production**: a malicious submission could reach the network or exhaust host resources. Always install firejail on the CPU validator box (`setup-cpu.sh` handles this).
