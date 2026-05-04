@@ -24,7 +24,7 @@ Model weights are provided as a **read-only volume** at `/models`. The validator
 docker run --gpus '"device=0,1,2,3"' \
   -v /workspace/models/Qwen2.5-72B-Instruct:/models:ro \
   -p 127.0.0.1:8080:8000 \
-  --network none --read-only \
+  --network cacheon-eval --read-only \
   <your-image>
 ```
 

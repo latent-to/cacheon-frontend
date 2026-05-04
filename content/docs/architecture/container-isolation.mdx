@@ -14,9 +14,11 @@ Containers run with restricted capabilities:
 ```bash
 docker run \
   --gpus '"device=0,1,2,3"' \
-  --network none \
+  --network cacheon-eval \
   --read-only \
-  --tmpfs /tmp:rw,size=16g \
+  --tmpfs /tmp:size=10g \
+  --tmpfs /root:size=1g \
+  --tmpfs /run \
   --memory 200g \
   --cpus 32 \
   --pids-limit 4096 \
@@ -27,11 +29,19 @@ docker run \
   <miner-image>
 ```
 
+The `cacheon-eval` network is created once at validator startup:
+
+```bash
+docker network create --internal cacheon-eval
+```
+
+The `--internal` flag blocks all container-initiated outbound traffic (no internet, no LAN). The validator can still reach the container's published port via `127.0.0.1`.
+
 | Flag                               | Purpose                                                          |
 | ---------------------------------- | ---------------------------------------------------------------- |
-| `--network none`                   | No network access. Cannot exfiltrate data or download anything.  |
+| `--network cacheon-eval`           | Internal network, no outbound access. Cannot exfiltrate data.    |
 | `--read-only`                      | Root filesystem is read-only. Cannot persist state between runs. |
-| `--tmpfs /tmp`                     | Writable scratch space for runtime. Destroyed on container stop. |
+| `--tmpfs /tmp`, `/root`, `/run`    | Writable scratch space for runtime. Destroyed on container stop. |
 | `-v ...:/models:ro`                | Model weights mounted read-only. Guarantees weight identity.     |
 | `--memory 200g`                    | OOM-kill if memory usage exceeds limit                           |
 | `--cap-drop ALL`                   | No Linux capabilities (no mount, no ptrace, no raw sockets)      |
@@ -58,16 +68,16 @@ Each evaluation starts from a clean state:
 
 ## Threat model
 
-| Threat                   | Mitigation                                                                       |
-| ------------------------ | -------------------------------------------------------------------------------- |
-| **Network exfiltration** | `--network none`. Container cannot reach the internet.                           |
-| **Host escape**          | Dropped capabilities, no privileged mode, no new privileges.                     |
-| **GPU memory snooping**  | Sequential evaluation + GPU state cleanup between runs.                          |
-| **Prompt prediction**    | Block-hash seeded prompts, per-challenger shuffling.                             |
-| **Result manipulation**  | Evaluation runs outside the container; the container only serves HTTP responses. |
-| **Resource exhaustion**  | Memory limits, PID limits, eval timeout. OOM = DQ.                               |
-| **Cryptomining**         | Eval timeout + no network. Mining with no payout destination is pointless.       |
-| **Model weight theft**   | Weights are public (Hugging Face). No secret to steal.                           |
+| Threat                   | Mitigation                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| **Network exfiltration** | Internal Docker network (`--internal`). Container cannot reach the internet.        |
+| **Host escape**          | Dropped capabilities, no privileged mode, no new privileges.                        |
+| **GPU memory snooping**  | Sequential evaluation + GPU state cleanup between runs.                             |
+| **Prompt prediction**    | Block-hash seeded prompts, per-challenger shuffling.                                |
+| **Result manipulation**  | Evaluation runs outside the container; the container only serves HTTP responses.    |
+| **Resource exhaustion**  | Memory limits, PID limits, eval timeout. OOM = DQ.                                  |
+| **Cryptomining**         | Eval timeout + no outbound network. Mining with no payout destination is pointless. |
+| **Model weight theft**   | Weights are public (Hugging Face). No secret to steal.                              |
 
 ## What is not isolated
 

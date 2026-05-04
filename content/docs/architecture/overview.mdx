@@ -15,7 +15,7 @@ Bittensor chain
 GPU machine (4x H200, fixed NVLink topology)
     |
     |-- Validator process (chain, eval loop, weight-setting)
-    |-- vLLM baseline (always-on, tensor-parallel)
+    |-- vLLM baseline (on-demand, tensor-parallel, cached)
     |-- Miner container (started per eval, isolated)
     |-- Model weights volume (/models, read-only)
 ```
@@ -38,14 +38,14 @@ Everything happens on one machine. There is no SSH, no SFTP, no remote dispatch.
 Each miner evaluation follows this lifecycle:
 
 1. **Pull** -- Docker image is pulled by digest from the registry
-2. **Start** -- Container starts with `--gpus '"device=0,1,2,3"'`, model volume mount, port mapping, no network
+2. **Start** -- Container starts with `--gpus '"device=0,1,2,3"'`, model volume mount, port mapping, internal network (no egress)
 3. **Health check** -- Poll `/health` until 200 (timeout: 10 min)
 4. **Warmup** -- 1-2 warmup prompts sent and discarded
 5. **Evaluate** -- Two-pass: speed (streaming) then correctness (logprobs), 10 prompts each
 6. **Teardown** -- Container is stopped and removed
 7. **Cleanup** -- GPU state is reset across all 4 GPUs between evaluations
 
-Containers run without `--privileged`, with restricted capabilities, read-only root filesystem, and no network access.
+Containers run without `--privileged`, with restricted capabilities, read-only root filesystem, and an internal Docker network that blocks all outbound traffic.
 
 ## Model weight delivery
 
@@ -63,7 +63,7 @@ Validator process (on GPU)
     |-- scan chain for commitments
     |-- parse commitment (image + digest)
     |-- pull Docker image
-    |-- start container (mount /models:ro, --network none)
+    |-- start container (mount /models:ro, internal network)
     |-- warmup (1-2 prompts, discarded)
     |-- evaluate (speed + correctness, 10 prompts)
     |-- stop container, GPU cleanup

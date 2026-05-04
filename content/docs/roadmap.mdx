@@ -28,19 +28,19 @@ The point of V1 is to prove the loop: someone submits a containerized server on-
 
 ### V1 build phases
 
-_Last updated: 2026-05-04._
+_Last updated: 2026-05-05._
 
-| Phase                        | What                                                                                  | Status         |
-| ---------------------------- | ------------------------------------------------------------------------------------- | -------------- |
-| 1 -- API contract            | Define `/v1/chat/completions` spec, health checks, streaming, logprobs                | 🟡 In progress |
-| 2 -- Container orchestration | Docker lifecycle: pull, start with volume mount, health poll, eval, teardown          | 🟡 In progress |
-| 3 -- vLLM baseline           | Deploy vLLM on 4x H200, tensor-parallel, pre-compute baseline, cache results          | 🟡 In progress |
-| 4 -- Scoring pipeline        | Two-pass eval: speed (TTFT + throughput, median) + correctness (99% match + logprobs) | 🔲 Pending     |
-| 5 -- Security                | Container isolation: no network, resource limits, GPU cleanup across all 4 GPUs       | 🔲 Pending     |
-| 6A -- Validator loop         | Chain scan, challenger selection, Docker eval, state persistence, `set_weights`       | 🟡 In progress |
-| 6B -- Monitoring API         | Read-only status surface for miners and community                                     | 🔲 Pending     |
+| Phase                        | What                                                                                  | Status     |
+| ---------------------------- | ------------------------------------------------------------------------------------- | ---------- |
+| 1 -- API contract            | Define `/v1/chat/completions` spec, health checks, streaming, logprobs                | ✅ Done    |
+| 2 -- Container orchestration | Docker lifecycle: pull, start with volume mount, health poll, eval, teardown          | ✅ Done    |
+| 3 -- vLLM baseline           | Baseline runner with on-demand container lifecycle, caching per prompt set            | ✅ Done    |
+| 4 -- Scoring pipeline        | Two-pass eval: speed (TTFT + throughput, median) + correctness (99% match + logprobs) | ✅ Done    |
+| 5 -- Security                | Container isolation: internal network, resource limits, GPU cleanup across all 4 GPUs | ✅ Done    |
+| 6A -- Validator loop         | Chain scan, challenger selection, Docker eval, state persistence, `set_weights`       | ✅ Done    |
+| 6B -- Monitoring API         | Read-only status surface for miners and community                                     | 🔲 Pending |
 
-Phase 6A (validator loop, chain interaction, state machine) carries over from the previous architecture and is being adapted for single-machine Docker evaluation. Phases 1-5 are being rebuilt for containerized evaluation on 4x H200.
+Phases 1-5 and 6A are implemented. Phase 6A (validator loop, chain interaction, state machine) carries over from the previous architecture, adapted for single-machine Docker evaluation. The next step is end-to-end testing on the 4x H200 target hardware before mainnet launch.
 
 ## V2 -- Expanded optimization surface
 

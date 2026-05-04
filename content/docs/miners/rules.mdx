@@ -13,7 +13,7 @@ During evaluation, your container runs with:
 | CPU                | Shared host CPU                                  |
 | RAM                | Host memory available                            |
 | Model weights      | Read-only volume mounted at `/models`            |
-| Network            | **None** -- all egress blocked                   |
+| Network            | **Internal only** -- all outbound egress blocked |
 | Filesystem         | Read-only root, writable tmpfs for runtime       |
 | Startup timeout    | 10 minutes                                       |
 | Per-prompt timeout | 120 seconds                                      |
@@ -33,7 +33,7 @@ During evaluation, your container runs with:
 
 - **Speculative decoding.** Draft models, lookahead, and Medusa heads are banned in V1. This simplifies correctness checking. Will be allowed in V2.
 - **Weight quantization.** GPTQ, AWQ, FP8, INT4, or any other quantization scheme is banned in V1. Must load exact BF16 weights from the mounted volume.
-- **Network access.** Your container has no network during evaluation. All dependencies must be baked into the image. Model weights are provided via volume mount.
+- **Network access.** Your container runs on an internal Docker network with no outbound access. All dependencies must be baked into the image. Model weights are provided via volume mount.
 - **Modified model weights.** You must serve the canonical `Qwen2.5-72B-Instruct` weights. Fine-tuned or distilled weights will fail the correctness gate.
 - **Fabricated outputs.** Returning cached or pre-computed responses instead of running actual inference. The validator uses block-hash-seeded prompts that are unpredictable.
 - **Container escape attempts.** The container runs without `--privileged` and with restricted capabilities. Attempting to escape the sandbox results in permanent DQ.
@@ -60,4 +60,4 @@ Prompts are derived from a block-hash seed combined with curated instruction tem
 1. The block hash changes every block
 2. Your container is freshly started for each evaluation
 3. Prompt order is shuffled per challenger (seeded by block_hash + hotkey)
-4. No network access means no external coordination
+4. No outbound network access means no external coordination
