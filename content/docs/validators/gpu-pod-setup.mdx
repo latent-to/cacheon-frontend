@@ -1,0 +1,62 @@
+---
+title: GPU machine setup
+description: Provision an Ubuntu 22.04/24.04 host with Docker, NVIDIA Container Toolkit, model weights, PG19 cache, and the vLLM baseline image using validator/setup.sh.
+---
+
+This page describes **single-machine** provisioning for the Cacheon validator. The operator runs chain logic, Docker evaluation, and weight setting on **one** host with GPUs.
+
+## Hardware
+
+- **4-8x NVIDIA H200 SXM 141GB HBM3e** (production target is 4x; 8x supported)
+- Large fast disk under **`/workspace`** (hard fail below 100 GB free; 200+ GB recommended)
+
+## Setup script
+
+From a clean Ubuntu 22.04 or 24.04 image (Lium, Targon, Shadeform VMs, or similar GPU hosts):
+
+```bash
+# Optional: private fork
+export GITHUB_PAT=...
+
+# Optional: Hugging Face token for gated or rate-limited downloads
+export HF_TOKEN=...
+
+bash validator/setup.sh
+```
+
+What the full run does:
+
+1. Installs system packages: `git`, `curl`, `ca-certificates`, `tmux`, `python3-venv`, `jq`, `gnupg`.
+2. Installs **Docker CE** (via `get.docker.com`) if `docker` is missing. If `dockerd` is not running and `systemctl` cannot manage it (containerized pods), starts it with `nohup dockerd` directly.
+3. Installs **NVIDIA Container Toolkit** from `nvidia.github.io/libnvidia-container/stable/deb/` if `nvidia-ctk` is missing. Always runs `nvidia-ctk runtime configure --runtime=docker` and generates **CDI specs** (`nvidia-ctk cdi generate`) so `--gpus all` works on both DinD pods and standard VMs (required for nvidia-ctk v1.14+ with newer drivers).
+4. Applies **nested-container GPU passthrough fixes** (needed for Lium/Targon DinD-class pods):
+   - Enables `no-cgroups = true` in `/etc/nvidia-container-runtime/config.toml` to skip BPF cgroup device filters that fail inside a nested cgroup v2 namespace.
+   - If `runc` version is 1.2.x or 1.3.x (which rejects inherited `/proc` mounts as "unsafe procfs"), installs `runc v1.1.15` to `/usr/sbin/runc`.
+5. Restarts `dockerd` (via `systemctl` or `nohup dockerd` fallback) to pick up the runtime config and runc changes.
+6. Clones the Cacheon repo: **public HTTPS** if `GITHUB_PAT` is unset; **authenticated** GitHub HTTPS if set (token is never echoed).
+7. Creates a Python venv at `~/venv-cacheon` and installs `validator/requirements.txt`.
+8. Sets **`HF_HOME=/workspace/.cache/huggingface`** for all Hugging Face operations. If `HF_TOKEN` is set, runs `hf auth login` non-interactively.
+9. Checks disk space on `/workspace` (hard fail below 100 GB; warn below 200 GB).
+10. Downloads **`Qwen/Qwen2.5-72B-Instruct`** to `/workspace/models/Qwen2.5-72B-Instruct` via `hf download`.
+11. Pre-caches **`emozilla/pg19`** (train split) to match `validator/prompts.py`.
+12. **`docker pull vllm/vllm-openai:latest`** and prints `CACHEON_BASELINE_IMAGE` / `CACHEON_BASELINE_DIGEST` values to paste into `.env`.
+13. Verification: `nvidia-smi`, `docker run --gpus all ... nvidia-smi`, Python import check (`bittensor`, `datasets`), model directory check.
+
+### Refresh without heavy steps
+
+After the machine is provisioned, update code and Python deps only:
+
+```bash
+bash validator/setup.sh --pull
+```
+
+Runs `git pull` and `pip install -r validator/requirements.txt` only -- no OS packages, model download, dataset fetch, or Docker pull.
+
+## Environment template
+
+Copy `validator/.env.validator.example` and set at minimum:
+
+- Wallet and subnet: `CACHEON_NETWORK`, `CACHEON_NETUID`, `CACHEON_WALLET_NAME`, `CACHEON_WALLET_HOTKEY`, `CACHEON_STATE_DIR`
+- Docker eval: `CACHEON_MODEL_VOLUME` (e.g. `/workspace/models/Qwen2.5-72B-Instruct`), `CACHEON_GPUS` (e.g. `all`), `CACHEON_BASELINE_IMAGE`, `CACHEON_BASELINE_DIGEST` (printed by setup at the end)
+
+See [Validators overview](/docs/validators/overview) and [Architecture: validator](/docs/architecture/validator).
