@@ -1,0 +1,51 @@
+---
+title: Validators overview
+description: Operating the Cacheon validator on a single GPU machine. Environment variables, runtime entrypoint, and where to find setup instructions.
+---
+
+Cacheon runs **one validator process** on the operator-controlled GPU machine. It holds the wallet, scans commitments, runs Docker-backed evaluations against a pinned vLLM baseline, and sets one-hot weights to the current king.
+
+## Hardware target
+
+**4× (or 8x) NVIDIA H200 SXM 141GB HBM3e** with a fixed NVLink topology.
+
+## Provisioning
+
+Ubuntu 22.04 or 24.04. SSH in, paste:
+
+```bash
+apt-get update && apt-get install -y curl sudo
+export GITHUB_PAT=ghp_...
+export HF_TOKEN=... # optional but recommended
+curl -fsSL -u "token:${GITHUB_PAT}" "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup.sh" | sudo -E bash
+```
+
+That runs **[`validator/setup.sh`](https://github.com/latent-to/cacheon/blob/main/validator/setup.sh)** (Docker, NVIDIA toolkit, Python venv, model, PG19, baseline image). Fine-grained PATs: use `-H "Authorization: Bearer ${GITHUB_PAT}"` instead of `-u "token:..."`.
+Already have the repo? `cd cacheon && sudo -E bash validator/setup.sh`.
+Code-only refresh: `bash validator/setup.sh --pull`.
+
+## Configuration
+
+Copy `validator/.env.validator.example` to `.env` and set wallet and subnet variables. For Docker evaluation, set:
+
+| Env var                   | Purpose                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------- |
+| `CACHEON_MODEL_VOLUME`    | Host path to the read-only model directory mounted at `/models` in containers   |
+| `CACHEON_GPUS`            | Value passed to `docker run --gpus` (often `all` or `device=0,1,2,3`)           |
+| `CACHEON_BASELINE_IMAGE`  | Baseline image reference (default `vllm/vllm-openai:latest`)                    |
+| `CACHEON_BASELINE_DIGEST` | `sha256:...` digest from `setup.sh` or `docker inspect`; required for live eval |
+
+Optional: **`HF_TOKEN`** for non-interactive `hf login` during setup when downloading weights.
+
+CLI flags on `scripts/remote_validator.py` override these when both are set. See [Architecture: validator](/docs/architecture/validator) for the full flag table.
+
+## Running
+
+```bash
+python scripts/remote_validator.py \
+  --network finney --netuid 14 \
+  --wallet-name YOUR_WALLET --wallet-hotkey YOUR_HOTKEY \
+  --baseline-digest sha256:...
+```
+
+Use `--dry-run` to exercise the chain loop without Docker eval or weight setting.
