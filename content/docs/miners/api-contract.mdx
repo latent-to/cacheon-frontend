@@ -3,8 +3,6 @@ title: API contract
 description: The OpenAI-compatible HTTP API your inference server must implement. Chat completions endpoint, request format, response format, and required capabilities.
 ---
 
-Your server must expose an OpenAI-compatible HTTP API. The validator sends standard chat completion requests and measures responses. If your server does not comply with this contract, it will be disqualified.
-
 ## Required endpoints
 
 ### `GET /health`
@@ -92,8 +90,6 @@ The validator measures:
 - **TTFT**: wall-clock time from request send to first SSE data chunk
 - **Throughput**: output tokens per second, measured from SSE timestamps
 
-No logprobs are requested. This ensures logprob serialization overhead does not affect speed measurements.
-
 ### Pass 2: Correctness (non-streaming, logprobs requested)
 
 ```json
@@ -117,18 +113,4 @@ This pass is not timed. Take as long as you need.
 
 ## Model identity
 
-Your server must serve the exact `Qwen2.5-72B-Instruct` model weights in BF16. The weights are provided as a read-only volume mount at `/models`. The correctness gate enforces weight identity: if your outputs diverge from the baseline beyond the 99% tolerance threshold, you fail.
-
-**V1 does not allow weight quantization.** All servers must load the exact BF16 weights. This restriction simplifies correctness checking and will be relaxed in V2.
-
-## What you can and cannot do
-
-| Allowed                              | Not allowed (V1)                           |
-| ------------------------------------ | ------------------------------------------ |
-| Custom attention kernels             | Speculative decoding / draft models        |
-| KV cache layout optimization         | Weight quantization (GPTQ, AWQ, FP8, INT4) |
-| Custom memory allocators             | Modified model weights                     |
-| Rust / C++ / any language            | Network access during eval                 |
-| Chunked prefill, continuous batching | Caching previous eval prompts across runs  |
-| Fused operations, custom scheduling  | Returning fabricated logprobs              |
-| Tensor parallel communication opts   | Exceeding the GPU resource allocation      |
+Weights are mounted read-only at `/models`. Serve them as-is in BF16.
