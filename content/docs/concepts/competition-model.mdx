@@ -3,14 +3,14 @@ title: Competition model
 description: King-of-the-hill with winner-take-all emission. Miners submit containerized inference servers. The fastest correct server wins.
 ---
 
-Cacheon uses a **king-of-the-hill** incentive. There is always one reigning champion -- the miner with the fastest inference server on record. **All subnet emission flows to the king.** Challengers compete to dethrone them.
+Cacheon uses a **king-of-the-hill** incentive. There is always one reigning champion—the miner with the fastest inference server on record. **All subnet emissions flow to the king.** Challengers compete to dethrone them.
 
 ## How a round works
 
 1. The validator scans on-chain commitments on every block.
 2. Any hotkey with a revealed commitment that hasn't been evaluated yet is a **challenger**.
 3. If there are no challengers, the king keeps its weight, no GPU runs, and the loop sleeps.
-4. If challengers exist, the validator dispatches eval jobs and compares scores.
+4. If challengers exist, the validator dispatches evaluation jobs and compares scores.
 5. A challenger who beats the king's score **by more than a small, time-decaying margin** takes the throne -- see [defender's moat](#the-defenders-moat). Weights are updated: `winner = 1.0`, everyone else `= 0.0`.
 
 ## The defender's moat

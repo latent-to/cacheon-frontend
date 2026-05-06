@@ -1,6 +1,6 @@
 ---
 title: Why inference optimization matters
-description: Training keeps advancing, but for most real-world usage the bottleneck is inference and deployment. Latency, throughput, and cost decide whether a model is usable in production, and existing benchmarks are fragmented.
+description: Training keeps advancing, but for most real-world usage the bottleneck is inference and deployment. Latency, throughput, and cost decide whether a model is usable in production, and existing benchmarks remain fragmented.
 ---
 
 ## Training advances. Serving decides usability.
@@ -32,7 +32,7 @@ Existing solutions like vLLM, TensorRT-LLM, and SGLang each make different trade
 There is no shared, verifiable benchmark for full-stack inference performance:
 
 - vLLM publishes its own benchmarks against its own baselines
-- Academic papers measure individual techniques in isolation ([@xavi3rlu](https://x.com/xavi3rlu/status/2049950829097127951), [@gaoj0017](https://x.com/gaoj0017/status/2037532673812443214))
+- Academic papers measure individual techniques in isolation <sup>[1]</sup> <sup>[2]</sup>
 - Inference providers report numbers against undisclosed configurations
 
 The **numbers don't compare.** Teams shipping production inference have no way to know which combination of techniques actually wins for their specific model and workload.
@@ -44,6 +44,14 @@ The **numbers don't compare.** Teams shipping production inference have no way t
 
 ## What winning looks like
 
-The endpoint is not a paper or a blog post. The endpoint is an inference server ranked #1 on the leaderboard, serving a top open-source model faster than vLLM on identical hardware. That is a product: the fastest way to run that model, discovered through open competition. PMF comes when that system is not just a benchmark winner, but the backend people actually choose for latency-sensitive inference: agent frameworks that need long-context throughput, other Bittensor subnets that need reliable Qwen/GLM serving, OpenRouter-style aggregators looking for differentiated performance, and teams willing to pay a premium for lower TTFT, higher tokens/sec, and better GPU efficiency without building their own inference stack.
+The endpoint is not a paper or a blog post. The endpoint is an inference server ranked #1 on the leaderboard, serving a top open-source model faster than vLLM on identical hardware. That is the product: the fastest way to run that model, discovered through open competition.
+
+Product market fit comes when that system is not just a benchmark winner, but the backend that people actually choose for latency-sensitive inference: agent frameworks that need long-context throughput, other Bittensor subnets that need reliable Qwen/GLM serving, OpenRouter-style aggregators looking for differentiated performance, and teams willing to pay a premium for lower TTFT, higher tokens/sec, and better GPU efficiency without building their own inference stack.
 
 See the [roadmap](/docs/roadmap) for how V1 through V4 scale from single-model arena to production inference marketplace.
+
+## References
+
+[1]: Xavier Lyu - https://x.com/xavi3rlu/status/2049950829097127951
+
+[2]: Jianyang Gao - https://x.com/gaoj0017/status/2037532673812443214

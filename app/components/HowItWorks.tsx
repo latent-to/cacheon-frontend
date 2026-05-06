@@ -18,8 +18,8 @@ const STEPS = [
     desc: (
       <>
         The validator pulls your image, starts the container with GPU access, and runs a two-pass
-        evaluation: streaming for speed (TTFT + throughput), then non-streaming for correctness
-        (token match + logprob checks).
+        evaluation: a streaming evaluation for speed (TTFT + throughput), then a non-streaming
+        evaluation for correctness (token match + logprob checks).
       </>
     ),
   },

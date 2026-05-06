@@ -14,7 +14,7 @@ export const ROADMAP: RoadmapPhase[] = [
       'Qwen2.5-72B-Instruct on 4x H200 (fixed topology)',
       'Miners submit Docker containers with full inference servers',
       'Scored against a production vLLM tensor-parallel baseline',
-      '99% greedy token match gate, no spec-dec, no quantization',
+      '99% greedy token match gate, no speculative decoding, no quantization',
       'Any language, any framework, any optimization technique',
     ],
   },
