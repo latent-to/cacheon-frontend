@@ -7,7 +7,7 @@ description: The full stack of techniques miners can use, from KV cache compress
 
 Unlike benchmarks that measure one optimization axis in isolation, Cacheon evaluates the **complete serving stack**. Miners submit a containerized inference server; how it works internally is entirely up to them.
 
-This means every layer of the inference stack is fair game:
+This means every layer of the inference stack is fair game.
 
 ## KV cache optimization
 
@@ -48,4 +48,4 @@ The runtime itself matters. Choices at the system level affect every request:
 
 A component benchmark (e.g. "test your KV cache policy in isolation") misses interactions between layers. A quantized KV cache changes the memory access pattern, which changes which attention kernel is optimal, which changes whether speculative decoding is worthwhile. The only honest benchmark is one that evaluates the entire serving stack end-to-end.
 
-That is what Cacheon does. Submit a server. We measure how fast it is. Everything else is your problem.
+That is what Cacheon does. Submit a server. We measure how fast it is. Everything else is up to you.

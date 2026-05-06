@@ -7,7 +7,7 @@ Prompts are **instruct-style requests** built from curated instruction templates
 
 ## Why instruct format
 
-The target model is `Qwen2.5-72B-Instruct` and the long-term positioning is "fastest backend for agentic workflows." Benchmarking with raw text continuation does not reflect real serving workloads. Instruct-format prompts test what production deployments actually send.
+The target model is `Qwen2.5-72B-Instruct` and the long-term positioning is "fastest backend for agentic workflows". Benchmarking with raw text continuation does not reflect real serving workloads. Instruct-format prompts test what production deployments actually send.
 
 ## Prompt design
 
@@ -34,7 +34,11 @@ Inference benchmarking needs long, continuous sequences that stress prefill, att
 
 PG19 is pinned to a specific Hugging Face dataset revision (`a0e01428956e39868fa36ccfa0ee236ff04e6a6b`). Row ordering is stable across upstream updates.
 
-**PG19 must be pre-downloaded** to the local HuggingFace cache before starting the validator. If the dataset is missing, the validator raises an error at startup with a copy-paste download command rather than attempting an 11 GB download mid-evaluation.
+<Callout title="PG19 Setup Requirement" type="info">
+  **PG19 must be pre-downloaded** to the local HuggingFace cache before starting the validator. If
+  the dataset is missing, the validator raises an error at startup with a copy-paste download
+  command rather than attempting an 11 GB download mid-evaluation.
+</Callout>
 
 ## Why PG19 is hard to game
 
@@ -74,4 +78,4 @@ Template diversity is kept because real workloads include varied request shapes 
 
 ## V2 direction
 
-V2 adds multi-turn conversations, RAG-style workloads with variable-length context, and concurrent request batches. V1 focuses on single-request instruct workloads with long context.
+V2 adds multi-turn conversations, RAG-style workloads with variable-length context, and concurrent request batches. V1 focuses on single-request instruct workloads with long context. For more information, see [Roadmap](/docs/roadmap)
