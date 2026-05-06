@@ -10,7 +10,6 @@ During evaluation, your container runs with:
 | Resource           | Value                                            |
 | ------------------ | ------------------------------------------------ |
 | GPU                | 4x H200, exclusive access, fixed NVLink topology |
-| CPU                | Shared host CPU                                  |
 | RAM                | Host memory available                            |
 | Model weights      | Read-only volume mounted at `/models`            |
 | Network            | **Internal only** -- all outbound egress blocked |
@@ -53,11 +52,8 @@ During evaluation, your container runs with:
 | Speculative decoding detected                       | DQ            |
 | Quantized weights detected (via correctness gate)   | DQ            |
 
-## Prompt unpredictability
+## Why gaming the system does not work
 
-Prompts are derived from a block-hash seed combined with curated instruction templates. You cannot predict which prompts will be used for your evaluation. Any attempt to optimize for specific prompts (e.g., caching results from a previous evaluation) will not work because:
+**Faking TTFT:** Even if you game the speed pass (e.g. by emitting a fast first token and stalling), you still have to pass the correctness gate in a separate request. That requires 99%+ greedy token match against the baseline, which means running real inference.
 
-1. The block hash changes every block
-2. Your container is freshly started for each evaluation
-3. Prompt order is shuffled per challenger (seeded by block_hash + hotkey)
-4. No outbound network access means no external coordination
+**Fabricating logprobs:** Speed and correctness are separate passes, so fake logprobs cannot affect your speed score. To pass correctness you still need 99%+ token match against the real baseline. At the few divergent positions that are allowed, the logprobs must place the baseline's exact token in your top-2 with a gap under 0.05. Prompts are block-hash-seeded, so the baseline output is unknown until the block arrives.

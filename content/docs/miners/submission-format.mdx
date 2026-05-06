@@ -1,20 +1,18 @@
 ---
 title: Submission format
-description: How to package your inference server as a Docker image. Model weights are mounted, not baked in. Registry requirements and on-chain commitment format.
+description: Package your inference server as a Docker image. Model weights are mounted, not baked in. Registry requirements and on-chain commitment format.
 ---
-
-Miners submit Docker images. The validator pulls your image, starts it with GPU access and model weights mounted as a read-only volume, and evaluates it.
 
 ## Docker image requirements
 
-| Requirement         | Value                                                                 |
-| ------------------- | --------------------------------------------------------------------- |
-| **Max image size**  | 20 GB (weights are NOT in the image)                                  |
-| **Base image**      | Any (Ubuntu, Alpine, scratch, etc.)                                   |
-| **GPU runtime**     | Must work with `--gpus '"device=0,1,2,3"'` (NVIDIA Container Toolkit) |
-| **Exposed port**    | Your server must listen on port `8000`                                |
-| **Health endpoint** | `GET /health` must return 200 when ready                              |
-| **Startup timeout** | 10 minutes from container start to healthy                            |
+| Requirement         | Value                                      |
+| ------------------- | ------------------------------------------ |
+| **Max image size**  | 20 GB (weights are NOT in the image)       |
+| **Base image**      | Any (Ubuntu, Alpine, scratch, etc.)        |
+| **GPU runtime**     | Must work with NVIDIA Container Toolkit    |
+| **Exposed port**    | Your server must listen on port `8000`     |
+| **Health endpoint** | `GET /health` must return 200 when ready   |
+| **Startup timeout** | 10 minutes from container start to healthy |
 
 ## Model weights: mounted, not baked
 
@@ -29,8 +27,6 @@ docker run --gpus '"device=0,1,2,3"' \
 ```
 
 Your server must load weights from `/models`. Do not bake 72B weights into your Docker image (it would be 140GB+ and impractical to pull).
-
-This also guarantees **weight identity**: every miner loads the exact same bytes. The validator does not need to verify weights inside your container.
 
 ## Example Dockerfile
 
@@ -74,15 +70,3 @@ The commitment you post on-chain is a JSON object:
 ```
 
 The `digest` is the image manifest digest. This pins the exact image content so the validator always pulls the same bytes, regardless of tag mutations.
-
-## GPU resource allocation
-
-V1 evaluation runs on **4x H200** with fixed NVLink topology. Your container gets exclusive access to all 4 GPUs during evaluation. Other containers are not running simultaneously.
-
-Plan your resource budget:
-
-- Model weights (BF16): ~140 GB across 4 GPUs with tensor parallelism
-- KV cache at 32K context: several GB per GPU depending on your implementation
-- Runtime overhead: varies by framework
-
-If your server OOMs, it is disqualified.

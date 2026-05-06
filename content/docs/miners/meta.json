@@ -1,11 +1,4 @@
 {
   "title": "Miners",
-  "pages": [
-    "overview",
-    "api-contract",
-    "submission-format",
-    "testing-locally",
-    "registration",
-    "rules"
-  ]
+  "pages": ["overview", "api-contract", "submission-format", "registration", "rules"]
 }

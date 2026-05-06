@@ -1,6 +1,6 @@
 ---
 title: Overview
-description: What Cacheon mining is, what you need, and the high-level flow from idea to on-chain submission.
+description: Mining with your inference servers - requirements, workflow, evaluation, acceptance
 ---
 
 ## What you're building
@@ -11,12 +11,12 @@ You build a Docker image, push it to a container registry, and commit the image 
 
 ## Prerequisites
 
-| Requirement                 | Details                                                                                                                             |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Bittensor wallet**        | Registered on subnet 14 (mainnet) or 460 (testnet). See [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets). |
-| **Container registry**      | Your Docker image must be publicly pullable. Docker Hub, GitHub Container Registry, or any public registry works.                   |
-| **GPU (for local testing)** | 4x H200 (or multi-GPU setup with enough VRAM for 72B in BF16). Needed to verify your server works and to benchmark locally.         |
-| **Model weights**           | `Qwen2.5-72B-Instruct` from Hugging Face. On the real validator, weights are provided as a read-only volume mount.                  |
+| Requirement                           | Details                                                                                                                             |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Bittensor wallet**                  | Registered on subnet 14 (mainnet) or 470 (testnet). See [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets). |
+| **Container registry**                | Your Docker image must be publicly pullable. Docker Hub, GitHub Container Registry, or any public registry works.                   |
+| **GPU (for local testing)**           | 4x H200 (or multi-GPU setup with enough VRAM for 72B in BF16). Needed to verify your server works and to benchmark locally.         |
+| **Model weights (for local testing)** | `Qwen2.5-72B-Instruct`. On the real validator, weights are provided as a read-only volume mount.                                    |
 
 <Callout type="info" title="You don't need your own GPU to register">
   Registration is just a commitment on-chain pointing to your Docker image. The validator machine
@@ -27,35 +27,22 @@ You build a Docker image, push it to a container registry, and commit the image 
 ## High-level flow
 
 1. Understand the API contract. See [API contract](/docs/miners/api-contract)
-2. Build your inference server and Dockerfile. See [Submission format](/docs/miners/submission-format)
-3. (Recommended) Test locally against vLLM. See [Testing locally](/docs/miners/testing-locally)
-4. Push your Docker image to a public registry
-5. Commit the image reference on-chain. See [Registration](/docs/miners/registration)
-6. Validator picks you up, pulls your image, evaluates, scores
+2. Build your inference server and Dockerfile. Test it locally. See [Submission format](/docs/miners/submission-format)
+3. Push your Docker image to a public registry
+4. Commit the image reference on-chain. See [Registration](/docs/miners/registration)
+5. Validator picks you up, pulls your image, evaluates, scores
 
 <Callout type="info" title="Required steps">
   Steps 4 and 5 are the only required actions. Everything else is preparation.
 </Callout>
 
-## Scoring axes (quick summary)
-
-Your server is scored on three axes:
-
-- **TTFT improvement**: how much faster your server produces the first token vs. vLLM (median across 10 prompts, floored at 0)
-- **Throughput improvement**: how many more output tokens/sec your server achieves vs. vLLM (median, floored at 0)
-- **Correctness**: your outputs must match the baseline (99%+ greedy token match + logprob verification). Fail this and your score is zero.
+## Scoring
 
 Full details in [Scoring](/docs/evaluation/scoring).
 
-## V1 constraints
+## Rules & V1 constraints
 
-V1 deliberately restricts the optimization surface to keep correctness checking simple:
-
-- **No speculative decoding** -- draft models / lookahead are banned
-- **No weight quantization** -- must load exact BF16 weights from the mounted volume
-- **No alternate models** -- same model, same weights as the baseline
-
-These restrictions will be relaxed in V2. See [Roadmap](/docs/roadmap).
+See [Rules](/docs/miners/rules) for the full list. Some restrictions (speculative decoding, quantization) will be relaxed in V2 -- see the [Roadmap](/docs/roadmap).
 
 ## Common pitfalls
 

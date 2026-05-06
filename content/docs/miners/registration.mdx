@@ -59,29 +59,4 @@ This calls `subtensor.set_reveal_commitment()` with a JSON payload:
 
 ## What happens after
 
-1. Validator detects your commitment on the next block
-2. Validator pulls your Docker image by digest
-3. Container starts with GPU access, validator polls `/health`
-4. Prompts are sent, speed and correctness are measured
-5. Score is computed and compared against the king
-6. If you beat the king (with margin), you take the throne
-
-## Testnet
-
-For testnet (netuid 460), the flow is identical but uses `--network test`:
-
-```bash
-python miner/commit.py \
-  --wallet-name <your-wallet> \
-  --wallet-hotkey <your-hotkey> \
-  --image "docker.io/myuser/cacheon-miner:v1" \
-  --digest "sha256:abc123..." \
-  --network test \
-  --netuid 460
-```
-
-## Troubleshooting
-
-- **Image not found.** Make sure the image is publicly pullable without authentication. Test with `docker pull <image>@<digest>` from a clean machine.
-- **Digest mismatch.** The on-chain digest must match the registry's manifest digest exactly. Use `docker inspect` to verify.
-- **Already committed.** If you already committed on this hotkey, you cannot change it. Register a new hotkey.
+The validator pulls your image and runs the [evaluation harness](/docs/evaluation/harness). If your score beats the king, you take the throne.
