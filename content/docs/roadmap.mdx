@@ -18,7 +18,7 @@ Big model, simple mechanism:
 - Model weights: mounted read-only, not baked into images
 - Miners submit Docker containers with full inference servers
 - Instruct-style prompts: curated templates + PG19 context, block-hash seeded
-- Correctness gate: 99%+ greedy token match + logprob verification
+- Correctness gate: per-prompt first-divergence analysis with logprob verification
 - Scoring: `0.5 x TTFT + 0.5 x throughput` (median across 10 prompts, floored at 0)
 - No speculative decoding, no weight quantization in V1
 - King-of-the-hill, winner-take-all
@@ -30,15 +30,15 @@ The point of V1 is to prove the loop: someone submits a containerized server on-
 
 _Last updated: 2026-05-05._
 
-| Phase                        | What                                                                                  | Status     |
-| ---------------------------- | ------------------------------------------------------------------------------------- | ---------- |
-| 1 -- API contract            | Define `/v1/chat/completions` spec, health checks, streaming, logprobs                | ✅ Done    |
-| 2 -- Container orchestration | Docker lifecycle: pull, start with volume mount, health poll, eval, teardown          | ✅ Done    |
-| 3 -- vLLM baseline           | Baseline runner with on-demand container lifecycle, caching per prompt set            | ✅ Done    |
-| 4 -- Scoring pipeline        | Two-pass eval: speed (TTFT + throughput, median) + correctness (99% match + logprobs) | ✅ Done    |
-| 5 -- Security                | Container isolation: internal network, resource limits, GPU cleanup across all 4 GPUs | ✅ Done    |
-| 6A -- Validator loop         | Chain scan, challenger selection, Docker eval, state persistence, `set_weights`       | ✅ Done    |
-| 6B -- Monitoring API         | Read-only status surface for miners and community                                     | 🔲 Pending |
+| Phase                        | What                                                                                   | Status     |
+| ---------------------------- | -------------------------------------------------------------------------------------- | ---------- |
+| 1 -- API contract            | Define `/v1/chat/completions` spec, health checks, streaming, logprobs                 | ✅ Done    |
+| 2 -- Container orchestration | Docker lifecycle: pull, start with volume mount, health poll, eval, teardown           | ✅ Done    |
+| 3 -- vLLM baseline           | Baseline runner with on-demand container lifecycle, caching per prompt set             | ✅ Done    |
+| 4 -- Scoring pipeline        | Two-pass eval: speed (TTFT + throughput, median) + correctness (first-divergence gate) | ✅ Done    |
+| 5 -- Security                | Container isolation: internal network, resource limits, GPU cleanup across all 4 GPUs  | ✅ Done    |
+| 6A -- Validator loop         | Chain scan, challenger selection, Docker eval, state persistence, `set_weights`        | ✅ Done    |
+| 6B -- Monitoring API         | Read-only status surface for miners and community                                      | 🔲 Pending |
 
 Phases 1-5 and 6A are implemented. Phase 6A (validator loop, chain interaction, state machine) carries over from the previous architecture, adapted for single-machine Docker evaluation. The next step is end-to-end testing on the 4x H200 target hardware before mainnet launch.
 

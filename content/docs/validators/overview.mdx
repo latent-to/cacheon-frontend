@@ -1,13 +1,13 @@
 ---
 title: Validators overview
-description: Operating the Cacheon validator on a single GPU machine. Environment variables, runtime entrypoint, and where to find setup instructions.
+description: Operating the Cacheon validator on a single GPU machine. Environment variables, Docker Compose deployment, and where to find setup instructions.
 ---
 
 Cacheon runs **one validator process** on the operator-controlled GPU machine. It holds the wallet, scans commitments, runs Docker-backed evaluations against a pinned vLLM baseline, and sets one-hot weights to the current king.
 
 ## Hardware target
 
-**4× (or 8x) NVIDIA H200 SXM 141GB HBM3e** with a fixed NVLink topology.
+**4x (or 8x) NVIDIA H200 SXM 141GB HBM3e** with a fixed NVLink topology.
 
 ## Provisioning
 
@@ -20,32 +20,38 @@ export HF_TOKEN=... # optional but recommended
 curl -fsSL -u "token:${GITHUB_PAT}" "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup.sh" | sudo -E bash
 ```
 
-That runs **[`validator/setup.sh`](https://github.com/latent-to/cacheon/blob/main/validator/setup.sh)** (Docker, NVIDIA toolkit, Python venv, model, PG19, baseline image). Fine-grained PATs: use `-H "Authorization: Bearer ${GITHUB_PAT}"` instead of `-u "token:..."`.
+That runs **[`validator/setup.sh`](https://github.com/latent-to/cacheon/blob/main/validator/setup.sh)** (Docker, NVIDIA toolkit, model weights, PG19, baseline image). Fine-grained PATs: use `-H "Authorization: Bearer ${GITHUB_PAT}"` instead of `-u "token:..."`.
 Already have the repo? `cd cacheon && sudo -E bash validator/setup.sh`.
 Code-only refresh: `bash validator/setup.sh --pull`.
 
 ## Configuration
 
-Copy `validator/.env.validator.example` to `.env` and set wallet and subnet variables. For Docker evaluation, set:
+Copy `validator/.env.validator.example` to `validator/.env` and fill in the required values:
 
 | Env var                   | Purpose                                                                         |
 | ------------------------- | ------------------------------------------------------------------------------- |
+| `CACHEON_NETWORK`         | Bittensor network: `finney` (mainnet) or `test` (testnet)                       |
+| `CACHEON_NETUID`          | Subnet UID (`14` on mainnet, `470` on testnet)                                  |
+| `CACHEON_WALLET_NAME`     | Bittensor wallet name                                                           |
+| `CACHEON_WALLET_HOTKEY`   | Bittensor hotkey name                                                           |
+| `CACHEON_GPU_COUNT`       | Number of GPUs on the machine (e.g. `4` or `8`)                                 |
 | `CACHEON_MODEL_VOLUME`    | Host path to the read-only model directory mounted at `/models` in containers   |
-| `CACHEON_GPUS`            | Value passed to `docker run --gpus` (often `all` or `device=0,1,2,3`)           |
 | `CACHEON_BASELINE_IMAGE`  | Baseline image reference (default `vllm/vllm-openai:latest`)                    |
 | `CACHEON_BASELINE_DIGEST` | `sha256:...` digest from `setup.sh` or `docker inspect`; required for live eval |
 
 Optional: **`HF_TOKEN`** for non-interactive `hf login` during setup when downloading weights.
 
-CLI flags on `scripts/remote_validator.py` override these when both are set. See [Architecture: validator](/docs/architecture/validator) for the full flag table.
+See [Architecture: validator](/docs/architecture/validator) for the full env var reference.
 
 ## Running
 
+The validator runs as a Docker container via Docker Compose:
+
 ```bash
-python scripts/remote_validator.py \
-  --network finney --netuid 14 \
-  --wallet-name YOUR_WALLET --wallet-hotkey YOUR_HOTKEY \
-  --baseline-digest sha256:...
+cd cacheon/validator
+docker compose up --build
 ```
 
-Use `--dry-run` to exercise the chain loop without Docker eval or weight setting.
+Docker Compose builds the validator image, creates the dual-network topology (`cacheon-internal` for miner containers, `cacheon-egress` for chain access), mounts the Docker socket, wallet, and state directory, and starts the validator loop.
+
+To run in dry-run mode (chain scanning without Docker eval or weight setting), set `CACHEON_DRY_RUN=1` in your `.env` file.

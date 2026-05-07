@@ -104,10 +104,7 @@ The validator measures:
 }
 ```
 
-The validator compares:
-
-- **Token match**: your output tokens vs. the baseline's output tokens (must be >= 99%)
-- **Logprob verification**: at divergent positions, checks that the baseline's token appears in your top-2 and the logprob gap is small
+The validator compares your output against the baseline using **per-prompt first-divergence analysis** with logprob verification. See [Scoring](/docs/evaluation/scoring) for the full specification.
 
 This pass is not timed. Take as long as you need.
 
