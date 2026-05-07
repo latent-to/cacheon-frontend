@@ -39,11 +39,11 @@ This is deliberate:
 
 Each evaluation round measures three properties per challenger:
 
-| Axis        | How it's measured                                                     |
-| ----------- | --------------------------------------------------------------------- |
-| Correctness | Greedy token match against baseline + logprob spot-checks. Hard gate. |
-| TTFT        | Time-to-first-token improvement vs. vLLM baseline                     |
-| Throughput  | Output tokens/sec improvement vs. vLLM baseline                       |
+| Axis        | How it's measured                                              |
+| ----------- | -------------------------------------------------------------- |
+| Correctness | First-divergence logprob analysis against baseline. Hard gate. |
+| TTFT        | Time-to-first-token improvement vs. vLLM baseline              |
+| Throughput  | Output tokens/sec improvement vs. vLLM baseline                |
 
 The final score is:
 

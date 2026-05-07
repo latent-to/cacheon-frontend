@@ -54,9 +54,16 @@ Runs `git pull` and `pip install -r validator/requirements.txt` only -- no OS pa
 
 ## Environment template
 
-Copy `validator/.env.validator.example` and set at minimum:
+Copy `validator/.env.validator.example` to `validator/.env` and set at minimum:
 
-- Wallet and subnet: `CACHEON_NETWORK`, `CACHEON_NETUID`, `CACHEON_WALLET_NAME`, `CACHEON_WALLET_HOTKEY`, `CACHEON_STATE_DIR`
-- Docker eval: `CACHEON_MODEL_VOLUME` (e.g. `/workspace/models/Qwen2.5-72B-Instruct`), `CACHEON_GPUS` (e.g. `all`), `CACHEON_BASELINE_IMAGE`, `CACHEON_BASELINE_DIGEST` (printed by setup at the end)
+- Wallet and subnet: `CACHEON_NETWORK`, `CACHEON_NETUID`, `CACHEON_WALLET_NAME`, `CACHEON_WALLET_HOTKEY`
+- Docker eval: `CACHEON_GPU_COUNT`, `CACHEON_MODEL_VOLUME` (e.g. `/workspace/models/Qwen2.5-72B-Instruct`), `CACHEON_BASELINE_IMAGE`, `CACHEON_BASELINE_DIGEST` (printed by setup at the end)
 
-See [Validators overview](/docs/validators/overview) and [Architecture: validator](/docs/architecture/validator).
+## Running the validator
+
+```bash
+cd cacheon/validator
+docker compose up --build
+```
+
+This builds the validator container, creates the dual-network topology, mounts the Docker socket and volumes, and starts the evaluation loop. See [Validators overview](/docs/validators/overview) and [Architecture: validator](/docs/architecture/validator).

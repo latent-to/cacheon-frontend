@@ -13,7 +13,7 @@ During evaluation, your container runs with:
 | RAM                | Host memory available                            |
 | Model weights      | Read-only volume mounted at `/models`            |
 | Network            | **Internal only** -- all outbound egress blocked |
-| Filesystem         | Read-only root, writable tmpfs for runtime       |
+| Filesystem         | Model weights read-only at `/models`             |
 | Startup timeout    | 10 minutes                                       |
 | Per-prompt timeout | 120 seconds                                      |
 
@@ -35,7 +35,7 @@ During evaluation, your container runs with:
 - **Network access.** Your container runs on an internal Docker network with no outbound access. All dependencies must be baked into the image. Model weights are provided via volume mount.
 - **Modified model weights.** You must serve the canonical `Qwen2.5-72B-Instruct` weights. Fine-tuned or distilled weights will fail the correctness gate.
 - **Fabricated outputs.** Returning cached or pre-computed responses instead of running actual inference. The validator uses block-hash-seeded prompts that are unpredictable.
-- **Container escape attempts.** The container runs without `--privileged` and with restricted capabilities. Attempting to escape the sandbox results in permanent DQ.
+- **Container escape attempts.** The container runs without `--privileged`. Attempting to escape the sandbox results in permanent DQ.
 - **Excessive resource usage.** If your container OOMs or exceeds resource limits, it is killed and DQ'd.
 
 ## Disqualification conditions
@@ -45,7 +45,7 @@ During evaluation, your container runs with:
 | Startup timeout exceeded (10 min)                   | DQ            |
 | Per-prompt timeout exceeded (120s)                  | DQ            |
 | `/health` never returns 200                         | DQ            |
-| Correctness gate fails (token match < 99%)          | DQ, score = 0 |
+| Correctness gate fails                              | DQ, score = 0 |
 | OOM or container crash during eval                  | DQ            |
 | Duplicate of king's image digest                    | DQ            |
 | Non-compliant API (missing endpoints, wrong format) | DQ            |
@@ -54,6 +54,6 @@ During evaluation, your container runs with:
 
 ## Why gaming the system does not work
 
-**Faking TTFT:** Even if you game the speed pass (e.g. by emitting a fast first token and stalling), you still have to pass the correctness gate in a separate request. That requires 99%+ greedy token match against the baseline, which means running real inference.
+**Faking TTFT:** Even if you game the speed pass (e.g. by emitting a fast first token and stalling), you still have to pass the correctness gate in a separate request. That requires running real inference against the exact same model weights.
 
-**Fabricating logprobs:** Speed and correctness are separate passes, so fake logprobs cannot affect your speed score. To pass correctness you still need 99%+ token match against the real baseline. At the few divergent positions that are allowed, the logprobs must place the baseline's exact token in your top-2 with a gap under 0.05. Prompts are block-hash-seeded, so the baseline output is unknown until the block arrives.
+**Fabricating logprobs:** Speed and correctness are separate passes, so fake logprobs cannot affect your speed score. To pass correctness, at least 9 out of 10 prompts must have their first divergence point show the baseline token in your top-5 with a gap under 0.5. Prompts are block-hash-seeded, so the baseline output is unknown until the block arrives. You would need to run the exact correct model to know what to fabricate, defeating any speed advantage.

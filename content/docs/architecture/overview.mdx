@@ -1,9 +1,9 @@
 ---
 title: Architecture overview
-description: Single GPU machine running chain interaction, Docker container orchestration, vLLM baseline, and evaluation. 4x H200, mounted model weights, one process.
+description: Single GPU machine running chain interaction, Docker container orchestration, vLLM baseline, and evaluation. 4x H200, mounted model weights, dual-network isolation.
 ---
 
-Cacheon runs on a single GPU machine. The validator process handles chain interaction, Docker orchestration, evaluation, and weight-setting. Miner servers run in isolated Docker containers on the same machine. Model weights are mounted as a read-only volume.
+Cacheon runs on a single GPU machine. The validator runs as a Docker container that orchestrates miner evaluations via the host Docker socket. Miner servers run in isolated sibling containers on an internal network. Model weights are mounted as a read-only volume.
 
 ## High-level topology
 
@@ -14,20 +14,23 @@ Bittensor chain
     v
 GPU machine (4x H200, fixed NVLink topology)
     |
-    |-- Validator process (chain, eval loop, weight-setting)
-    |-- vLLM baseline (on-demand, tensor-parallel, cached)
+    |-- Validator container (chain, eval loop, weight-setting)
+    |       connected to: cacheon-internal + cacheon-egress
+    |-- vLLM baseline container (on-demand, tensor-parallel, cached)
+    |       connected to: cacheon-internal only
     |-- Miner container (started per eval, isolated)
+    |       connected to: cacheon-internal only
     |-- Model weights volume (/models, read-only)
 ```
 
-## The validator process
+## The validator container
 
-The validator is a single long-running process on the GPU machine:
+The validator runs as a Docker container on the GPU machine with the Docker socket mounted:
 
-- Holds the wallet keys and interacts with the Bittensor chain
+- Holds the wallet keys and interacts with the Bittensor chain (via `cacheon-egress` network)
 - Scans on-chain commitments for new challengers every block
 - Validates commitment format (Docker image reference, sha256 digest)
-- Pulls miner Docker images and runs containerized evaluations locally
+- Starts miner Docker containers on the `cacheon-internal` network and reaches them by container IP
 - Compares results against the current king
 - Sets one-hot weights (`winner = 1.0`, everyone else `= 0.0`)
 
@@ -38,14 +41,14 @@ Everything happens on one machine. There is no SSH, no SFTP, no remote dispatch.
 Each miner evaluation follows this lifecycle:
 
 1. **Pull** -- Docker image is pulled by digest from the registry
-2. **Start** -- Container starts with `--gpus '"device=0,1,2,3"'`, model volume mount, port mapping, internal network (no egress)
+2. **Start** -- Container starts with `--gpus all`, model volume mount, on the `cacheon-internal` network (no egress)
 3. **Health check** -- Poll `/health` until 200 (timeout: 10 min)
 4. **Warmup** -- 1-2 warmup prompts sent and discarded
 5. **Evaluate** -- Two-pass: speed (streaming) then correctness (logprobs), 10 prompts each
 6. **Teardown** -- Container is stopped and removed
 7. **Cleanup** -- GPU state is reset across all 4 GPUs between evaluations
 
-Containers run without `--privileged`, with restricted capabilities, read-only root filesystem, and an internal Docker network that blocks all outbound traffic.
+Containers run without `--privileged`, on an internal Docker network that blocks all outbound traffic, with model weights mounted read-only at `/models`.
 
 ## Model weight delivery
 

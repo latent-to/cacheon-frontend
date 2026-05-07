@@ -81,7 +81,7 @@ Result of one challenger evaluation:
 | `ttft_improvement`               | float  | `max(0, (baseline - miner) / baseline)` on medians        |
 | `throughput_improvement`         | float  | `max(0, (miner - baseline) / baseline)` on medians        |
 | `token_match_rate`               | float  | Fraction of output tokens matching baseline (all prompts) |
-| `correctness_pass`               | bool   | Whether the correctness gate was passed (>= 99%)          |
+| `correctness_pass`               | bool   | Whether the correctness gate was passed                   |
 | `score`                          | float  | `0.5 * ttft + 0.5 * throughput` if correct, else 0        |
 | `disqualified`                   | bool   | Whether the submission was DQ'd                           |
 | `aggregation`                    | string | Always `"median"` in V1                                   |

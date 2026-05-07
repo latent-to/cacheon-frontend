@@ -9,44 +9,35 @@ Miner containers run arbitrary code with GPU access. The isolation model must pr
 
 ### Layer 1: Docker container
 
-Containers run with restricted capabilities:
+Containers run in a dedicated internal Docker network with resource limits and a read-only model mount:
 
 ```bash
 docker run \
-  --gpus '"device=0,1,2,3"' \
-  --network cacheon-eval \
-  --read-only \
-  --tmpfs /tmp:size=10g \
-  --tmpfs /root:size=1g \
-  --tmpfs /run \
+  --gpus all \
+  --network cacheon-internal \
   --memory 200g \
   --cpus 32 \
   --pids-limit 4096 \
-  --security-opt no-new-privileges \
-  --cap-drop ALL \
+  --shm-size 16g \
   -v /workspace/models/Qwen2.5-72B-Instruct:/models:ro \
-  -p 127.0.0.1:8080:8000 \
   <miner-image>
 ```
 
-The `cacheon-eval` network is created once at validator startup:
+The validator uses two Docker networks:
 
-```bash
-docker network create --internal cacheon-eval
-```
+- `cacheon-internal` (`--internal`): no internet, no LAN. Miner and baseline containers live here.
+- `cacheon-egress` (regular bridge): internet access for chain RPC and image pulls. Validator only.
 
-The `--internal` flag blocks all container-initiated outbound traffic (no internet, no LAN). The validator can still reach the container's published port via `127.0.0.1`.
+The validator container is connected to both networks; it reaches miner containers by their internal IP. Miner containers are connected to `cacheon-internal` only.
 
-| Flag                               | Purpose                                                          |
-| ---------------------------------- | ---------------------------------------------------------------- |
-| `--network cacheon-eval`           | Internal network, no outbound access. Cannot exfiltrate data.    |
-| `--read-only`                      | Root filesystem is read-only. Cannot persist state between runs. |
-| `--tmpfs /tmp`, `/root`, `/run`    | Writable scratch space for runtime. Destroyed on container stop. |
-| `-v ...:/models:ro`                | Model weights mounted read-only. Guarantees weight identity.     |
-| `--memory 200g`                    | OOM-kill if memory usage exceeds limit                           |
-| `--cap-drop ALL`                   | No Linux capabilities (no mount, no ptrace, no raw sockets)      |
-| `--security-opt no-new-privileges` | Cannot escalate privileges via setuid/setgid                     |
-| `-p 127.0.0.1:8080:8000`           | Only accessible from localhost                                   |
+| Flag                         | Purpose                                                       |
+| ---------------------------- | ------------------------------------------------------------- |
+| `--network cacheon-internal` | Internal network, no outbound access. Cannot exfiltrate data. |
+| `-v ...:/models:ro`          | Model weights mounted read-only. Guarantees weight identity.  |
+| `--memory 200g`              | OOM-kill if memory usage exceeds limit.                       |
+| `--cpus 32`                  | CPU time cap.                                                 |
+| `--pids-limit 4096`          | Limits runaway process spawning.                              |
+| `--shm-size 16g`             | Shared memory for multi-process GPU frameworks (e.g. NCCL).   |
 
 ### Layer 2: GPU isolation
 
@@ -71,7 +62,7 @@ Each evaluation starts from a clean state:
 | Threat                   | Mitigation                                                                          |
 | ------------------------ | ----------------------------------------------------------------------------------- |
 | **Network exfiltration** | Internal Docker network (`--internal`). Container cannot reach the internet.        |
-| **Host escape**          | Dropped capabilities, no privileged mode, no new privileges.                        |
+| **Host escape**          | No `--privileged`, Docker kernel namespace isolation.                               |
 | **GPU memory snooping**  | Sequential evaluation + GPU state cleanup between runs.                             |
 | **Prompt prediction**    | Block-hash seeded prompts, per-challenger shuffling.                                |
 | **Result manipulation**  | Evaluation runs outside the container; the container only serves HTTP responses.    |

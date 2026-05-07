@@ -1,6 +1,6 @@
 ---
 title: Scoring
-description: Two-pass evaluation. 99%+ greedy token match correctness gate. Speed score is 50% TTFT + 50% throughput, both relative to vLLM baseline, floored at zero. Median across prompts.
+description: Two-pass evaluation. Correctness-gated speed scoring. TTFT and throughput improvements relative to vLLM baseline, floored at zero. Median across prompts.
 ---
 
 The scoring algorithm uses a **correctness-gated speed model**. A strict correctness check acts as a primary filter; submissions that fail it receive a zero score. For valid submissions, the final score combines TTFT and throughput improvements against the vLLM baseline.
@@ -56,42 +56,39 @@ Before the scored prompts, the validator sends **1-2 warmup prompts** that are d
 
 ## Correctness gate
 
-Correctness is enforced via greedy token matching with logprob spot-checks. Both the baseline and the miner run with `temperature=0` (greedy decoding) on identical model weights.
+Correctness verifies that the miner serves the **exact same model with the same weights** using **greedy decoding** (`temperature=0`).
 
-### Token match
+Because multi-GPU tensor parallelism introduces tiny numerical differences between runs, a strict global token-match rate falsely disqualifies legitimate miners. One near-tie flip at an early token causes the entire rest of the sequence to diverge (the cascade effect).
 
-```
-token_match_rate = matching_tokens / total_tokens
-```
+Instead, the gate uses **per-prompt first-divergence analysis**:
 
-Across all prompts. Must be >= 99%.
+1. For each prompt, the validator walks the baseline and miner outputs token-by-token until the first mismatch.
+2. If there is no mismatch, the prompt passes.
+3. If there is a mismatch, the validator checks the logprobs at that position:
+   - The baseline's token must appear in the miner's **top-5** logprobs
+   - The logprob gap between the miner's chosen token and the baseline's token must be **<= 0.5**
+   - The miner's chosen token must be its own **top-1** (greedy decoding verification)
+4. If all three hold, the divergence is classified as tensor-parallel numerical noise and the prompt passes.
 
-V1 bans quantization and speculative decoding. With identical BF16 weights, greedy decoding, and temperature=0, token divergence should be extremely rare. Different attention kernel implementations can occasionally flip the argmax at positions where the top-2 logprobs are very close, but this should affect fewer than 1% of tokens. The 99% threshold catches any real divergence while allowing the occasional numerical edge case.
+### Prompt-level pass rate
 
-### Logprob verification
+At least **9 out of 10 prompts** must pass. A single failed prompt is allowed as a safety margin; a wrong model or quantized weights will typically fail on many prompts.
 
-At positions where the miner's output token differs from the baseline's:
+### Why this catches bad actors
 
-1. The baseline's chosen token must appear in the miner's **top-2** logprobs
-2. The logprob gap between the miner's top-1 and the baseline's token must be **< 0.05**
+- **Quantized weights** (INT8/INT4/FP8): logprob shifts are typically 0.5-2.0+. The baseline token will not be in the top-5 with a small gap.
+- **Modified architecture** (missing layers, different attention): distributions are completely different. Caught immediately.
+- **Non-greedy decoding** (`temperature > 0`): the miner's chosen token will not be its own top-1.
+- **Fabricated logprobs**: the miner does not know the baseline output (prompts are block-hash seeded). To fabricate correctly they would need to run the exact correct model, defeating any speed advantage.
 
-If either check fails at any position, the submission is DQ'd.
-
-This catches:
-
-- Modified model weights (would show large logprob divergence)
-- Truncated models (missing layers change the distribution)
-- Wrong sampling (non-greedy decoding)
-- Fabricated outputs (random tokens won't have correct logprob structure)
-
-### Why token match, not full KL divergence
+### Why not full KL divergence
 
 The OpenAI-compatible API returns top-N logprobs, not the full vocabulary distribution. True KL divergence requires the full ~152K-token distribution per position. Returning that through an HTTP API would be:
 
 - ~600KB per token position at float32
 - ~150MB per prompt at 256 generated tokens
 
-This is impractical for an API benchmark and would itself distort speed measurements. Greedy token match + logprob spot-checks achieves the same goal with minimal overhead.
+This is impractical for an API benchmark and would itself distort speed measurements. First-divergence logprob analysis achieves the same goal with minimal overhead.
 
 ## TTFT improvement
 
@@ -123,11 +120,11 @@ Throughput determines cost-per-token in production. Higher throughput means more
 
 ## Disqualification vs. low score
 
-| Outcome          | Cause                                                       | What happens                  |
-| ---------------- | ----------------------------------------------------------- | ----------------------------- |
-| **Disqualified** | Token match < 99%, logprob check fails, timeout, crash, OOM | `score = 0`, not a challenger |
-| **Low score**    | Passes correctness but doesn't beat king                    | Recorded, not king            |
-| **Wins**         | Passes correctness, beats king's score                      | New king, takes all emission  |
+| Outcome          | Cause                                       | What happens                  |
+| ---------------- | ------------------------------------------- | ----------------------------- |
+| **Disqualified** | Correctness gate fails, timeout, crash, OOM | `score = 0`, not a challenger |
+| **Low score**    | Passes correctness but doesn't beat king    | Recorded, not king            |
+| **Wins**         | Passes correctness, beats king's score      | New king, takes all emission  |
 
 ## Baseline: vLLM
 
@@ -140,7 +137,7 @@ vLLM is a strong baseline. It implements PagedAttention, continuous batching, Fl
 - **Speculative decoding** -- banned. Simplifies correctness checking.
 - **Weight quantization** -- banned. All servers must load exact BF16 weights.
 - **Alternate models** -- banned. Same model, same weights.
-- **Approximate attention** -- banned if it changes outputs beyond the 99% threshold.
+- **Approximate attention** -- banned if it changes outputs beyond the gate's tolerance.
 - **Sampling-based evaluation** -- all eval is greedy (temperature=0).
 
 These restrictions will be relaxed in V2 once the eval pipeline is proven.

@@ -83,19 +83,22 @@ State is stored as JSON files in a configurable state directory.
 
 ## Dry-run mode
 
-The validator supports `--dry-run` mode which runs the full loop (chain scanning, commitment parsing, state management) without running Docker evaluations or setting weights. Useful for testing chain integration before the GPU machine is ready.
+Set `CACHEON_DRY_RUN=1` in `validator/.env` to run the full loop (chain scanning, commitment parsing, state management) without running Docker evaluations or setting weights. Useful for testing chain integration before the GPU machine is ready.
 
 ## Configuration
 
-Key configuration via CLI flags or environment variables:
+All configuration is via environment variables in `validator/.env` (loaded by Docker Compose):
 
-| Flag                | Env var                   | Default                   | Description                          |
-| ------------------- | ------------------------- | ------------------------- | ------------------------------------ |
-| `--network`         | `CACHEON_NETWORK`         | `finney`                  | `finney` or `test`                   |
-| `--netuid`          | `CACHEON_NETUID`          | `14`                      | Subnet UID                           |
-| `--poll-interval`   | `CACHEON_POLL_INTERVAL_S` | `360`                     | Seconds between main-loop iterations |
-| `--model-volume`    | `CACHEON_MODEL_VOLUME`    | `/models`                 | Path to model weights on host        |
-| `--gpus`            | `CACHEON_GPUS`            | `device=0,1,2,3`          | Docker `--gpus` device string        |
-| `--baseline-image`  | `CACHEON_BASELINE_IMAGE`  | `vllm/vllm-openai:latest` | Baseline Docker image                |
-| `--baseline-digest` | `CACHEON_BASELINE_DIGEST` | (empty)                   | Baseline digest (required for eval)  |
-| `--dry-run`         | `CACHEON_DRY_RUN`         | `false`                   | Skip Docker eval + weights           |
+| Env var                   | Default                   | Description                          |
+| ------------------------- | ------------------------- | ------------------------------------ |
+| `CACHEON_NETWORK`         | `finney`                  | `finney` or `test`                   |
+| `CACHEON_NETUID`          | `14`                      | Subnet UID                           |
+| `CACHEON_WALLET_NAME`     | `default`                 | Bittensor wallet name                |
+| `CACHEON_WALLET_HOTKEY`   | `default`                 | Bittensor hotkey name                |
+| `CACHEON_POLL_INTERVAL_S` | `360`                     | Seconds between main-loop iterations |
+| `CACHEON_GPU_COUNT`       | `4`                       | Number of GPUs on the host           |
+| `CACHEON_MODEL_VOLUME`    | `/workspace/models/...`   | Path to model weights on host        |
+| `CACHEON_BASELINE_IMAGE`  | `vllm/vllm-openai:latest` | Baseline Docker image                |
+| `CACHEON_BASELINE_DIGEST` | (empty)                   | Baseline digest (required for eval)  |
+| `CACHEON_DRY_RUN`         | `0`                       | Set to `1` to skip eval + weights    |
+| `CACHEON_STATE_DIR`       | `./state`                 | State directory (inside container)   |

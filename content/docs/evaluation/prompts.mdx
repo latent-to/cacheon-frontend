@@ -20,7 +20,7 @@ Both are selected deterministically via the block-hash seed. The template determ
 
 All templates follow the pattern `<instruction>\n\n{context}`. The full list is in the `TEMPLATES` constant in [`validator/prompts.py`](https://github.com/latent-to/cacheon/blob/main/validator/prompts.py).
 
-Because all templates operate on literary passage analysis, they produce **structured, grounded outputs** from fixed input. This keeps greedy decoding stable and the 99%+ token match gate meaningful.
+Because all templates operate on literary passage analysis, they produce **structured, grounded outputs** from fixed input. This keeps greedy decoding stable and the correctness gate meaningful.
 
 ## Why PG19 for context
 
@@ -72,7 +72,9 @@ The sampler retries up to 1,000 times before raising an error. Valid PG19 data s
 
 ## Open-ended prompts and the correctness gate
 
-At `temperature=0` the model is deterministic for fixed weights and input. The risk is not "creative" output, but **numerical ties**: where top-2 token log-probabilities are very close, different kernels or accumulation order can flip the argmax. That is what the 99%+ token match floor and **logprob sanity check** are for: at a mismatch, the baseline token must appear in the miner's top-2 with a tight logprob gap (see [Scoring](/docs/evaluation/scoring)).
+At `temperature=0` the model is deterministic for fixed weights and input. The risk is not "creative" output, but **numerical ties**: where top-2 token log-probabilities are very close, different kernels or accumulation order can flip the argmax.
+
+The correctness gate handles this via **per-prompt first-divergence analysis**: at the first mismatch, the baseline token must appear in the miner's top-5 logprobs with a gap <= 0.5 (see [Scoring](/docs/evaluation/scoring)).
 
 Template diversity is kept because real workloads include varied request shapes and diversity makes the benchmark more representative than only rigid extraction-style tasks.
 

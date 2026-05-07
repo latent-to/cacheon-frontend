@@ -108,7 +108,7 @@ Both TTFT and throughput are aggregated using the **median** across the 10 score
 
 ### Correctness
 
-Measured from the non-streaming correctness pass. Token-by-token comparison against baseline output, plus logprob spot-checks at divergent positions. See [Scoring](/docs/evaluation/scoring) for the full correctness gate specification.
+Measured from the non-streaming correctness pass. Per-prompt first-divergence analysis against baseline output, with logprob verification at the first mismatch position. See [Scoring](/docs/evaluation/scoring) for the full correctness gate specification.
 
 ## Why V1 runs on a single machine
 
