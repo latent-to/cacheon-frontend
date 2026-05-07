@@ -66,7 +66,7 @@ Instead, the gate uses **per-prompt first-divergence analysis**:
 2. If there is no mismatch, the prompt passes.
 3. If there is a mismatch, the validator checks the logprobs at that position:
    - The baseline's token must appear in the miner's **top-5** logprobs
-   - The logprob gap between the miner's chosen token and the baseline's token must be **<= 0.5**
+   - The logprob gap between the miner's chosen token and the baseline's token must be **`<= 0.5`**
    - The miner's chosen token must be its own **top-1** (greedy decoding verification)
 4. If all three hold, the divergence is classified as tensor-parallel numerical noise and the prompt passes.
 

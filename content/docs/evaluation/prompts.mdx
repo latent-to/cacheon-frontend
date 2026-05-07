@@ -74,7 +74,7 @@ The sampler retries up to 1,000 times before raising an error. Valid PG19 data s
 
 At `temperature=0` the model is deterministic for fixed weights and input. The risk is not "creative" output, but **numerical ties**: where top-2 token log-probabilities are very close, different kernels or accumulation order can flip the argmax.
 
-The correctness gate handles this via **per-prompt first-divergence analysis**: at the first mismatch, the baseline token must appear in the miner's top-5 logprobs with a gap <= 0.5 (see [Scoring](/docs/evaluation/scoring)).
+The correctness gate handles this via **per-prompt first-divergence analysis**: at the first mismatch, the baseline token must appear in the miner's top-5 logprobs with a gap `<= 0.5` (see [Scoring](/docs/evaluation/scoring)).
 
 Template diversity is kept because real workloads include varied request shapes and diversity makes the benchmark more representative than only rigid extraction-style tasks.
 

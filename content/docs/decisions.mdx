@@ -35,7 +35,7 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 **Reasoning:** With multi-GPU tensor parallelism, floating-point reduction order varies slightly between runs. At positions where two tokens are nearly tied in probability, this noise can flip the greedy argmax. Once one token diverges, the entire rest of the sequence cascades. A global token-match threshold falsely disqualifies legitimate miners running the exact same model.
 
-The first-divergence approach checks only the first mismatch per prompt: if the baseline's token is in the miner's top-5 logprobs with a gap <= 0.5, and the miner is using greedy decoding, the divergence is from TP noise and the prompt passes. This catches quantized models and wrong architectures while forgiving legitimate numerical variance.
+The first-divergence approach checks only the first mismatch per prompt: if the baseline's token is in the miner's top-5 logprobs with a gap `<= 0.5`, and the miner is using greedy decoding, the divergence is from TP noise and the prompt passes. This catches quantized models and wrong architectures while forgiving legitimate numerical variance.
 
 **Rejected:** Global token-match threshold (fails on cascade). Full-vocabulary KL via API logprobs (impractical data volume).
 
