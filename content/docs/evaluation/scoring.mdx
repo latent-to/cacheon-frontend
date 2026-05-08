@@ -1,9 +1,9 @@
 ---
 title: Scoring
-description: Two-pass evaluation. Correctness-gated speed scoring. TTFT and throughput improvements relative to vLLM baseline, floored at zero. Median across prompts.
+description: Single-pass evaluation. Correctness-gated speed scoring. TTFT and throughput improvements relative to vLLM baseline. Median across prompts.
 ---
 
-The scoring algorithm uses a **correctness-gated speed model**. A strict correctness check acts as a primary filter; submissions that fail it receive a zero score. For valid submissions, the final score combines TTFT and throughput improvements against the vLLM baseline.
+Scoring is **correctness-gated**: failing correctness yields zero; otherwise TTFT and throughput improvements versus the pinned vLLM baseline are averaged (50/50).
 
 ## Scoring formula
 
@@ -25,30 +25,17 @@ Three axes, in order of enforcement:
 
 Improvements are floored at zero. If your server is slower than vLLM on one axis, that axis contributes 0, not a negative number.
 
+The equal split rewards **prefill latency** (TTFT, perceived wait and interactive steps) and **decode throughput** (cost per GPU-hour and long completions).
+
 </Callout>
 
 ## Aggregation
 
-Each evaluation round sends **10 prompts** to both baseline and miner. Per-prompt TTFT and throughput are computed, then aggregated using the **median** across prompts.
+Each evaluation round sends **10 prompts** to both baseline and miner. Per-prompt TTFT and throughput use the **median** across prompts so spikes and cherry-picking easy prompts hurt less.
 
-Why median: it is robust to outliers (a single GC pause or memory allocation spike does not tank your score) and prevents gaming by being fast on easy prompts but slow on hard ones.
+## Single-pass evaluation
 
-## Two-pass evaluation
-
-Speed and correctness are measured in separate passes to prevent logprob serialization overhead from distorting speed measurements.
-
-### Pass 1: Speed
-
-Prompts are sent with `stream=true` and no logprobs requested. The validator measures:
-
-- **TTFT**: wall-clock time from HTTP request send to first SSE data chunk
-- **Throughput**: total output tokens divided by wall-clock time from first token to last token
-
-Both baseline (vLLM) and miner are measured identically.
-
-### Pass 2: Correctness
-
-Same prompts are sent with `stream=false` and `logprobs=5`. The validator collects full output tokens and per-token logprobs. This pass is not timed.
+Each prompt is sent once over **streaming chat completions** with `logprobs` (`stream=true`, `logprobs=true`, `top_logprobs=5`). TTFT and throughput come from SSE timing; tokens and top logprobs feed correctness. Extra logprob cost applies equally to baseline and miner, so relative improvements stay comparable.
 
 ## Warmup
 
@@ -100,31 +87,13 @@ Median across prompts. Floored at zero: if your server is slower than the baseli
 
 TTFT captures prefill efficiency: how fast the server processes the full input prompt and produces the first output token. At 32K input tokens on e.g. 4x H200, this is dominated by the attention computation during prefill.
 
-### Why TTFT gets 50%
-
-Time-to-first-token is the user-facing latency. In agentic workflows, tool calls and chain-of-thought steps are gated on TTFT. Optimizing prefill directly reduces perceived latency in production.
-
 ## Throughput improvement
 
 ```
 throughput_improvement = max(0, (miner_tps - baseline_tps) / baseline_tps)
 ```
 
-Median across prompts. Floored at zero.
-
-Throughput captures decode efficiency: how fast the server generates output tokens once prefill is complete.
-
-### Why throughput gets 50%
-
-Throughput determines cost-per-token in production. Higher throughput means more requests served per GPU-hour. For long-form generation (summaries, code, analysis), throughput dominates total response time.
-
-## Disqualification vs. low score
-
-| Outcome          | Cause                                       | What happens                  |
-| ---------------- | ------------------------------------------- | ----------------------------- |
-| **Disqualified** | Correctness gate fails, timeout, crash, OOM | `score = 0`, not a challenger |
-| **Low score**    | Passes correctness but doesn't beat king    | Recorded, not king            |
-| **Wins**         | Passes correctness, beats king's score      | New king, takes all emission  |
+Median across prompts. Floored at zero. Throughput captures decode efficiency: how fast the server generates output tokens once prefill is complete.
 
 ## Baseline: vLLM
 
