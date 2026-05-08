@@ -1,80 +1,71 @@
 ---
 title: Roadmap
-description: V1 ships 72B single-model arena on 4x H200. V2 adds speculative decoding and concurrency. V3 adds production workloads. V4 becomes an inference marketplace.
+description: V1 is live. V1.5 automates the eval pipeline. V2 opens the optimization surface. V3 serves real traffic. V4 expands to multi-model.
 ---
-
-Four versions. Each one expands what the subnet optimizes. No version ships before the previous one is stable.
 
 ## V1 -- Single-model inference arena
 
-**Status:** in progress.
+**Status:** complete.
 
-Big model, simple mechanism:
+One model, one hardware target, one mechanism. Prove that a containerized inference server can be evaluated on-chain and the best one wins emission.
 
-- One model: `Qwen2.5-72B-Instruct`
-- One hardware target: 4x H200 (fixed NVLink topology)
-- One baseline: pinned vLLM version (tensor-parallel)
-- One endpoint: `/v1/chat/completions`
-- Model weights: mounted read-only, not baked into images
-- Miners submit Docker containers with full inference servers
-- Instruct-style prompts: curated templates + PG19 context, block-hash seeded
-- Correctness gate: per-prompt first-divergence analysis with logprob verification
-- Scoring: `0.5 x TTFT + 0.5 x throughput` (median across 10 prompts, floored at 0)
-- No speculative decoding, no weight quantization in V1
-- King-of-the-hill, winner-take-all
-- Centralized eval on a single validator-operated GPU machine
-
-The point of V1 is to prove the loop: someone submits a containerized server on-chain, the harness evaluates it against vLLM on 4x H200, the best server wins emission. Everything else follows from making this work.
+- Model: `Qwen2.5-72B-Instruct`, hardware: see [GPU table](/docs/validators/overview#gpu-requirements), baseline: pinned vLLM
+- Miners submit Docker containers; the harness evaluates against baseline on the same GPU
+- Scoring: `0.5 x TTFT + 0.5 x throughput` (median across 10 prompts, correctness gate required)
+- King-of-the-hill, winner-take-all, one-hot weights
+- CPU/GPU split validator: always-on CPU VPS for chain interaction, ephemeral GPU pod for eval, state synced via Hippius S3
+- No speculative decoding or weight quantization in V1
 
 ### V1 build phases
 
-_Last updated: 2026-05-05._
+_Last updated: 2026-05-08._
 
-| Phase                        | What                                                                                   | Status     |
-| ---------------------------- | -------------------------------------------------------------------------------------- | ---------- |
-| 1 -- API contract            | Define `/v1/chat/completions` spec, health checks, streaming, logprobs                 | ✅ Done    |
-| 2 -- Container orchestration | Docker lifecycle: pull, start with volume mount, health poll, eval, teardown           | ✅ Done    |
-| 3 -- vLLM baseline           | Baseline runner with on-demand container lifecycle, caching per prompt set             | ✅ Done    |
-| 4 -- Scoring pipeline        | Two-pass eval: speed (TTFT + throughput, median) + correctness (first-divergence gate) | ✅ Done    |
-| 5 -- Security                | Container isolation: internal network, resource limits, GPU cleanup across all 4 GPUs  | ✅ Done    |
-| 6A -- Validator loop         | Chain scan, challenger selection, Docker eval, state persistence, `set_weights`        | ✅ Done    |
-| 6B -- Monitoring API         | Read-only status surface for miners and community                                      | 🔲 Pending |
+| Phase                        | What                                                                      | Status         |
+| ---------------------------- | ------------------------------------------------------------------------- | -------------- |
+| 1 -- API contract            | `/v1/chat/completions` spec, health checks, streaming, logprobs           | ✅ Done        |
+| 2 -- Container orchestration | Docker lifecycle: pull, start, health poll, eval, teardown                | ✅ Done        |
+| 3 -- vLLM baseline           | On-demand baseline container, caching per prompt set                      | ✅ Done        |
+| 4 -- Scoring pipeline        | Two-pass eval: speed (TTFT + throughput) + correctness gate               | ✅ Done        |
+| 5 -- Security                | Container isolation: internal network, resource limits, GPU cleanup       | ✅ Done        |
+| 6A -- Validator loop         | Chain scan, challenger selection, Docker eval, state, `set_weights`       | ✅ Done        |
+| 6B -- GPU eval standalone    | S3 sync, `eval_job.json` handoff, per-prompt metrics, container logs      | ✅ Done        |
+| 6C -- CPU always-on loop     | CPU VPS loop: chain scan, challenger selection, S3 polling, `set_weights` | ✅ Done        |
+| 7 -- Monitoring API          | Read-only status surface for miners and community                         | 🟡 In progress |
 
-Phases 1-5 and 6A are implemented. Phase 6A (validator loop, chain interaction, state machine) carries over from the previous architecture, adapted for single-machine Docker evaluation. The next step is end-to-end testing on the 4x H200 target hardware before mainnet launch.
+## V1.5 -- Automated eval pipeline
+
+**Status:** planned.
+
+V1 eval is manually triggered: the operator checks GPU availability, provisions a pod, SSHs in, and runs the eval. V1.5 closes this loop.
+
+- **Automated GPU provisioning**: CPU host checks for challengers, queries `gpu_search.py`, provisions a pod via provider API when suitable hardware is available, and tears it down after eval completes
+- **CPU-to-GPU SSH dispatch**: CPU SSHs into the GPU pod to trigger eval instead of the operator doing it manually
+
+V1.5 makes the validator fully hands-off. An operator spins up the CPU host once and the system handles everything from challenger detection through eval and weight setting.
 
 ## V2 -- Expanded optimization surface
 
-After V1 stabilizes:
+After V1.5 stabilizes, restrictions on what miners can do are relaxed:
 
-- **Allow speculative decoding** -- draft models, Medusa heads, lookahead become first-class
-- **Allow weight quantization** -- FP8, INT4, AWQ, GPTQ, if they pass a tightened correctness gate
-- **Concurrency benchmarks** -- multiple simultaneous requests, throughput under SLA
-- **Batch throughput scoring** -- requests/sec at a given latency target
-- **Stricter correctness** -- full logprob KL validation if API supports it
-- **Verifiable eval rollouts** -- publish eval artifacts to Cloudflare R2
-
-V2 is where the optimization surface opens fully. Speculative decoding and quantization require more nuanced correctness checking, which is why they are gated behind a proven V1 pipeline.
+- Speculative decoding (draft models, Medusa heads, lookahead)
+- Weight quantization (FP8, INT4, AWQ, GPTQ) if they pass a tightened correctness gate
+- Concurrency benchmarks: multiple simultaneous requests, throughput under SLA
+- Stricter correctness: full logprob KL validation
 
 ## V3 -- Production inference provider
 
-This is where the subnet stops being a competition and starts being a product.
+The subnet stops being a competition and starts being a product:
 
-- Winning servers deployed as **live endpoints** serving real traffic
+- Winning servers deployed as live endpoints serving real traffic
 - Agent, RAG, and multi-turn workloads with P99 latency SLA targets
-- Teams route traffic to Cacheon because nobody else serves this model this fast
-- The product-market fit: **"If you need this model, we are the highest-performance production backend for it."**
-
-V3 is the PMF test. If users say "we switched because your latency makes our agent actually usable" or "we depend on you for this model," the subnet is working. The mechanism (competition, scoring, king-of-the-hill) is invisible to the customer. They see an endpoint that is faster than everything else.
+- PMF test: teams route traffic to Cacheon because it is the fastest production backend for this model
 
 ## V4 -- Multi-model expansion
 
 - Multiple arenas: one per important open-source model
 - OpenRouter integration for serving real traffic at scale
-- Revenue sharing between subnet and winning miners
-- Any model worth running fast gets a Cacheon arena
-
-V4 scales the proven V3 pattern across models. Each arena discovers the fastest server for its model, and the winning server goes live as a production endpoint.
+- Buyback with revenue
 
 ## End state
 
-Cacheon becomes the default high-performance inference provider for important open-source models, discovered through open competition, deployed into production infrastructure serving real users.
+Cacheon becomes the default high-performance inference provider for important open-source models, discovered through open competition and deployed into production infrastructure.

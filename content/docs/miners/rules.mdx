@@ -7,15 +7,15 @@ description: What your container can and cannot do during evaluation. Network is
 
 During evaluation, your container runs with:
 
-| Resource           | Value                                            |
-| ------------------ | ------------------------------------------------ |
-| GPU                | 4x H200, exclusive access, fixed NVLink topology |
-| RAM                | Host memory available                            |
-| Model weights      | Read-only volume mounted at `/models`            |
-| Network            | **Internal only** -- all outbound egress blocked |
-| Filesystem         | Model weights read-only at `/models`             |
-| Startup timeout    | 10 minutes                                       |
-| Per-prompt timeout | 120 seconds                                      |
+| Resource           | Value                                                                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------- |
+| GPU                | See [GPU table](/docs/validators/overview#gpu-requirements), exclusive access, fixed NVLink topology |
+| RAM                | Host memory available                                                                                |
+| Model weights      | Read-only volume mounted at `/models`                                                                |
+| Network            | **Internal only** -- all outbound egress blocked                                                     |
+| Filesystem         | Model weights read-only at `/models`                                                                 |
+| Startup timeout    | 10 minutes                                                                                           |
+| Per-prompt timeout | 120 seconds                                                                                          |
 
 ## What is allowed
 
@@ -51,6 +51,20 @@ During evaluation, your container runs with:
 | Non-compliant API (missing endpoints, wrong format) | DQ            |
 | Speculative decoding detected                       | DQ            |
 | Quantized weights detected (via correctness gate)   | DQ            |
+
+## Threat model
+
+The harness runs your container on an internal Docker network (`cacheon-internal`, no outbound egress). The orchestrator may use a separate network for chain and registry access; your image never sees that path. Evaluations are sequential with GPU reset between runs.
+
+| Threat                     | Mitigation                                               |
+| -------------------------- | -------------------------------------------------------- |
+| Network exfiltration       | Internal-only network for the miner container            |
+| Host escape                | No `--privileged`; normal Docker namespace isolation     |
+| GPU snooping across miners | One container at a time; GPU state cleared between evals |
+| Prompt prediction          | Block-hash-seeded prompts; order shuffled per challenger |
+| Resource exhaustion        | Memory/CPU/PID limits and timeouts; OOM = DQ             |
+
+Weights are public on Hugging Face. There is nothing secret to steal from the mount.
 
 ## Why gaming the system does not work
 

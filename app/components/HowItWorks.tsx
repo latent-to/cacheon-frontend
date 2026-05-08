@@ -7,8 +7,7 @@ const STEPS = [
     desc: (
       <>
         Package your inference server in a Docker container. Any language, any framework, any
-        optimization. Serve <code>Qwen2.5-72B-Instruct</code> on 4x H200 via{' '}
-        <code>/v1/chat/completions</code>.
+        optimization. Serve <code>Qwen2.5-72B-Instruct</code> via <code>/v1/chat/completions</code>.
       </>
     ),
   },

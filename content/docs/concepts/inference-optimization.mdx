@@ -43,9 +43,3 @@ The runtime itself matters. Choices at the system level affect every request:
 - **Memory layout** -- custom allocators, pre-allocated buffers, zero-copy transfer
 - **Scheduling** -- continuous batching, preemptive scheduling, priority queues
 - **Chunked prefill** -- overlap prefill computation with ongoing decode
-
-## Why this is better than a component benchmark
-
-A component benchmark (e.g. "test your KV cache policy in isolation") misses interactions between layers. A quantized KV cache changes the memory access pattern, which changes which attention kernel is optimal, which changes whether speculative decoding is worthwhile. The only honest benchmark is one that evaluates the entire serving stack end-to-end.
-
-That is what Cacheon does. Submit a server. We measure how fast it is. Everything else is up to you.

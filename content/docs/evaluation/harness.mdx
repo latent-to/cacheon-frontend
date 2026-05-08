@@ -56,7 +56,7 @@ This ensures each miner starts from a clean GPU state, identical to what the bas
 
 ## vLLM baseline
 
-The baseline is a pinned version of vLLM serving `Qwen2.5-72B-Instruct` on the same 4x H200 with tensor parallelism. The validator starts the baseline container on demand when prompts change, runs evaluation, caches the results, then tears it down.
+The baseline is a pinned version of vLLM serving `Qwen2.5-72B-Instruct`. The validator starts the baseline container on demand when prompts change, runs evaluation, caches the results, then tears it down.
 
 Baseline results are **pre-computed and cached** per prompt set. When the block hash changes (producing new prompts), the baseline runs once. All challengers in that round are compared against the same cached baseline numbers. This saves ~50% of eval wall time per challenger.
 
@@ -110,14 +110,24 @@ Both TTFT and throughput are aggregated using the **median** across the 10 score
 
 Measured from the non-streaming correctness pass. Per-prompt first-divergence analysis against baseline output, with logprob verification at the first mismatch position. See [Scoring](/docs/evaluation/scoring) for the full correctness gate specification.
 
-## Why V1 runs on a single machine
+## Per-prompt metrics
 
-Eval happens on one 4x H200 machine, run by one operator (the subnet owner). This is not a decentralization statement; it is operational reality:
+Every scored prompt produces a detailed breakdown stored in the evaluation record:
 
-- **Cross-hardware reproducibility.** Different GPU generations and interconnect topologies produce different floating-point results and different latency profiles. Multiple validators would disagree on scores.
-- **Container overhead variance.** Docker startup, GPU initialization, and network stack behavior vary between hosts. Centralizing eval eliminates that variance.
-- **Multi-GPU topology sensitivity.** Tensor parallel performance depends on NVLink topology. A 4-GPU all-connected NVSwitch setup behaves differently from a 2+2 PCIe bridge setup. Fixing the topology is essential for fair comparison.
+| Field              | Type  | Description                                          |
+| ------------------ | ----- | ---------------------------------------------------- |
+| `ttft_s`           | float | Time to first token for this prompt                  |
+| `throughput_tps`   | float | Tokens per second for this prompt                    |
+| `output_tokens`    | int   | Number of output tokens generated                    |
+| `token_match_rate` | float | Fraction of tokens matching baseline for this prompt |
 
-The V2 mitigation is publishing full eval artifacts (prompts, baseline outputs, miner outputs, scores) to verifiable storage so anyone can audit.
+These per-prompt results are available in `state.json` (inside each `EvaluationRecord`) and uploaded to S3 for frontend dashboards. Miners can inspect their performance per prompt to understand where their server excels or struggles.
 
-See [Architecture: validator](/docs/architecture/validator) for the full validator design.
+## Container log capture
+
+After each evaluation (success or failure), the harness captures the full stdout/stderr from the container via `docker logs`. Logs are saved to `state/container_logs/`:
+
+- Baseline: `baseline_{cache_key}.log`
+- Miner: `uid{N}_{hotkey_prefix}_{block}.log`
+
+Container logs are never truncated. They are uploaded to S3 with the rest of the state directory for post-mortem debugging.

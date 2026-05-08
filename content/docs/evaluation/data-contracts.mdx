@@ -1,0 +1,150 @@
+---
+title: Data contracts
+description: Wire formats for on-chain commitments, the CPU-to-GPU eval job handoff, evaluation results, and the shared state directory.
+---
+
+## On-chain commitment
+
+Miners post a JSON commitment via `subtensor.set_reveal_commitment()`:
+
+```json
+{
+  "image": "docker.io/miner/server:v1",
+  "digest": "sha256:a3b4c5d6e7f8..."
+}
+```
+
+| Field    | Type   | Description                                     |
+| -------- | ------ | ----------------------------------------------- |
+| `image`  | string | Full Docker image reference (registry/repo:tag) |
+| `digest` | string | Image manifest digest (sha256:...)              |
+
+The digest pins the exact image content. Tag mutations do not affect evaluation.
+
+## eval_job.json (CPU to GPU handoff)
+
+The CPU validator writes this file to S3 when new challengers are detected. The GPU eval entrypoint reads it to know what to evaluate.
+
+```json
+{
+  "block": 7066048,
+  "block_hash": "0xabc123...",
+  "challengers": [
+    {
+      "uid": 3,
+      "hotkey": "5F3sa8...",
+      "commit_block": 7066040,
+      "image": "docker.io/miner/server:v1",
+      "digest": "sha256:a3b4c5d6..."
+    }
+  ],
+  "created_at": 1778184000.0
+}
+```
+
+| Field         | Type   | Description                                    |
+| ------------- | ------ | ---------------------------------------------- |
+| `block`       | int    | Chain block at which challengers were selected |
+| `block_hash`  | string | Block hash for deterministic prompt seeding    |
+| `challengers` | array  | List of `ChallengerInfo` objects               |
+| `created_at`  | float  | Unix timestamp when the job was written        |
+
+The `block_hash` is critical: prompts are seeded from it, so all challengers evaluated from the same job see the same deterministic prompt set.
+
+## state.json
+
+The shared state file, read and written by both CPU and GPU:
+
+```json
+{
+  "schema_version": 1,
+  "king": {
+    "uid": 3,
+    "hotkey": "5F3sa8...",
+    "score": 0.0312,
+    "ttft_improvement": 0.025,
+    "throughput_improvement": 0.0374,
+    "token_match_rate": 0.997,
+    "image": "docker.io/miner/server:v1",
+    "digest": "sha256:a3b4c5d6...",
+    "crowned_at_block": 7066048,
+    "evaluated_at": 1778184243.5,
+    "evaluation_block": 7066048,
+    "commit_block": 7066040
+  },
+  "evaluations": {
+    "5F3sa8...:7066040": { "...per EvaluationRecord..." }
+  },
+  "precheck_failures": {},
+  "last_scan_block": 7066200,
+  "last_weights_set_block": 7066100
+}
+```
+
+The CPU reads `last_weights_set_block` to decide when to set weights. The GPU reads evaluations to skip already-evaluated challengers.
+
+## EvaluationRecord
+
+Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
+
+```json
+{
+  "uid": 3,
+  "hotkey": "5F3sa8...",
+  "commit_block": 7066040,
+  "image": "docker.io/miner/server:v1",
+  "digest": "sha256:a3b4c5d6...",
+  "score": 0.0312,
+  "ttft_improvement": 0.025,
+  "throughput_improvement": 0.0374,
+  "token_match_rate": 0.997,
+  "disqualified": false,
+  "disqualify_reason": null,
+  "evaluated_at": 1778184243.5,
+  "evaluation_block": 7066048,
+  "per_prompt": [
+    {
+      "ttft_s": 1.42,
+      "throughput_tps": 55.3,
+      "output_tokens": 256,
+      "token_match_rate": 1.0
+    }
+  ]
+}
+```
+
+| Field                    | Type           | Description                                                                      |
+| ------------------------ | -------------- | -------------------------------------------------------------------------------- |
+| `score`                  | float          | `0.5 * ttft_improvement + 0.5 * throughput_improvement`; 0.0 if DQ'd             |
+| `ttft_improvement`       | float          | `max(0, (baseline - miner) / baseline)` on medians                               |
+| `throughput_improvement` | float          | `max(0, (miner - baseline) / baseline)` on medians                               |
+| `token_match_rate`       | float          | Fraction of output tokens matching baseline (all prompts)                        |
+| `disqualified`           | bool           | Whether the submission was DQ'd                                                  |
+| `disqualify_reason`      | string or null | Reason for DQ (e.g. `correctness_failed`, `health_timeout`, `duplicate_of_king`) |
+| `per_prompt`             | array or null  | Per-prompt breakdown (TTFT, throughput, match rate, token count)                 |
+
+The `per_prompt` array gives miners visibility into how their server performed on each individual prompt.
+
+## king-history.jsonl
+
+Append-only audit trail of king changes. One JSON line per dethronement:
+
+```json
+{
+  "ts": 1778184243.5,
+  "block": 7066048,
+  "new_king_uid": 3,
+  "new_king_hotkey": "5F3sa8...",
+  "new_king_score": 0.0312,
+  "new_king_image": "docker.io/miner/server:v1",
+  "new_king_digest": "sha256:a3b4c5d6...",
+  "dethrone_threshold": 0.0,
+  "prev_king_uid": 1,
+  "prev_king_hotkey": "5Eab7c...",
+  "prev_king_score": 0.028
+}
+```
+
+## Schema versioning
+
+`state.json` includes a `schema_version` field (V1 starts at version 1). The validator rejects state files with a newer schema version than it supports, preventing silent data corruption from downgrades.

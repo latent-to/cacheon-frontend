@@ -20,8 +20,8 @@ export default function WhatIs() {
             title="For ML engineers"
             items={[
               <>
-                Build a Docker container that serves <code>Qwen2.5-72B-Instruct</code> on 4x H200
-                via <code>/v1/chat/completions</code>
+                Build a Docker container that serves <code>Qwen2.5-72B-Instruct</code>via{' '}
+                <code>/v1/chat/completions</code>
               </>,
               <>
                 King of the hill, winner-take-all: champion earns <code>up to 28 TAO</code>/day
