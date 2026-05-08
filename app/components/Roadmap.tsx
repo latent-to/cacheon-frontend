@@ -35,7 +35,7 @@ function PhaseCard({ phase, isLast }: { phase: RoadmapPhase; isLast: boolean }) 
       />
 
       <div
-        className={`rounded-xl border px-6 py-5 backdrop-blur-sm transition-colors ${
+        className={`rounded-xl border px-4 py-4 backdrop-blur-sm transition-colors sm:px-6 sm:py-5 ${
           isActive
             ? 'border-accent/50 bg-accent/[0.04] shadow-[0_0_24px_rgba(45,212,191,0.05)]'
             : 'border-border/60 bg-surface/60 hover:border-border hover:bg-surface/80'

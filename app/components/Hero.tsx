@@ -116,8 +116,8 @@ export default function Hero() {
       </div>
 
       {/* Feature strip */}
-      <div className="relative z-10 mt-auto px-6 pt-10 pb-12 sm:px-8 lg:px-10">
-        <div className="border-border/40 mx-auto grid max-w-6xl grid-cols-1 gap-y-10 border-t pt-10 sm:grid-cols-3 sm:gap-x-12 sm:gap-y-8 lg:gap-x-16 xl:gap-x-20">
+      <div className="relative z-10 mt-auto px-4 pt-10 pb-12 sm:px-8 lg:px-10">
+        <div className="border-border/40 mx-auto grid max-w-6xl grid-cols-1 gap-y-8 border-t pt-10 sm:grid-cols-3 sm:gap-x-12 sm:gap-y-8 lg:gap-x-16 xl:gap-x-20">
           {FEATURES.map((f) => (
             <div key={f.title} className="text-center sm:px-2 lg:px-4">
               <h2 className="text-primary mb-2 font-mono text-[0.8rem] font-semibold tracking-[0.16em] uppercase sm:text-[0.85rem]">

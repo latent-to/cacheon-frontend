@@ -34,14 +34,12 @@ function SpeedBar({ speed, pass, winner }: { speed: number; pass: boolean; winne
 
   return (
     <div className="relative h-3 w-full overflow-hidden rounded-sm bg-white/[0.06]">
-      {/* Track lines */}
       <div className="absolute inset-0 flex items-stretch">
         {[...Array(20)].map((_, i) => (
           <div key={i} className="flex-1 border-r border-white/[0.03]" />
         ))}
       </div>
 
-      {/* Bar fill */}
       <div
         className={`relative h-full rounded-sm transition-all duration-700 ${
           !pass
@@ -69,12 +67,12 @@ function SpeedBar({ speed, pass, winner }: { speed: number; pass: boolean; winne
 function StatusPill({ pass, label }: { pass: boolean; label: string }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 font-mono text-[0.72rem] font-bold tracking-widest ${
+      className={`inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-[0.65rem] font-bold tracking-widest sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-[0.72rem] ${
         pass ? 'bg-accent/15 text-accent' : 'bg-red-400/15 text-red-400'
       }`}
     >
       <span
-        className={`inline-block h-2 w-2 rounded-full ${
+        className={`inline-block size-1.5 rounded-full sm:size-2 ${
           pass
             ? 'bg-accent shadow-[0_0_6px_rgba(45,212,191,0.6)]'
             : 'bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)]'
@@ -98,9 +96,8 @@ export default function WhatIs() {
 
         {/* Leaderboard */}
         <div className="border-border/60 overflow-hidden rounded-xl border bg-[#060709]">
-          {/* Header bar */}
-          <div className="border-border/40 flex items-center justify-between border-b bg-white/[0.015] px-6 py-3.5 sm:px-8">
-            <span className="text-primary font-mono text-[0.72rem] font-bold tracking-[0.2em] uppercase">
+          <div className="border-border/40 flex items-center justify-between border-b bg-white/[0.015] px-4 py-3 sm:px-8 sm:py-3.5">
+            <span className="text-primary font-mono text-[0.68rem] font-bold tracking-[0.2em] uppercase sm:text-[0.72rem]">
               Fast is not enough. Correct wins.
             </span>
             <span className="text-secondary/40 hidden font-mono text-[0.6rem] tracking-[0.16em] uppercase sm:block">
@@ -108,7 +105,6 @@ export default function WhatIs() {
             </span>
           </div>
 
-          {/* Competitor rows */}
           {COMPETITORS.map((c, i) => (
             <div
               key={c.rank}
@@ -116,27 +112,25 @@ export default function WhatIs() {
                 c.winner ? 'bg-accent/[0.035]' : ''
               }`}
             >
-              <div className="grid grid-cols-[2.5rem_1fr_auto_auto] items-center gap-x-4 px-6 py-5 sm:grid-cols-[3rem_11rem_1fr_5rem_auto] sm:gap-x-6 sm:px-8">
-                {/* Rank number */}
+              <div className="grid grid-cols-[1.5rem_1fr_auto_auto] items-center gap-x-2 px-4 py-4 sm:grid-cols-[3rem_11rem_1fr_5rem_auto] sm:gap-x-6 sm:px-8 sm:py-5">
                 <div
-                  className={`font-mono text-2xl leading-none font-black tracking-tight ${
+                  className={`font-mono text-xl leading-none font-black tracking-tight sm:text-2xl ${
                     c.winner ? 'text-accent' : c.pass ? 'text-white/20' : 'text-red-400/30'
                   }`}
                 >
                   {c.rank}
                 </div>
 
-                {/* Identity */}
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-1.5 sm:gap-2.5">
                     {c.winner && (
-                      <span className="text-xl leading-none drop-shadow-[0_0_8px_rgba(45,212,191,0.5)]">
+                      <span className="text-base leading-none drop-shadow-[0_0_8px_rgba(45,212,191,0.5)] sm:text-xl">
                         👑
                       </span>
                     )}
-                    {!c.pass && <span className="text-base leading-none">⚠️</span>}
+                    {!c.pass && <span className="text-sm leading-none sm:text-base">⚠️</span>}
                     <span
-                      className={`font-mono text-[0.95rem] font-bold ${
+                      className={`font-mono text-[0.82rem] font-bold sm:text-[0.95rem] ${
                         c.winner
                           ? 'text-primary'
                           : c.pass
@@ -148,7 +142,7 @@ export default function WhatIs() {
                     </span>
                   </div>
                   <div
-                    className={`mt-1 font-mono text-[0.62rem] font-semibold tracking-[0.18em] uppercase ${
+                    className={`mt-0.5 font-mono text-[0.58rem] font-semibold tracking-[0.18em] uppercase sm:mt-1 sm:text-[0.62rem] ${
                       c.winner ? 'text-accent/60' : c.pass ? 'text-secondary/30' : 'text-red-400/40'
                     }`}
                   >
@@ -156,21 +150,18 @@ export default function WhatIs() {
                   </div>
                 </div>
 
-                {/* Speed bar (desktop) */}
-                <div className="hidden flex-col sm:flex">
+                <div className="hidden sm:flex sm:flex-col">
                   <SpeedBar speed={c.speed} pass={c.pass} winner={c.winner} />
                 </div>
 
-                {/* Speed value */}
                 <div
-                  className={`text-right font-mono text-xl font-black tracking-tight ${
+                  className={`text-right font-mono text-base font-black tracking-tight sm:text-xl ${
                     c.winner ? 'text-accent' : c.pass ? 'text-white/30' : 'text-red-400/60'
                   }`}
                 >
                   {c.speed.toFixed(c.speed === 1.0 ? 1 : 2)}x
                 </div>
 
-                {/* Status */}
                 <div className="flex justify-end">
                   <StatusPill pass={c.pass} label={!c.pass ? 'FAIL' : c.winner ? 'PASS' : 'BASE'} />
                 </div>
