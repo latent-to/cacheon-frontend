@@ -51,9 +51,9 @@ The first-divergence approach checks only the first mismatch per prompt: if the 
 
 **Reasoning:** Median is robust to outliers (a single GC pause, memory allocation spike, or thermal throttle does not tank the score). Mean would let one bad prompt disproportionately affect the result. Trimmed mean is an alternative but more complex for no clear V1 benefit.
 
-## Warmup: discard first 1-2 prompts
+## Warmup: discard first 2 prompts
 
-**Decision:** Before scored prompts, the harness sends 1-2 warmup prompts that are discarded.
+**Decision:** Before scored prompts, the harness sends 2 warmup prompts that are discarded.
 
 **Reasoning:** First inference after model load is slower on every framework (CUDA graph compilation, KV cache pre-allocation, JIT warmup, GPU clock ramping). Including startup costs in the score would reward miners who optimize for fast warmup rather than fast steady-state serving. The competition should measure steady-state performance.
 
