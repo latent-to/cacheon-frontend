@@ -11,10 +11,10 @@ export const ROADMAP: RoadmapPhase[] = [
     label: 'Single-Model Inference Arena',
     status: 'active',
     items: [
-      'Qwen2.5-72B-Instruct',
+      'Qwen2.5-72B-Instruct on a 4x H200-equivalent',
       'Miners submit Docker containers with full inference servers',
       'Scored against a production vLLM tensor-parallel baseline',
-      '99% greedy token match gate, no speculative decoding, no quantization',
+      'First-mismatch correctness gate with logprob verification; no speculative decoding or quantization',
       'Any language, any framework, any optimization technique',
     ],
   },
@@ -26,8 +26,7 @@ export const ROADMAP: RoadmapPhase[] = [
       'Speculative decoding and weight quantization allowed',
       'Concurrency benchmarks: throughput under load',
       'Batch throughput scoring with latency SLA',
-      'Stricter correctness (full logprob validation)',
-      'Verifiable eval rollouts for decentralized auditing',
+      'Stricter correctness (full logprob KL validation)',
     ],
   },
   {
@@ -49,7 +48,6 @@ export const ROADMAP: RoadmapPhase[] = [
       'Multiple arenas: one per important open-source model',
       'OpenRouter integration for serving real traffic at scale',
       'Revenue sharing between subnet and winning miners',
-      'Any model worth running fast gets a Cacheon arena',
     ],
   },
 ]
