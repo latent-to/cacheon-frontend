@@ -98,7 +98,7 @@ ttft_improvement = max(0, (baseline_ttft - miner_ttft) / baseline_ttft)
 
 Median across prompts. Floored at zero: if your server is slower than the baseline on TTFT, this axis contributes nothing to your score.
 
-TTFT captures prefill efficiency: how fast the server processes the full input prompt and produces the first output token. At 32K input tokens on 4x H200, this is dominated by the attention computation during prefill.
+TTFT captures prefill efficiency: how fast the server processes the full input prompt and produces the first output token. At 32K input tokens on e.g. 4x H200, this is dominated by the attention computation during prefill.
 
 ### Why TTFT gets 50%
 
@@ -128,7 +128,7 @@ Throughput determines cost-per-token in production. Higher throughput means more
 
 ## Baseline: vLLM
 
-The baseline is a pinned version of vLLM serving `Qwen2.5-72B-Instruct` on the same 4x H200 hardware. Baseline results are **pre-computed and cached** per prompt set: the baseline runs once when prompts rotate (new block hash), and all challengers in that round are compared against the same cached baseline numbers.
+The baseline is a pinned version of vLLM serving `Qwen2.5-72B-Instruct` on the same hardware as the challengers. See [this section](/docs/validators/overview#gpu-requirements) for minimum hardware requirements. Baseline results are **pre-computed and cached** per prompt set: the baseline runs once when prompts rotate (new block hash), and all challengers in that round are compared against the same cached baseline numbers.
 
 vLLM is a strong baseline. It implements PagedAttention, continuous batching, FlashAttention, and other production optimizations. Beating it requires genuine innovation, not just a different framework.
 

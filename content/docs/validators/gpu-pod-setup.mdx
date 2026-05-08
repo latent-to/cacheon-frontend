@@ -1,69 +1,92 @@
 ---
-title: GPU machine setup
-description: Provision an Ubuntu 22.04/24.04 host with Docker, NVIDIA Container Toolkit, model weights, PG19 cache, and the vLLM baseline image using validator/setup.sh.
+title: GPU pod setup
+description: Provision a GPU pod, run setup.sh, and execute an evaluation. Ubuntu 22.04/24.04 on Shadeform, Lambda, or Targon.
 ---
 
-This page describes **single-machine** provisioning for the Cacheon validator. The operator runs chain logic, Docker evaluation, and weight setting on **one** host with GPUs.
+## Prerequisites
 
-## Hardware
+- A fresh Ubuntu 22.04 or 24.04 VM from Shadeform, Lambda, or Targon (Runpod and Vast.ai are excluded: they give you a container, not a VM)
+- At least 400 GB fast disk under `/workspace`
+- Hippius S3 credentials (same bucket as the CPU host)
+- The CPU host must have detected challengers and written `eval_job.json` to S3
 
-- **4-8x NVIDIA H200 SXM 141GB HBM3e** (production target is 4x; 8x supported)
-- Large fast disk under **`/workspace`** (hard fail below 100 GB free; 200+ GB recommended)
+## Find an available pod
+
+```bash
+python scripts/gpu_search.py --best
+```
+
+This queries Shadeform, Lambda, and Targon and returns the cheapest available instance that meets the tier requirements (see [GPU requirements](/docs/validators/overview#gpu-requirements)). It does not rent the pod automatically: use the output to provision the instance manually through the provider's UI or API, then SSH in.
 
 ## Setup script
 
-From a clean Ubuntu 22.04 or 24.04 image (Lium, Targon, Shadeform VMs, or similar GPU hosts):
+Run once on a fresh machine:
 
 ```bash
-# Optional: private fork
 export GITHUB_PAT=...
-
-# Optional: Hugging Face token for gated or rate-limited downloads
-export HF_TOKEN=...
-
-bash validator/setup.sh
+export HF_TOKEN=...     # optional: speeds up model download
+sudo apt-get install -y curl vim git # if not already installed
 ```
 
-What the full run does:
+```bash
+curl -fsSL -u "token:${GITHUB_PAT}" "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup.sh" | sudo -E bash
+```
 
-1. Installs system packages: `git`, `curl`, `ca-certificates`, `tmux`, `python3-venv`, `jq`, `gnupg`.
-2. Installs **Docker CE** (via `get.docker.com`) if `docker` is missing. If `dockerd` is not running and `systemctl` cannot manage it (containerized pods), starts it with `nohup dockerd` directly.
-3. Installs **NVIDIA Container Toolkit** from `nvidia.github.io/libnvidia-container/stable/deb/` if `nvidia-ctk` is missing. Always runs `nvidia-ctk runtime configure --runtime=docker` and generates **CDI specs** (`nvidia-ctk cdi generate`) so `--gpus all` works on both DinD pods and standard VMs (required for nvidia-ctk v1.14+ with newer drivers).
-4. Applies **nested-container GPU passthrough fixes** (needed for Lium/Targon DinD-class pods):
-   - Enables `no-cgroups = true` in `/etc/nvidia-container-runtime/config.toml` to skip BPF cgroup device filters that fail inside a nested cgroup v2 namespace.
-   - If `runc` version is 1.2.x or 1.3.x (which rejects inherited `/proc` mounts as "unsafe procfs"), installs `runc v1.1.15` to `/usr/sbin/runc`.
-5. Restarts `dockerd` (via `systemctl` or `nohup dockerd` fallback) to pick up the runtime config and runc changes.
-6. Clones the Cacheon repo: **public HTTPS** if `GITHUB_PAT` is unset; **authenticated** GitHub HTTPS if set (token is never echoed).
-7. Creates a Python venv at `~/venv-cacheon` and installs `validator/requirements.txt`.
-8. Sets **`HF_HOME=/workspace/.cache/huggingface`** for all Hugging Face operations. If `HF_TOKEN` is set, runs `hf auth login` non-interactively.
-9. Checks disk space on `/workspace` (hard fail below 100 GB; warn below 200 GB).
-10. Downloads **`Qwen/Qwen2.5-72B-Instruct`** to `/workspace/models/Qwen2.5-72B-Instruct` via `hf download`.
-11. Pre-caches **`emozilla/pg19`** (train split) to match `validator/prompts.py`.
-12. **`docker pull vllm/vllm-openai:latest`** and prints `CACHEON_BASELINE_IMAGE` / `CACHEON_BASELINE_DIGEST` values to paste into `.env`.
-13. Verification: `nvidia-smi`, `docker run --gpus all ... nvidia-smi`, Python import check (`bittensor`, `datasets`), model directory check.
+The setup script provisions all required system packages, Docker, GPU configuration, dependencies, models, and verifies the environment for GPU validation.
 
-### Refresh without heavy steps
+### Code-only refresh
 
-After the machine is provisioned, update code and Python deps only:
+After the machine is already provisioned:
 
 ```bash
 bash validator/setup.sh --pull
 ```
 
-Runs `git pull` and `pip install -r validator/requirements.txt` only -- no OS packages, model download, dataset fetch, or Docker pull.
+Runs `git pull` and `pip install -r validator/requirements.txt` only. No OS packages, no model download.
 
-## Environment template
-
-Copy `validator/.env.validator.example` to `validator/.env` and set at minimum:
-
-- Wallet and subnet: `CACHEON_NETWORK`, `CACHEON_NETUID`, `CACHEON_WALLET_NAME`, `CACHEON_WALLET_HOTKEY`
-- Docker eval: `CACHEON_GPU_COUNT`, `CACHEON_MODEL_VOLUME` (e.g. `/workspace/models/Qwen2.5-72B-Instruct`), `CACHEON_BASELINE_IMAGE`, `CACHEON_BASELINE_DIGEST` (printed by setup at the end)
-
-## Running the validator
+## Configuration
 
 ```bash
 cd cacheon/validator
+cp .env.gpu.example .env
+# Make sure you've edited .env before running the following to load environment variables:
+set -a; . .env; set +a
+```
+
+| Env var                   | Required | Description                                                                |
+| ------------------------- | -------- | -------------------------------------------------------------------------- |
+| `CACHEON_GPU_COUNT`       | Yes      | Number of GPUs on the pod (e.g. `4` or `8`)                                |
+| `CACHEON_MODEL_VOLUME`    | Yes      | Host path to model weights (e.g. `/workspace/models/Qwen2.5-72B-Instruct`) |
+| `CACHEON_BASELINE_IMAGE`  | Yes      | Baseline image reference (printed by `setup.sh`)                           |
+| `CACHEON_BASELINE_DIGEST` | Yes      | `sha256:...` digest (printed by `setup.sh`)                                |
+| `HIPPIUS_ACCESS_KEY`      | Yes      | Hippius S3 access key                                                      |
+| `HIPPIUS_SECRET_KEY`      | Yes      | Hippius S3 secret key                                                      |
+| `CACHEON_S3_BUCKET`       | No       | S3 bucket name (default `cacheon-validator`)                               |
+
+## Run an evaluation
+
+```bash
 docker compose up --build
 ```
 
-This builds the validator container, creates the dual-network topology, mounts the Docker socket and volumes, and starts the evaluation loop. See [Validators overview](/docs/validators/overview) and [Architecture: validator](/docs/architecture/validator).
+Once the evaluation completes, the container automatically exits. Each run performs a single eval from start to finish. Here’s what takes place:
+
+1. **S3 download**: pulls `state.json`, `eval_job.json`, `baseline_cache/` from S3
+2. **Prompt generation**: seeds from `block_hash` in the eval job, produces 10 prompts
+3. **Baseline**: starts vLLM on all GPUs, two-pass eval, caches results keyed by block hash
+4. **Per challenger**: pull image, start container, warmup, speed pass, correctness pass, teardown
+5. **Container logs**: full stdout/stderr saved to `state/container_logs/`
+6. **S3 upload**: pushes updated `state.json`, logs, and baseline cache
+
+The CPU host detects new results on its next poll and sets weights automatically.
+
+## Verify results (optional)
+
+On your local machine after the eval completes:
+
+```bash
+set -a && . .env && set +a
+python -m validator.sync download --state-dir /tmp/verify
+cat /tmp/verify/state.json | python -m json.tool
+ls /tmp/verify/container_logs/
+```

@@ -1,57 +1,58 @@
 ---
-title: Validators overview
-description: Operating the Cacheon validator on a single GPU machine. Environment variables, Docker Compose deployment, and where to find setup instructions.
+title: Overview
+description: How the Cacheon validator works, what you need to run one, and the day-to-day operator workflow.
 ---
 
-Cacheon runs **one validator process** on the operator-controlled GPU machine. It holds the wallet, scans commitments, runs Docker-backed evaluations against a pinned vLLM baseline, and sets one-hot weights to the current king.
+The validator scans the Bittensor chain for miner submissions, evaluates them against a vLLM baseline on GPU hardware, and sets one-hot weights to the current king.
 
-## Hardware target
+## Components
 
-**4x (or 8x) NVIDIA H200 SXM 141GB HBM3e** with a fixed NVLink topology.
+**CPU host** (always-on)
 
-## Provisioning
+Holds the validator wallet. Scans the chain every ~5 min, detects new miner submissions, writes an evaluation job to S3, and sets weights whenever GPU results arrive or weights go stale. No GPU required.
 
-Ubuntu 22.04 or 24.04. SSH in, paste:
+**GPU pod** (ephemeral, rented on-demand)
 
-```bash
-apt-get update && apt-get install -y curl sudo
-export GITHUB_PAT=ghp_...
-export HF_TOKEN=... # optional but recommended
-curl -fsSL -u "token:${GITHUB_PAT}" "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup.sh" | sudo -E bash
-```
+Downloads the evaluation job from S3, runs the vLLM baseline and each miner container, captures results, and uploads everything back to S3. No wallet, no chain access. Exits when done.
 
-That runs **[`validator/setup.sh`](https://github.com/latent-to/cacheon/blob/main/validator/setup.sh)** (Docker, NVIDIA toolkit, model weights, PG19, baseline image). Fine-grained PATs: use `-H "Authorization: Bearer ${GITHUB_PAT}"` instead of `-u "token:..."`.
-Already have the repo? `cd cacheon && sudo -E bash validator/setup.sh`.
-Code-only refresh: `bash validator/setup.sh --pull`.
+<Callout type="idea" title="Why this design?">
 
-## Configuration
+**Security:** The CPU host holds the wallets; the GPU pod has no credentials and only does eval work. If either machine is compromised, the blast radius stays contained.
 
-Copy `validator/.env.validator.example` to `validator/.env` and fill in the required values:
+**Cost:** GPUs are scarce, expensive, and unpredictably available across providers. Rent a GPU pod only when both conditions hold: there is hardware that meets our requirements (see [GPU requirements](#gpu-requirements)) and at least one challenger is queued.
 
-| Env var                   | Purpose                                                                         |
-| ------------------------- | ------------------------------------------------------------------------------- |
-| `CACHEON_NETWORK`         | Bittensor network: `finney` (mainnet) or `test` (testnet)                       |
-| `CACHEON_NETUID`          | Subnet UID (`14` on mainnet, `470` on testnet)                                  |
-| `CACHEON_WALLET_NAME`     | Bittensor wallet name                                                           |
-| `CACHEON_WALLET_HOTKEY`   | Bittensor hotkey name                                                           |
-| `CACHEON_GPU_COUNT`       | Number of GPUs on the machine (e.g. `4` or `8`)                                 |
-| `CACHEON_MODEL_VOLUME`    | Host path to the read-only model directory mounted at `/models` in containers   |
-| `CACHEON_BASELINE_IMAGE`  | Baseline image reference (default `vllm/vllm-openai:latest`)                    |
-| `CACHEON_BASELINE_DIGEST` | `sha256:...` digest from `setup.sh` or `docker inspect`; required for live eval |
+</Callout>
 
-Optional: **`HF_TOKEN`** for non-interactive `hf login` during setup when downloading weights.
+## Day-to-day workflow
 
-See [Architecture: validator](/docs/architecture/validator) for the full env var reference.
+For V1 the GPU step is manually triggered:
 
-## Running
+1. CPU host runs continuously, scanning for new challengers and writing `eval_job.json` to S3.
+2. When challengers appear, run `python scripts/gpu_search.py --best` to find an available GPU pod across Shadeform, Lambda, and Targon. Runpod and Vast.ai are excluded (they give you a container, not a VM; nested Docker does not work reliably).
+3. _Manually_ SSH into the pod and follow [GPU pod setup](/docs/validators/gpu-pod-setup). It is two steps: run `setup.sh` once on a fresh machine, then `docker compose up --build` to run the one-shot eval.
+4. The CPU host detects the new results on its next poll and sets weights automatically.
 
-The validator runs as a Docker container via Docker Compose:
+This workflow will be automated in V2.
 
-```bash
-cd cacheon/validator
-docker compose up --build
-```
+## GPU requirements
 
-Docker Compose builds the validator image, creates the dual-network topology (`cacheon-internal` for miner containers, `cacheon-egress` for chain access), mounts the Docker socket, wallet, and state directory, and starts the validator loop.
+Eval requires multi-GPU NVLink/SXM interconnect to run `Qwen2.5-72B-Instruct` with tensor parallelism. PCIe-connected GPUs (most consumer cloud offerings) cannot load this model across cards at the required speed.
 
-To run in dry-run mode (chain scanning without Docker eval or weight setting), set `CACHEON_DRY_RUN=1` in your `.env` file.
+All instances must meet these baseline conditions:
+
+- NVLink/SXM interconnect required
+- Storage: 400 GB minimum
+- VRAM per GPU: H200 `>=` 141 GB, H100 `>=` 80 GB, A100 `>=` 80 GB, B200 `>=` 180 GB
+
+`gpu_search.py` applies these conditions and picks the cheapest available instance across two tiers:
+
+| Tier              | Configs (preferred order)                        | When used                                                    |
+| ----------------- | ------------------------------------------------ | ------------------------------------------------------------ |
+| **A** (preferred) | 4x H200, 8x H100, 8x A100 80GB, 8x H200, 2x B200 | Default. Any can run 72B BF16 with tensor parallelism.       |
+| **B** (fallback)  | 2x H200, 4x H100, 4x A100 80GB, 4x B200, 8x B200 | Only when Tier A has zero availability across all providers. |
+
+## Setup
+
+- [CPU host setup](/docs/validators/cpu-host-setup): VPS, wallet, Docker Compose
+- [GPU pod setup](/docs/validators/gpu-pod-setup): setup.sh walkthrough, running an eval
+- [Architecture](/docs/validators/architecture): how the loop, S3 handoff, and state work

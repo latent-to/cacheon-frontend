@@ -5,7 +5,7 @@ description: Mining with your inference servers - requirements, workflow, evalua
 
 ## What you're building
 
-A containerized inference server that serves `Qwen2.5-72B-Instruct` via an OpenAI-compatible chat completions API. The validator pulls your Docker image, starts it with 4x H200 GPU access, sends instruct-style prompts, and measures how fast your server responds compared to a vLLM baseline.
+A containerized inference server that serves `Qwen2.5-72B-Instruct` via an OpenAI-compatible chat completions API. The validator pulls your Docker image, starts it with GPU access, sends instruct-style prompts, and measures how fast your server responds compared to a vLLM baseline.
 
 You build a Docker image, push it to a container registry, and commit the image reference on-chain. That's it.
 
@@ -47,6 +47,6 @@ See [Rules](/docs/miners/rules) for the full list. Some restrictions (speculativ
 ## Common pitfalls
 
 - **Wrong model weights.** Your server must load the exact `Qwen2.5-72B-Instruct` BF16 weights from the mounted volume at `/models`. Modified, quantized, or distilled weights will fail the correctness gate.
-- **Slow startup.** The validator gives your container 10 minutes to respond on `/health`. 72B model loading on 4x H200 takes 2-5 minutes. Budget accordingly.
+- **Slow startup.** The validator gives your container 10 minutes to respond on `/health`. 72B model loading takes 3-7 minutes. Budget accordingly.
 - **Non-compliant API.** Your server must implement `/v1/chat/completions` with logprobs support. See [API contract](/docs/miners/api-contract).
 - **Don't copy the king.** The validator computes a digest of your Docker image. Byte-identical copies of the current king's image are rejected.

@@ -6,9 +6,8 @@ const STEPS = [
     title: 'Build a server',
     desc: (
       <>
-        Package your inference server in a Docker container. Any language, any framework, any
-        optimization. Serve <code>Qwen2.5-72B-Instruct</code> on 4x H200 via{' '}
-        <code>/v1/chat/completions</code>.
+        Containerize your inference server. Any language, any framework, any optimization. Serve{' '}
+        <code>Qwen2.5-72B-Instruct</code> via <code>/v1/chat/completions</code>.
       </>
     ),
   },
@@ -17,9 +16,14 @@ const STEPS = [
     title: 'Validator evaluates',
     desc: (
       <>
-        The validator pulls your image, starts the container with GPU access, and runs a two-pass
-        evaluation: a streaming evaluation for speed (TTFT + throughput), then a non-streaming
-        evaluation for correctness (token match + logprob checks).
+        The validator pulls your image, starts the container on GPU, and runs a{' '}
+        <a
+          href="/docs/evaluation/harness"
+          className="text-accent underline-offset-2 hover:underline"
+        >
+          two-pass eval
+        </a>
+        : speed (TTFT + throughput) then correctness.
       </>
     ),
   },
@@ -28,8 +32,8 @@ const STEPS = [
     title: 'Fastest server wins',
     desc: (
       <>
-        Beat the king's speed while passing the correctness gate: you're the new king. All emission
-        flows to the winner. No partial credit.
+        Beat the king's speed while passing the correctness gate: you're the new king. All token
+        emission flows to the winner.
       </>
     ),
   },
@@ -38,7 +42,7 @@ const STEPS = [
 type MetricRow = {
   value: string
   label: string
-  desc: string
+  desc: React.ReactNode
   highlight?: boolean
 }
 
@@ -54,9 +58,19 @@ const METRICS: MetricRow[] = [
     desc: 'Output tokens/sec improvement vs. vLLM baseline. Measures decode speed.',
   },
   {
-    value: '99%',
-    label: 'Token match gate',
-    desc: 'Minimum greedy token match rate. Below this, your score is zero.',
+    value: 'pass / fail',
+    label: 'Correctness gate',
+    desc: (
+      <>
+        First-mismatch logprob check.{' '}
+        <a
+          href="/docs/evaluation/scoring"
+          className="text-accent underline-offset-2 hover:underline"
+        >
+          See how it works.
+        </a>
+      </>
+    ),
   },
 ]
 
@@ -82,26 +96,18 @@ export default function HowItWorks() {
           ))}
         </div>
 
-        {/* Divider */}
-        <div className="mb-14 flex items-center gap-4">
-          <div className="bg-border/40 h-px flex-1" />
-          <span className="text-secondary font-mono text-[0.7rem] font-semibold tracking-[0.22em] uppercase">
-            Scoring
-          </span>
-          <div className="bg-border/40 h-px flex-1" />
-        </div>
-
         {/* Score formula */}
         <div className="border-border/60 bg-surface/60 mb-8 rounded-xl border p-7 backdrop-blur-sm">
           <div className="text-accent mb-4 font-mono text-[0.7rem] font-semibold tracking-[0.22em] uppercase">
             scoring
           </div>
           <pre className="text-primary m-0 overflow-auto font-mono text-[0.85rem] leading-[1.85]">
-            <span className="text-secondary">{'// Correctness gate'}</span>
+            <span className="text-secondary">
+              {'// Correctness gate: first-mismatch logprob check'}
+            </span>
             {'\n'}
             <span className="text-secondary">if</span>
-            {' token_match_rate < '}
-            <span className="text-accent">0.99</span>
+            {' not correctness_pass'}
             {'\n    score = '}
             <span className="text-secondary">0.0</span>
             {'\n'}

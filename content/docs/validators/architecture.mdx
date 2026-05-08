@@ -1,0 +1,90 @@
+---
+title: Architecture
+description: CPU validator loop, GPU eval entrypoint, S3 handoff, challenger detection, king comparison, weight setting, state persistence, and observability.
+---
+
+## CPU validator loop
+
+The CPU host runs `validator/cpu_validator.py` continuously. Every poll interval (~5 min):
+
+```
+while True:
+    s3_download(state_dir)
+    state = load_state()
+
+    metagraph, block, block_hash = scan_chain()
+    commitments = parse_commitments(metagraph)
+
+    if king_hotkey_deregistered():
+        clear_king()
+
+    if new_eval_results() or weights_stale():
+        set_weights(king)
+
+    challengers = select_unevaluated(commitments)
+    if challengers:
+        write_eval_job(challengers, block, block_hash)
+        s3_upload(state_dir)
+
+    sleep(poll_interval)
+```
+
+Weight setting triggers in three situations:
+
+- **New eval results**: GPU completed evaluations (detected by comparing `evaluation_block` against `last_weights_set_block`)
+- **First weight set**: a king exists but weights have never been set
+- **Staleness refresh**: weights are older than one tempo (~360 blocks, ~72 min) to stay active in consensus
+
+## GPU eval entrypoint
+
+The GPU pod runs `validator/gpu_eval.py` as a one-shot job. No Bittensor dependency.
+
+```
+s3_download(state_dir)
+eval_job = load_eval_job()        # written by CPU
+prompts = sample_prompts(block_hash)
+baseline = run_baseline_if_needed(prompts)
+
+for challenger in eval_job.challengers:
+    result = evaluate_in_docker(challenger, prompts, baseline)
+    state.record_evaluation(result)
+
+s3_upload(state_dir)
+exit
+```
+
+The GPU reads `eval_job.json` (block context + challenger list), runs evaluations, writes results into `state.json`, and exits.
+
+## State and S3 handoff
+
+The CPU and GPU share a single S3 prefix (`validator/sync.py`). Both sides download the full state directory before starting work and upload after completing it. The CPU writes `eval_job.json` and `state.json` (after weight setting); the GPU writes `state.json` (eval results, king changes), `baseline_cache/`, `container_logs/`, and `logs/`.
+
+`state.json` tracks the king record, evaluation history with per-prompt breakdowns, precheck failures, and scan/weight-setting block numbers. Written atomically (temp file + rename).
+
+Typical mirrored layout under `state/`:
+
+```
+state/
+  state.json
+  eval_job.json
+  king-history.jsonl
+  baseline_cache/
+    baseline_{hash}.json
+  container_logs/
+    baseline_{hash}.log
+    uid{N}_{hotkey}_{block}.log
+  logs/
+    gpu_eval_{timestamp}.log
+```
+
+JSON field-level detail: [Data contracts](/docs/evaluation/data-contracts).
+
+## Observability
+
+Each GPU eval run captures:
+
+- **Per-prompt metrics**: TTFT, throughput, token match rate, output token count for every scored prompt
+- **Container logs**: full stdout/stderr from baseline and miner containers, saved to `container_logs/`
+- **Timestamped validator logs**: one log file per GPU eval session under `logs/`
+
+All artifacts are uploaded to S3 and available for the frontend monitoring API.
