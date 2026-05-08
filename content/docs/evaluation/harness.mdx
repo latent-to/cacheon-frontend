@@ -1,6 +1,6 @@
 ---
 title: Evaluation harness
-description: How the harness orchestrates containerized evaluation. Docker lifecycle, vLLM baseline, two-pass measurement, warmup, and median aggregation.
+description: How the harness orchestrates containerized evaluation. Docker lifecycle, vLLM baseline, single-pass measurement, warmup, and median aggregation.
 ---
 
 The harness is the system that pulls miner containers, starts them, sends prompts, and measures performance against the vLLM baseline.
@@ -22,15 +22,14 @@ For each challenger:
 
 ```
 1. Pull Docker image by digest
-2. Start container with --gpus '"device=0,1,2,3"', model volume mount, port mapping, internal network
+2. Start container with --gpus all, model volume mount, internal network
 3. Poll GET /health every 5s until 200 (startup timeout: 10 min)
 4. Send 1-2 warmup prompts (discarded, not scored)
-5. Run speed pass: 10 streaming requests, measure TTFT + throughput
-6. Run correctness pass: 10 non-streaming requests with logprobs
-7. Stop and remove container
-8. Clean up GPU state (reset clocks, clear caches, all 4 GPUs)
-9. Compute median TTFT/throughput, correctness check, score
-10. Compare against king
+5. Send 10 streaming requests with logprobs; measure TTFT + throughput and collect tokens + logprobs in the same pass
+6. Stop and remove container
+7. Clean up GPU state (reset clocks, clear caches, all GPUs)
+8. Compute median TTFT/throughput, correctness check, score
+9. Compare against king
 ```
 
 ### Warmup
@@ -62,7 +61,7 @@ Baseline results are **pre-computed and cached** per prompt set. When the block 
 
 ### Baseline warmup
 
-The baseline receives the same 1-2 warmup prompts before its measured run. Baseline measurement follows the same two-pass protocol as miner evaluation.
+The baseline receives the same 1-2 warmup prompts before its measured run. Baseline measurement follows the same single-pass protocol as miner evaluation.
 
 ## Prompt delivery
 
@@ -74,7 +73,9 @@ Prompts are delivered as OpenAI-compatible chat completion requests over HTTP:
   "messages": [{ "role": "user", "content": "<instruction with passage context>" }],
   "max_tokens": 256,
   "temperature": 0,
-  "stream": true
+  "stream": true,
+  "logprobs": true,
+  "top_logprobs": 5
 }
 ```
 
@@ -108,7 +109,7 @@ Both TTFT and throughput are aggregated using the **median** across the 10 score
 
 ### Correctness
 
-Measured from the non-streaming correctness pass. Per-prompt first-divergence analysis against baseline output, with logprob verification at the first mismatch position. See [Scoring](/docs/evaluation/scoring) for the full correctness gate specification.
+Measured from the same streaming pass that captures speed. Per-prompt first-divergence analysis against baseline output, with logprob verification at the first mismatch position. See [Scoring](/docs/evaluation/scoring) for the full correctness gate specification.
 
 ## Per-prompt metrics
 

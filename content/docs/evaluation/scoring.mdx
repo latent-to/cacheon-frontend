@@ -1,6 +1,6 @@
 ---
 title: Scoring
-description: Two-pass evaluation. Correctness-gated speed scoring. TTFT and throughput improvements relative to vLLM baseline, floored at zero. Median across prompts.
+description: Single-pass evaluation. Correctness-gated speed scoring. TTFT and throughput improvements relative to vLLM baseline, floored at zero. Median across prompts.
 ---
 
 The scoring algorithm uses a **correctness-gated speed model**. A strict correctness check acts as a primary filter; submissions that fail it receive a zero score. For valid submissions, the final score combines TTFT and throughput improvements against the vLLM baseline.
@@ -33,22 +33,13 @@ Each evaluation round sends **10 prompts** to both baseline and miner. Per-promp
 
 Why median: it is robust to outliers (a single GC pause or memory allocation spike does not tank your score) and prevents gaming by being fast on easy prompts but slow on hard ones.
 
-## Two-pass evaluation
+## Single-pass evaluation
 
-Speed and correctness are measured in separate passes to prevent logprob serialization overhead from distorting speed measurements.
+Speed and correctness are measured from the **same streaming request** (`stream=true, logprobs=true, top_logprobs=5`). Each prompt is sent once; the validator measures TTFT and throughput from SSE chunk timing while simultaneously collecting tokens and per-token logprobs for the correctness gate.
 
-### Pass 1: Speed
+This eliminates the exploit surface of a two-pass design where a miner could detect which pass is running and return different outputs (fast garbage for speed, correct tokens for correctness).
 
-Prompts are sent with `stream=true` and no logprobs requested. The validator measures:
-
-- **TTFT**: wall-clock time from HTTP request send to first SSE data chunk
-- **Throughput**: total output tokens divided by wall-clock time from first token to last token
-
-Both baseline (vLLM) and miner are measured identically.
-
-### Pass 2: Correctness
-
-Same prompts are sent with `stream=false` and `logprobs=5`. The validator collects full output tokens and per-token logprobs. This pass is not timed.
+Logprob serialization adds a small constant overhead per token. Because the baseline and miner both run with the same request parameters, this overhead cancels out in the relative improvement calculation.
 
 ## Warmup
 
