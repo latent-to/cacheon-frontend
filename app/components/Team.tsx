@@ -31,7 +31,7 @@ export default function Team() {
       <div className="mx-auto max-w-6xl px-6 py-28 max-sm:py-16">
         <SectionHeader eyebrow="04 — Team" title="The people building Cacheon." />
 
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-5">
           {TEAM.map((m) => (
             <MemberCard key={m.name} member={m} />
           ))}
@@ -43,7 +43,7 @@ export default function Team() {
 
 function MemberCard({ member }: { member: TeamMember }) {
   return (
-    <div className="group border-border/60 bg-surface/60 hover:border-border hover:bg-surface/80 rounded-xl border p-5 backdrop-blur-sm transition-colors">
+    <div className="group border-border/60 bg-surface/60 hover:border-border hover:bg-surface/80 rounded-xl border p-4 backdrop-blur-sm transition-colors sm:p-5">
       <div className="border-border/60 mb-4 size-12 overflow-hidden rounded-full border">
         <img
           src={member.image}

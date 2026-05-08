@@ -85,7 +85,7 @@ export default function HowItWorks() {
           {STEPS.map((s) => (
             <article
               key={s.num}
-              className="border-border/60 bg-surface/60 hover:border-border hover:bg-surface/80 rounded-xl border p-7 backdrop-blur-sm transition-colors"
+              className="border-border/60 bg-surface/60 hover:border-border hover:bg-surface/80 rounded-xl border p-5 backdrop-blur-sm transition-colors sm:p-7"
             >
               <div className="text-accent mb-4 font-mono text-[0.7rem] font-semibold tracking-[0.22em] uppercase">
                 {s.num}
@@ -97,11 +97,11 @@ export default function HowItWorks() {
         </div>
 
         {/* Score formula */}
-        <div className="border-border/60 bg-surface/60 mb-8 rounded-xl border p-7 backdrop-blur-sm">
+        <div className="border-border/60 bg-surface/60 mb-8 rounded-xl border p-5 backdrop-blur-sm sm:p-7">
           <div className="text-accent mb-4 font-mono text-[0.7rem] font-semibold tracking-[0.22em] uppercase">
             scoring
           </div>
-          <pre className="text-primary m-0 overflow-auto font-mono text-[0.85rem] leading-[1.85]">
+          <pre className="text-primary m-0 overflow-x-auto font-mono text-[0.75rem] leading-[1.85] sm:text-[0.85rem]">
             <span className="text-secondary">
               {'// Correctness gate: first-mismatch logprob check'}
             </span>
@@ -127,15 +127,15 @@ export default function HowItWorks() {
         </div>
 
         {/* Metric cards */}
-        <div className="mb-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
+        <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
           {METRICS.map((m) => (
             <div
               key={m.label}
-              className={`hover:border-border hover:bg-surface/80 rounded-xl border p-6 backdrop-blur-sm transition-colors ${
+              className={`hover:border-border hover:bg-surface/80 rounded-xl border p-5 backdrop-blur-sm transition-colors sm:p-6 ${
                 m.highlight ? 'border-accent/50 bg-accent/5' : 'border-border/60 bg-surface/60'
               }`}
             >
-              <div className="text-primary mb-2 font-mono text-3xl leading-none font-bold">
+              <div className="text-primary mb-2 font-mono text-2xl leading-none font-bold sm:text-3xl">
                 {m.value}
               </div>
               <div className="text-accent mb-2 font-mono text-[0.72rem] font-semibold tracking-[0.18em] uppercase">
