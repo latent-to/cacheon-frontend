@@ -7,17 +7,19 @@ description: What your container can and cannot do during evaluation. Network is
 
 During evaluation, your container runs with:
 
-| Resource           | Value                                                                                                |
-| ------------------ | ---------------------------------------------------------------------------------------------------- |
-| GPU                | See [GPU table](/docs/validators/overview#gpu-requirements), exclusive access, fixed NVLink topology |
-| RAM                | Host memory available                                                                                |
-| Model weights      | Read-only volume mounted at `/models`                                                                |
-| Network            | **Internal only** -- all outbound egress blocked                                                     |
-| Filesystem         | Model weights read-only at `/models`                                                                 |
-| Startup timeout    | 10 minutes                                                                                           |
-| Per-prompt timeout | 120 seconds                                                                                          |
+| Resource           | Value                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| GPU                | See [GPU requirements](/docs/validators/overview#gpu-requirements), exclusive access, fixed NVLink topology |
+| RAM                | Host memory available                                                                                       |
+| Model weights      | Read-only volume mounted at `/models`                                                                       |
+| Network            | **Internal only** -- all outbound egress blocked                                                            |
+| Filesystem         | Model weights read-only at `/models`                                                                        |
+| Startup timeout    | 10 minutes                                                                                                  |
+| Per-prompt timeout | 120 seconds                                                                                                 |
 
 ## What is allowed
+
+This section outlines operations and strategies that are permitted in V1:
 
 - Any programming language (Rust, C++, Python, Go, etc.)
 - Any inference framework or custom implementation
@@ -30,13 +32,13 @@ During evaluation, your container runs with:
 
 ## What is not allowed (V1)
 
-- **Speculative decoding.** Draft models, lookahead, and Medusa heads are banned in V1. This simplifies correctness checking. Will be allowed in V2.
-- **Weight quantization.** GPTQ, AWQ, FP8, INT4, or any other quantization scheme is banned in V1. Must load exact BF16 weights from the mounted volume.
-- **Network access.** Your container runs on an internal Docker network with no outbound access. All dependencies must be baked into the image. Model weights are provided via volume mount.
-- **Modified model weights.** You must serve the canonical `Qwen2.5-72B-Instruct` weights. Fine-tuned or distilled weights will fail the correctness gate.
-- **Fabricated outputs.** Returning cached or pre-computed responses instead of running actual inference. The validator uses block-hash-seeded prompts that are unpredictable.
-- **Container escape attempts.** The container runs without `--privileged`. Attempting to escape the sandbox results in permanent DQ.
-- **Excessive resource usage.** If your container OOMs or exceeds resource limits, it is terminated and DQ'd.
+- **Speculative decoding:** Draft models, lookahead, and Medusa heads are banned in V1. This simplifies correctness checking. Will be allowed in V2.
+- **Weight quantization:** GPTQ, AWQ, FP8, INT4, or any other quantization scheme is banned in V1. Miners must load exact BF16 weights from the mounted volume.
+- **Network access:** Your container runs on an internal Docker network with no outbound access. All dependencies must be baked into the image. Model weights are provided via volume mount.
+- **Modified model weights:** You must serve the canonical `Qwen2.5-72B-Instruct` weights. Fine-tuned or distilled weights will fail the correctness gate.
+- **Fabricated outputs:** Returning cached or pre-computed responses instead of running actual inference. The validator uses block-hash-seeded prompts that are unpredictable.
+- **Container escape attempts:** The container runs without `--privileged`. Attempting to escape the sandbox results in permanent DQ.
+- **Excessive resource usage:** If your container OOMs or exceeds resource limits, it is terminated and DQ'd.
 
 ## Disqualification conditions
 
@@ -68,6 +70,6 @@ Weights are public on Hugging Face. There is nothing secret to steal from the mo
 
 ## Why gaming the system does not work
 
-**Faking TTFT:** Even if you game the speed pass (e.g. by emitting a fast first token and stalling), you still have to pass the correctness gate in a separate request. That requires running real inference against the exact same model weights.
+**Faking TTFT:** Even if you game the speed pass (e.g. by emitting a fast first token and stalling), you still have to pass the correctness gate. That requires running real inference against the exact same model weights.
 
-**Fabricating logprobs:** Speed and correctness are separate passes, so fake logprobs cannot affect your speed score. To pass correctness, at least 9 out of 10 prompts must have their first divergence point show the baseline token in your top-5 with a gap under 0.5. Prompts are block-hash-seeded, so the baseline output is unknown until the block arrives. You would need to run the exact correct model to know what to fabricate, defeating any speed advantage.
+**Fabricating logprobs:** Fake logprobs cannot affect your speed score. To pass correctness, at least 9 out of 10 prompts must have their first divergence point show the baseline token in your top-5 with a gap under 0.5. Prompts are block-hash-seeded, so the baseline output is unknown until the block arrives. You would need to run the exact correct model to know what to fabricate, defeating any speed advantage.
