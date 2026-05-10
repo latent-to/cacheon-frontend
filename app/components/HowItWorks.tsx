@@ -21,9 +21,9 @@ const STEPS = [
           href="/docs/evaluation/harness"
           className="text-accent underline-offset-2 hover:underline"
         >
-          two-pass eval
-        </a>
-        : speed (TTFT + throughput) then correctness.
+          single-pass eval
+        </a>{' '}
+        that measures speed (TTFT + throughput) and correctness.
       </>
     ),
   },

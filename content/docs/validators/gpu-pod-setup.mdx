@@ -73,7 +73,7 @@ Once the evaluation completes, the container automatically exits. Each run perfo
 
 1. **S3 download**: pulls `state.json`, `eval_job.json`, `baseline_cache/` from S3
 2. **Prompt generation**: seeds from `block_hash` in the eval job, produces 10 prompts
-3. **Baseline**: starts vLLM on all GPUs, two-pass eval, caches results keyed by block hash
+3. **Baseline**: starts vLLM on all GPUs, single-pass eval, caches results keyed by block hash
 4. **Per challenger**: pull image, start container, warmup, speed pass, correctness pass, teardown
 5. **Container logs**: full stdout/stderr saved to `state/container_logs/`
 6. **S3 upload**: pushes updated `state.json`, logs, and baseline cache

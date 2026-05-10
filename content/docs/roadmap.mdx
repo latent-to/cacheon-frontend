@@ -25,7 +25,7 @@ _Last updated: 2026-05-08._
 | 1 -- API contract            | `/v1/chat/completions` spec, health checks, streaming, logprobs           | ✅ Done        |
 | 2 -- Container orchestration | Docker lifecycle: pull, start, health poll, eval, teardown                | ✅ Done        |
 | 3 -- vLLM baseline           | On-demand baseline container, caching per prompt set                      | ✅ Done        |
-| 4 -- Scoring pipeline        | Two-pass eval: speed (TTFT + throughput) + correctness gate               | ✅ Done        |
+| 4 -- Scoring pipeline        | Single-pass evaluation: speed (TTFT + throughput) + correctness gate      | ✅ Done        |
 | 5 -- Security                | Container isolation: internal network, resource limits, GPU cleanup       | ✅ Done        |
 | 6A -- Validator loop         | Chain scan, challenger selection, Docker eval, state, `set_weights`       | ✅ Done        |
 | 6B -- GPU eval standalone    | S3 sync, `eval_job.json` handoff, per-prompt metrics, container logs      | ✅ Done        |

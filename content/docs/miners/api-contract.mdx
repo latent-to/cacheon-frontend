@@ -45,35 +45,9 @@ Standard OpenAI chat completions endpoint. The validator sends all prompts here 
 
 Standard _Server-Sent Event_ (_SSE_) with `data: {"choices": [{"delta": {"content": "..."}, "logprobs": {...}}]}` chunks. Final chunk is `data: [DONE]`.
 
-**Response format (non-streaming):**
+## Single-pass evaluation
 
-```json
-{
-  "choices": [
-    {
-      "message": { "role": "assistant", "content": "..." },
-      "logprobs": {
-        "content": [
-          {
-            "token": "token1",
-            "logprob": -0.12,
-            "top_logprobs": [
-              { "token": "token1", "logprob": -0.12 },
-              { "token": "token2", "logprob": -2.3 }
-            ]
-          }
-        ]
-      }
-    }
-  ]
-}
-```
-
-## Two-pass evaluation
-
-The validator evaluates your server in two passes:
-
-### Pass 1: Speed (streaming, no logprobs)
+The validator evaluates your server in one pass that measures speed and correctness at the same time:
 
 ```json
 {
@@ -82,6 +56,8 @@ The validator evaluates your server in two passes:
   "max_tokens": 256,
   "temperature": 0,
   "stream": true
+  "logprobs": true,
+  "top_logprobs": 5
 }
 ```
 
@@ -89,24 +65,7 @@ The validator measures:
 
 - **TTFT**: wall-clock time from request send to first SSE data chunk
 - **Throughput**: output tokens per second, measured from SSE timestamps
-
-### Pass 2: Correctness (non-streaming, logprobs requested)
-
-```json
-{
-  "model": "Qwen2.5-72B-Instruct",
-  "messages": [{ "role": "user", "content": "..." }],
-  "max_tokens": 256,
-  "temperature": 0,
-  "stream": false,
-  "logprobs": true,
-  "top_logprobs": 5
-}
-```
-
-The validator compares your output against the baseline using **per-prompt first-divergence analysis** with logprob verification. See [Scoring](/docs/evaluation/scoring) for the full specification.
-
-This pass is not timed. Take as long as you need.
+- **Correctness**: your output against the baseline using **per-prompt first-divergence analysis** with logprob verification. See [Scoring](/docs/evaluation/scoring) for the full specification.
 
 ## Model identity
 
