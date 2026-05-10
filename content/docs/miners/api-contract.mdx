@@ -1,13 +1,13 @@
 ---
 title: API contract
-description: The OpenAI-compatible HTTP API your inference server must implement. Chat completions endpoint, request format, response format, and required capabilities.
+description: This page covers the OpenAI-compatible HTTP API that your inference server must implement. Chat completions endpoint, request format, response format, and required capabilities.
 ---
 
 ## Required endpoints
 
 ### `GET /health`
 
-Returns HTTP 200 when the server is ready to serve requests. The validator polls this endpoint after starting your container. If it does not return 200 within the startup timeout (10 minutes), the container is killed and the submission is DQ'd.
+Returns `HTTP 200` when the server is ready to serve requests. The validator polls this endpoint after starting your container. If it does not return `200` within the 10-minute startup window, the container is terminated and the submission is disqualified.
 
 ```json
 { "status": "ok" }
@@ -43,7 +43,7 @@ Standard OpenAI chat completions endpoint. The validator sends all prompts here 
 
 **Response format (streaming):**
 
-Standard SSE with `data: {"choices": [{"delta": {"content": "..."}, "logprobs": {...}}]}` chunks. Final chunk is `data: [DONE]`.
+Standard _Server-Sent Event_ (_SSE_) with `data: {"choices": [{"delta": {"content": "..."}, "logprobs": {...}}]}` chunks. Final chunk is `data: [DONE]`.
 
 **Response format (non-streaming):**
 

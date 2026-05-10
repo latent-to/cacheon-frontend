@@ -11,7 +11,7 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
 const FEATURES = [
   {
     title: 'Inference arena',
-    body: 'Build the fastest server for a top open-source model. King of the hill, winner-take-all.',
+    body: 'Build the fastest server for top open-source models. King of the hill, winner-take-all.',
   },
   {
     title: 'Any stack, any language',
@@ -77,7 +77,7 @@ export default function Hero() {
 
         {/* Sub-copy */}
         <p className="text-secondary mb-10 max-w-xl font-sans text-base leading-[1.65] sm:text-lg sm:leading-[1.6]">
-          Inference has been the bottleneck.{' '}
+          Inference has been the bottleneck for serving LLMs at scale.{' '}
           <span className="text-primary font-medium">Cacheon</span> is a live competition to serve{' '}
           <code className="text-accent text-[0.88em]">Qwen2.5-72B</code> faster than anyone else.
           Submit a containerized server, beat vLLM, and earn{' '}

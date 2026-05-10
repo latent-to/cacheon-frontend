@@ -36,7 +36,7 @@ During evaluation, your container runs with:
 - **Modified model weights.** You must serve the canonical `Qwen2.5-72B-Instruct` weights. Fine-tuned or distilled weights will fail the correctness gate.
 - **Fabricated outputs.** Returning cached or pre-computed responses instead of running actual inference. The validator uses block-hash-seeded prompts that are unpredictable.
 - **Container escape attempts.** The container runs without `--privileged`. Attempting to escape the sandbox results in permanent DQ.
-- **Excessive resource usage.** If your container OOMs or exceeds resource limits, it is killed and DQ'd.
+- **Excessive resource usage.** If your container OOMs or exceeds resource limits, it is terminated and DQ'd.
 
 ## Disqualification conditions
 

@@ -3,7 +3,7 @@ title: Competition model
 description: King-of-the-hill with winner-take-all emission. Miners submit containerized inference servers. The fastest correct server wins.
 ---
 
-Cacheon uses a **king-of-the-hill** incentive. There is always one reigning champion—the miner with the fastest inference server on record. **All subnet emissions flow to the king.** Challengers compete to dethrone them.
+Cacheon uses a king-of-the-hill incentive. The reigning champion is the miner with the fastest inference server on record, and all subnet emissions flow to them. Challengers compete to take the crown.
 
 ## How a round works
 
@@ -11,19 +11,21 @@ Cacheon uses a **king-of-the-hill** incentive. There is always one reigning cham
 2. Any hotkey with a revealed commitment that hasn't been evaluated yet is a **challenger**.
 3. If there are no challengers, the king keeps its weight, no GPU runs, and the loop sleeps.
 4. If challengers exist, the validator dispatches evaluation jobs and compares scores.
-5. A challenger who beats the king's score **by more than a small, time-decaying margin** takes the throne -- see [defender's moat](#the-defenders-moat). Weights are updated: `winner = 1.0`, everyone else `= 0.0`.
+5. A challenger who beats the king's score **by more than a small, time-decaying margin** takes the throne. See [defender's moat](#the-defenders-moat). Weights are updated: `winner = 1.0`, everyone else `= 0.0`.
 
 ## The defender's moat
 
 The dethrone rule is not a plain `>`. It must pass two checks:
 
 1. **Copycats get disqualified.** If a challenger's Docker image hash matches the current king's, but the hotkey differs and the commitment block is later, the challenger is DQ'd (`reason = "duplicate_of_king"`).
-2. **Non-copies need a small edge.** A new server must strictly exceed `king_score x (1 + e(age))`, where e starts at **1%** at the block when the king is crowned and **decays linearly to 0** over **~50,400 blocks (~7 days)**. After that, the threshold is just `king_score` -- any strict improvement wins.
+2. **Non-copies need a small edge.** A new server must strictly exceed `king_score x (1 + e(age))`.
+
+   where `e` starts at **1%** at the block when the king is crowned and **decays linearly to 0** over **~50,400 blocks (~7 days)**. After that, the threshold is just `king_score`, and any strict improvement wins.
 
 Why:
 
 - Running the same server twice can produce small score variance from GPU clock drift, scheduling jitter, and network overhead. Without the moat, rankings could flip on noise.
-- Without the copycat DQ, the dominant strategy would be "wait, copy, register."
+- Without the copycat disqualification, miners are incentivized to wait, copy the leader, and register it themselves.
 - The decaying margin means a king cannot sit on a free 1% edge indefinitely.
 
 ## One commitment per hotkey
@@ -32,7 +34,7 @@ Each hotkey gets **exactly one submission**. To submit a new server, miners must
 
 This is deliberate:
 
-- **Commitment pressure.** Every submission costs something (registration fee + time). You will test locally before registering.
+- **Commitment pressure.** Since every submission costs both time and fees, miners are incentivized to validate locally before registering.
 - **Clean on-chain record.** One hotkey maps to one Docker image at one pinned digest. No ambiguity about which server produced which score.
 
 ## What validators score on

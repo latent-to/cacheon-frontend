@@ -37,7 +37,7 @@ export const ROADMAP: RoadmapPhase[] = [
       'Winning servers deployed as live endpoints for real traffic',
       'Agent, RAG, and multi-turn workloads with P99 SLA targets',
       'Teams route traffic because nobody else serves this model this fast',
-      'The PMF: default high-performance backend for a top OSS model',
+      'The PMF: default high-performance backend for top OSS models',
     ],
   },
   {
