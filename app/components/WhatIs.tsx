@@ -179,13 +179,13 @@ export default function WhatIs() {
           ].map((item) => (
             <div key={item.metric} className="text-center">
               <div
-                className={`font-mono text-[0.85rem] font-bold tracking-[0.15em] ${
+                className={`font-mono text-[1rem] font-bold tracking-[0.15em] ${
                   item.accent ? 'text-accent' : 'text-primary'
                 }`}
               >
                 {item.metric}
               </div>
-              <div className="text-secondary/50 mt-1 font-mono text-[0.6rem] tracking-[0.1em] uppercase">
+              <div className="text-secondary mt-1 font-mono text-[0.85rem] tracking-[0.1em] uppercase">
                 {item.direction}
               </div>
             </div>

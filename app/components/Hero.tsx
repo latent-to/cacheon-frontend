@@ -62,8 +62,8 @@ export default function Hero() {
       {/* Hero content */}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-24 pb-0 text-center">
         {/* Pill */}
-        <div className="border-accent/40 bg-accent-surface text-accent mb-8 inline-flex items-center rounded-full border px-3.5 py-1 font-mono text-[0.62rem] font-semibold tracking-[0.22em] uppercase">
-          Bittensor subnet · SN14
+        <div className="border-accent/40 bg-accent-surface text-accent mb-8 inline-flex items-center rounded-full border px-3.5 py-1 font-mono text-[0.72rem] font-semibold tracking-[0.22em] uppercase">
+          Launching by May 19, 2026
         </div>
 
         {/* Headline */}
