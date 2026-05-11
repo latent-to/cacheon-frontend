@@ -11,7 +11,7 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
 const FEATURES = [
   {
     title: 'Inference arena',
-    body: 'Build the fastest server for top open-source models. King of the hill, winner-take-all.',
+    body: 'Build the fastest server for a top open-source model. King of the hill, winner-take-all.',
   },
   {
     title: 'Any stack, any language',
