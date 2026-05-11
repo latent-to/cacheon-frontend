@@ -14,14 +14,14 @@ You build a Docker image, push it to a container registry, and commit the image 
 | Requirement                           | Details                                                                                                                             |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | **Bittensor wallet**                  | Registered on subnet 14 (mainnet) or 470 (testnet). See [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets). |
-| **Container registry**                | Your Docker image must be publicly pullable. Docker Hub, GitHub Container Registry, or any public registry works.                   |
+| **Container registry**                | Your Docker image must be publicly pullable. You can use Docker Hub, GitHub Container Registry, or any public registry.             |
 | **GPU (for local testing)**           | 4x H200 (or multi-GPU setup with enough VRAM for 72B in BF16). Needed to verify your server works and to benchmark locally.         |
 | **Model weights (for local testing)** | `Qwen2.5-72B-Instruct`. On the real validator, weights are provided as a read-only volume mount.                                    |
 
 <Callout type="info" title="You don't need your own GPU to register">
-  Registration is just a commitment on-chain pointing to your Docker image. The validator machine
-  runs your container with model weights mounted. Local testing is strongly recommended but not
-  required.
+  Registration on mainnet is just an on-chain commitment that points to your Docker image. The
+  validator machine runs your container with model weights mounted. You only need a GPU for local
+  testing before submission.
 </Callout>
 
 ## High-level flow
@@ -36,17 +36,15 @@ You build a Docker image, push it to a container registry, and commit the image 
   Steps 4 and 5 are the only required actions. Everything else is preparation.
 </Callout>
 
-## Scoring
-
-Full details in [Scoring](/docs/evaluation/scoring).
-
-## Rules & V1 constraints
-
-See [Rules](/docs/miners/rules) for the full list. Some restrictions (speculative decoding, quantization) will be relaxed in V2 -- see the [Roadmap](/docs/roadmap).
-
 ## Common pitfalls
 
 - **Wrong model weights.** Your server must load the exact `Qwen2.5-72B-Instruct` BF16 weights from the mounted volume at `/models`. Modified, quantized, or distilled weights will fail the correctness gate.
 - **Slow startup.** The validator gives your container 10 minutes to respond on `/health`. 72B model loading takes 3-7 minutes. Budget accordingly.
 - **Non-compliant API.** Your server must implement `/v1/chat/completions` with logprobs support. See [API contract](/docs/miners/api-contract).
 - **Don't copy the king.** The validator computes a digest of your Docker image. Byte-identical copies of the current king's image are rejected.
+
+## Learn more
+
+See [Scoring](/docs/evaluation/scoring) for the full evaluation and weighting system.
+
+See [Rules](/docs/miners/rules) for the complete list of V1 restrictions. Some limitations, including speculative decoding and quantization, are planned to relax in V2. For more information, see the [Roadmap](/docs/roadmap).

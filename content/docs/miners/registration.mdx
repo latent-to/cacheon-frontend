@@ -1,6 +1,6 @@
 ---
-title: Registration
-description: How to commit your Docker image reference on-chain and register as a Cacheon miner.
+title: Miner Quickstart
+description: How to commit your Docker image reference on-chain as a Cacheon miner.
 ---
 
 ## Overview
@@ -11,6 +11,11 @@ Registration is two steps:
 2. Commit the image reference on-chain using your Bittensor wallet
 
 The validator scans for new commitments every block. When it finds yours, it pulls your image and evaluates it.
+
+## Prerequisites
+
+- [Install the Bittensor SDK](https://docs.learnbittensor.org/getting-started/installation). This is required in the environment used to run the [Cacheon miner commit script](#step-2-commit-on-chain).
+- A Bittensor wallet registered on Bittensor mainnet subnet 14. For more information, see [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets) and [Miner registration](https://docs.learnbittensor.org/miners#miner-registration).
 
 ## Step 1: Push your image
 
@@ -31,7 +36,7 @@ docker inspect --format='{{index .RepoDigests 0}}' docker.io/myuser/cacheon-mine
 
 ## Step 2: Commit on-chain
 
-Use the Cacheon commit script:
+Use the Cacheon commit script found in the [Cacheon GitHub repository](https://github.com/latent-to/cacheon/blob/main/miner/commit.py):
 
 ```bash
 python miner/commit.py \
@@ -43,7 +48,7 @@ python miner/commit.py \
   --netuid 14
 ```
 
-This calls `subtensor.set_reveal_commitment()` with a JSON payload:
+This script calls `subtensor.set_reveal_commitment()` with a JSON payload containing your Docker image reference and image digest:
 
 ```json
 {
@@ -53,8 +58,8 @@ This calls `subtensor.set_reveal_commitment()` with a JSON payload:
 ```
 
 <Callout type="warn" title="One shot per hotkey">
-  Each hotkey can only commit once. If you need to submit a new server, register a new hotkey. Test
-  locally before committing.
+  Each hotkey can only commit once. If you need to submit a new server, you must register a new
+  hotkey on the subnet. Test locally before committing.
 </Callout>
 
 ## What happens after

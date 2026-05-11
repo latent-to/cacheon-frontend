@@ -1,23 +1,23 @@
 ---
 title: Inference optimization
-description: The full stack of techniques miners can use, from KV cache compression to custom CUDA kernels to speculative decoding. Cacheon lets you use any of them.
+description: This page outlines the full stack of techniques that miners can use, from KV cache compression to custom CUDA kernels to speculative decoding. Cacheon lets you use any of them.
 ---
 
 ## Full-stack, not single-component
 
 Unlike benchmarks that measure one optimization axis in isolation, Cacheon evaluates the **complete serving stack**. Miners submit a containerized inference server; how it works internally is entirely up to them.
 
-This means every layer of the inference stack is fair game.
+As a result, every layer of the inference stack becomes part of the optimization surface.
 
 ## KV cache optimization
 
 The KV cache is the single largest memory consumer during long-context generation. At 32K tokens on Qwen2.5-72B across 4 GPUs, the distributed cache is a significant fraction of available VRAM. Techniques that reduce this footprint directly unlock longer contexts and higher batch sizes:
 
-- **Quantization** -- INT8, INT4, or lower bit-width storage of keys and values
-- **Eviction** -- dropping low-importance tokens from the cache (H2O, StreamingLLM)
-- **Compression** -- learned or algorithmic compression of cached representations
-- **Paging** -- non-contiguous memory allocation (PagedAttention)
-- **Offloading** -- moving cold cache entries to CPU DRAM or NVMe
+- **Quantization**: INT8, INT4, or lower bit-width storage of keys and values
+- **Eviction**: dropping low-importance tokens from the cache (H2O, StreamingLLM)
+- **Compression**: learned or algorithmic compression of cached representations
+- **Paging**: non-contiguous memory allocation (PagedAttention)
+- **Offloading**: moving cold cache entries to CPU DRAM or NVMe
 
 ## Attention kernels
 
@@ -31,15 +31,15 @@ The attention computation itself is a primary bottleneck. Custom kernels can dra
 
 Autoregressive decoding is inherently sequential: one token per forward pass. Techniques that break this bottleneck improve output throughput:
 
-- **Speculative decoding** -- use a smaller draft model to propose multiple tokens, verify in parallel
-- **Medusa / lookahead** -- predict multiple future tokens with additional heads
-- **Parallel decoding** -- Jacobi or Gauss-Seidel style parallel generation
+- **Speculative decoding**: use a smaller draft model to propose multiple tokens, verify in parallel
+- **Medusa / lookahead**: predict multiple future tokens with additional heads
+- **Parallel decoding**: Jacobi or Gauss-Seidel style parallel generation
 
 ## Server architecture
 
 The runtime itself matters. Choices at the system level affect every request:
 
-- **Language** -- Rust or C++ for lower overhead than Python
-- **Memory layout** -- custom allocators, pre-allocated buffers, zero-copy transfer
-- **Scheduling** -- continuous batching, preemptive scheduling, priority queues
-- **Chunked prefill** -- overlap prefill computation with ongoing decode
+- **Language**: Rust or C++ for lower overhead than Python
+- **Memory layout**: custom allocators, pre-allocated buffers, zero-copy transfer
+- **Scheduling**: continuous batching, preemptive scheduling, priority queues
+- **Chunked prefill**: overlap prefill computation with ongoing decode

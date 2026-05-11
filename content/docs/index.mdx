@@ -27,7 +27,7 @@ Miners submit a **containerized inference server** that serves a fixed model via
 
 ## Why Cacheon exists
 
-Inference has been the bottleneck for serving LLMs at scale. Latency, memory, and cost determine whether a model is usable in production. There is no shortage of optimization techniques—_FlashAttention_, _PagedAttention_, _speculative decoding_, _KV cache quantization_, _custom kernels_—but they are benchmarked in isolation and results are impossible to compare fairly.
+Inference has been the bottleneck for serving LLMs at scale. Latency, memory, and cost determine whether a model is usable in production. Existing optimization techniques, including _FlashAttention_, _PagedAttention_, _speculative decoding_, _KV cache quantization_, and _custom kernels_, are currently benchmarked in isolation, making objective performance comparisons impossible.
 
 Cacheon turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring. Miners are free to use any technique, any language, any runtime. The only thing that matters is serving the model faster while keeping outputs correct.
 
@@ -51,7 +51,7 @@ See [Why it matters](/docs/concepts/why-it-matters) for the full problem stateme
   <Card
     title="I want to know what's measured"
     href="/docs/evaluation/scoring"
-    description="TTFT, throughput, correctness gate, and the two-pass evaluation."
+    description="TTFT, throughput, correctness gate, and the single-pass evaluation."
   />
   <Card
     title="I want to see the roadmap"

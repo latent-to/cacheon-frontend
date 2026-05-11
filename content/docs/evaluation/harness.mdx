@@ -29,7 +29,7 @@ Before scored prompts, the harness sends 2 warmup requests that are discarded. T
 
 | Timeout        | Value       | What happens if exceeded |
 | -------------- | ----------- | ------------------------ |
-| **Startup**    | 10 minutes  | Container killed, DQ     |
+| **Startup**    | 10 minutes  | Container terminated, DQ |
 | **Per-prompt** | 120 seconds | Request cancelled, DQ    |
 
 ### GPU state cleanup
