@@ -20,7 +20,7 @@ This queries Shadeform, Lambda, and Targon and returns the cheapest available in
 
 ## Setup script
 
-Run once on a fresh machine:
+Run the following commands once on a fresh machine:
 
 ```bash
 export GITHUB_PAT=...
@@ -36,7 +36,7 @@ The setup script provisions all required system packages, Docker, GPU configurat
 
 ### Code-only refresh
 
-After the machine is already provisioned:
+Run the following command after the machine is already provisioned:
 
 ```bash
 bash validator/setup.sh --pull
@@ -46,12 +46,25 @@ Runs `git pull` and `pip install -r validator/requirements.txt` only. No OS pack
 
 ## Configuration
 
+Navigate to the `cacheon/validator` directory:
+
 ```bash
 cd cacheon/validator
+```
+
+Next, paste the contents from the [GPU environment template](https://github.com/latent-to/cacheon/blob/main/validator/.env.gpu.example) in the Cacheon repository into a newly created `.env` file, then update the required values with your specific configuration.
+
+```bash
 cp .env.gpu.example .env
-# Make sure you've edited .env before running the following to load environment variables:
+```
+
+Once the file is configured, load the environment variables into your current shell session:
+
+```bash
 set -a; . .env; set +a
 ```
+
+The following table shows the list of environment variables in the `.env` file, their description, and whether they are required
 
 | Env var                   | Required | Description                                                                |
 | ------------------------- | -------- | -------------------------------------------------------------------------- |
@@ -64,6 +77,8 @@ set -a; . .env; set +a
 | `CACHEON_S3_BUCKET`       | No       | S3 bucket name (default `cacheon-validator`)                               |
 
 ## Run an evaluation
+
+Run the following command to begin the evaluation:
 
 ```bash
 docker compose up --build

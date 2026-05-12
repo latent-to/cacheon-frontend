@@ -12,15 +12,27 @@ description: Set up the always-on CPU validator. Any VPS with Docker. Holds the 
 
 ## Configuration
 
-Copy the example env file and fill in the required values:
+Navigate to the `cacheon/validator` directory:
 
 ```bash
 cd cacheon/validator
-# Make sure you've edited .env before running the following to load environment variables:
+```
+
+Next, paste the contents from the [CPU environment template](https://github.com/latent-to/cacheon/blob/main/validator/.env.cpu.example) in the Cacheon repository into a newly created `.env` file, then update the required values with your specific configuration.
+
+```bash
+cp .env.cpu.example .env
+```
+
+Once the file is configured, load the environment variables into your current shell session:
+
+```bash
 set -a; . .env; set +a
 ```
 
-| Env var                   | Required | Description                                           |
+The following table shows the list of environment variables in the `.env` file, their description, and whether they are required:
+
+| Environment variables     | Required | Description                                           |
 | ------------------------- | -------- | ----------------------------------------------------- |
 | `CACHEON_NETWORK`         | Yes      | `finney` (mainnet) or `test` (testnet)                |
 | `CACHEON_NETUID`          | Yes      | `14` (mainnet) or `470` (testnet)                     |
@@ -32,22 +44,26 @@ set -a; . .env; set +a
 | `HIPPIUS_SECRET_KEY`      | Yes      | Hippius S3 secret key                                 |
 | `CACHEON_S3_BUCKET`       | No       | S3 bucket name (default `cacheon-validator`)          |
 
-Mount your wallet at the path expected by the container. The default is `~/.bittensor` mapped to `/root/.bittensor` inside the container; set `BITTENSOR_DIR` in `.env` if yours is elsewhere.
+Mount your wallet at the path expected by the container. The default is `~/.bittensor` mapped to `/root/.bittensor` inside the container. Set the `BITTENSOR_DIR` variable in `.env` if your wallet is located elsewhere.
 
-## Start
+## Start the run
+
+Run the following command to begin:
 
 ```bash
 docker compose -f cpu-compose.yml up --build
 ```
 
-The container starts the chain scan loop immediately. Expected log output on a healthy start:
+The container starts the chain scan loop immediately.
+
+Here is the expected log output on a healthy start:
 
 ```
 INFO  validator.chain: Preflight OK: uid=0, stake=..., validator_permit=True
 INFO  validator.cpu_validator: Tick 1: block=... challengers=0 weights_set=no
 ```
 
-To run in the background:
+You can opt to run in the background. To do this:
 
 ```bash
 docker compose -f cpu-compose.yml up --build -d
@@ -56,7 +72,7 @@ docker compose -f cpu-compose.yml logs -f
 
 ## Dry-run mode
 
-Set `CACHEON_DRY_RUN=1` before starting to run the full chain scan and challenger selection without calling `set_weights`. Useful for verifying chain connectivity and S3 credentials before going live.
+Set the `CACHEON_DRY_RUN=1` variable in your `.env` file before starting to run the full chain scan and challenger selection without calling `set_weights`. This is useful for verifying chain connectivity and S3 credentials before going live.
 
 ## Verify S3 connectivity (optional)
 

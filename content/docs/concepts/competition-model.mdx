@@ -7,7 +7,7 @@ Cacheon uses a king-of-the-hill incentive. The reigning champion is the miner wi
 
 ## How a round works
 
-1. The validator scans on-chain commitments on every block.
+1. The validator scans on-chain commitments approximately every 5 minutes.
 2. Any hotkey with a revealed commitment that hasn't been evaluated yet is a **challenger**.
 3. If there are no challengers, the king keeps its weight, no GPU runs, and the loop sleeps.
 4. If challengers exist, the validator dispatches evaluation jobs and compares scores.

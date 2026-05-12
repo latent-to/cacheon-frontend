@@ -7,17 +7,19 @@ The validator scans the Bittensor chain for miner submissions, evaluates them ag
 
 ## Components
 
-**CPU host** (always-on)
+The Cacheon validator consists of two components:
 
-Holds the validator wallet. Scans the chain every ~5 min, detects new miner submissions, writes an evaluation job to S3, and sets weights whenever GPU results arrive or weights go stale. No GPU required.
+- **CPU host** (always-on)
 
-**GPU pod** (ephemeral, rented on-demand)
+  Holds the validator wallet. Scans the chain every ~5 min, detects new miner submissions, writes an evaluation job to S3, and sets weights whenever GPU results arrive or weights go stale. No GPU required.
 
-Downloads the evaluation job from S3, runs the vLLM baseline and each miner container, captures results, and uploads everything back to S3. No wallet, no chain access. Exits when done.
+- **GPU pod** (ephemeral, rented on-demand)
+
+  Downloads the evaluation job from S3, runs the vLLM baseline and each miner container, captures results, and uploads everything back to S3. No wallet, no chain access. Exits when done.
 
 <Callout type="idea" title="Why this design?">
 
-**Security:** The CPU host holds the wallets; the GPU pod has no credentials and only does eval work. If either machine is compromised, the blast radius stays contained.
+**Security:** The CPU host holds the wallets; the GPU pod has no credentials and only does evaluation work. If either machine is compromised, the blast radius stays contained.
 
 **Cost:** GPUs are scarce, expensive, and unpredictably available across providers. Rent a GPU pod only when both conditions hold: there is hardware that meets our requirements (see [GPU requirements](#gpu-requirements)) and at least one challenger is queued.
 
@@ -29,14 +31,14 @@ For V1 the GPU step is manually triggered:
 
 1. CPU host runs continuously, scanning for new challengers and writing `eval_job.json` to S3.
 2. When challengers appear, run `python scripts/gpu_search.py --best` to find an available GPU pod across Shadeform, Lambda, and Targon. Runpod and Vast.ai are excluded (they give you a container, not a VM; nested Docker does not work reliably).
-3. _Manually_ SSH into the pod and follow [GPU pod setup](/docs/validators/gpu-pod-setup). It is two steps: run `setup.sh` once on a fresh machine, then `docker compose up --build` to run the one-shot eval.
+3. _Manually_ SSH into the pod and follow the steps in [GPU pod setup](/docs/validators/gpu-pod-setup). It is two steps: run `setup.sh` once on a fresh machine, then `docker compose up --build` to run the one-shot eval.
 4. The CPU host detects the new results on its next poll and sets weights automatically.
 
 This workflow will be automated in V2.
 
 ## GPU requirements
 
-Eval requires multi-GPU NVLink/SXM interconnect to run `Qwen2.5-72B-Instruct` with tensor parallelism. PCIe-connected GPUs (most consumer cloud offerings) cannot load this model across cards at the required speed.
+Evaluation requires multi-GPU NVLink/SXM interconnect to run `Qwen2.5-72B-Instruct` with tensor parallelism. PCIe-connected GPUs (most consumer cloud offerings) cannot load this model across cards at the required speed.
 
 All instances must meet these baseline conditions:
 
