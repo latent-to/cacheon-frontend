@@ -23,13 +23,12 @@ This queries Shadeform, Lambda, and Targon and returns the cheapest available in
 Run once on a fresh machine:
 
 ```bash
-export GITHUB_PAT=...
 export HF_TOKEN=...     # optional: speeds up model download
 sudo apt-get install -y curl vim git # if not already installed
 ```
 
 ```bash
-curl -fsSL -u "token:${GITHUB_PAT}" "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup.sh" | sudo -E bash
+curl -fsSL "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup.sh" | sudo -E bash
 ```
 
 The setup script provisions all required system packages, Docker, GPU configuration, dependencies, models, and verifies the environment for GPU validation.
