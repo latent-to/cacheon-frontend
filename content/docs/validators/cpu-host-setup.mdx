@@ -16,8 +16,8 @@ Copy the example env file and fill in the required values:
 
 ```bash
 cd cacheon/validator
-# Make sure you've edited .env before running the following to load environment variables:
-set -a; . .env; set +a
+cp .env.cpu.example .env
+# edit .env with your credentials
 ```
 
 | Env var                   | Required | Description                                           |
@@ -36,22 +36,24 @@ Mount your wallet at the path expected by the container. The default is `~/.bitt
 
 ## Start
 
+The setup script creates the Python venv (or activates an existing one), installs dependencies, loads `.env`, tears down any running CPU validator container, and starts docker compose:
+
 ```bash
-docker compose -f cpu-compose.yml up --build
-```
-
-The container starts the chain scan loop immediately. Expected log output on a healthy start:
-
-```
-INFO  validator.chain: Preflight OK: uid=0, stake=..., validator_permit=True
-INFO  validator.cpu_validator: Tick 1: block=... challengers=0 weights_set=no
+bash setup-cpu.sh
 ```
 
 To run in the background:
 
 ```bash
-docker compose -f cpu-compose.yml up --build -d
+bash setup-cpu.sh --detach
 docker compose -f cpu-compose.yml logs -f
+```
+
+Expected log output on a healthy start:
+
+```
+INFO  validator.chain: Preflight OK: uid=0, stake=..., validator_permit=True
+INFO  validator.cpu_validator: Tick 1: block=... challengers=0 weights_set=no
 ```
 
 ## Dry-run mode
