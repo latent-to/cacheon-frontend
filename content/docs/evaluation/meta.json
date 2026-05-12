@@ -1,4 +1,4 @@
 {
   "title": "Evaluation",
-  "pages": ["prompts", "scoring", "harness", "data-contracts"]
+  "pages": ["prompts", "scoring", "harness", "data-contracts", "monitor-api"]
 }

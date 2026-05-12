@@ -1,0 +1,85 @@
+---
+title: Monitoring API
+description: Read-only HTTP API for eval results, king status, container logs, and round history.
+---
+
+The monitoring API is a read-only HTTP surface that exposes the validator's on-disk state. Miners can check their eval results, see why they were disqualified, and pull raw container logs without needing SSH access to the validator.
+
+**Base URL:** `https://api.cacheon.io`
+
+**Interactive docs (Swagger UI):** [`https://api.cacheon.io/docs`](https://api.cacheon.io/docs)
+
+## Endpoints
+
+### Health and status
+
+| Method | Path          | Description                                                         |
+| ------ | ------------- | ------------------------------------------------------------------- |
+| GET    | `/api/health` | Liveness check. Returns `{"status": "ok"}` if the API is up         |
+| GET    | `/api/status` | Validator overview: current king, eval counts, time since last eval |
+
+```bash
+curl https://api.cacheon.io/api/health
+curl https://api.cacheon.io/api/status
+```
+
+### King
+
+| Method | Path                | Description                                            |
+| ------ | ------------------- | ------------------------------------------------------ |
+| GET    | `/api/king`         | Current king record (UID, score, image, crowned block) |
+| GET    | `/api/king/history` | Chronological list of dethronements                    |
+
+### Evaluations
+
+| Method | Path                             | Description                          |
+| ------ | -------------------------------- | ------------------------------------ |
+| GET    | `/api/evaluations`               | All evaluation records, newest first |
+| GET    | `/api/evaluations?status=dq`     | Disqualified evaluations only        |
+| GET    | `/api/evaluations?status=active` | Non-disqualified evaluations only    |
+| GET    | `/api/evaluations/{uid}`         | All evaluations for a specific UID   |
+
+```bash
+curl https://api.cacheon.io/api/evaluations/5
+```
+
+Each evaluation record includes `score`, `disqualify_reason` (if DQ'd), `ttft_improvement`, `throughput_improvement`, `token_match_rate`, and `per_prompt` stats when available.
+
+### Container logs
+
+| Method | Path                         | Description                           |
+| ------ | ---------------------------- | ------------------------------------- |
+| GET    | `/api/container-logs`        | List available container log labels   |
+| GET    | `/api/container-log/{label}` | Raw Docker stdout/stderr (plain text) |
+
+Labels follow the pattern `uid{N}_{hotkey8}_{block}` for challengers and `baseline_{hash}` for baseline runs.
+
+```bash
+curl https://api.cacheon.io/api/container-log/uid5_5CG7KRPk_7105042
+```
+
+This is the fastest way to debug why your container failed. The log contains the full Docker output from your container's startup attempt.
+
+### Rounds
+
+| Method | Path            | Description                                            |
+| ------ | --------------- | ------------------------------------------------------ |
+| GET    | `/api/rounds`   | Eval rounds grouped by block, with challenger outcomes |
+| GET    | `/api/eval-job` | Current pending eval job (queued challengers)          |
+
+## Debugging a failed eval
+
+1. Find your UID's evaluation: `GET /api/evaluations/{your-uid}`
+2. Check `disqualify_reason` in the response
+3. Pull your container log: `GET /api/container-log/{label}` using the label from step 1 (format: `uid{N}_{hotkey8}_{block}`)
+4. Common failures:
+   - **"not ready after 600s"**: your container didn't pass `/health` within 10 minutes. Check the container log for startup errors.
+   - **"correctness_fail"**: your server started but produced outputs that diverged from the baseline. See [Scoring](/docs/evaluation/scoring) for correctness rules.
+
+## Data freshness
+
+The API reads from the validator's local state files, which are synced from S3 after each GPU eval round. Data updates after each eval completes (typically every few hours when challengers are queued).
+
+## Rate limits
+
+The API is rate-limited to 60 requests per minute per IP. All responses include `Cache-Control` headers; respect them to avoid hitting the limit.
