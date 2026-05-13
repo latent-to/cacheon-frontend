@@ -24,7 +24,7 @@ Next, paste the contents from the [CPU environment template](https://github.com/
 cp .env.cpu.example .env
 ```
 
-Once the file is configured, load the environment variables into your current shell session:
+Once the file is configured with your credentials, load the environment variables into your current shell session:
 
 ```bash
 set -a; . .env; set +a
@@ -44,30 +44,30 @@ The following table shows the list of environment variables in the `.env` file, 
 | `HIPPIUS_SECRET_KEY`      | Yes      | Hippius S3 secret key                                 |
 | `CACHEON_S3_BUCKET`       | No       | S3 bucket name (default `cacheon-validator`)          |
 
-Mount your wallet at the path expected by the container. The default is `~/.bittensor` mapped to `/root/.bittensor` inside the container. Set the `BITTENSOR_DIR` variable in `.env` if your wallet is located elsewhere.
+Mount your wallet at the path expected by the container. The default is `~/.bittensor` mapped to `/root/.bittensor` inside the container. Set the `BITTENSOR_DIR` variable in the `.env` file if your wallet is located elsewhere.
 
 ## Start the run
 
 Run the following command to begin:
 
+The setup script creates the Python virtual environment  (or activates an existing one), installs dependencies, loads the `.env` file, tears down any running CPU validator container, and starts docker compose:
+
 ```bash
-docker compose -f cpu-compose.yml up --build
-```
-
-The container starts the chain scan loop immediately.
-
-Here is the expected log output on a healthy start:
-
-```
-INFO  validator.chain: Preflight OK: uid=0, stake=..., validator_permit=True
-INFO  validator.cpu_validator: Tick 1: block=... challengers=0 weights_set=no
+bash setup-cpu.sh
 ```
 
 You can opt to run in the background. To do this:
 
 ```bash
-docker compose -f cpu-compose.yml up --build -d
+bash setup-cpu.sh --detach
 docker compose -f cpu-compose.yml logs -f
+```
+
+Expected log output on a healthy start:
+
+```
+INFO  validator.chain: Preflight OK: uid=0, stake=..., validator_permit=True
+INFO  validator.cpu_validator: Tick 1: block=... challengers=0 weights_set=no
 ```
 
 ## Dry-run mode

@@ -1,8 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
-const navLinkClass =
+import { DiscordIcon, XIcon } from '~/components/icons'
+
+const linkCls =
   'text-[0.82rem] font-medium uppercase tracking-[0.14em] text-secondary no-underline transition-colors hover:text-primary'
+
+const navLinks = [
+  { to: '/', label: 'Home' },
+  { to: '/docs', label: 'Docs' },
+  { href: 'https://discord.com/invite/bittensor', label: 'Discord', icon: <DiscordIcon /> },
+  { href: 'https://x.com/cacheon_ai', label: 'X', icon: <XIcon /> },
+  { href: 'https://github.com/latent-to/cacheon', label: 'GitHub' },
+] as const
 
 export default function Nav() {
   const [scrolled, setScrolled] = useState(false)
@@ -13,6 +23,30 @@ export default function Nav() {
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  const renderLinks = (onClick?: () => void) =>
+    navLinks.map((l) => {
+      const isExternal = 'href' in l
+      const children = 'icon' in l && l.icon ? l.icon : l.label
+
+      return isExternal ? (
+        <a
+          key={l.label}
+          href={l.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={'icon' in l && l.icon ? l.label : undefined}
+          onClick={onClick}
+          className={linkCls}
+        >
+          {children}
+        </a>
+      ) : (
+        <Link key={l.label} to={l.to} onClick={onClick} className={linkCls}>
+          {children}
+        </Link>
+      )
+    })
 
   return (
     <nav
@@ -31,25 +65,8 @@ export default function Nav() {
           <span>Cacheon</span>
         </Link>
 
-        {/* Desktop */}
-        <div className="hidden items-center gap-8 font-mono md:flex">
-          <Link to="/" className={navLinkClass}>
-            Home
-          </Link>
-          <Link to="/docs" className={navLinkClass}>
-            Docs
-          </Link>
-          <a
-            href="https://github.com/latent-to/cacheon"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="border-border/80 bg-surface/60 text-primary hover:border-border hover:bg-surface ml-1 rounded-md border px-3.5 py-1.5 text-[0.78rem] font-semibold tracking-[0.14em] uppercase no-underline transition-colors"
-          >
-            GitHub
-          </a>
-        </div>
+        <div className="hidden items-center gap-8 font-mono md:flex">{renderLinks()}</div>
 
-        {/* Mobile hamburger */}
         <button
           type="button"
           onClick={() => setMenuOpen(!menuOpen)}
@@ -77,24 +94,9 @@ export default function Nav() {
         </button>
       </div>
 
-      {/* Mobile menu */}
       {menuOpen && (
         <div className="border-border bg-bg flex flex-col gap-3 border-b px-6 pt-2 pb-4 font-mono md:hidden">
-          <Link to="/" onClick={() => setMenuOpen(false)} className={navLinkClass}>
-            Home
-          </Link>
-          <Link to="/docs" onClick={() => setMenuOpen(false)} className={navLinkClass}>
-            Docs
-          </Link>
-          <a
-            href="https://github.com/latent-to/cacheon"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setMenuOpen(false)}
-            className="border-border/80 bg-surface/60 text-primary hover:bg-surface w-fit rounded-md border px-3.5 py-1.5 text-[0.78rem] font-semibold tracking-[0.14em] uppercase no-underline transition-colors"
-          >
-            GitHub
-          </a>
+          {renderLinks(() => setMenuOpen(false))}
         </div>
       )}
     </nav>

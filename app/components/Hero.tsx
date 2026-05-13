@@ -63,7 +63,7 @@ export default function Hero() {
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-24 pb-0 text-center">
         {/* Pill */}
         <div className="border-accent/40 bg-accent-surface text-accent mb-8 inline-flex items-center rounded-full border px-3.5 py-1 font-mono text-[0.72rem] font-semibold tracking-[0.22em] uppercase">
-          Launching by May 19, 2026
+          Launching on May 19, 2026
         </div>
 
         {/* Headline */}
@@ -83,7 +83,7 @@ export default function Hero() {
           Submit a containerized server, beat vLLM, and earn{' '}
           <span className="group relative inline-block">
             <span className="border-primary/45 text-primary cursor-help border-b border-dotted font-medium whitespace-nowrap">
-              up to 28 TAO
+              up to 33 TAO
             </span>
             <span
               role="tooltip"
