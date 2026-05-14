@@ -152,7 +152,7 @@ Check the response:
 - The stream ends with `data: [DONE]`
 - The model field in the request (`Qwen2.5-72B-Instruct`) is not rejected
 
-If the model name is rejected, set `--served-model-name Qwen2.5-72B-Instruct` in your server startup arguments.
+If the model name is rejected, register it in your container startup. For vLLM, pass `--served-model-name Qwen2.5-72B-Instruct` alongside your other flags in the `start.sh` snippet under [Example Dockerfile](/docs/miners/submission-format) on the Submission format page (same block as `--model /models`, `--dtype`, and `--tensor-parallel-size`).
 
 ### Step 7: Clean up
 
