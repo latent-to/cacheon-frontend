@@ -1,0 +1,99 @@
+---
+title: Validator setup
+description: Set up the Cacheon validator. One VPS with Docker. Automatic GPU rental.
+---
+
+## Prerequisites
+
+- Ubuntu 22.04+ VPS (any provider; 1 vCPU, 2 GB RAM is enough)
+- Docker and Docker Compose installed
+- A Bittensor validator wallet registered on subnet 14 (mainnet) or 470 (testnet)
+- Hippius S3 bucket and credentials
+- Targon and Lium.io API keys for automatic GPU rental
+
+## Configuration
+
+Copy the example env file and fill in the required values:
+
+```bash
+cd cacheon/validator
+cp .env.example .env
+# edit .env with your credentials
+```
+
+### Chain and identity
+
+| Env var                   | Required | Description                                           |
+| ------------------------- | -------- | ----------------------------------------------------- |
+| `CACHEON_NETWORK`         | Yes      | `finney` (mainnet) or `test` (testnet)                |
+| `CACHEON_NETUID`          | Yes      | `14` (mainnet) or `470` (testnet)                     |
+| `CACHEON_WALLET_NAME`     | Yes      | Bittensor wallet name                                 |
+| `CACHEON_WALLET_HOTKEY`   | Yes      | Bittensor hotkey name                                 |
+| `CACHEON_POLL_INTERVAL_S` | No       | Seconds between chain scans (default `300`)           |
+| `CACHEON_DRY_RUN`         | No       | Set to `1` to skip `set_weights` (useful for testing) |
+
+### S3
+
+| Env var              | Required | Description                                  |
+| -------------------- | -------- | -------------------------------------------- |
+| `HIPPIUS_ACCESS_KEY` | Yes      | Hippius S3 access key                        |
+| `HIPPIUS_SECRET_KEY` | Yes      | Hippius S3 secret key                        |
+| `CACHEON_S3_BUCKET`  | No       | S3 bucket name (default `cacheon-validator`) |
+
+### GPU orchestration
+
+| Env var                    | Required | Description                                                 |
+| -------------------------- | -------- | ----------------------------------------------------------- |
+| `CACHEON_AUTO_RENT`        | No       | Set to `1` to enable automatic GPU pod rental (default `0`) |
+| `LIUM_API_KEY`             | \*       | Lium API key (\* at least one provider key required)        |
+| `TARGON_API_KEY`           | \*       | Targon API key (\* at least one provider key required)      |
+| `CACHEON_MAX_HOURLY_PRICE` | No       | Maximum hourly price in cents (default `800`)               |
+| `CACHEON_GPU_TIMEOUT_MIN`  | No       | Kill pod after N minutes (default `120`)                    |
+| `HF_TOKEN`                 | No       | Hugging Face token for model download on GPU pod            |
+
+Mount your wallet at the path expected by the container. The default is `~/.bittensor` mapped to `/root/.bittensor` inside the container; set `BITTENSOR_DIR` in `.env` if yours is elsewhere.
+
+## Start
+
+The setup script creates the Python venv (or activates an existing one), installs dependencies, loads `.env`, tears down any running validator container, and starts docker compose:
+
+```bash
+bash setup-cpu.sh
+```
+
+To run in the background:
+
+```bash
+bash setup-cpu.sh --detach
+docker compose -f cpu-compose.yml logs -f
+```
+
+Expected log output on a healthy start:
+
+```
+INFO  validator.chain: Preflight OK: uid=0, stake=..., validator_permit=True
+INFO  validator.cpu_validator: Tick 1: block=... challengers=0 weights_set=no
+```
+
+When `CACHEON_AUTO_RENT=1` and challengers are detected, the validator automatically searches for GPU pods, rents the cheapest match, runs setup and eval via SSH, and tears down the pod when done.
+
+## Dry-run mode
+
+Set `CACHEON_DRY_RUN=1` before starting to run the full chain scan and challenger selection without calling `set_weights`. Useful for verifying chain connectivity and S3 credentials before going live.
+
+## Check GPU availability (optional)
+
+```bash
+python scripts/gpu_search.py --best
+```
+
+Queries Targon and Lium and returns the cheapest available instance that meets the tier requirements (see [GPU requirements](/docs/validators/overview#gpu-requirements)). Useful for checking availability before enabling `CACHEON_AUTO_RENT=1`.
+
+## Verify S3 connectivity (optional)
+
+```bash
+python -m validator.sync download --state-dir /tmp/verify
+ls /tmp/verify/
+```
+
+If `eval_job.json` appears, a previous eval job is on S3 and the validator will pick it up on its next tick.
