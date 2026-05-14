@@ -111,7 +111,7 @@ CONTAINER_IP=$(docker inspect -f \
 echo "Container IP: $CONTAINER_IP"
 ```
 
-Ping health from a sidecar container on the same network:
+Ping health from another terminal on the same network:
 
 ```bash
 docker run --rm --network cacheon-test-internal curlimages/curl:latest \
