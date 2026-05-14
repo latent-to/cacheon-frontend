@@ -43,14 +43,23 @@ A minimal example using vLLM as a starting point:
 ```bash
 #!/bin/bash
 set -e
-GPU_COUNT=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
-exec python -m vllm.entrypoints.openai.api_server \
+GPU_COUNT=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l)
+GPU_COUNT=${GPU_COUNT:-1}
+[ "$GPU_COUNT" -lt 1 ] && GPU_COUNT=1
+exec python3 -m vllm.entrypoints.openai.api_server \
   --model /models \
+  --served-model-name Qwen2.5-72B-Instruct \
+  --generation-config vllm \
   --host 0.0.0.0 \
   --port 8000 \
   --dtype bfloat16 \
   --tensor-parallel-size "$GPU_COUNT"
 ```
+
+<Callout type="info" title="Use python3 inside the container">
+  The `vllm/vllm-openai` image exposes `python3` on `PATH`; `python` may be missing. Use `exec
+  python3 -m vllm.entrypoints.openai.api_server` in `start.sh`, not `python`.
+</Callout>
 
 `Dockerfile`:
 
