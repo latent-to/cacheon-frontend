@@ -3,7 +3,7 @@ title: Scoring
 description: Single-pass evaluation. Correctness-gated speed scoring. TTFT and throughput improvements relative to vLLM baseline. Median across prompts.
 ---
 
-Scoring is **correctness-gated**: failing correctness yields zero; otherwise TTFT and throughput improvements versus the pinned vLLM baseline are averaged (50/50).
+Scoring is **correctness-gated**: failing correctness yields zero; otherwise _Time to First Token_ (_TTFT_) and throughput improvements versus the pinned vLLM baseline are averaged (50/50).
 
 ## Scoring formula
 
@@ -19,9 +19,9 @@ else:
 <Callout title="Scoring axes" type="info">
 Three axes, in order of enforcement:
 
-1. **Correctness gate** -- fail this and nothing else matters.
-2. **TTFT** -- 50% of the remaining score.
-3. **Throughput** -- 50%.
+1. **Correctness gate:** fail this and nothing else matters.
+2. **TTFT:** 50% of the weighted score.
+3. **Throughput:** 50% of the weighted score.
 
 Improvements are floored at zero. If your server is slower than vLLM on one axis, that axis contributes 0, not a negative number.
 
@@ -79,21 +79,25 @@ This is impractical for an API benchmark and would itself distort speed measurem
 
 ## TTFT improvement
 
+TTFT improvements are measured using the following formula:
+
 ```
 ttft_improvement = max(0, (baseline_ttft - miner_ttft) / baseline_ttft)
 ```
 
-Median across prompts. Floored at zero: if your server is slower than the baseline on TTFT, this axis contributes nothing to your score.
+The final score is computed as the median across all 10 prompts and floored at zero. This means that servers slower than the baseline on TTFT receive no score contribution from this axis.
 
-TTFT captures prefill efficiency: how fast the server processes the full input prompt and produces the first output token. At 32K input tokens on e.g. 4x H200, this is dominated by the attention computation during prefill.
+TTFT captures prefill efficiency; that is, how fast the server processes the full input prompt and produces the first output token. At 32K input tokens on e.g. 4x H200, this is dominated by the attention computation during prefill.
 
 ## Throughput improvement
+
+Throughput improvements are measured using the following formula
 
 ```
 throughput_improvement = max(0, (miner_tps - baseline_tps) / baseline_tps)
 ```
 
-Median across prompts. Floored at zero. Throughput captures decode efficiency: how fast the server generates output tokens once prefill is complete.
+The final score is computed as the median across the 10 prompts and also floored at zero. Throughput captures decode efficiency: how fast the server generates output tokens once prefill is complete.
 
 ## Baseline: vLLM
 

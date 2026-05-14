@@ -21,7 +21,7 @@ Miners post a JSON commitment via `subtensor.set_reveal_commitment()`:
 
 The digest pins the exact image content. Tag mutations do not affect evaluation.
 
-## eval_job.json (CPU to GPU handoff)
+## `eval_job.json` (CPU to GPU handoff)
 
 The CPU validator writes this file to S3 when new challengers are detected. The GPU eval entrypoint reads it to know what to evaluate.
 
@@ -51,7 +51,7 @@ The CPU validator writes this file to S3 when new challengers are detected. The 
 
 The `block_hash` is critical: prompts are seeded from it, so all challengers evaluated from the same job see the same deterministic prompt set.
 
-## state.json
+## `state.json`
 
 The shared state file, read and written by both CPU and GPU:
 
@@ -83,7 +83,7 @@ The shared state file, read and written by both CPU and GPU:
 
 The CPU reads `last_weights_set_block` to decide when to set weights. The GPU reads evaluations to skip already-evaluated challengers.
 
-## EvaluationRecord
+## `EvaluationRecord`
 
 Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
 
@@ -125,7 +125,7 @@ Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
 
 The `per_prompt` array gives miners visibility into how their server performed on each individual prompt.
 
-## king-history.jsonl
+## `king-history.jsonl`
 
 Append-only audit trail of king changes. One JSON line per dethronement:
 
