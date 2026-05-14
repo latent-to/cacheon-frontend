@@ -1,26 +1,26 @@
 ---
 title: Monitoring API
-description: Read-only HTTP API for eval results, king status, container logs, and round history.
+description: Read-only HTTP API for evaluation results, king status, container logs, and round history.
 ---
 
-The monitoring API is a read-only HTTP surface that exposes the validator's on-disk state. Miners can check their eval results, see why they were disqualified, and pull raw container logs without needing SSH access to the validator.
+The monitoring API is a read-only HTTP surface that exposes the validator's on-disk state. Miners can check their evaluation results, see why they were disqualified, and pull raw container logs without needing SSH access to the validator.
 
-**Base URL:** `https://api.cacheon.io`
+**Base URL:** `https://api.cacheon.ai`
 
-**Interactive docs (Swagger UI):** [`https://api.cacheon.io/docs`](https://api.cacheon.io/docs)
+**Interactive docs (Swagger UI):** [`https://api.cacheon.ai/docs`](https://api.cacheon.ai/docs)
 
 ## Endpoints
 
 ### Health and status
 
-| Method | Path          | Description                                                         |
-| ------ | ------------- | ------------------------------------------------------------------- |
-| GET    | `/api/health` | Liveness check. Returns `{"status": "ok"}` if the API is up         |
-| GET    | `/api/status` | Validator overview: current king, eval counts, time since last eval |
+| Method | Path          | Description                                                               |
+| ------ | ------------- | ------------------------------------------------------------------------- |
+| GET    | `/api/health` | Liveness check. Returns `{"status": "ok"}` if the API is up               |
+| GET    | `/api/status` | Validator overview: current king, eval counts, time since last evaluation |
 
 ```bash
-curl https://api.cacheon.io/api/health
-curl https://api.cacheon.io/api/status
+curl https://api.cacheon.ai/api/health
+curl https://api.cacheon.ai/api/status
 ```
 
 ### King
@@ -40,7 +40,7 @@ curl https://api.cacheon.io/api/status
 | GET    | `/api/evaluations/{uid}`         | All evaluations for a specific UID   |
 
 ```bash
-curl https://api.cacheon.io/api/evaluations/5
+curl https://api.cacheon.ai/api/evaluations/5
 ```
 
 Each evaluation record includes `score`, `disqualify_reason` (if DQ'd), `ttft_improvement`, `throughput_improvement`, `token_match_rate`, and `per_prompt` stats when available.
@@ -55,19 +55,19 @@ Each evaluation record includes `score`, `disqualify_reason` (if DQ'd), `ttft_im
 Labels follow the pattern `uid{N}_{hotkey8}_{block}` for challengers and `baseline_{hash}` for baseline runs.
 
 ```bash
-curl https://api.cacheon.io/api/container-log/uid5_5CG7KRPk_7105042
+curl https://api.cacheon.ai/api/container-log/uid5_5CG7KRPk_7105042
 ```
 
 This is the fastest way to debug why your container failed. The log contains the full Docker output from your container's startup attempt.
 
 ### Rounds
 
-| Method | Path            | Description                                            |
-| ------ | --------------- | ------------------------------------------------------ |
-| GET    | `/api/rounds`   | Eval rounds grouped by block, with challenger outcomes |
-| GET    | `/api/eval-job` | Current pending eval job (queued challengers)          |
+| Method | Path            | Description                                                  |
+| ------ | --------------- | ------------------------------------------------------------ |
+| GET    | `/api/rounds`   | Evaluation rounds grouped by block, with challenger outcomes |
+| GET    | `/api/eval-job` | Current pending eval job (queued challengers)                |
 
-## Debugging a failed eval
+## Debugging a failed evaluation
 
 1. Find your UID's evaluation: `GET /api/evaluations/{your-uid}`
 2. Check `disqualify_reason` in the response
