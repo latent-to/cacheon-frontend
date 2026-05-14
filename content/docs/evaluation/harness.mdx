@@ -9,17 +9,15 @@ The harness is the system that pulls miner containers, starts them, sends prompt
 
 For each challenger:
 
-```
 1. Pull Docker image by digest
-2. Start container with --gpus all, model volume mount, internal network
-3. Poll GET /health every 5s until 200 (startup timeout: 10 min)
-4. Send 2 warmup prompts (discarded, see below)
+2. Start container with `--gpus all`, model volume mount, internal network
+3. Poll `GET /health` every 5s until 200 (startup timeout: 10 min)
+4. Send 2 warmup prompts before evaluation; their results are discarded (see [Warmup](#warmup))
 5. Send 10 streaming requests with logprobs; measure TTFT + throughput and collect tokens + logprobs in the same pass
 6. Stop and remove container
-7. Clean up GPU state (reset clocks, clear caches, all GPUs)
+7. Clean up GPU state across all GPUs by resetting clocks and clearing caches (see [GPU state cleanup](#gpu-state-cleanup))
 8. Compute median TTFT/throughput, correctness check, score
 9. Compare against king
-```
 
 ### Warmup
 
@@ -46,7 +44,7 @@ This ensures each miner starts from a clean GPU state, identical to what the bas
 
 The baseline is a pinned version of vLLM serving `Qwen2.5-72B-Instruct`. The validator starts the baseline container on demand when prompts change, runs evaluation, caches the results, then tears it down.
 
-Baseline results are **pre-computed and cached** per prompt set. When the block hash changes (producing new prompts), the baseline runs once. All challengers in that round are compared against the same cached baseline numbers. This saves ~50% of eval wall time per challenger.
+Baseline results are **pre-computed and cached** per prompt set. When the block hash changes, this triggers the generation of new prompts. The baseline runs once and then all challengers in that round are compared against the same cached baseline numbers. This saves ~50% of eval wall time per challenger.
 
 On a cache miss, baseline is driven the same way as challengers: streaming completions with logprobs and the same warmup discards.
 
@@ -72,7 +70,7 @@ The same prompts are sent to both baseline and miner. Prompt order is shuffled p
 
 ### TTFT
 
-Measured as wall-clock time from the moment the HTTP request is sent to the moment the first SSE data chunk arrives. This includes:
+Measured as wall-clock time from the moment the HTTP request is sent to the moment the first _Server-Sent Events_ (_SSE_) data chunk arrives. This includes:
 
 - Server-side prefill computation
 - First token sampling
@@ -96,7 +94,7 @@ Both TTFT and throughput are aggregated using the **median** across the 10 score
 
 ### Correctness
 
-Measured from the same streaming pass that captures speed. Per-prompt first-divergence analysis against baseline output, with logprob verification at the first mismatch position. See [Scoring](/docs/evaluation/scoring) for the full correctness gate specification.
+Measured from the same streaming pass that captures speed. Per-prompt first-divergence analysis against baseline output, with logprob verification at the first mismatch position. See [Scoring](/docs/evaluation/scoring#correctness-gate) for the full correctness gate specification.
 
 ## Per-prompt metrics
 
