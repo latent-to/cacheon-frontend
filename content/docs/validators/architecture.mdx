@@ -7,7 +7,7 @@ description: CPU validator loop, GPU eval entrypoint, S3 handoff, challenger det
 
 The CPU host runs `validator/cpu_validator.py` continuously. Every poll interval (~5 min):
 
-```
+```py
 while True:
     s3_download(state_dir)
     state = load_state()
@@ -39,7 +39,7 @@ Weight setting triggers in three situations:
 
 The GPU pod runs `validator/gpu_eval.py` as a one-shot job. No Bittensor dependency.
 
-```
+```py
 s3_download(state_dir)
 eval_job = load_eval_job()        # written by CPU
 prompts = sample_prompts(block_hash)
@@ -53,7 +53,7 @@ s3_upload(state_dir)
 exit
 ```
 
-The GPU reads `eval_job.json` (block context + challenger list), runs evaluations, writes results into `state.json`, and exits.
+The GPU reads `eval_job.json` (block context + challenger list), runs evaluations, writes results into `state.json`, and then exits.
 
 ## State and S3 handoff
 

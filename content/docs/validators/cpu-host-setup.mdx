@@ -12,15 +12,27 @@ description: Set up the always-on CPU validator. Any VPS with Docker. Holds the 
 
 ## Configuration
 
-Copy the example env file and fill in the required values:
+Navigate to the `cacheon/validator` directory:
 
 ```bash
 cd cacheon/validator
-cp .env.cpu.example .env
-# edit .env with your credentials
 ```
 
-| Env var                   | Required | Description                                           |
+Next, paste the contents from the [CPU environment template](https://github.com/latent-to/cacheon/blob/main/validator/.env.cpu.example) in the Cacheon repository into a newly created `.env` file, then update the required values with your specific configuration.
+
+```bash
+cp .env.cpu.example .env
+```
+
+Once the file is configured with your credentials, load the environment variables into your current shell session:
+
+```bash
+set -a; . .env; set +a
+```
+
+The following table shows the list of environment variables in the `.env` file, their description, and whether they are required:
+
+| Environment variables     | Required | Description                                           |
 | ------------------------- | -------- | ----------------------------------------------------- |
 | `CACHEON_NETWORK`         | Yes      | `finney` (mainnet) or `test` (testnet)                |
 | `CACHEON_NETUID`          | Yes      | `14` (mainnet) or `470` (testnet)                     |
@@ -32,17 +44,19 @@ cp .env.cpu.example .env
 | `HIPPIUS_SECRET_KEY`      | Yes      | Hippius S3 secret key                                 |
 | `CACHEON_S3_BUCKET`       | No       | S3 bucket name (default `cacheon-validator`)          |
 
-Mount your wallet at the path expected by the container. The default is `~/.bittensor` mapped to `/root/.bittensor` inside the container; set `BITTENSOR_DIR` in `.env` if yours is elsewhere.
+Mount your wallet at the path expected by the container. The default is `~/.bittensor` mapped to `/root/.bittensor` inside the container. Set the `BITTENSOR_DIR` variable in the `.env` file if your wallet is located elsewhere.
 
-## Start
+## Start the run
 
-The setup script creates the Python venv (or activates an existing one), installs dependencies, loads `.env`, tears down any running CPU validator container, and starts docker compose:
+Run the following command to begin:
+
+The setup script creates the Python virtual environment (or activates an existing one), installs dependencies, loads the `.env` file, tears down any running CPU validator container, and starts docker compose:
 
 ```bash
 bash setup-cpu.sh
 ```
 
-To run in the background:
+You can opt to run in the background. To do this:
 
 ```bash
 bash setup-cpu.sh --detach
@@ -58,7 +72,7 @@ INFO  validator.cpu_validator: Tick 1: block=... challengers=0 weights_set=no
 
 ## Dry-run mode
 
-Set `CACHEON_DRY_RUN=1` before starting to run the full chain scan and challenger selection without calling `set_weights`. Useful for verifying chain connectivity and S3 credentials before going live.
+Set the `CACHEON_DRY_RUN=1` variable in your `.env` file before starting to run the full chain scan and challenger selection without calling `set_weights`. This is useful for verifying chain connectivity and S3 credentials before going live.
 
 ## Verify S3 connectivity (optional)
 
