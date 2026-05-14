@@ -11,12 +11,12 @@ You build a Docker image, push it to a container registry, and commit the image 
 
 ## Prerequisites
 
-| Requirement                           | Details                                                                                                                             |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Bittensor wallet**                  | Registered on subnet 14 (mainnet) or 470 (testnet). See [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets). |
-| **Container registry**                | Your Docker image must be publicly pullable. You can use Docker Hub, GitHub Container Registry, or any public registry.             |
+| Requirement                           | Details                                                                                                                                                                                                                           |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bittensor wallet**                  | Registered on subnet 14 (mainnet) or 470 (testnet). See [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets).                                                                                               |
+| **Container registry**                | Your Docker image must be publicly pullable. You can use Docker Hub, GitHub Container Registry, or any public registry.                                                                                                           |
 | **GPU (for local testing)**           | Multi-GPU NVLink setup with 280 GB+ total VRAM (e.g. 2x H200 or 4x H100 SXM). Needed to verify your server works and to benchmark locally. The validator pod GPU count varies (2-8), so do not hardcode `--tensor-parallel-size`. |
-| **Model weights (for local testing)** | `Qwen2.5-72B-Instruct`. On the real validator, weights are provided as a read-only volume mount.                                    |
+| **Model weights (for local testing)** | `Qwen2.5-72B-Instruct`. On the real validator, weights are provided as a read-only volume mount.                                                                                                                                  |
 
 <Callout type="info" title="You don't need your own GPU to register">
   Registration on mainnet is just an on-chain commitment that points to your Docker image. The
