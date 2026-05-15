@@ -1,7 +1,4 @@
-const API_BASE =
-  typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? '/proxy-api'
-    : 'https://api.cacheon.ai'
+const API_BASE = '/proxy-api'
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`)
