@@ -66,7 +66,7 @@ The GPU pod needs these env vars at minimum: `HIPPIUS_ACCESS_KEY`, `HIPPIUS_SECR
 Run the following command to begin the evaluation:
 
 ```bash
-docker compose up --build
+docker compose -f gpu-compose.yml up --build
 ```
 
 Once the evaluation completes, the container automatically exits. Each run performs a single eval from start to finish:

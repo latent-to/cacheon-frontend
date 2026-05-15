@@ -48,7 +48,6 @@ cp .env.example .env
 | `LIUM_API_KEY`             | \*       | Lium API key (\* at least one provider key required)        |
 | `TARGON_API_KEY`           | \*       | Targon API key (\* at least one provider key required)      |
 | `CACHEON_MAX_HOURLY_PRICE` | No       | Maximum hourly price in cents (default `800`)               |
-| `CACHEON_GPU_TIMEOUT_MIN`  | No       | Kill pod after N minutes (default `120`)                    |
 | `HF_TOKEN`                 | No       | Hugging Face token for model download on GPU pod            |
 
 Mount your wallet at the path expected by the container. The default is `~/.bittensor` mapped to `/root/.bittensor` inside the container; set `BITTENSOR_DIR` in `.env` if yours is elsewhere.
@@ -65,7 +64,7 @@ To run in the background:
 
 ```bash
 bash setup-cpu.sh --detach
-docker compose -f cpu-compose.yml logs -f
+docker compose logs -f
 ```
 
 Expected log output on a healthy start:

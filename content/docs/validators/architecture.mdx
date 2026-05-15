@@ -30,7 +30,7 @@ while True:
             gpu = search_providers(targon, lium)
             pod = rent(gpu)
             ssh_exec(pod, setup-gpu.sh)
-            ssh_exec(pod, docker compose up)
+            ssh_exec(pod, docker compose -f gpu-compose.yml up)
             teardown(pod)
             s3_download(state_dir)  # pick up eval results
 

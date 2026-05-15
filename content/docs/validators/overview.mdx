@@ -12,7 +12,7 @@ A single long-running process handles the full lifecycle:
 1. **Chain scan**: polls the Bittensor chain for new miner commitments (Docker image + digest)
 2. **Challenger detection**: filters for commitments not yet evaluated or rejected
 3. **GPU search**: queries Targon and Lium for the cheapest available pod that meets [GPU requirements](#gpu-requirements)
-4. **Automated rental**: rents a GPU pod, SSHs in, runs `setup-gpu.sh`, configures the environment, and starts `docker compose up`
+4. **Automated rental**: rents a GPU pod, SSHs in, runs `setup-gpu.sh`, configures the environment, and starts `docker compose -f gpu-compose.yml up`
 5. **Evaluation**: the GPU pod runs the vLLM baseline, evaluates each challenger, and uploads results to S3
 6. **Teardown**: the pod is terminated after eval completes (or on failure/timeout)
 7. **Weight setting**: the validator downloads results from S3 and sets one-hot weights to the current king
@@ -21,7 +21,7 @@ A single long-running process handles the full lifecycle:
 
 **Security:** The CPU host holds the wallets; the GPU pod has no wallet and only does eval work. S3 is the handoff layer.
 
-**Cost:** GPUs are rented only when challengers exist and hardware is available. A configurable price cap (`CACHEON_MAX_HOURLY_PRICE`) and timeout (`CACHEON_GPU_TIMEOUT_MIN`) prevent runaway spend.
+**Cost:** GPUs are rented only when challengers exist and hardware is available. A configurable price cap (`CACHEON_MAX_HOURLY_PRICE`) prevents runaway spend, and the pod timeout scales automatically with the number of challengers.
 
 </Callout>
 
