@@ -27,14 +27,11 @@ You build a Docker image, push it to a container registry, and commit the image 
 ## High-level flow
 
 1. Understand the API contract. See [API contract](/docs/miners/api-contract)
-2. Build your inference server and Dockerfile. Test it locally. See [Submission format](/docs/miners/submission-format)
-3. Push your Docker image to a public registry
-4. Commit the image reference on-chain. See [Registration](/docs/miners/registration)
-5. Validator picks you up, pulls your image, evaluates, scores
-
-<Callout type="info" title="Required steps">
-  Steps 4 and 5 are the only required actions. Everything else is preparation.
-</Callout>
+2. Build your inference server and Dockerfile. See [Submission format](/docs/miners/submission-format)
+3. Test locally before submitting. See [Local testing](/docs/miners/local-testing)
+4. Push your Docker image to a public registry
+5. Commit the image reference on-chain. See [Registration](/docs/miners/registration)
+6. Validator picks you up, pulls your image, evaluates, scores
 
 ## Common pitfalls
 
