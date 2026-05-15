@@ -27,20 +27,14 @@ A single long-running process handles the full lifecycle:
 
 ## GPU requirements
 
-Evaluation requires multi-GPU NVLink/SXM interconnect to run `Qwen2.5-72B-Instruct` with tensor parallelism. PCIe-connected GPUs (most consumer cloud offerings) cannot load this model across cards at the required speed.
+Evaluation runs `Qwen2.5-72B-Instruct` with tensor parallelism. Use NVLink/SXM-class multi-GPU hardware where the workload is bottlenecked on cross-GPU bandwidth, and attach enough persistent disk for weights, images, and caches (see [Validator setup](/docs/validators/setup)).
 
-All instances must meet these baseline conditions:
+The CPU orchestrator and `scripts/gpu_search.py` share one tier list in-repo (`validator.providers.TIERS`). Matching uses GPU type, GPU count, and minimum VRAM per GPU (B300 `>=` 288 GB, B200 `>=` 180 GB, H200 `>=` 141 GB, H100 `>=` 80 GB, A100 `>=` 80 GB). Within a tier, the cheapest hourly price wins; Tier B is only used when no Tier A config is available.
 
-- NVLink/SXM interconnect required
-- Storage: 400 GB minimum
-- VRAM per GPU: H200 `>=` 141 GB, H100 `>=` 80 GB, A100 `>=` 80 GB, B200 `>=` 180 GB
-
-`gpu_search.py` applies these conditions and picks the cheapest available instance across two tiers:
-
-| Tier              | Configs (preferred order)                        | When used                                                    |
-| ----------------- | ------------------------------------------------ | ------------------------------------------------------------ |
-| **A** (preferred) | 4x H200, 8x H100, 8x A100 80GB, 8x H200, 2x B200 | Default. Any can run 72B BF16 with tensor parallelism.       |
-| **B** (fallback)  | 2x H200, 4x H100, 4x A100 80GB, 4x B200, 8x B200 | Only when Tier A has zero availability across all providers. |
+| Tier              | Configs (preferred order)                                                                    | When used                                                |
+| ----------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **A** (preferred) | 2x B200, 2x B300, 4x H200 SXM, 8x H200 SXM, 4x B200                                          | Default.                                                 |
+| **B** (fallback)  | 2x H200 SXM, 4x H100 SXM, 4x A100 80GB, 4x B300, 8x H100 SXM, 8x A100 80GB, 8x B200, 8x B300 | Only when Tier A has zero availability across providers. |
 
 ## Setup
 
