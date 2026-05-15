@@ -19,6 +19,15 @@ export default defineConfig({
       include: fumadocsDeps,
     },
   },
+  server: {
+    proxy: {
+      '/proxy-api': {
+        target: 'https://api.cacheon.ai',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/proxy-api/, ''),
+      },
+    },
+  },
   plugins: [
     mdx(MdxConfig),
     cloudflare({ viteEnvironment: { name: 'ssr' } }),

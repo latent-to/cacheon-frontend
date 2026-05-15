@@ -8,6 +8,7 @@ const linkCls =
 
 const navLinks = [
   { to: '/', label: 'Home' },
+  { to: '/dashboard', label: 'Dashboard' },
   { to: '/docs', label: 'Docs' },
   { href: 'https://discord.com/invite/bittensor', label: 'Discord', icon: <DiscordIcon /> },
   { href: 'https://x.com/cacheon_ai', label: 'X', icon: <XIcon /> },
