@@ -30,19 +30,47 @@ Your server must load weights from `/models`. Do not bake 72B weights into your 
 
 ## Example Dockerfile
 
+<Callout type="warn" title="GPU count is not fixed">
+  The validator pod can have anywhere from 2 to 8 GPUs depending on what hardware is available when
+  your eval runs. Do not hardcode `--tensor-parallel-size`. Use a startup script that detects the
+  GPU count at runtime.
+</Callout>
+
 A minimal example using vLLM as a starting point:
+
+`start.sh`:
+
+```bash
+#!/bin/bash
+set -e
+GPU_COUNT=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l)
+GPU_COUNT=${GPU_COUNT:-1}
+[ "$GPU_COUNT" -lt 1 ] && GPU_COUNT=1
+exec python3 -m vllm.entrypoints.openai.api_server \
+  --model /models \
+  --served-model-name Qwen2.5-72B-Instruct \
+  --generation-config vllm \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --dtype bfloat16 \
+  --tensor-parallel-size "$GPU_COUNT"
+```
+
+<Callout type="info" title="Use python3 inside the container">
+  The `vllm/vllm-openai` image exposes `python3` on `PATH`; `python` may be missing. Use `exec
+  python3 -m vllm.entrypoints.openai.api_server` in `start.sh`, not `python`.
+</Callout>
+
+`Dockerfile`:
 
 ```dockerfile
 FROM vllm/vllm-openai:latest
 
 EXPOSE 8000
 
-CMD ["python", "-m", "vllm.entrypoints.openai.api_server", \
-     "--model", "/models", \
-     "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--dtype", "bfloat16", \
-     "--tensor-parallel-size", "4"]
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+ENTRYPOINT ["/start.sh"]
 ```
 
 <Callout type="info" title="This is the baseline">

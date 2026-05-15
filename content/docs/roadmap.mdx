@@ -3,7 +3,7 @@ title: Roadmap
 description: V1 is live. V1.5 automates the eval pipeline. V2 opens the optimization surface. V3 serves real traffic. V4 expands to multi-model.
 ---
 
-## V1 -- Single-model inference arena
+## V1 - Single-model inference arena
 
 **Status:** complete.
 
@@ -20,30 +20,30 @@ One model, one hardware target, one mechanism. Prove that a containerized infere
 
 _Last updated: 2026-05-08._
 
-| Phase                        | What                                                                      | Status         |
-| ---------------------------- | ------------------------------------------------------------------------- | -------------- |
-| 1 -- API contract            | `/v1/chat/completions` spec, health checks, streaming, logprobs           | ✅ Done        |
-| 2 -- Container orchestration | Docker lifecycle: pull, start, health poll, eval, teardown                | ✅ Done        |
-| 3 -- vLLM baseline           | On-demand baseline container, caching per prompt set                      | ✅ Done        |
-| 4 -- Scoring pipeline        | Single-pass evaluation: speed (TTFT + throughput) + correctness gate      | ✅ Done        |
-| 5 -- Security                | Container isolation: internal network, resource limits, GPU cleanup       | ✅ Done        |
-| 6A -- Validator loop         | Chain scan, challenger selection, Docker eval, state, `set_weights`       | ✅ Done        |
-| 6B -- GPU eval standalone    | S3 sync, `eval_job.json` handoff, per-prompt metrics, container logs      | ✅ Done        |
-| 6C -- CPU always-on loop     | CPU VPS loop: chain scan, challenger selection, S3 polling, `set_weights` | ✅ Done        |
-| 7 -- Monitoring API          | Read-only status surface for miners and community                         | 🟡 In progress |
+| Phase                          | What                                                                         | Status  |
+| ------------------------------ | ---------------------------------------------------------------------------- | ------- |
+| **1: API contract**            | `/v1/chat/completions` spec, health checks, streaming, logprobs              | ✅ Done |
+| **2: Container orchestration** | Docker lifecycle: pull, start, health poll, eval, teardown                   | ✅ Done |
+| **3: vLLM baseline**           | On-demand baseline container, caching per prompt set                         | ✅ Done |
+| **4: Scoring pipeline**        | Single-pass evaluation: speed (TTFT + throughput) + correctness gate         | ✅ Done |
+| **5: Security**                | Container isolation: internal network, resource limits, GPU cleanup          | ✅ Done |
+| **6A: Validator loop**         | Chain scan, challenger selection, Docker eval, state, `set_weights`          | ✅ Done |
+| **6B: GPU eval standalone**    | S3 sync, `eval_job.json` handoff, per-prompt metrics, container logs         | ✅ Done |
+| **6C: CPU always-on loop**     | CPU VPS loop: chain scan, challenger selection, S3 polling, `set_weights`    | ✅ Done |
+| **7:** Monitoring API          | Read-only status surface for miners and community ([docs](/docs/monitoring)) | ✅ Done |
 
-## V1.5 -- Automated eval pipeline
+## V1.5 - Automated eval pipeline
 
 **Status:** planned.
 
-V1 eval is manually triggered: the operator checks GPU availability, provisions a pod, SSHs in, and runs the eval. V1.5 closes this loop.
+V1 evaluation is manually triggered: the operator checks GPU availability, provisions a pod, SSHs in, and runs the eval. V1.5 closes this loop.
 
 - **Automated GPU provisioning**: CPU host checks for challengers, queries `gpu_search.py`, provisions a pod via provider API when suitable hardware is available, and tears it down after eval completes
 - **CPU-to-GPU SSH dispatch**: CPU SSHs into the GPU pod to trigger eval instead of the operator doing it manually
 
 V1.5 makes the validator fully hands-off. An operator spins up the CPU host once and the system handles everything from challenger detection through eval and weight setting.
 
-## V2 -- Expanded optimization surface
+## V2 - Expanded optimization surface
 
 After V1.5 stabilizes, restrictions on what miners can do are relaxed:
 
@@ -52,7 +52,7 @@ After V1.5 stabilizes, restrictions on what miners can do are relaxed:
 - Concurrency benchmarks: multiple simultaneous requests, throughput under SLA
 - Stricter correctness: full logprob KL validation
 
-## V3 -- Production inference provider
+## V3 - Production inference provider
 
 The subnet stops being a competition and starts being a product:
 
@@ -60,7 +60,7 @@ The subnet stops being a competition and starts being a product:
 - Agent, RAG, and multi-turn workloads with P99 latency SLA targets
 - PMF test: teams route traffic to Cacheon because it is the fastest production backend for this model
 
-## V4 -- Multi-model expansion
+## V4 - Multi-model expansion
 
 - Multiple arenas: one per important open-source model
 - OpenRouter integration for serving real traffic at scale

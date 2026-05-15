@@ -25,7 +25,7 @@ This queries Targon and Lium and returns the cheapest available instance that me
 
 ## Setup script
 
-Run once on a fresh machine:
+Run the following commands once on a fresh machine:
 
 ```bash
 export HF_TOKEN=...     # optional: speeds up model download
@@ -40,7 +40,7 @@ The setup script provisions all required system packages, Docker, GPU configurat
 
 ### Code-only refresh
 
-After the machine is already provisioned:
+Run the following command after the machine is already provisioned:
 
 ```bash
 bash validator/setup-gpu.sh --pull
@@ -49,6 +49,8 @@ bash validator/setup-gpu.sh --pull
 Runs `git pull` and `pip install -r validator/requirements.txt` only. No OS packages, no model download.
 
 ## Configuration
+
+Navigate to the `cacheon/validator` directory:
 
 ```bash
 cd cacheon/validator
@@ -60,6 +62,8 @@ set -a; . .env; set +a
 The GPU pod needs these env vars at minimum: `HIPPIUS_ACCESS_KEY`, `HIPPIUS_SECRET_KEY`, `CACHEON_S3_BUCKET`. GPU count and baseline digest are auto-detected by the eval container.
 
 ## Run an evaluation
+
+Run the following command to begin the evaluation:
 
 ```bash
 docker compose up --build
