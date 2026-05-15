@@ -1,14 +1,19 @@
 ---
-title: GPU pod setup
-description: Provision a GPU pod, run setup.sh, and execute an evaluation. Ubuntu 22.04/24.04 on Shadeform, Lambda, or Targon.
+title: Manual GPU setup
+description: Advanced reference for running GPU eval manually on a rented pod, without automatic orchestration.
 ---
+
+<Callout type="warn">
+  This page is for manual operation only. When `CACHEON_AUTO_RENT=1` the validator handles GPU
+  rental, setup, eval, and teardown automatically. See [Validator setup](/docs/validators/setup).
+</Callout>
 
 ## Prerequisites
 
-- A fresh Ubuntu 22.04 or 24.04 VM from Shadeform, Lambda, or Targon (Runpod and Vast.ai are excluded: they give you a container, not a VM)
+- A fresh Ubuntu 22.04 or 24.04 VM from Targon or Lium (must support nested Docker/DinD)
 - At least 400 GB fast disk under `/workspace`
-- Hippius S3 credentials (same bucket as the CPU host)
-- The CPU host must have detected challengers and written `eval_job.json` to S3
+- Hippius S3 credentials (same bucket as the validator)
+- The validator must have detected challengers and written `eval_job.json` to S3
 
 ## Find an available pod
 
@@ -16,7 +21,7 @@ description: Provision a GPU pod, run setup.sh, and execute an evaluation. Ubunt
 python scripts/gpu_search.py --best
 ```
 
-This queries Shadeform, Lambda, and Targon and returns the cheapest available instance that meets the tier requirements (see [GPU requirements](/docs/validators/overview#gpu-requirements)). It does not rent the pod automatically: use the output to provision the instance manually through the provider's UI or API, then SSH in.
+This queries Targon and Lium and returns the cheapest available instance that meets the tier requirements (see [GPU requirements](/docs/validators/overview#gpu-requirements)). Provision the instance through the provider's UI or API, then SSH in.
 
 ## Setup script
 
@@ -28,7 +33,7 @@ sudo apt-get install -y curl vim git # if not already installed
 ```
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup.sh" | sudo -E bash
+curl -fsSL "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup-gpu.sh" | sudo -E bash
 ```
 
 The setup script provisions all required system packages, Docker, GPU configuration, dependencies, models, and verifies the environment for GPU validation.
@@ -38,7 +43,7 @@ The setup script provisions all required system packages, Docker, GPU configurat
 Run the following command after the machine is already provisioned:
 
 ```bash
-bash validator/setup.sh --pull
+bash validator/setup-gpu.sh --pull
 ```
 
 Runs `git pull` and `pip install -r validator/requirements.txt` only. No OS packages, no model download.
@@ -49,41 +54,22 @@ Navigate to the `cacheon/validator` directory:
 
 ```bash
 cd cacheon/validator
-```
-
-Next, paste the contents from the [GPU environment template](https://github.com/latent-to/cacheon/blob/main/validator/.env.gpu.example) in the Cacheon repository into a newly created `.env` file, then update the required values with your specific configuration.
-
-```bash
-cp .env.gpu.example .env
-```
-
-Once the file is configured, load the environment variables into your current shell session:
-
-```bash
+cp .env.example .env
+# edit .env with S3 credentials and GPU-specific values
 set -a; . .env; set +a
 ```
 
-The following table shows the list of environment variables in the `.env` file, their description, and whether they are required
-
-| Env var                   | Required | Description                                                                |
-| ------------------------- | -------- | -------------------------------------------------------------------------- |
-| `CACHEON_GPU_COUNT`       | Yes      | Number of GPUs on the pod (e.g. `4` or `8`)                                |
-| `CACHEON_MODEL_VOLUME`    | Yes      | Host path to model weights (e.g. `/workspace/models/Qwen2.5-72B-Instruct`) |
-| `CACHEON_BASELINE_IMAGE`  | Yes      | Baseline image reference (printed by `setup.sh`)                           |
-| `CACHEON_BASELINE_DIGEST` | Yes      | `sha256:...` digest (printed by `setup.sh`)                                |
-| `HIPPIUS_ACCESS_KEY`      | Yes      | Hippius S3 access key                                                      |
-| `HIPPIUS_SECRET_KEY`      | Yes      | Hippius S3 secret key                                                      |
-| `CACHEON_S3_BUCKET`       | No       | S3 bucket name (default `cacheon-validator`)                               |
+The GPU pod needs these env vars at minimum: `HIPPIUS_ACCESS_KEY`, `HIPPIUS_SECRET_KEY`, `CACHEON_S3_BUCKET`. GPU count and baseline digest are auto-detected by the eval container.
 
 ## Run an evaluation
 
 Run the following command to begin the evaluation:
 
 ```bash
-docker compose up --build
+docker compose -f gpu-compose.yml up --build
 ```
 
-Once the evaluation completes, the container automatically exits. Each run performs a single eval from start to finish. Here’s what takes place:
+Once the evaluation completes, the container automatically exits. Each run performs a single eval from start to finish:
 
 1. **S3 download**: pulls `state.json`, `eval_job.json`, `baseline_cache/` from S3
 2. **Prompt generation**: seeds from `block_hash` in the eval job, produces 10 prompts
@@ -92,7 +78,7 @@ Once the evaluation completes, the container automatically exits. Each run perfo
 5. **Container logs**: full stdout/stderr saved to `state/container_logs/`
 6. **S3 upload**: pushes updated `state.json`, logs, and baseline cache
 
-The CPU host detects new results on its next poll and sets weights automatically.
+The validator detects new results on its next poll and sets weights automatically.
 
 ## Verify results (optional)
 

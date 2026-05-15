@@ -3,9 +3,11 @@ title: Architecture
 description: CPU validator loop, GPU eval entrypoint, S3 handoff, challenger detection, king comparison, weight setting, state persistence, and observability.
 ---
 
-## CPU validator loop
+## Validator main loop
 
-The CPU host runs `validator/cpu_validator.py` continuously. Every poll interval (~5 min):
+The CPU validator loops in `validator/cpu_validator.py`. Operators usually run it in Docker Compose (`validator/docker-compose.yml`, image from `validator/Dockerfile.cpu`); alternatively you can run `python -m validator.cpu_validator` on the host with the same env and mounts.
+
+Between ticks the process sleeps for `poll_interval`, from `CACHEON_POLL_INTERVAL_S` or `--poll-interval`. The bundled Compose file passes a default of `300` seconds when that variable is unset.
 
 ```py
 while True:
@@ -26,6 +28,14 @@ while True:
         write_eval_job(challengers, block, block_hash)
         s3_upload(state_dir)
 
+        if auto_rent_enabled:
+            gpu = search_providers(targon, lium)
+            pod = rent(gpu)
+            ssh_exec(pod, setup-gpu.sh)
+            ssh_exec(pod, docker compose -f gpu-compose.yml up)
+            teardown(pod)
+            s3_download(state_dir)  # pick up eval results
+
     sleep(poll_interval)
 ```
 
@@ -37,7 +47,7 @@ Weight setting triggers in three situations:
 
 ## GPU eval entrypoint
 
-The GPU pod runs `validator/gpu_eval.py` as a one-shot job. No Bittensor dependency.
+The GPU host runs `validator/gpu_eval.py` as a one-shot job, usually from the image built by `validator/Dockerfile.gpu` and started with `validator/gpu-compose.yml`. Compose mounts the host Docker socket so the runner can start baseline and miner containers for each challenger (`evaluate_in_docker` in the pseudocode below). No Bittensor dependency.
 
 ```py
 s3_download(state_dir)
@@ -53,11 +63,11 @@ s3_upload(state_dir)
 exit
 ```
 
-The GPU reads `eval_job.json` (block context + challenger list), runs evaluations, writes results into `state.json`, and then exits.
+The GPU reads `eval_job.json` (block context + challenger list), runs evaluations, writes results into `state.json`, and exits. Each challenger is saved and uploaded to S3 individually, so partial results survive pod crashes.
 
 ## State and S3 handoff
 
-The CPU and GPU share a single S3 prefix (`validator/sync.py`). Both sides download the full state directory before starting work and upload after completing it. The CPU writes `eval_job.json` and `state.json` (after weight setting); the GPU writes `state.json` (eval results, king changes), `baseline_cache/`, `container_logs/`, and `logs/`.
+The validator and GPU pod share a single S3 prefix (`validator/sync.py`). Both sides download the full state directory before starting work and upload after completing it. The validator writes `eval_job.json` and `state.json` (after weight setting); the GPU writes `state.json` (eval results, king changes), `baseline_cache/`, `container_logs/`, and `logs/`.
 
 `state.json` tracks the king record, evaluation history with per-prompt breakdowns, precheck failures, and scan/weight-setting block numbers. Written atomically (temp file + rename).
 
