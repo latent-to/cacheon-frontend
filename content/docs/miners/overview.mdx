@@ -38,10 +38,8 @@ You build a Docker image, push it to a container registry, and commit the image 
 - **Wrong model weights.** Your server must load the exact `Qwen2.5-72B-Instruct` BF16 weights from the mounted volume at `/models`. Modified, quantized, or distilled weights will fail the correctness gate.
 - **Slow startup.** The validator gives your container 10 minutes to respond on `/health`. 72B model loading takes 3-7 minutes. Budget accordingly.
 - **Non-compliant API.** Your server must implement `/v1/chat/completions` with logprobs support. See [API contract](/docs/miners/api-contract).
-- **Hardcoded tensor parallelism.** Do not hardcode `--tensor-parallel-size` in your image. The validator pod GPU count varies (2-8) depending on available hardware. Use a startup script that detects GPUs at runtime with `nvidia-smi`. See the example in [Submission format](/docs/miners/submission-format).
-- **Tensor-parallel size must divide KV heads.** `Qwen2.5-72B-Instruct` has 8 KV heads, so valid `--tensor-parallel-size` values are `{1, 2, 4, 8}`. The validator may rent non-power-of-two GPU counts (e.g. 3, 5, 6, 7); raw `gpu_count` will break startup with a divisibility error. Clamp TP to the largest divisor of 8 that is `<= gpu_count`.
-- **Missing `--max-model-len`.** Without it, vLLM falls back to the model's config default (32k). On 4-GPU (65k context) and 8-GPU (131k context) pods this can lead to truncated prompts and correctness failures. Always pass `--max-model-len` explicitly to match your pod's context budget.
-- **Don't copy the king.** The validator compares the `sha256:` manifest digest you commit on-chain against the current king's digest. If they match, your submission is DQ'd. (Re-pushing the same bits to a different registry produces a new manifest digest and is not caught by this rule — it deters trivial digest collisions, not behavioral cloning.)
+- **Hardcoded tensor parallelism.** Do not hardcode `--tensor-parallel-size` in your image. The validator pod GPU count varies across the supported tiers (2, 4, or 8 GPUs depending on available hardware). Use a startup script that detects GPUs at runtime with `nvidia-smi`. See the example in [Submission format](/docs/miners/submission-format).
+- **Don't copy the king.** The validator compares the `sha256:` manifest digest you commit on-chain against the current king's digest. If they match, your submission is DQ'd. OCI manifest digests are content-addressed, so re-pushing the same image to a different registry produces the same digest and is still caught.
 
 ## Learn more
 
