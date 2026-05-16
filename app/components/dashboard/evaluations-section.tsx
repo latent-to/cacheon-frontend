@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { usePoll } from '~/lib/use-poll'
 import { fetchEvaluations, fetchEvaluationsByUid, type EvaluationRecord } from '~/lib/api.client'
@@ -20,13 +20,14 @@ export function EvaluationsSection() {
   const [filter, setFilter] = useState<EvalFilter>('all')
   const [selectedUid, setSelectedUid] = useState<number | null>(null)
 
-  const fetcher = useCallback(() => {
-    const param = filter === 'all' ? undefined : filter
-    return fetchEvaluations(param as 'active' | 'dq' | undefined)
-  }, [filter])
-
-  const evals = usePoll(fetcher, 30_000)
-  const list = evals.data?.evaluations ?? []
+  const evals = usePoll(fetchEvaluations, 30_000)
+  const allEvals = evals.data?.evaluations ?? []
+  const list =
+    filter === 'active'
+      ? allEvals.filter((e) => !e.disqualified)
+      : filter === 'dq'
+        ? allEvals.filter((e) => e.disqualified)
+        : allEvals
 
   return (
     <section>
@@ -46,10 +47,10 @@ export function EvaluationsSection() {
             {evals.data && (
               <span className="text-secondary/40 ml-1.5">
                 {f === 'all'
-                  ? evals.data.total
+                  ? allEvals.length
                   : f === 'active'
-                    ? list.filter((e) => !e.disqualified).length
-                    : list.filter((e) => e.disqualified).length}
+                    ? allEvals.filter((e) => !e.disqualified).length
+                    : allEvals.filter((e) => e.disqualified).length}
               </span>
             )}
           </button>
@@ -147,11 +148,19 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     setData(null)
     setError(null)
     fetchEvaluationsByUid(uid)
-      .then((r) => setData(r.evaluations))
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .then((r) => {
+        if (!cancelled) setData(r.evaluations)
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+      })
+    return () => {
+      cancelled = true
+    }
   }, [uid])
 
   const ev = data?.[0]

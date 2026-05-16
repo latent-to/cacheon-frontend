@@ -93,17 +93,26 @@ export function LogsSection() {
       setLogText(null)
       return
     }
+    let cancelled = false
     setLogLoading(true)
     setLogText(null)
     fetchContainerLog(selectedLabel)
       .then((text) => {
+        if (cancelled) return
         setLogText(text)
         requestAnimationFrame(() => {
           logViewerRef.current?.scrollTo(0, logViewerRef.current.scrollHeight)
         })
       })
-      .catch(() => setLogText('Failed to load log.'))
-      .finally(() => setLogLoading(false))
+      .catch(() => {
+        if (!cancelled) setLogText('Failed to load log.')
+      })
+      .finally(() => {
+        if (!cancelled) setLogLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [selectedLabel])
 
   const emptyRaw = !logs.loading && list.length === 0

@@ -7,7 +7,7 @@ export function PulseSection() {
   const status = usePoll(fetchStatus, 30_000)
   const evalJob = usePoll(fetchEvalJob, 30_000)
 
-  const alive = health.data ? health.data.status === 'ok' : null
+  const alive = health.loading ? null : !health.error
   const s = status.data
 
   return (
