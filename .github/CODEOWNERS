@@ -1,0 +1,17 @@
+# CODEOWNERS — cacheon-frontend
+# Reviewers are auto-requested when a PR touches matching paths.
+# Last entry matching a path wins. Patterns follow .gitignore syntax.
+
+# Default: all files require review from core maintainers
+*                           @xavierlyu @clementblaise @chideraao @camfairchild
+
+# Docs content (MDX)
+content/                    @xavierlyu @chideraao
+
+# Workers / deployment config
+workers/                    @xavierlyu @clementblaise
+wrangler.jsonc              @xavierlyu @clementblaise
+workflows/                  @xavierlyu @clementblaise
+
+# CI and repo config
+.github/                    @xavierlyu @clementblaise
