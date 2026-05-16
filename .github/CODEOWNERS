@@ -3,7 +3,7 @@
 # Last entry matching a path wins. Patterns follow .gitignore syntax.
 
 # Default: all files require review from core maintainers
-*                           @xavierlyu @clementblaise @chideraao
+*                           @xavierlyu @clementblaise @chideraao @camfairchild
 
 # Docs content (MDX)
 content/                    @xavierlyu @chideraao
