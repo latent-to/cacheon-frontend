@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePoll } from '~/lib/use-poll'
 import { fetchContainerLogs, fetchContainerLog, type ContainerLogEntry } from '~/lib/api.client'
 import { fmtBytes, GlassCard, Skeleton } from './shared'
+import { CopyButton } from '~/components/ui/copy-button'
 
 /** Miner log labels use `uid{n}_<hotkey-prefix>_...` (see validator log capture). */
 function logLabelUidDigits(label: string): string | null {
@@ -246,22 +247,25 @@ export function LogsSection() {
                 <span className="text-accent font-mono text-[0.68rem] font-semibold">
                   {selectedLabel}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedLabel(null)}
-                  className="text-secondary hover:text-primary cursor-pointer border-none bg-transparent p-1"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
+                <div className="flex items-center gap-1">
+                  {logText && <CopyButton value={logText} className="p-1" />}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLabel(null)}
+                    className="text-secondary hover:text-primary cursor-pointer border-none bg-transparent p-1"
                   >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                </button>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <pre
                 ref={logViewerRef}
