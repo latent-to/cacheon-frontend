@@ -59,7 +59,7 @@ Instead, the gate uses **per-prompt first-divergence analysis**:
 
 ### Prompt-level pass rate
 
-At least **9 out of 10 prompts** must pass. A single failed prompt is allowed as a safety margin; a wrong model or quantized weights will typically fail on many prompts.
+**Every scored prompt must pass.** A single failed prompt disqualifies the submission (`docker_eval.evaluate_challenger` returns a DQ record as soon as `any_failed` is true). A wrong model or quantized weights will typically fail on many prompts, but the gate fires on the first one.
 
 ### Why this catches bad actors
 
