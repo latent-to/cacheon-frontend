@@ -362,7 +362,7 @@ function ChallengerRow({
 
 function StepTimeline({ steps }: { steps: EvalProgressStep[] }) {
   const [expanded, setExpanded] = useState(false)
-  const visible = expanded ? steps : steps.slice(-3)
+  const visible = expanded ? steps : steps.slice(-5)
   const hidden = steps.length - visible.length
 
   return (
