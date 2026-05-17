@@ -12,6 +12,8 @@ import {
   MiniStat,
   ImageTag,
 } from './shared'
+import { CopyButton } from '~/components/ui/copy-button'
+import { LinkButton } from '~/components/ui/link-button'
 
 export function KingSection() {
   const king = usePoll(fetchKing, 30_000)
@@ -118,14 +120,22 @@ function KingHistoryNode({ entry, isLatest }: { entry: KingHistoryEntry; isLates
         }`}
       />
       <div className="min-w-0 flex-1">
-        <div className={`font-mono text-sm font-bold ${isLatest ? 'text-accent' : 'text-primary'}`}>
+        <div className="flex items-center gap-1">
+          <span
+            className={`font-mono text-sm font-bold ${isLatest ? 'text-accent' : 'text-primary'}`}
+          >
+            {truncHotkey(entry.new_king_hotkey)}
+          </span>
+          <CopyButton value={entry.new_king_hotkey} />
+        </div>
+        <div className="text-secondary/55 mt-0.5 font-mono text-[0.65rem]">
           UID {entry.new_king_uid}
         </div>
-        <div className="text-primary mt-1 font-mono text-[0.72rem]">
-          {relativeTimeAgo(entry.ts)}
-        </div>
-        <div className="text-secondary/40 mt-0.5 font-mono text-[0.62rem]">
-          Block #{entry.block}
+        <div className="mt-1 flex items-center gap-1.5 font-mono text-[0.68rem]">
+          <span className="text-primary">{relativeTimeAgo(entry.ts)}</span>
+          <span className="text-secondary/30">·</span>
+          <span className="text-secondary/40">Block #{entry.block}</span>
+          <LinkButton href={`https://tao.app/block/${entry.block}`} />
         </div>
         <div className="text-secondary/60 mt-1 font-mono text-[0.68rem]">
           Score {fmtScore(entry.new_king_score)}
