@@ -10,6 +10,7 @@ import {
   GlassCard,
   Skeleton,
   MiniStat,
+  ImageTag,
 } from './shared'
 
 export function KingSection() {
@@ -54,8 +55,8 @@ export function KingSection() {
                   </span>
                 </div>
                 <div className="flex gap-2">
-                  <span className="text-secondary/50">Image</span>
-                  <span className="text-secondary break-all">{k.image || '-'}</span>
+                  <span className="text-secondary/50 shrink-0">Image</span>
+                  <ImageTag image={k.image} />
                 </div>
                 <div className="flex gap-2">
                   <span className="text-secondary/50 shrink-0">Crowned</span>

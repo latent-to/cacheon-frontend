@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 
+import { LinkButton } from '~/components/ui/link-button'
+
 export const DASHBOARD_TABS = [
   { slug: 'pulse', label: 'Pulse' },
   { slug: 'king', label: 'King' },
@@ -21,6 +23,11 @@ export function relativeTimeAgo(ts: number | null | undefined): string {
   if (hr < 24) return `${hr} hr ago`
   const days = Math.floor(hr / 24)
   return `${days} ${days === 1 ? 'day' : 'days'} ago`
+}
+
+export function truncImage(img: string | null | undefined): string {
+  if (!img) return ''
+  return img.replace(/^docker\.io\//, '')
 }
 
 export function truncHotkey(hk: string | undefined | null): string {
@@ -169,6 +176,24 @@ export function LastEvalMetric({
         </div>
       )}
     </GlassCard>
+  )
+}
+
+export function ImageTag({
+  image,
+  className = '',
+}: {
+  image: string | null | undefined
+  className?: string
+}) {
+  const clean = truncImage(image)
+  if (!clean)
+    return <span className={`text-secondary/40 font-mono text-[0.72rem] ${className}`}>-</span>
+  return (
+    <div className={`flex min-w-0 items-center gap-1 ${className}`}>
+      <span className="min-w-0 truncate font-mono text-[0.72rem]">{clean}</span>
+      <LinkButton href={`https://hub.docker.com/r/${clean.replace(/:.*$/, '')}`} />
+    </div>
   )
 }
 

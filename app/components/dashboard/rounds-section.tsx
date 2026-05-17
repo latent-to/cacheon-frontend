@@ -2,7 +2,15 @@ import { useState } from 'react'
 
 import { usePoll } from '~/lib/use-poll'
 import { fetchRounds, type Round } from '~/lib/api.client'
-import { fmtScore, truncHotkey, relativeTimeAgo, GlassCard, Skeleton, StatusPill } from './shared'
+import {
+  fmtScore,
+  truncHotkey,
+  relativeTimeAgo,
+  GlassCard,
+  Skeleton,
+  StatusPill,
+  ImageTag,
+} from './shared'
 
 export function RoundsSection() {
   const rounds = usePoll(fetchRounds, 30_000)
@@ -121,9 +129,7 @@ function RoundCard({
                 <span className="text-secondary/50 min-w-0 flex-1 truncate" title={c.hotkey}>
                   {truncHotkey(c.hotkey)}
                 </span>
-                <span className="text-secondary/40 hidden max-w-[24rem] min-w-0 break-all sm:block">
-                  {c.image ?? '-'}
-                </span>
+                <ImageTag image={c.image} className="hidden max-w-[24rem] sm:flex" />
                 <span
                   className={`w-16 text-right font-bold ${c.disqualified ? 'text-red-400/60' : 'text-accent'}`}
                 >

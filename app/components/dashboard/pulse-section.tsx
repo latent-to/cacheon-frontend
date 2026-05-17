@@ -26,7 +26,7 @@ import {
   type EvalProgressChallenger,
   type EvalProgressStep,
 } from '~/lib/api.client'
-import { fmtScore, truncHotkey, MetricCard, LastEvalMetric, StatusDot } from './shared'
+import { fmtScore, truncHotkey, truncImage, MetricCard, LastEvalMetric, StatusDot } from './shared'
 import { CopyButton } from '~/components/ui/copy-button'
 import { LinkButton } from '~/components/ui/link-button'
 
@@ -326,13 +326,17 @@ function ChallengerRow({
           </span>
           <CopyButton value={c.hotkey} />
         </div>
-        {c.image && (
-          <div className="flex min-w-0 items-center gap-1">
-            <span className="text-secondary/85 truncate text-xs leading-none">{c.image}</span>
-            <CopyButton value={c.image} />
-            <LinkButton href={`https://hub.docker.com/r/${c.image}`} />
-          </div>
-        )}
+        {c.image &&
+          (() => {
+            const image = truncImage(c.image)
+            return (
+              <div className="flex min-w-0 items-center gap-1">
+                <span className="text-secondary/85 truncate text-xs leading-none">{image}</span>
+                <CopyButton value={image} />
+                <LinkButton href={`https://hub.docker.com/r/${image}`} />
+              </div>
+            )
+          })()}
       </div>
 
       {/* Score / DQ reason */}

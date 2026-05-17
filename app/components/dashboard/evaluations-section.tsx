@@ -12,6 +12,7 @@ import {
   Skeleton,
   StatusPill,
   MiniStat,
+  ImageTag,
 } from './shared'
 
 type EvalFilter = 'all' | 'active' | 'dq'
@@ -122,9 +123,7 @@ function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numbe
         {truncHotkey(ev.hotkey)}
       </span>
 
-      <span className="text-secondary/50 hidden min-w-0 font-mono text-[0.72rem] break-all sm:block">
-        {ev.image || '-'}
-      </span>
+      <ImageTag image={ev.image} className="hidden sm:flex" />
 
       <span
         className={`hidden font-mono text-sm font-bold sm:block ${dq ? 'text-red-400/60' : 'text-accent'}`}
@@ -216,8 +215,8 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                   <span className="text-secondary break-all">{ev.hotkey}</span>
                 </div>
                 <div className="flex gap-2">
-                  <span className="text-secondary/50">Image</span>
-                  <span className="text-secondary break-all">{ev.image}</span>
+                  <span className="text-secondary/50 shrink-0">Image</span>
+                  <ImageTag image={ev.image} />
                 </div>
                 <div className="flex gap-2">
                   <span className="text-secondary/50 shrink-0">Digest</span>
