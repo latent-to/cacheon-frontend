@@ -184,8 +184,6 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
   const completed = challengers.filter(
     (c) => c.status === 'scored' || c.status === 'dq' || c.status === 'skipped',
   )
-  const phasePct =
-    challengers.length > 0 ? Math.round((completed.length / challengers.length) * 100) : 0
 
   return (
     <div className={`mt-6 overflow-hidden rounded-xl border ${borderColor} bg-white/[0.015]`}>
@@ -231,7 +229,9 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
             </Pill>
           )}
           {progress.phase === 'challenger_eval' && challengers.length > 0 && (
-            <Pill accent>{phasePct}% done</Pill>
+            <Pill accent>
+              {completed.length}/{challengers.length} done
+            </Pill>
           )}
         </div>
       )}
@@ -241,7 +241,12 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
         <div className="mx-5 mb-3 h-[3px] overflow-hidden rounded-full bg-white/[0.04]">
           <div
             className="bg-accent/60 h-full rounded-full transition-all duration-700 ease-out"
-            style={{ width: `${phasePct}%` }}
+            style={{
+              width:
+                challengers.length > 0
+                  ? `${Math.round((completed.length / challengers.length) * 100)}%`
+                  : '0%',
+            }}
           />
         </div>
       )}
