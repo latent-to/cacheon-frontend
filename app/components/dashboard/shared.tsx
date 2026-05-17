@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react'
-
 import { LinkButton } from '~/components/ui/link-button'
 
 export const DASHBOARD_TABS = [
@@ -143,36 +141,6 @@ export function MetricCard({
           className={`font-mono text-2xl font-black tracking-tight ${accent ? 'text-accent' : 'text-primary'} ${valueClassName ?? ''}`}
         >
           {value}
-        </div>
-      )}
-    </GlassCard>
-  )
-}
-
-export function LastEvalMetric({
-  ts,
-  loading,
-}: {
-  ts: number | null | undefined
-  loading: boolean
-}) {
-  const [, setTick] = useState(0)
-  useEffect(() => {
-    if (ts == null || ts <= 0) return
-    const id = setInterval(() => setTick((n) => n + 1), 1000)
-    return () => clearInterval(id)
-  }, [ts])
-
-  return (
-    <GlassCard className="px-5 py-4">
-      <div className="text-secondary mb-1 font-mono text-[0.62rem] font-semibold tracking-[0.2em] uppercase">
-        Last eval
-      </div>
-      {loading ? (
-        <Skeleton className="mt-1 h-10 w-36" />
-      ) : (
-        <div className="text-primary font-mono text-[0.95rem] leading-snug font-bold tracking-tight whitespace-normal sm:text-[1.05rem]">
-          {relativeTimeAgo(ts)}
         </div>
       )}
     </GlassCard>

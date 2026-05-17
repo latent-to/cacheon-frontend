@@ -26,7 +26,7 @@ import {
   type EvalProgressChallenger,
   type EvalProgressStep,
 } from '~/lib/api.client'
-import { fmtScore, truncHotkey, truncImage, MetricCard, LastEvalMetric, StatusDot } from './shared'
+import { fmtScore, relativeTimeAgo, truncHotkey, truncImage, MetricCard, StatusDot } from './shared'
 import { CopyButton } from '~/components/ui/copy-button'
 import { LinkButton } from '~/components/ui/link-button'
 
@@ -34,9 +34,16 @@ export function PulseSection() {
   const health = usePoll(fetchHealth, 10_000)
   const status = usePoll(fetchStatus, 30_000)
   const progress = usePoll(fetchEvalProgress, 10_000)
+  const [, setTick] = useState(0)
 
   const alive = health.loading ? null : !health.error
   const s = status.data
+
+  useEffect(() => {
+    if (s?.last_eval_ts == null || s.last_eval_ts <= 0) return
+    const id = setInterval(() => setTick((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [s?.last_eval_ts])
 
   return (
     <section>
@@ -55,14 +62,19 @@ export function PulseSection() {
           accent
           loading={status.loading}
         />
-        <MetricCard label="Active" value={s?.n_active ?? '-'} loading={status.loading} />
+        <MetricCard label="Scored" value={s?.n_active ?? '-'} loading={status.loading} />
         <MetricCard
           label="Disqualified"
           value={s?.n_disqualified ?? '-'}
           loading={status.loading}
         />
         <MetricCard label="Evaluated" value={s?.n_evaluated ?? '-'} loading={status.loading} />
-        <LastEvalMetric ts={s?.last_eval_ts} loading={status.loading} />
+        <MetricCard
+          label="Last eval"
+          value={relativeTimeAgo(s?.last_eval_ts)}
+          loading={status.loading}
+          valueClassName="text-xl sm:text-2xl"
+        />
       </div>
 
       {s && (s.last_scan_block || s.last_weights_set_block) && (
