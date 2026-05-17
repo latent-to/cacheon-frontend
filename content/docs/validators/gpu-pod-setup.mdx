@@ -59,7 +59,7 @@ cp .env.example .env
 set -a; . .env; set +a
 ```
 
-The GPU pod needs these env vars at minimum: `HIPPIUS_ACCESS_KEY`, `HIPPIUS_SECRET_KEY`, `CACHEON_S3_BUCKET`. GPU count and baseline digest are auto-detected by the eval container.
+The GPU pod needs these env vars at minimum: `HIPPIUS_ACCESS_KEY`, `HIPPIUS_SECRET_KEY`, `CACHEON_S3_BUCKET`. GPU count and baseline digest are auto-detected by the eval container. Auto-rent provisions 8-GPU tier configs only; for manual operation, rent an 8-GPU pod (see [GPU requirements](/docs/validators/overview#gpu-requirements)).
 
 ## Run an evaluation
 
