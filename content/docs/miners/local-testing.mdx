@@ -55,12 +55,12 @@ Any immediate exit with no output usually means your ENTRYPOINT path is wrong or
 
 ### Step 1: Provision the machine
 
-On a fresh Ubuntu 22.04/24.04 GPU machine, run the [validator setup script](https://github.com/latent-to/cacheon/blob/main/validator/setup.sh). This installs Docker, NVIDIA Container Toolkit, downloads `Qwen2.5-72B-Instruct` weights to `/workspace/models/Qwen2.5-72B-Instruct`, and verifies the GPU is accessible from inside containers.
+On a fresh Ubuntu 22.04/24.04 GPU machine, run the [validator GPU setup script](https://github.com/latent-to/cacheon/blob/main/validator/setup-gpu.sh). This installs Docker, NVIDIA Container Toolkit, downloads `Qwen2.5-72B-Instruct` weights to `/workspace/models/Qwen2.5-72B-Instruct`, and verifies the GPU is accessible from inside containers.
 
 ```bash
 export HF_TOKEN=...  # optional, speeds up the model download
 sudo apt-get install -y curl vim git
-curl -fsSL "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup.sh" | sudo -E bash
+curl -fsSL "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup-gpu.sh" | sudo -E bash
 ```
 
 If Docker and NVIDIA Container Toolkit are already installed and you only need the weights, you can skip the script and download the model weights directly:
@@ -92,8 +92,17 @@ docker run -d \
   --network cacheon-test-internal \
   -v /workspace/models/Qwen2.5-72B-Instruct:/models:ro \
   --shm-size 16g \
+  --memory 200g \
+  --cpus 32 \
+  --pids-limit 4096 \
   <YOUR-IMAGE>
 ```
+
+<Callout type="info" title="Match the validator's resource caps">
+  The on-chain validator runs your container with `--memory 200g`, `--cpus 32`, and `--pids-limit
+  4096`. Without these flags locally, your test environment is more forgiving than production -- a
+  miner whose image works locally might still OOM or hit pid limits during the real eval.
+</Callout>
 
 <Callout type="warn" title="Do not use the --rm flag">
   If the container crashes on startup, the `--rm` flag removes the container before you can read
