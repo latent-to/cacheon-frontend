@@ -10,7 +10,9 @@ During evaluation, your container runs with:
 | Resource           | Value                                                                                                       |
 | ------------------ | ----------------------------------------------------------------------------------------------------------- |
 | GPU                | See [GPU requirements](/docs/validators/overview#gpu-requirements), exclusive access, fixed NVLink topology |
-| RAM                | Host memory available                                                                                       |
+| RAM                | `--memory 200g` (200 GB cap)                                                                                |
+| CPU                | `--cpus 32`                                                                                                 |
+| PID limit          | `--pids-limit 4096`                                                                                         |
 | Model weights      | Read-only volume mounted at `/models`                                                                       |
 | Network            | **Internal only** -- all outbound egress blocked                                                            |
 | Filesystem         | Model weights read-only at `/models`                                                                        |
@@ -47,12 +49,16 @@ This section outlines operations and strategies that are permitted in V1:
 | Startup timeout exceeded (10 min)                   | DQ            |
 | Per-prompt timeout exceeded (120s)                  | DQ            |
 | `/health` never returns 200                         | DQ            |
-| Correctness gate fails                              | DQ, score = 0 |
+| Correctness gate fails (any prompt diverges)        | DQ, score = 0 |
 | OOM or container crash during eval                  | DQ            |
 | Duplicate of king's image digest                    | DQ            |
 | Non-compliant API (missing endpoints, wrong format) | DQ            |
-| Speculative decoding detected                       | DQ            |
-| Quantized weights detected (via correctness gate)   | DQ            |
+
+<Callout type="info" title="How speculative decoding and quantization are enforced in V1">
+  V1 has no dedicated detector for speculative decoding or weight quantization. Both are policy
+  rules enforced indirectly: if your altered output diverges from the baseline beyond the top-5 /
+  logprob-gap tolerance, the correctness gate DQs the run. V2 will add direct detection.
+</Callout>
 
 ## Threat model
 
@@ -72,4 +78,4 @@ Weights are public on Hugging Face. There is nothing secret to steal from the mo
 
 **Faking TTFT:** Even if you game the speed pass (e.g. by emitting a fast first token and stalling), you still have to pass the correctness gate. That requires running real inference against the exact same model weights.
 
-**Fabricating logprobs:** Fake logprobs cannot affect your speed score. To pass correctness, at least 9 out of 10 prompts must have their first divergence point show the baseline token in your top-5 with a gap under 0.5. Prompts are block-hash-seeded, so the baseline output is unknown until the block arrives. You would need to run the exact correct model to know what to fabricate, defeating any speed advantage.
+**Fabricating logprobs:** Fake logprobs cannot affect your speed score. To pass correctness, **every** scored prompt must pass: at its first divergence point the baseline token must appear in your top-5 with a gap under 0.5. A single failing prompt disqualifies the submission. Prompts are block-hash-seeded, so the baseline output is unknown until the block arrives. You would need to run the exact correct model to know what to fabricate, defeating any speed advantage.

@@ -33,13 +33,13 @@ Standard OpenAI chat completions endpoint. The validator sends all prompts here 
 
 **Required capabilities:**
 
-| Parameter      | Requirement                                                         |
-| -------------- | ------------------------------------------------------------------- |
-| `temperature`  | Must support `0` (greedy decoding)                                  |
-| `stream`       | Must support `true` (SSE streaming) and `false`                     |
-| `logprobs`     | Must return top-N log probabilities per output token when requested |
-| `top_logprobs` | Must support values up to 5                                         |
-| `max_tokens`   | Must respect the requested generation length                        |
+| Parameter      | Requirement                                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| `temperature`  | Must support `0` (greedy decoding)                                                                           |
+| `stream`       | Must support `true` (SSE streaming). Production scoring only uses `stream=true`; `stream=false` is optional. |
+| `logprobs`     | Must return top-N log probabilities per output token when requested                                          |
+| `top_logprobs` | Must support values up to 5                                                                                  |
+| `max_tokens`   | Must respect the requested generation length                                                                 |
 
 **Response format (streaming):**
 
@@ -55,7 +55,7 @@ The validator evaluates your server in one pass that measures speed and correctn
   "messages": [{ "role": "user", "content": "..." }],
   "max_tokens": 256,
   "temperature": 0,
-  "stream": true
+  "stream": true,
   "logprobs": true,
   "top_logprobs": 5
 }
