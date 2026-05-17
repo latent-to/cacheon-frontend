@@ -144,6 +144,42 @@ export interface EvalJobResponse {
   message?: string
 }
 
+export interface EvalProgressChallenger {
+  idx: number
+  uid: number
+  hotkey: string
+  image: string
+  status: 'pending' | 'pulling' | 'started' | 'evaluating' | 'scored' | 'dq' | 'skipped'
+  score?: number
+  dq_reason?: string
+}
+
+export interface EvalProgressStep {
+  ts: number
+  phase: string
+  [key: string]: unknown
+}
+
+export interface EvalProgressResponse {
+  status: 'idle' | 'running'
+  phase?: string
+  detail?: string
+  round_block?: number
+  current_idx?: number | null
+  challengers?: EvalProgressChallenger[]
+  gpu?: {
+    provider?: string
+    pod_id?: string
+    gpu_type?: string
+    num_gpus?: number
+    cost_per_hr?: number
+  } | null
+  steps?: EvalProgressStep[]
+  started_at?: number
+  updated_at?: number
+  possibly_stale?: boolean
+}
+
 export interface ContainerLogEntry {
   label: string
   filename: string
@@ -167,5 +203,6 @@ export const fetchEvaluationsByUid = (uid: number) =>
   get<EvaluationsByUidResponse>(`/api/evaluations/${uid}`)
 export const fetchRounds = () => get<RoundsResponse>('/api/rounds')
 export const fetchEvalJob = () => get<EvalJobResponse>('/api/eval-job')
+export const fetchEvalProgress = () => get<EvalProgressResponse>('/api/eval-progress')
 export const fetchContainerLogs = () => get<ContainerLogsResponse>('/api/container-logs')
 export const fetchContainerLog = (label: string) => getText(`/api/container-log/${label}`)
