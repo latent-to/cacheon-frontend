@@ -124,26 +124,6 @@ export interface RoundsResponse {
   total: number
 }
 
-export interface EvalJobChallenger {
-  uid: number
-  hotkey: string
-  commit_block: number
-  image: string
-  digest: string
-}
-
-export interface EvalJob {
-  block: number
-  block_hash: string
-  challengers: EvalJobChallenger[]
-  created_at: number
-}
-
-export interface EvalJobResponse {
-  eval_job: EvalJob | null
-  message?: string
-}
-
 export interface EvalProgressChallenger {
   idx: number
   uid: number
@@ -202,7 +182,7 @@ export const fetchEvaluations = (status?: 'active' | 'dq') =>
 export const fetchEvaluationsByUid = (uid: number) =>
   get<EvaluationsByUidResponse>(`/api/evaluations/${uid}`)
 export const fetchRounds = () => get<RoundsResponse>('/api/rounds')
-export const fetchEvalJob = () => get<EvalJobResponse>('/api/eval-job')
 export const fetchEvalProgress = () => get<EvalProgressResponse>('/api/eval-progress')
 export const fetchContainerLogs = () => get<ContainerLogsResponse>('/api/container-logs')
-export const fetchContainerLog = (label: string) => getText(`/api/container-log/${label}`)
+export const fetchContainerLog = (label: string) =>
+  getText(`/api/container-log/${encodeURIComponent(label)}`)

@@ -1,4 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import {
+  Users,
+  Search,
+  Cpu,
+  CreditCard,
+  Server,
+  Wrench,
+  CheckCircle,
+  Play,
+  FileText,
+  Activity,
+  Check,
+  Zap,
+  Award,
+  Clock,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react'
 import { usePoll } from '~/lib/use-poll'
 import {
   fetchHealth,
@@ -9,6 +27,8 @@ import {
   type EvalProgressStep,
 } from '~/lib/api.client'
 import { fmtScore, truncHotkey, MetricCard, LastEvalMetric, StatusDot } from './shared'
+import { CopyButton } from '~/components/ui/copy-button'
+import { LinkButton } from '~/components/ui/link-button'
 
 export function PulseSection() {
   const health = usePoll(fetchHealth, 10_000)
@@ -63,20 +83,26 @@ export function PulseSection() {
 
 // ── Phase config ─────────────────────────────────────────
 
-const PHASE_META: Record<string, { label: string; icon: string }> = {
-  challengers_found: { label: 'Challengers identified', icon: '◆' },
-  gpu_searching: { label: 'Searching for GPU', icon: '⟳' },
-  gpu_match_found: { label: 'GPU matched', icon: '◈' },
-  gpu_renting: { label: 'Renting pod', icon: '↗' },
-  gpu_ready: { label: 'Pod ready', icon: '▣' },
-  gpu_setup: { label: 'Setting up pod', icon: '⚙' },
-  gpu_setup_complete: { label: 'Pod setup complete', icon: '✓' },
-  gpu_eval_started: { label: 'GPU eval running', icon: '▶' },
-  prompts_generated: { label: 'Prompts generated', icon: '⊞' },
-  baseline_running: { label: 'Running baseline', icon: '▶' },
-  baseline_complete: { label: 'Baseline complete', icon: '✓' },
-  challenger_eval: { label: 'Evaluating challengers', icon: '▶' },
-  eval_complete: { label: 'Eval complete', icon: '✓' },
+const PHASE_META: Record<string, { label: string; icon: ReactNode }> = {
+  challengers_found: {
+    label: 'Challengers identified',
+    icon: <Users size={10} strokeWidth={1.5} />,
+  },
+  gpu_searching: { label: 'Searching for GPU', icon: <Search size={10} strokeWidth={1.5} /> },
+  gpu_match_found: { label: 'GPU matched', icon: <Cpu size={10} strokeWidth={1.5} /> },
+  gpu_renting: { label: 'Renting pod', icon: <CreditCard size={10} strokeWidth={1.5} /> },
+  gpu_ready: { label: 'Pod ready', icon: <Server size={10} strokeWidth={1.5} /> },
+  gpu_setup: { label: 'Setting up pod', icon: <Wrench size={10} strokeWidth={1.5} /> },
+  gpu_setup_complete: {
+    label: 'Pod setup complete',
+    icon: <CheckCircle size={10} strokeWidth={1.5} />,
+  },
+  gpu_eval_started: { label: 'GPU eval running', icon: <Play size={10} strokeWidth={1.5} /> },
+  prompts_generated: { label: 'Prompts generated', icon: <FileText size={10} strokeWidth={1.5} /> },
+  baseline_running: { label: 'Running baseline', icon: <Activity size={10} strokeWidth={1.5} /> },
+  baseline_complete: { label: 'Baseline complete', icon: <Check size={10} strokeWidth={1.5} /> },
+  challenger_eval: { label: 'Evaluating challengers', icon: <Zap size={10} strokeWidth={1.5} /> },
+  eval_complete: { label: 'Eval complete', icon: <Award size={10} strokeWidth={1.5} /> },
 }
 
 function phaseLabel(phase: string | undefined, detail?: string | null): string {
@@ -87,9 +113,9 @@ function phaseLabel(phase: string | undefined, detail?: string | null): string {
   return base
 }
 
-function phaseIcon(phase: string | undefined): string {
-  if (!phase) return '·'
-  return PHASE_META[phase]?.icon ?? '·'
+function phaseIcon(phase: string | undefined): ReactNode {
+  if (!phase) return <span className="opacity-40">·</span>
+  return PHASE_META[phase]?.icon ?? <span className="opacity-40">·</span>
 }
 
 const CHALLENGER_STYLES: Record<string, { dot: string; bg: string; text: string; label: string }> =
@@ -142,13 +168,6 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
   )
 }
 
-function truncImage(img: string | undefined | null): string {
-  if (!img) return ''
-  const parts = img.split('/')
-  const last = parts[parts.length - 1] ?? img
-  return last.length > 32 ? `${last.slice(0, 14)}...${last.slice(-14)}` : last
-}
-
 // ── Main banner ──────────────────────────────────────────
 
 function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
@@ -184,9 +203,7 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
           </span>
           {progress.started_at != null && (
             <span className="text-secondary/60 flex items-center gap-1 font-mono text-xs leading-none">
-              <span style={{ fontFamily: 'monospace' }} title="Elapsed time">
-                🕒
-              </span>
+              <Clock size={11} strokeWidth={1.5} className="shrink-0 opacity-60" />
               <ElapsedTime startedAt={progress.started_at} />
             </span>
           )}
@@ -208,7 +225,6 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
             </Pill>
           )}
           {gpu?.pod_id && <Pill>{gpu.pod_id}</Pill>}
-          {gpu?.cost_per_hr != null && <Pill>${gpu.cost_per_hr.toFixed(2)}/hr</Pill>}
           {challengers.length > 0 && (
             <Pill>
               {challengers.length} challenger{challengers.length !== 1 ? 's' : ''}
@@ -298,14 +314,19 @@ function ChallengerRow({
       <span className="text-secondary/70 w-12 shrink-0 text-xs">UID {c.uid}</span>
 
       {/* Hotkey + image */}
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-secondary/85 truncate text-xs leading-none">
-          {truncHotkey(c.hotkey)}
-        </span>
-        {c.image && (
-          <span className="text-secondary/50 truncate text-[0.65rem] leading-none">
-            {truncImage(c.image)}
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="text-secondary/85 truncate text-xs leading-none">
+            {truncHotkey(c.hotkey)}
           </span>
+          <CopyButton value={c.hotkey} />
+        </div>
+        {c.image && (
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="text-secondary/85 truncate text-xs leading-none">{c.image}</span>
+            <CopyButton value={c.image} />
+            <LinkButton href={`https://hub.docker.com/r/${c.image}`} />
+          </div>
         )}
       </div>
 
@@ -346,7 +367,13 @@ function StepTimeline({ steps }: { steps: EvalProgressStep[] }) {
         onClick={() => setExpanded((v) => !v)}
         className="text-secondary/55 hover:text-secondary/80 mb-3 flex items-center gap-1.5 font-mono text-xs tracking-[0.15em] uppercase transition-colors"
       >
-        <span>{expanded ? '▾' : '▸'}</span>
+        <span>
+          {expanded ? (
+            <ChevronDown size={12} strokeWidth={2} />
+          ) : (
+            <ChevronRight size={12} strokeWidth={2} />
+          )}
+        </span>
         <span>Timeline{!expanded && hidden > 0 ? ` (+${hidden} earlier)` : ''}</span>
       </button>
       <div className="relative flex flex-col gap-0">
@@ -385,8 +412,8 @@ function TimelineEntry({ step, last }: { step: EvalProgressStep; last: boolean }
       {/* Content */}
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 pb-2">
         <span className="text-secondary/55 shrink-0 font-mono text-xs tabular-nums">{time}</span>
-        <span className="text-secondary/80 font-mono text-xs leading-snug">
-          {phaseIcon(step.phase)}{' '}
+        <span className="text-secondary/80 inline-flex items-center gap-1.5 font-mono text-xs leading-snug">
+          {phaseIcon(step.phase)}
           {phaseLabel(step.phase, typeof step.step === 'string' ? step.step : undefined)}
         </span>
         {extra.length > 0 && (

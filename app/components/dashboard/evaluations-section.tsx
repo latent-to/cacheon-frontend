@@ -77,6 +77,10 @@ export function EvaluationsSection() {
               </div>
             ))}
           </div>
+        ) : evals.error ? (
+          <div className="text-secondary/50 px-6 py-10 text-center font-mono text-sm">
+            Could not load data
+          </div>
         ) : list.length === 0 ? (
           <div className="text-secondary/50 px-6 py-10 text-center font-mono text-sm">
             No evaluations found

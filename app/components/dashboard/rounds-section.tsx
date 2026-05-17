@@ -20,6 +20,10 @@ export function RoundsSection() {
             <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
         </div>
+      ) : rounds.error ? (
+        <GlassCard className="text-secondary/50 px-6 py-10 text-center font-mono text-sm">
+          Could not load data
+        </GlassCard>
       ) : list.length === 0 ? (
         <GlassCard className="text-secondary/50 px-6 py-10 text-center font-mono text-sm">
           No evaluation rounds yet

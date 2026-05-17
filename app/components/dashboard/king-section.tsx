@@ -1,3 +1,4 @@
+import { Crown } from 'lucide-react'
 import { usePoll } from '~/lib/use-poll'
 import { fetchKing, fetchKingHistory, type KingHistoryEntry } from '~/lib/api.client'
 import {
@@ -30,12 +31,16 @@ export function KingSection() {
               <Skeleton className="h-4 w-56" />
               <Skeleton className="h-4 w-48" />
             </div>
+          ) : king.error ? (
+            <p className="text-secondary/60 font-mono text-sm">Could not load data</p>
           ) : !k ? (
             <p className="text-secondary/60 font-mono text-sm">No king crowned yet</p>
           ) : (
             <>
               <div className="mb-4 flex items-center gap-3">
-                <span className="text-2xl drop-shadow-[0_0_8px_rgba(45,212,191,0.5)]">👑</span>
+                <span className="drop-shadow-[0_0_8px_rgba(45,212,191,0.5)]">
+                  <Crown size={28} strokeWidth={1.5} className="text-accent" />
+                </span>
                 <span className="text-accent font-mono text-3xl font-black tracking-tight">
                   UID {k.uid}
                 </span>
@@ -84,7 +89,9 @@ export function KingSection() {
               ))}
             </div>
           ) : !history.data?.history.length ? (
-            <p className="text-secondary/60 font-mono text-sm">No history yet</p>
+            <p className="text-secondary/60 font-mono text-sm">
+              {history.error ? 'Could not load data' : 'No history yet'}
+            </p>
           ) : (
             <div className="relative space-y-0">
               <div className="bg-border/60 absolute top-2 bottom-2 left-[7px] w-px" />
