@@ -196,6 +196,10 @@ export function LogsSection() {
                 <Skeleton key={i} className="h-6 w-full" />
               ))}
             </div>
+          ) : logs.error ? (
+            <div className="text-secondary/50 px-2 py-4 font-mono text-[0.72rem]">
+              Could not load data
+            </div>
           ) : emptyRaw ? (
             <div className="text-secondary/50 px-2 py-4 font-mono text-[0.72rem]">
               No logs available

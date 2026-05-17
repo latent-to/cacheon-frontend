@@ -326,17 +326,17 @@ function ChallengerRow({
           </span>
           <CopyButton value={c.hotkey} />
         </div>
-        {c.image &&
-          (() => {
-            const image = truncImage(c.image)
-            return (
-              <div className="flex min-w-0 items-center gap-1">
-                <span className="text-secondary/85 truncate text-xs leading-none">{image}</span>
-                <CopyButton value={image} />
-                <LinkButton href={`https://hub.docker.com/r/${image}`} />
-              </div>
-            )
-          })()}
+        {c.image && (
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="text-secondary/85 truncate text-xs leading-none">
+              {truncImage(c.image)}
+            </span>
+            <CopyButton value={c.image} />
+            <LinkButton
+              href={`https://hub.docker.com/r/${c.image.replace(/:.*$/, '').replace(/^[^/]+\.[^/]+\//, '')}`}
+            />
+          </div>
+        )}
       </div>
 
       {/* Score / DQ reason */}
