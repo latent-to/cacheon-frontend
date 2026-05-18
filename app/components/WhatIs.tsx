@@ -4,10 +4,10 @@ const COMPETITORS = [
   {
     rank: 1,
     name: 'Your Server',
-    tag: 'Cacheon winner',
+    tag: 'Cacheon leader',
     speed: 1.37,
     pass: true,
-    winner: true,
+    leader: true,
   },
   {
     rank: 2,
@@ -15,7 +15,7 @@ const COMPETITORS = [
     tag: 'baseline',
     speed: 1.0,
     pass: true,
-    winner: false,
+    leader: false,
   },
   {
     rank: 3,
@@ -23,13 +23,13 @@ const COMPETITORS = [
     tag: 'disqualified',
     speed: 2.8,
     pass: false,
-    winner: false,
+    leader: false,
   },
 ] as const
 
 const MAX_SPEED = 3.2
 
-function SpeedBar({ speed, pass, winner }: { speed: number; pass: boolean; winner: boolean }) {
+function SpeedBar({ speed, pass, leader }: { speed: number; pass: boolean; leader: boolean }) {
   const pct = Math.min((speed / MAX_SPEED) * 100, 100)
 
   return (
@@ -44,14 +44,14 @@ function SpeedBar({ speed, pass, winner }: { speed: number; pass: boolean; winne
         className={`relative h-full rounded-sm transition-all duration-700 ${
           !pass
             ? 'bg-gradient-to-r from-red-500/60 to-red-400/80'
-            : winner
+            : leader
               ? 'from-accent/70 to-accent bg-gradient-to-r'
               : 'bg-gradient-to-r from-white/10 to-white/20'
         }`}
         style={{ width: `${pct}%` }}
       />
 
-      {winner && (
+      {leader && (
         <div
           className="pointer-events-none absolute inset-y-0 left-0 rounded-sm"
           style={{
@@ -91,7 +91,7 @@ export default function WhatIs() {
 
         <p className="text-secondary -mt-8 mb-14 max-w-2xl font-sans text-[1.08rem] leading-[1.65]">
           An arena where inference servers race to beat the baseline. The fastest correct one
-          becomes the king.
+          becomes the leader.
         </p>
 
         {/* Leaderboard */}
@@ -109,13 +109,13 @@ export default function WhatIs() {
             <div
               key={c.rank}
               className={`${i > 0 ? 'border-border/20 border-t' : ''} ${
-                c.winner ? 'bg-accent/[0.035]' : ''
+                c.leader ? 'bg-accent/[0.035]' : ''
               }`}
             >
               <div className="grid grid-cols-[1.5rem_1fr_auto_auto] items-center gap-x-2 px-4 py-4 sm:grid-cols-[3rem_11rem_1fr_5rem_auto] sm:gap-x-6 sm:px-8 sm:py-5">
                 <div
                   className={`font-mono text-xl leading-none font-black tracking-tight sm:text-2xl ${
-                    c.winner ? 'text-accent' : c.pass ? 'text-white/20' : 'text-red-400/30'
+                    c.leader ? 'text-accent' : c.pass ? 'text-white/20' : 'text-red-400/30'
                   }`}
                 >
                   {c.rank}
@@ -123,7 +123,7 @@ export default function WhatIs() {
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 sm:gap-2.5">
-                    {c.winner && (
+                    {c.leader && (
                       <span className="text-base leading-none drop-shadow-[0_0_8px_rgba(45,212,191,0.5)] sm:text-xl">
                         👑
                       </span>
@@ -131,7 +131,7 @@ export default function WhatIs() {
                     {!c.pass && <span className="text-sm leading-none sm:text-base">⚠️</span>}
                     <span
                       className={`font-mono text-[0.82rem] font-bold sm:text-[0.95rem] ${
-                        c.winner
+                        c.leader
                           ? 'text-primary'
                           : c.pass
                             ? 'text-secondary/80'
@@ -143,7 +143,7 @@ export default function WhatIs() {
                   </div>
                   <div
                     className={`mt-0.5 font-mono text-[0.58rem] font-semibold tracking-[0.18em] uppercase sm:mt-1 sm:text-[0.62rem] ${
-                      c.winner ? 'text-accent/60' : c.pass ? 'text-secondary/30' : 'text-red-400/40'
+                      c.leader ? 'text-accent/60' : c.pass ? 'text-secondary/30' : 'text-red-400/40'
                     }`}
                   >
                     {c.tag}
@@ -151,19 +151,19 @@ export default function WhatIs() {
                 </div>
 
                 <div className="hidden sm:flex sm:flex-col">
-                  <SpeedBar speed={c.speed} pass={c.pass} winner={c.winner} />
+                  <SpeedBar speed={c.speed} pass={c.pass} leader={c.leader} />
                 </div>
 
                 <div
                   className={`text-right font-mono text-base font-black tracking-tight sm:text-xl ${
-                    c.winner ? 'text-accent' : c.pass ? 'text-white/30' : 'text-red-400/60'
+                    c.leader ? 'text-accent' : c.pass ? 'text-white/30' : 'text-red-400/60'
                   }`}
                 >
                   {c.speed.toFixed(c.speed === 1.0 ? 1 : 2)}x
                 </div>
 
                 <div className="flex justify-end">
-                  <StatusPill pass={c.pass} label={!c.pass ? 'FAIL' : c.winner ? 'PASS' : 'BASE'} />
+                  <StatusPill pass={c.pass} label={!c.pass ? 'FAIL' : c.leader ? 'PASS' : 'BASE'} />
                 </div>
               </div>
             </div>

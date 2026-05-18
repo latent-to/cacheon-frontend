@@ -131,3 +131,17 @@ ScoreResult
 ```
 
 Combined with the block hash that seeded the prompts and the pinned Docker image digest, anyone can replay the eval and verify the result.
+
+## Emission scaling
+
+Total emission allocated to the competition pool scales linearly with the leader's improvement score:
+
+`comp_frac = min(1.0, leader_score / SCORE_EMISSION_TARGET)`
+
+With the default target of 0.10 (10% improvement over baseline):
+
+- A leader scoring 0.05 earns 50% of total emission for the pool
+- A leader scoring 0.10 or above earns 100%
+- The remainder goes to a burn UID
+
+Within the competition pool, the leader receives 80% and the runner-up receives 20%. When there is no runner-up, the leader receives the full pool.

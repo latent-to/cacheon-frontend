@@ -1,6 +1,6 @@
 ---
 title: Monitoring API
-description: Read-only HTTP API for evaluation results, king status, container logs, and round history.
+description: Read-only HTTP API for evaluation results, leader status, container logs, and round history.
 ---
 
 The monitoring API is a read-only HTTP surface that exposes the validator's on-disk state. Miners can check their evaluation results, see why they were disqualified, and pull raw container logs without needing SSH access to the validator.
@@ -13,22 +13,22 @@ The monitoring API is a read-only HTTP surface that exposes the validator's on-d
 
 ### Health and status
 
-| Method | Path          | Description                                                               |
-| ------ | ------------- | ------------------------------------------------------------------------- |
-| GET    | `/api/health` | Liveness check. Returns `{"status": "ok"}` if the API is up               |
-| GET    | `/api/status` | Validator overview: current king, eval counts, time since last evaluation |
+| Method | Path          | Description                                                                 |
+| ------ | ------------- | --------------------------------------------------------------------------- |
+| GET    | `/api/health` | Liveness check. Returns `{"status": "ok"}` if the API is up                 |
+| GET    | `/api/status` | Validator overview: current leader, eval counts, time since last evaluation |
 
 ```bash
 curl https://api.cacheon.ai/api/health
 curl https://api.cacheon.ai/api/status
 ```
 
-### King
+### Leader
 
-| Method | Path                | Description                                            |
-| ------ | ------------------- | ------------------------------------------------------ |
-| GET    | `/api/king`         | Current king record (UID, score, image, crowned block) |
-| GET    | `/api/king/history` | Chronological list of dethronements                    |
+| Method | Path                  | Description                                          |
+| ------ | --------------------- | ---------------------------------------------------- |
+| GET    | `/api/leader`         | Current leader record (UID, score, image, won block) |
+| GET    | `/api/leader/history` | Chronological list of overtakes                      |
 
 ### Evaluations
 
@@ -59,6 +59,19 @@ curl https://api.cacheon.ai/api/container-log/uid5_5CG7KRPk_7105042
 ```
 
 This is the fastest way to debug why your container failed. The log contains the full Docker output from your container's startup attempt.
+
+### Validator logs
+
+| Method | Path                         | Description                                      |
+| ------ | ---------------------------- | ------------------------------------------------ |
+| GET    | `/api/validator-logs`        | List available validator log files (CPU and GPU) |
+| GET    | `/api/validator-log/{label}` | Raw validator process log (plain text)           |
+
+Labels follow the pattern `cpu_validator_{YYYYMMDD}_{HHMMSS}` for CPU validator runs and `gpu_eval_{YYYYMMDD}_{HHMMSS}` for GPU eval runs.
+
+```bash
+curl https://api.cacheon.ai/api/validator-log/gpu_eval_20260518_112858
+```
 
 ### Rounds
 

@@ -58,7 +58,7 @@ The shared state file, read and written by both CPU and GPU:
 ```json
 {
   "schema_version": 1,
-  "king": {
+  "leader": {
     "uid": 3,
     "hotkey": "5F3sa8...",
     "score": 0.0312,
@@ -67,7 +67,7 @@ The shared state file, read and written by both CPU and GPU:
     "token_match_rate": 0.997,
     "image": "docker.io/miner/server:v1",
     "digest": "sha256:a3b4c5d6...",
-    "crowned_at_block": 7066048,
+    "won_at_block": 7066048,
     "evaluated_at": 1778184243.5,
     "evaluation_block": 7066048,
     "commit_block": 7066040
@@ -113,35 +113,35 @@ Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
 }
 ```
 
-| Field                    | Type           | Description                                                                      |
-| ------------------------ | -------------- | -------------------------------------------------------------------------------- |
-| `score`                  | float          | `0.5 * ttft_improvement + 0.5 * throughput_improvement`; 0.0 if DQ'd             |
-| `ttft_improvement`       | float          | `max(0, (baseline - miner) / baseline)` on medians                               |
-| `throughput_improvement` | float          | `max(0, (miner - baseline) / baseline)` on medians                               |
-| `token_match_rate`       | float          | Fraction of output tokens matching baseline (all prompts)                        |
-| `disqualified`           | bool           | Whether the submission was DQ'd                                                  |
-| `disqualify_reason`      | string or null | Reason for DQ (e.g. `correctness_failed`, `health_timeout`, `duplicate_of_king`) |
-| `per_prompt`             | array or null  | Per-prompt breakdown (TTFT, throughput, match rate, token count)                 |
+| Field                    | Type           | Description                                                                        |
+| ------------------------ | -------------- | ---------------------------------------------------------------------------------- |
+| `score`                  | float          | `0.5 * ttft_improvement + 0.5 * throughput_improvement`; 0.0 if DQ'd               |
+| `ttft_improvement`       | float          | `max(0, (baseline - miner) / baseline)` on medians                                 |
+| `throughput_improvement` | float          | `max(0, (miner - baseline) / baseline)` on medians                                 |
+| `token_match_rate`       | float          | Fraction of output tokens matching baseline (all prompts)                          |
+| `disqualified`           | bool           | Whether the submission was DQ'd                                                    |
+| `disqualify_reason`      | string or null | Reason for DQ (e.g. `correctness_failed`, `health_timeout`, `duplicate_of_leader`) |
+| `per_prompt`             | array or null  | Per-prompt breakdown (TTFT, throughput, match rate, token count)                   |
 
 The `per_prompt` array gives miners visibility into how their server performed on each individual prompt.
 
-## `king-history.jsonl`
+## `leader-history.jsonl`
 
-Append-only audit trail of king changes. One JSON line per dethronement:
+Append-only audit trail of leader changes. One JSON line per overtake:
 
 ```json
 {
   "ts": 1778184243.5,
   "block": 7066048,
-  "new_king_uid": 3,
-  "new_king_hotkey": "5F3sa8...",
-  "new_king_score": 0.0312,
-  "new_king_image": "docker.io/miner/server:v1",
-  "new_king_digest": "sha256:a3b4c5d6...",
-  "dethrone_threshold": 0.0,
-  "prev_king_uid": 1,
-  "prev_king_hotkey": "5Eab7c...",
-  "prev_king_score": 0.028
+  "new_leader_uid": 3,
+  "new_leader_hotkey": "5F3sa8...",
+  "new_leader_score": 0.0312,
+  "new_leader_image": "docker.io/miner/server:v1",
+  "new_leader_digest": "sha256:a3b4c5d6...",
+  "overtake_threshold": 0.0,
+  "prev_leader_uid": 1,
+  "prev_leader_hotkey": "5Eab7c...",
+  "prev_leader_score": 0.028
 }
 ```
 

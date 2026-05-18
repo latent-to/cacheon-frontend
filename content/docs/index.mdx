@@ -5,7 +5,7 @@ description: Cacheon (Bittensor Subnet 14) is a live, on-chain competition to bu
 
 **Cacheon** is Bittensor Subnet 14 (SN14). It is an open, on-chain competition for **production-grade inference optimization** of LLMs.
 
-Miners submit a **containerized inference server** that serves a fixed model via an OpenAI-compatible API. Validators run every submission against a vLLM baseline on the same hardware and score it on **time-to-first-token** (**TTFT**), **throughput**, and **output correctness**. The best server takes the throne; all token emission flows to the king until someone beats them.
+Miners submit a **containerized inference server** that serves a fixed model via an OpenAI-compatible API. Validators run every submission against a vLLM baseline on the same hardware and score it on **time-to-first-token** (**TTFT**), **throughput**, and **output correctness**. The best server earns the majority of emission until someone beats it.
 
 <Callout title="TL;DR" className="my-2 gap-2 p-2 [&>*:last-child]:gap-1">
   <ul className="marker:text-fd-muted-foreground my-0 list-disc space-y-0.5 pl-4 leading-snug">
@@ -20,7 +20,7 @@ Miners submit a **containerized inference server** that serves a fixed model via
       <a href="./evaluation/scoring">Scoring</a>
     </li>
     <li>
-      <b>Incentive:</b> Winner takes all
+      <b>Incentive:</b> Leader + runner-up, score-scaled emission
     </li>
   </ul>
 </Callout>

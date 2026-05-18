@@ -11,7 +11,7 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
 const FEATURES = [
   {
     title: 'Inference arena',
-    body: 'Build the fastest server for a top open-source model. King of the hill, winner-take-all.',
+    body: 'Build the fastest server for a top open-source model. The best server earns the most emission.',
   },
   {
     title: 'Any stack, any language',
@@ -19,7 +19,7 @@ const FEATURES = [
   },
   {
     title: 'vLLM is the line',
-    body: 'Same model, same machine class, same prompts. Beat the king to claim you are actually faster.',
+    body: 'Same model, same machine class, same prompts. Outperform the current leader to prove you are actually faster.',
   },
 ]
 

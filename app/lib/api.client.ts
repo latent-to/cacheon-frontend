@@ -19,9 +19,9 @@ export interface HealthResponse {
 }
 
 export interface StatusResponse {
-  king_uid: number | null
-  king_score: number | null
-  king_image: string | null
+  leader_uid: number | null
+  leader_score: number | null
+  leader_image: string | null
   n_evaluated: number
   n_active: number
   n_disqualified: number
@@ -31,7 +31,7 @@ export interface StatusResponse {
   last_weights_set_block: number | null
 }
 
-export interface KingRecord {
+export interface LeaderRecord {
   uid: number
   hotkey: string
   commit_block: number
@@ -43,30 +43,30 @@ export interface KingRecord {
   token_match_rate: number
   evaluated_at: number
   evaluation_block: number
-  crowned_at_block: number
+  won_at_block: number
 }
 
-export interface KingResponse {
-  king: KingRecord | null
+export interface LeaderResponse {
+  leader: LeaderRecord | null
   message?: string
 }
 
-export interface KingHistoryEntry {
+export interface LeaderHistoryEntry {
   ts: number
   block: number
-  new_king_uid: number
-  new_king_hotkey: string
-  new_king_score: number
-  new_king_image: string
-  new_king_digest: string
-  dethrone_threshold: number
-  prev_king_uid?: number
-  prev_king_hotkey?: string
-  prev_king_score?: number
+  new_leader_uid: number
+  new_leader_hotkey: string
+  new_leader_score: number
+  new_leader_image: string
+  new_leader_digest: string
+  overtake_threshold: number
+  prev_leader_uid?: number
+  prev_leader_hotkey?: string
+  prev_leader_score?: number
 }
 
-export interface KingHistoryResponse {
-  history: KingHistoryEntry[]
+export interface LeaderHistoryResponse {
+  history: LeaderHistoryEntry[]
   total: number
 }
 
@@ -171,12 +171,23 @@ export interface ContainerLogsResponse {
   total: number
 }
 
+export interface ValidatorLogEntry {
+  label: string
+  filename: string
+  size_bytes: number
+}
+
+export interface ValidatorLogsResponse {
+  logs: ValidatorLogEntry[]
+  total: number
+}
+
 // ── Fetchers ────────────────────────────────────────────
 
 export const fetchHealth = () => get<HealthResponse>('/api/health')
 export const fetchStatus = () => get<StatusResponse>('/api/status')
-export const fetchKing = () => get<KingResponse>('/api/king')
-export const fetchKingHistory = () => get<KingHistoryResponse>('/api/king/history')
+export const fetchLeader = () => get<LeaderResponse>('/api/leader')
+export const fetchLeaderHistory = () => get<LeaderHistoryResponse>('/api/leader/history')
 export const fetchEvaluations = (status?: 'active' | 'dq') =>
   get<EvaluationsResponse>(`/api/evaluations${status ? `?status=${status}` : ''}`)
 export const fetchEvaluationsByUid = (uid: number) =>
@@ -186,3 +197,6 @@ export const fetchEvalProgress = () => get<EvalProgressResponse>('/api/eval-prog
 export const fetchContainerLogs = () => get<ContainerLogsResponse>('/api/container-logs')
 export const fetchContainerLog = (label: string) =>
   getText(`/api/container-log/${encodeURIComponent(label)}`)
+export const fetchValidatorLogs = () => get<ValidatorLogsResponse>('/api/validator-logs')
+export const fetchValidatorLog = (label: string) =>
+  getText(`/api/validator-log/${encodeURIComponent(label)}`)
