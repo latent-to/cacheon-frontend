@@ -7,7 +7,7 @@ description: CPU validator loop, GPU eval entrypoint, S3 handoff, challenger det
 
 The CPU validator loops in `validator/cpu_validator.py`. Operators usually run it in Docker Compose (`validator/docker-compose.yml`, image from `validator/Dockerfile.cpu`); alternatively you can run `python -m validator.cpu_validator` on the host with the same env and mounts.
 
-Between ticks the process sleeps for `poll_interval`, from `CACHEON_POLL_INTERVAL_S` or `--poll-interval`. The bundled Compose file passes a default of `300` seconds when that variable is unset.
+Between ticks the process sleeps for `poll_interval`, from `CACHEON_POLL_INTERVAL_S` or `--poll-interval`. The bundled Compose file passes a default of `600` seconds when that variable is unset.
 
 ```py
 while True:

@@ -224,8 +224,9 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
           )}
         </div>
         {progress.round_block != null && (
-          <span className="text-secondary/60 shrink-0 font-mono text-xs">
+          <span className="text-secondary/60 flex shrink-0 items-center gap-1 font-mono text-xs">
             #{progress.round_block}
+            <LinkButton href={`https://tao.app/block/${progress.round_block}`} />
           </span>
         )}
       </div>
@@ -243,7 +244,7 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
             <Pill>
               Pod ID:{' '}
               {gpu.pod_id.length > 8
-                ? `${gpu.pod_id.slice(0, 4)}...${gpu.pod_id.slice(-4)}`
+                ? `${gpu.pod_id.slice(0, 6)}...${gpu.pod_id.slice(-4)}`
                 : gpu.pod_id}
             </Pill>
           )}
@@ -341,7 +342,7 @@ function ChallengerRow({
       </span>
 
       {/* UID */}
-      <span className="text-secondary/70 w-12 shrink-0 text-xs">UID {c.uid}</span>
+      <span className="text-secondary/70 w-16 shrink-0 text-xs whitespace-nowrap">UID {c.uid}</span>
 
       {/* Hotkey + image */}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
