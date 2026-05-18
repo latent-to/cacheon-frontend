@@ -3,7 +3,7 @@ title: Overview
 description: How the Cacheon validator works, what you need to run one, and the day-to-day operator workflow.
 ---
 
-The validator scans the Bittensor chain for miner submissions, evaluates them against a vLLM baseline on GPU hardware, and sets one-hot weights to the current king.
+The validator scans the Bittensor chain for miner submissions, evaluates them against a vLLM baseline on GPU hardware, and sets weights to the current winner and runner-up.
 
 ## How it works
 
@@ -15,7 +15,7 @@ A single long-running process handles the full lifecycle:
 4. **Automated rental**: rents a GPU pod, SSHs in, runs `setup-gpu.sh`, configures the environment, and starts `docker compose -f gpu-compose.yml up`
 5. **Evaluation**: the GPU pod runs the vLLM baseline, evaluates each challenger, and uploads results to S3
 6. **Teardown**: the pod is terminated after eval completes (or on failure/timeout)
-7. **Weight setting**: the validator downloads results from S3 and sets one-hot weights to the current king
+7. **Weight setting**: the validator downloads results from S3 and sets weights to the current winner and runner-up
 
 <Callout type="idea" title="Why this design?">
 

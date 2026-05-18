@@ -32,8 +32,8 @@ const STEPS = [
     title: 'Fastest server wins',
     desc: (
       <>
-        Beat the king's speed while passing the correctness gate: you're the new king. All token
-        emission flows to the winner.
+        Beat the current winner's speed while passing the correctness gate and you take the top
+        spot. The winner and runner-up split the competition emission.
       </>
     ),
   },

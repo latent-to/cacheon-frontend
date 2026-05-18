@@ -19,9 +19,9 @@ export interface HealthResponse {
 }
 
 export interface StatusResponse {
-  king_uid: number | null
-  king_score: number | null
-  king_image: string | null
+  winner_uid: number | null
+  winner_score: number | null
+  winner_image: string | null
   n_evaluated: number
   n_active: number
   n_disqualified: number
@@ -31,7 +31,7 @@ export interface StatusResponse {
   last_weights_set_block: number | null
 }
 
-export interface KingRecord {
+export interface WinnerRecord {
   uid: number
   hotkey: string
   commit_block: number
@@ -43,30 +43,30 @@ export interface KingRecord {
   token_match_rate: number
   evaluated_at: number
   evaluation_block: number
-  crowned_at_block: number
+  won_at_block: number
 }
 
-export interface KingResponse {
-  king: KingRecord | null
+export interface WinnerResponse {
+  winner: WinnerRecord | null
   message?: string
 }
 
-export interface KingHistoryEntry {
+export interface WinnerHistoryEntry {
   ts: number
   block: number
-  new_king_uid: number
-  new_king_hotkey: string
-  new_king_score: number
-  new_king_image: string
-  new_king_digest: string
-  dethrone_threshold: number
-  prev_king_uid?: number
-  prev_king_hotkey?: string
-  prev_king_score?: number
+  new_winner_uid: number
+  new_winner_hotkey: string
+  new_winner_score: number
+  new_winner_image: string
+  new_winner_digest: string
+  overtake_threshold: number
+  prev_winner_uid?: number
+  prev_winner_hotkey?: string
+  prev_winner_score?: number
 }
 
-export interface KingHistoryResponse {
-  history: KingHistoryEntry[]
+export interface WinnerHistoryResponse {
+  history: WinnerHistoryEntry[]
   total: number
 }
 
@@ -175,8 +175,8 @@ export interface ContainerLogsResponse {
 
 export const fetchHealth = () => get<HealthResponse>('/api/health')
 export const fetchStatus = () => get<StatusResponse>('/api/status')
-export const fetchKing = () => get<KingResponse>('/api/king')
-export const fetchKingHistory = () => get<KingHistoryResponse>('/api/king/history')
+export const fetchWinner = () => get<WinnerResponse>('/api/winner')
+export const fetchWinnerHistory = () => get<WinnerHistoryResponse>('/api/winner/history')
 export const fetchEvaluations = (status?: 'active' | 'dq') =>
   get<EvaluationsResponse>(`/api/evaluations${status ? `?status=${status}` : ''}`)
 export const fetchEvaluationsByUid = (uid: number) =>

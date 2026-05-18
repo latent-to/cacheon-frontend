@@ -91,7 +91,7 @@ export default function WhatIs() {
 
         <p className="text-secondary -mt-8 mb-14 max-w-2xl font-sans text-[1.08rem] leading-[1.65]">
           An arena where inference servers race to beat the baseline. The fastest correct one
-          becomes the king.
+          becomes the winner.
         </p>
 
         {/* Leaderboard */}

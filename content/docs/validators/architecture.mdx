@@ -1,6 +1,6 @@
 ---
 title: Architecture
-description: CPU validator loop, GPU eval entrypoint, S3 handoff, challenger detection, king comparison, weight setting, state persistence, and observability.
+description: CPU validator loop, GPU eval entrypoint, S3 handoff, challenger detection, winner comparison, weight setting, state persistence, and observability.
 ---
 
 ## Validator main loop
@@ -17,11 +17,11 @@ while True:
     metagraph, block, block_hash = scan_chain()
     commitments = parse_commitments(metagraph)
 
-    if king_hotkey_deregistered():
-        clear_king()
+    if winner_hotkey_deregistered():
+        promote_runner_up_or_clear()
 
     if new_eval_results() or weights_stale():
-        set_weights(king)
+        set_weights(winner, runner_up)
 
     challengers = select_unevaluated(commitments)
     if challengers:
@@ -42,7 +42,7 @@ while True:
 Weight setting triggers in three situations:
 
 - **New eval results**: GPU completed evaluations (detected by comparing `evaluation_block` against `last_weights_set_block`)
-- **First weight set**: a king exists but weights have never been set
+- **First weight set**: a winner exists but weights have never been set
 - **Staleness refresh**: weights are older than one tempo (~360 blocks, ~72 min) to stay active in consensus
 
 ## GPU eval entrypoint
@@ -67,9 +67,9 @@ The GPU reads `eval_job.json` (block context + challenger list), runs evaluation
 
 ## State and S3 handoff
 
-The validator and GPU pod share a single S3 prefix (`validator/sync.py`). Both sides download the full state directory before starting work and upload after completing it. The validator writes `eval_job.json` and `state.json` (after weight setting); the GPU writes `state.json` (eval results, king changes), `baseline_cache/`, `container_logs/`, and `logs/`.
+The validator and GPU pod share a single S3 prefix (`validator/sync.py`). Both sides download the full state directory before starting work and upload after completing it. The validator writes `eval_job.json` and `state.json` (after weight setting); the GPU writes `state.json` (eval results, winner changes), `baseline_cache/`, `container_logs/`, and `logs/`.
 
-`state.json` tracks the king record, evaluation history with per-prompt breakdowns, precheck failures, and scan/weight-setting block numbers. Written atomically (temp file + rename).
+`state.json` tracks the winner record, evaluation history with per-prompt breakdowns, precheck failures, and scan/weight-setting block numbers. Written atomically (temp file + rename).
 
 Typical mirrored layout under `state/`:
 
@@ -77,7 +77,7 @@ Typical mirrored layout under `state/`:
 state/
   state.json
   eval_job.json
-  king-history.jsonl
+  winner-history.jsonl
   baseline_cache/
     baseline_{hash}.json
   container_logs/
