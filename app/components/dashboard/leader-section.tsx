@@ -19,7 +19,7 @@ export function LeaderSection() {
   const leader = usePoll(fetchLeader, 30_000)
   const history = usePoll(fetchLeaderHistory, 30_000)
 
-  const w = leader.data?.leader
+  const l = leader.data?.leader
 
   return (
     <section>
@@ -36,7 +36,7 @@ export function LeaderSection() {
             </div>
           ) : leader.error ? (
             <p className="text-secondary/60 font-mono text-sm">Could not load data</p>
-          ) : !w ? (
+          ) : !l ? (
             <p className="text-secondary/60 font-mono text-sm">No leader yet</p>
           ) : (
             <>
@@ -45,37 +45,37 @@ export function LeaderSection() {
                   <Trophy size={28} strokeWidth={1.5} className="text-accent" />
                 </span>
                 <span className="text-accent font-mono text-3xl font-black tracking-tight">
-                  UID {w.uid}
+                  UID {l.uid}
                 </span>
               </div>
 
               <div className="mb-4 space-y-1.5 font-mono text-[0.78rem]">
                 <div className="flex gap-2">
                   <span className="text-secondary/50">Hotkey</span>
-                  <span className="text-secondary" title={w.hotkey}>
-                    {truncHotkey(w.hotkey)}
+                  <span className="text-secondary" title={l.hotkey}>
+                    {truncHotkey(l.hotkey)}
                   </span>
                 </div>
                 <div className="flex gap-2">
                   <span className="text-secondary/50 shrink-0">Image</span>
-                  <ImageTag image={w.image} />
+                  <ImageTag image={l.image} />
                 </div>
                 <div className="flex gap-2">
                   <span className="text-secondary/50 shrink-0">Won</span>
                   <div className="flex min-w-0 flex-col gap-0.5 font-mono text-[0.78rem]">
-                    <span className="text-primary">{relativeTimeAgo(w.evaluated_at)}</span>
+                    <span className="text-primary">{relativeTimeAgo(l.evaluated_at)}</span>
                     <span className="text-secondary/45 text-[0.65rem]">
-                      Block #{w.won_at_block}
+                      Block #{l.won_at_block}
                     </span>
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <MiniStat label="Score" value={fmtScore(w.score)} accent />
-                <MiniStat label="TTFT" value={fmtImprovement(w.ttft_improvement)} />
-                <MiniStat label="Throughput" value={fmtImprovement(w.throughput_improvement)} />
-                <MiniStat label="Token Match" value={fmtPct(w.token_match_rate)} />
+                <MiniStat label="Score" value={fmtScore(l.score)} accent />
+                <MiniStat label="TTFT" value={fmtImprovement(l.ttft_improvement)} />
+                <MiniStat label="Throughput" value={fmtImprovement(l.throughput_improvement)} />
+                <MiniStat label="Token Match" value={fmtPct(l.token_match_rate)} />
               </div>
             </>
           )}

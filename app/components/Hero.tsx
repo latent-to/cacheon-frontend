@@ -19,7 +19,7 @@ const FEATURES = [
   },
   {
     title: 'vLLM is the line',
-    body: 'Same model, same machine class, same prompts. Beat the leader to prove you are actually faster.',
+    body: 'Same model, same machine class, same prompts. Outperform the current leader to prove you are actually faster.',
   },
 ]
 
