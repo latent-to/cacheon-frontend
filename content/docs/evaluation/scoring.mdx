@@ -87,7 +87,7 @@ ttft_improvement = max(0, (baseline_ttft - miner_ttft) / baseline_ttft)
 
 The final score is computed as the median across all 10 prompts and floored at zero. This means that servers slower than the baseline on TTFT receive no score contribution from this axis.
 
-TTFT captures prefill efficiency; that is, how fast the server processes the full input prompt and produces the first output token. At 32K input tokens on e.g. 8x H200 (TP=8), this is dominated by the attention computation during prefill.
+TTFT captures prefill efficiency; that is, how fast the server processes the full input prompt and produces the first output token. At 32K input tokens on e.g. 8x H200 (`TP=8`), this is dominated by the attention computation during prefill.
 
 ## Throughput improvement
 

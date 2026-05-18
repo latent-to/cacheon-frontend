@@ -178,13 +178,13 @@ docker network rm cacheon-test-internal
 
 Before pushing your image and committing on-chain:
 
-| Check                                      | How to verify                                                                                                                         |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Container does not exit immediately        | Path 1 passes with your startup logs visible                                                                                          |
-| No internet access during startup          | No HuggingFace download attempts in logs when on `--internal` network                                                                 |
-| `/health` returns 200                      | Step 5 above                                                                                                                          |
-| `/v1/chat/completions` streams SSE         | Step 6 above -- `data:` chunks present                                                                                                |
-| Logprobs returned                          | Each chunk has `logprobs.content[].top_logprobs`                                                                                      |
-| Model name `Qwen2.5-72B-Instruct` accepted | Step 6 request not rejected                                                                                                           |
-| Startup completes within 10 minutes        | Container healthy before timeout                                                                                                      |
-| `--tensor-parallel-size` not hardcoded     | Startup script uses `nvidia-smi` to detect GPU count at runtime (eval always uses 8 GPUs, but detection keeps local testing flexible) |
+| Check                                      | How to verify                                                                                                                                        |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container does not exit immediately        | Path 1 passes with your startup logs visible                                                                                                         |
+| No internet access during startup          | No HuggingFace download attempts in logs when on `--internal` network                                                                                |
+| `/health` returns 200                      | Step 5 above                                                                                                                                         |
+| `/v1/chat/completions` streams SSE         | Step 6 above -- `data:` chunks present                                                                                                               |
+| Logprobs returned                          | Each chunk has `logprobs.content[].top_logprobs`                                                                                                     |
+| Model name `Qwen2.5-72B-Instruct` accepted | Step 6 request not rejected                                                                                                                          |
+| Startup completes within 10 minutes        | Container healthy before timeout                                                                                                                     |
+| `--tensor-parallel-size` not hardcoded     | Startup script uses `nvidia-smi` to detect GPU count at runtime (on-chain evaluation always uses 8 GPUs, but detection keeps local testing flexible) |

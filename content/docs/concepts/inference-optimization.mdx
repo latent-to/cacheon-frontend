@@ -11,7 +11,7 @@ As a result, every layer of the inference stack becomes part of the optimization
 
 ## KV cache optimization
 
-The KV cache is the single largest memory consumer during long-context generation. At 32K tokens on Qwen2.5-72B across 8 GPUs (TP=8), the distributed cache is a significant fraction of available VRAM. Techniques that reduce this footprint directly unlock longer contexts and higher batch sizes:
+The KV cache is the single largest memory consumer during long-context generation. At 32K tokens on Qwen2.5-72B across 8 GPUs (`TP=8`), the distributed cache is a significant fraction of available VRAM. Techniques that reduce this footprint directly unlock longer contexts and higher batch sizes:
 
 - **Quantization**: INT8, INT4, or lower bit-width storage of keys and values
 - **Eviction**: dropping low-importance tokens from the cache (H2O, StreamingLLM)
