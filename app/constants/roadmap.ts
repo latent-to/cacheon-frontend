@@ -11,7 +11,7 @@ export const ROADMAP: RoadmapPhase[] = [
     label: 'Single-Model Inference Arena',
     status: 'active',
     items: [
-      'Qwen2.5-72B-Instruct on a 4x H200-equivalent',
+      'Qwen2.5-72B-Instruct on a 8x H200/B200-equivalent',
       'Miners submit Docker containers with full inference servers',
       'Scored against a production vLLM tensor-parallel baseline',
       'First-mismatch correctness gate with logprob verification; no speculative decoding or quantization',
