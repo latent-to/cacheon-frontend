@@ -31,8 +31,9 @@ Your server must load weights from `/models`. Do not bake 72B weights into your 
 ## Example Dockerfile
 
 <Callout type="info" title="Validator eval uses 8 GPUs (TP=8)">
-  On-chain evaluation always runs on 8-GPU pods (tensor parallelism 8). Still use `nvidia-smi`
-  detection in your startup script so local smoke tests on smaller machines work without changes.
+  On-chain evaluation always runs on 8-GPU pods (`tensor parallelism=8`). Your startup script should
+  still detect available GPUs with `nvidia-smi` so that local smoke tests can run unchanged on
+  smaller machines.
 </Callout>
 
 A minimal example using vLLM as a starting point:
