@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from '~/lib/cn'
 
 export default function SectionHeader({
   eyebrow,
@@ -11,11 +12,12 @@ export default function SectionHeader({
 }) {
   const center = align === 'center'
   return (
-    <div className={`mb-14 ${center ? 'text-center' : ''}`}>
+    <div className={cn('mb-14', center && 'text-center')}>
       <div
-        className={`text-accent mb-5 font-mono text-[0.68rem] font-semibold tracking-[0.22em] uppercase ${
-          center ? 'inline-block' : ''
-        }`}
+        className={cn(
+          'tracking-caps-wide text-accent mb-5 font-mono text-xs font-semibold uppercase',
+          center && 'inline-block',
+        )}
       >
         {eyebrow}
       </div>

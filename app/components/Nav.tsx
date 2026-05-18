@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 
-import { DiscordIcon, XIcon } from '~/components/icons'
+import { cn } from '~/lib/cn'
+import { DiscordIcon, GitHubIcon, XIcon } from '~/components/icons'
 
 const linkCls =
-  'text-[0.82rem] font-medium uppercase tracking-[0.14em] text-secondary no-underline transition-colors hover:text-primary'
+  'text-sm font-medium uppercase tracking-caps text-secondary no-underline transition-colors hover:text-primary'
 
 const navLinks = [
   { to: '/', label: 'Home' },
@@ -12,7 +13,17 @@ const navLinks = [
   { to: '/docs', label: 'Docs' },
   { href: 'https://discord.com/invite/bittensor', label: 'Discord', icon: <DiscordIcon /> },
   { href: 'https://x.com/cacheon_ai', label: 'X', icon: <XIcon /> },
-  { href: 'https://github.com/latent-to/cacheon', label: 'GitHub' },
+  { href: 'https://github.com/latent-to/cacheon', label: 'GitHub', icon: <GitHubIcon /> },
+  {
+    href: 'https://tao.app/subnets/14',
+    label: 'tao.app',
+    icon: (
+      <svg width={16} height={17} viewBox="0 0 21.6 23.1" fill="currentColor">
+        <path d="M13.1,17.7V8.3c0-2.4-1.9-4.3-4.3-4.3v15.1c0,2.2,1.7,4,3.9,4c0.1,0,0.1,0,0.2,0c1,0.1,2.1-0.2,2.9-0.9C13.3,22,13.1,20.5,13.1,17.7L13.1,17.7z" />
+        <path d="M3.9,0C1.8,0,0,1.8,0,4h17.6c2.2,0,3.9-1.8,3.9-4C21.6,0,3.9,0,3.9,0z" />
+      </svg>
+    ),
+  },
 ] as const
 
 export default function Nav() {
@@ -51,11 +62,12 @@ export default function Nav() {
 
   return (
     <nav
-      className={`fixed inset-x-0 top-0 z-50 transition-all duration-200 ${
+      className={cn(
+        'fixed inset-x-0 top-0 z-50 transition-all duration-200',
         scrolled
           ? 'border-border bg-bg/85 border-b backdrop-blur-xl'
-          : 'border-b border-transparent bg-transparent'
-      }`}
+          : 'border-b border-transparent bg-transparent',
+      )}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between px-8 py-4">
         <Link

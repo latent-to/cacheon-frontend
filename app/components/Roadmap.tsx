@@ -1,3 +1,4 @@
+import { cn } from '~/lib/cn'
 import { ROADMAP, type RoadmapPhase } from '../constants/roadmap'
 import SectionHeader from './SectionHeader'
 
@@ -25,29 +26,34 @@ function PhaseCard({ phase, isLast }: { phase: RoadmapPhase; isLast: boolean }) 
 
   return (
     <div
-      className={`relative transition-opacity duration-200 ${isLast ? '' : 'mb-8'}`}
-      style={{ opacity: dimmed ? 0.65 : 1 }}
+      className={cn(
+        'relative transition-opacity duration-200',
+        !isLast && 'mb-8',
+        dimmed && 'opacity-65',
+      )}
     >
       <div
-        className={`absolute top-[0.5rem] -left-7 size-3 rounded-full ${
-          isActive ? 'border-accent bg-accent border-2' : 'border-border bg-bg border-2'
-        }`}
+        className={cn(
+          'absolute top-[0.5rem] -left-7 size-3 rounded-full',
+          isActive ? 'border-accent bg-accent border-2' : 'border-border bg-bg border-2',
+        )}
       />
 
       <div
-        className={`rounded-xl border px-4 py-4 backdrop-blur-sm transition-colors sm:px-6 sm:py-5 ${
+        className={cn(
+          'rounded-xl border px-4 py-4 backdrop-blur-sm transition-colors sm:px-6 sm:py-5',
           isActive
-            ? 'border-accent/50 bg-accent/[0.04] shadow-[0_0_24px_rgba(45,212,191,0.05)]'
-            : 'border-border/60 bg-surface/60 hover:border-border hover:bg-surface/80'
-        }`}
+            ? 'border-accent/50 bg-accent/[0.04] shadow-accent-lg'
+            : 'border-border/60 bg-surface/60 hover:border-border hover:bg-surface/80',
+        )}
       >
         <div className="mb-3 flex flex-wrap items-center gap-3">
-          <span className="text-accent font-mono text-[0.72rem] font-semibold tracking-[0.2em] uppercase">
+          <span className="tracking-caps text-accent font-mono text-xs font-semibold uppercase">
             {phase.version}
           </span>
-          <span className="text-primary font-sans text-[1rem] font-semibold">{phase.label}</span>
+          <span className="text-primary font-sans text-base font-semibold">{phase.label}</span>
           {isActive && (
-            <span className="border-accent/60 bg-accent/10 text-accent rounded-full border px-2.5 py-0.5 font-mono text-[0.62rem] font-bold tracking-[0.2em] uppercase">
+            <span className="border-accent/60 bg-accent/10 text-2xs tracking-caps text-accent rounded-full border px-2.5 py-0.5 font-mono font-bold uppercase">
               Live
             </span>
           )}
@@ -57,7 +63,7 @@ function PhaseCard({ phase, isLast }: { phase: RoadmapPhase; isLast: boolean }) 
           {phase.items.map((item, i) => (
             <li
               key={i}
-              className="text-secondary relative pl-4 font-sans text-[0.9rem] leading-[1.55]"
+              className="text-base2 text-secondary relative pl-4 font-sans leading-[1.55]"
             >
               <span className="text-secondary/50 absolute left-0 font-mono">–</span>
               {item}

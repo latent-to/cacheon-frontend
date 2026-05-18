@@ -111,7 +111,7 @@ These per-prompt results are available in `state.json` (inside each `EvaluationR
 
 ## Container log capture
 
-After each evaluation (success or failure), the harness captures the full stdout/stderr from the container via `docker logs`. Logs are saved to `state/container_logs/`:
+After each evaluation (success or failure), the harness captures the full stdout/stderr from the container via `docker logs`. Logs are saved to `state-mainnet/container_logs/`:
 
 - Baseline: `baseline_{cache_key}.log`
 - Miner: `uid{N}_{hotkey_prefix}_{block}.log`

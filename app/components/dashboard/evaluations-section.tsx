@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { cn } from '~/lib/cn'
 import { usePoll } from '~/lib/use-poll'
 import { fetchEvaluations, fetchEvaluationsByUid, type EvaluationRecord } from '~/lib/api.client'
 import {
@@ -15,6 +16,7 @@ import {
   ImageTag,
 } from './shared'
 import { CopyButton } from '~/components/ui/copy-button'
+import { CloseButton } from '~/components/ui/close-button'
 
 type EvalFilter = 'all' | 'active' | 'dq'
 
@@ -34,29 +36,42 @@ export function EvaluationsSection() {
   return (
     <section>
       <div className="mb-4 flex items-center gap-1">
-        {(['all', 'active', 'dq'] as EvalFilter[]).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFilter(f)}
-            className={`cursor-pointer rounded-md border bg-transparent px-3 py-1.5 font-mono text-[0.65rem] font-semibold tracking-[0.16em] uppercase transition-colors ${
-              filter === f
-                ? 'border-accent/40 bg-accent/10 text-accent'
-                : 'border-border/40 text-secondary hover:text-primary'
-            }`}
-          >
-            {f === 'dq' ? 'Disqualified' : f === 'active' ? 'Scored' : f}
-            {evals.data && (
-              <span className="text-secondary/40 ml-1.5">
-                {f === 'all'
-                  ? allEvals.length
-                  : f === 'active'
-                    ? allEvals.filter((e) => !e.disqualified).length
-                    : allEvals.filter((e) => e.disqualified).length}
-              </span>
-            )}
-          </button>
-        ))}
+        {(['all', 'active', 'dq'] as EvalFilter[]).map((f) => {
+          const count = evals.data
+            ? f === 'all'
+              ? allEvals.length
+              : f === 'active'
+                ? allEvals.filter((e) => !e.disqualified).length
+                : allEvals.filter((e) => e.disqualified).length
+            : null
+          return (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className={cn(
+                'text-2xs tracking-caps inline-flex cursor-pointer items-center gap-1.5 rounded border bg-transparent px-2.5 py-1 font-mono font-medium uppercase transition-colors',
+                filter === f
+                  ? 'border-accent/40 bg-accent/10 text-accent'
+                  : 'border-border/40 text-secondary/60 hover:text-secondary',
+              )}
+            >
+              {f === 'dq' ? 'Disqualified' : f === 'active' ? 'Scored' : 'All'}
+              {count !== null && (
+                <span
+                  className={cn(
+                    'text-2xs rounded px-1 py-px font-mono tabular-nums',
+                    filter === f
+                      ? 'bg-accent/15 text-accent/70'
+                      : 'text-secondary/40 bg-white/[0.06]',
+                  )}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       <GlassCard className="overflow-x-auto">
@@ -80,28 +95,28 @@ export function EvaluationsSection() {
           <table className="w-full min-w-[720px] font-mono">
             <thead>
               <tr className="border-border/30 border-b bg-white/[0.015]">
-                <th className="text-secondary/40 w-14 px-4 py-2.5 text-left text-[0.58rem] font-semibold tracking-[0.18em] uppercase">
+                <th className="text-2xs tracking-caps text-secondary/40 w-14 px-4 py-2.5 text-left font-semibold uppercase">
                   UID
                 </th>
-                <th className="text-secondary/40 px-3 py-2.5 text-left text-[0.58rem] font-semibold tracking-[0.18em] uppercase">
+                <th className="text-2xs tracking-caps text-secondary/40 px-3 py-2.5 text-left font-semibold uppercase">
                   Hotkey
                 </th>
-                <th className="text-secondary/40 px-3 py-2.5 text-left text-[0.58rem] font-semibold tracking-[0.18em] uppercase">
+                <th className="text-2xs tracking-caps text-secondary/40 px-3 py-2.5 text-left font-semibold uppercase">
                   Image
                 </th>
-                <th className="text-secondary/40 w-20 px-3 py-2.5 text-right text-[0.58rem] font-semibold tracking-[0.18em] uppercase">
+                <th className="text-2xs tracking-caps text-secondary/40 w-20 px-3 py-2.5 text-right font-semibold uppercase">
                   Score
                 </th>
-                <th className="text-secondary/40 w-16 px-3 py-2.5 text-right text-[0.58rem] font-semibold tracking-[0.18em] uppercase">
+                <th className="text-2xs tracking-caps text-secondary/40 w-16 px-3 py-2.5 text-right font-semibold uppercase">
                   TTFT
                 </th>
-                <th className="text-secondary/40 w-16 px-3 py-2.5 text-right text-[0.58rem] font-semibold tracking-[0.18em] uppercase">
+                <th className="text-2xs tracking-caps text-secondary/40 w-16 px-3 py-2.5 text-right font-semibold uppercase">
                   TPS
                 </th>
-                <th className="text-secondary/40 w-16 px-3 py-2.5 text-right text-[0.58rem] font-semibold tracking-[0.18em] uppercase">
+                <th className="text-2xs tracking-caps text-secondary/40 w-16 px-3 py-2.5 text-right font-semibold uppercase">
                   Match
                 </th>
-                <th className="text-secondary/40 w-24 px-4 py-2.5 text-right text-[0.58rem] font-semibold tracking-[0.18em] uppercase">
+                <th className="text-2xs tracking-caps text-secondary/40 w-24 px-4 py-2.5 text-right font-semibold uppercase">
                   Status
                 </th>
               </tr>
@@ -130,20 +145,26 @@ function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numbe
   const dq = ev.disqualified
   return (
     <tr
-      className={`border-border/20 cursor-pointer border-b transition-colors hover:bg-white/[0.02] ${dq ? 'opacity-60' : ''}`}
+      className={cn(
+        'border-border/20 cursor-pointer border-b transition-colors hover:bg-white/[0.02]',
+        dq && 'opacity-60',
+      )}
       onClick={() => onSelect(ev.uid)}
       onKeyDown={(e) => e.key === 'Enter' && onSelect(ev.uid)}
       role="button"
       tabIndex={0}
     >
       <td
-        className={`px-4 py-3 text-sm font-bold tabular-nums ${dq ? 'text-red-400/60' : 'text-primary'}`}
+        className={cn(
+          'px-4 py-3 text-sm font-bold tabular-nums',
+          dq ? 'text-error/60' : 'text-primary',
+        )}
       >
         {ev.uid}
       </td>
       <td className="px-3 py-3">
         <div className="flex min-w-0 items-center gap-1">
-          <span className="text-secondary/60 truncate text-[0.72rem]" title={ev.hotkey}>
+          <span className="text-secondary/60 truncate text-xs" title={ev.hotkey}>
             {truncHotkey(ev.hotkey)}
           </span>
           <CopyButton value={ev.hotkey} />
@@ -153,17 +174,20 @@ function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numbe
         <ImageTag image={ev.image} />
       </td>
       <td
-        className={`px-3 py-3 text-right text-sm font-bold tabular-nums ${dq ? 'text-red-400/60' : 'text-accent'}`}
+        className={cn(
+          'px-3 py-3 text-right text-sm font-bold tabular-nums',
+          dq ? 'text-error/60' : 'text-accent',
+        )}
       >
         {fmtScore(ev.score)}
       </td>
-      <td className="text-secondary px-3 py-3 text-right text-[0.72rem] tabular-nums">
+      <td className="text-secondary px-3 py-3 text-right text-xs tabular-nums">
         {fmtImprovement(ev.ttft_improvement)}
       </td>
-      <td className="text-secondary px-3 py-3 text-right text-[0.72rem] tabular-nums">
+      <td className="text-secondary px-3 py-3 text-right text-xs tabular-nums">
         {fmtImprovement(ev.throughput_improvement)}
       </td>
-      <td className="text-secondary px-3 py-3 text-right text-[0.72rem] tabular-nums">
+      <td className="text-secondary px-3 py-3 text-right text-xs tabular-nums">
         {fmtPct(ev.token_match_rate)}
       </td>
       <td className="px-4 py-3 text-right">
@@ -201,27 +225,12 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
       <div className="border-border/60 bg-bg relative z-10 flex h-full w-full max-w-lg flex-col overflow-y-auto border-l">
         <div className="border-border/40 flex items-center justify-between border-b px-6 py-4">
           <h3 className="text-primary font-mono text-sm font-bold">UID {uid}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-secondary hover:text-primary cursor-pointer border-none bg-transparent p-1"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
+          <CloseButton onClick={onClose} size={20} />
         </div>
 
         <div className="flex-1 space-y-6 p-6">
           {error && (
-            <div className="rounded-lg border border-red-400/30 bg-red-400/10 px-4 py-3 font-mono text-sm text-red-400">
+            <div className="border-error/30 bg-error/10 text-error rounded-lg border px-4 py-3 font-mono text-sm">
               {error}
             </div>
           )}
@@ -236,7 +245,7 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
 
           {ev && (
             <>
-              <div className="space-y-1.5 font-mono text-[0.75rem]">
+              <div className="text-sm2 space-y-1.5 font-mono">
                 <div className="flex items-start gap-2">
                   <span className="text-secondary/50 shrink-0">Hotkey</span>
                   <span className="text-secondary min-w-0 break-all">{ev.hotkey}</span>
@@ -248,13 +257,13 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                 </div>
                 <div className="flex gap-2">
                   <span className="text-secondary/50 shrink-0">Digest</span>
-                  <span className="text-secondary text-[0.65rem] break-all">{ev.digest}</span>
+                  <span className="text-secondary text-xs break-all">{ev.digest}</span>
                 </div>
                 <div className="flex gap-2">
                   <span className="text-secondary/50 shrink-0">Evaluated</span>
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="text-secondary">{relativeTimeAgo(ev.evaluated_at)}</span>
-                    <span className="text-secondary/40 text-[0.65rem]">
+                    <span className="text-secondary/40 text-xs">
                       Evaluation block #{ev.evaluation_block} · Commit block #{ev.commit_block}
                     </span>
                   </div>
@@ -269,11 +278,11 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
               </div>
 
               {ev.disqualified && (
-                <div className="rounded-lg border border-red-400/30 bg-red-400/10 px-4 py-3">
-                  <div className="mb-1 font-mono text-[0.62rem] font-bold tracking-[0.18em] text-red-400 uppercase">
+                <div className="border-error/30 bg-error/10 rounded-lg border px-4 py-3">
+                  <div className="text-2xs tracking-caps text-error mb-1 font-mono font-bold uppercase">
                     Disqualified
                   </div>
-                  <div className="font-mono text-[0.75rem] text-red-300">
+                  <div className="text-sm2 text-error/80 font-mono">
                     {ev.disqualify_reason || 'No reason provided'}
                   </div>
                 </div>
@@ -281,11 +290,11 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
 
               {ev.per_prompt && ev.per_prompt.length > 0 && (
                 <div>
-                  <div className="text-secondary/50 mb-2 font-mono text-[0.62rem] font-semibold tracking-[0.18em] uppercase">
+                  <div className="text-2xs tracking-caps text-secondary/50 mb-2 font-mono font-semibold uppercase">
                     Per-Prompt Breakdown
                   </div>
                   <div className="border-border/40 overflow-x-auto rounded-lg border">
-                    <table className="w-full font-mono text-[0.7rem]">
+                    <table className="w-full font-mono text-xs">
                       <thead>
                         <tr className="border-border/30 border-b bg-white/[0.015]">
                           <th className="text-secondary/50 px-3 py-2 text-left font-semibold">#</th>
@@ -329,25 +338,25 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
 
               {data && data.length > 1 && (
                 <div>
-                  <div className="text-secondary/50 mb-2 font-mono text-[0.62rem] font-semibold tracking-[0.18em] uppercase">
+                  <div className="text-2xs tracking-caps text-secondary/50 mb-2 font-mono font-semibold uppercase">
                     Evaluation History ({data.length} total)
                   </div>
                   <div className="space-y-2">
                     {data.slice(1).map((e) => (
                       <div
                         key={`${e.hotkey}:${e.commit_block}`}
-                        className="border-border/30 grid grid-cols-1 gap-2 rounded-lg border bg-white/[0.01] px-3 py-2 font-mono text-[0.7rem] sm:grid-cols-[1fr_auto_auto] sm:items-center"
+                        className="border-border/30 grid grid-cols-1 gap-2 rounded-lg border bg-white/[0.01] px-3 py-2 font-mono text-xs sm:grid-cols-[1fr_auto_auto] sm:items-center"
                       >
                         <div className="flex min-w-0 flex-col gap-0.5">
                           <div className="flex items-center gap-1">
                             <span className="text-secondary truncate">{truncHotkey(e.hotkey)}</span>
                             <CopyButton value={e.hotkey} />
                           </div>
-                          <span className="text-secondary/45 text-[0.62rem]">
+                          <span className="text-2xs text-secondary/45">
                             {relativeTimeAgo(e.evaluated_at)} · Block #{e.evaluation_block}
                           </span>
                         </div>
-                        <span className={e.disqualified ? 'text-red-400/60' : 'text-accent'}>
+                        <span className={e.disqualified ? 'text-error/60' : 'text-accent'}>
                           {fmtScore(e.score)}
                         </span>
                         <span className="justify-self-start sm:justify-self-end">

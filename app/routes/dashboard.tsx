@@ -3,6 +3,7 @@ import type { Route } from './+types/dashboard'
 import Nav from '~/components/Nav'
 import Footer from '~/components/Footer'
 import { DASHBOARD_TABS } from '~/components/dashboard/shared'
+import { cn } from '~/lib/cn'
 
 export function meta(_: Route.MetaArgs) {
   return [
@@ -16,11 +17,12 @@ export function meta(_: Route.MetaArgs) {
 
 export default function DashboardLayout() {
   const tabCls = ({ isActive }: { isActive: boolean }) =>
-    `cursor-pointer whitespace-nowrap border-b-2 bg-transparent px-1 pb-2 font-mono text-[0.72rem] font-semibold uppercase tracking-[0.18em] transition-colors no-underline ${
+    cn(
+      'cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 font-mono text-xs font-semibold uppercase tracking-[0.12em] no-underline transition-colors',
       isActive
-        ? 'border-accent text-accent'
-        : 'border-transparent text-secondary hover:text-primary'
-    }`
+        ? 'bg-accent/12 text-accent'
+        : 'text-secondary hover:bg-white/[0.03] hover:text-primary',
+    )
 
   return (
     <>
@@ -33,7 +35,7 @@ export default function DashboardLayout() {
         </div>
 
         <nav
-          className="border-border/40 bg-bg/90 sticky top-[64px] z-40 -mx-6 mb-10 flex flex-wrap gap-6 border-b px-6 backdrop-blur-lg"
+          className="border-border/40 bg-bg/90 sticky top-[64px] z-40 -mx-6 mb-10 flex flex-wrap gap-2 border-b px-6 pb-2 backdrop-blur-lg"
           aria-label="Dashboard sections"
         >
           {DASHBOARD_TABS.map(({ slug, label }) => (
