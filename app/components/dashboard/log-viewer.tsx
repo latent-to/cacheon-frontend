@@ -16,6 +16,7 @@ interface LogViewerProps {
   fetchLog: (label: string) => Promise<string>
   renderLabel?: (entry: LogEntry) => ReactNode
   title: string
+  emptyMessage?: string
   /** Optional controls to render above the list in the sidebar */
   sidebarControls?: ReactNode
   /** Optional footer line (e.g. "Showing X of Y") */
@@ -29,6 +30,7 @@ export function LogViewer({
   fetchLog,
   renderLabel,
   title,
+  emptyMessage = 'No logs available',
   sidebarControls,
   sidebarFooter,
 }: LogViewerProps) {
@@ -100,7 +102,7 @@ export function LogViewer({
             <div className="text-secondary/50 px-2 py-4 font-mono text-xs">Could not load data</div>
           ) : empty ? (
             <div className="text-secondary/40 px-2 py-6 text-center font-mono text-xs">
-              No logs available
+              {emptyMessage}
             </div>
           ) : (
             entries.map((log) => (

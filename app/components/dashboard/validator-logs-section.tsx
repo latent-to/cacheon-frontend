@@ -86,6 +86,11 @@ export function ValidatorLogsSection() {
 
   const fetchLog = useCallback((label: string) => fetchValidatorLog(label), [])
 
+  const emptyMessage =
+    list.length > 0 && processedLogs.length === 0
+      ? 'No logs match your filters'
+      : 'No logs available'
+
   const controls = (
     <div className="space-y-2">
       <div className="text-secondary/40 font-mono text-[0.6rem] font-semibold tracking-[0.14em] uppercase">
@@ -140,6 +145,7 @@ export function ValidatorLogsSection() {
         fetchLog={fetchLog}
         renderLabel={(entry) => <ValidatorLogLabel entry={entry} />}
         title="Validator Logs"
+        emptyMessage={emptyMessage}
         sidebarControls={controls}
         sidebarFooter={footer}
       />
