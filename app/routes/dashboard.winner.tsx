@@ -1,10 +1,10 @@
-import type { Route } from './+types/dashboard.winner'
-import { WinnerSection } from '~/components/dashboard/winner-section'
+import type { Route } from './+types/dashboard.leader'
+import { LeaderSection } from '~/components/dashboard/leader-section'
 
 export function meta(_: Route.MetaArgs) {
-  return [{ title: 'Winner · Dashboard · Cacheon' }]
+  return [{ title: 'Leader · Dashboard · Cacheon' }]
 }
 
-export default function DashboardWinnerRoute() {
-  return <WinnerSection />
+export default function DashboardLeaderRoute() {
+  return <LeaderSection />
 }

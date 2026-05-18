@@ -9,24 +9,24 @@ Cacheon uses a competitive incentive. The reigning champion is the miner with th
 
 1. The validator scans on-chain commitments approximately every 5 minutes.
 2. Any hotkey with a revealed commitment that hasn't been evaluated yet is a **challenger**.
-3. If there are no challengers, the winner keeps its weight, no GPU runs, and the loop sleeps.
+3. If there are no challengers, the leader keeps its weight, no GPU runs, and the loop sleeps.
 4. If challengers exist, the validator dispatches evaluation jobs and compares scores.
-5. A challenger who beats the winner's score **by more than a small, time-decaying margin** takes the top spot. See [defender's moat](#the-defenders-moat). The winner receives 80% of the competition pool; the runner-up receives 20%. Total pool scales with the winner's improvement score.
+5. A challenger who beats the leader's score **by more than a small, time-decaying margin** takes the top spot. See [defender's moat](#the-defenders-moat). The leader receives 80% of the competition pool; the runner-up receives 20%. Total pool scales with the leader's improvement score.
 
 ## The defender's moat
 
 The overtake rule is not a plain `>`. It must pass two checks:
 
-1. **Copycats get disqualified.** If a challenger's Docker image hash matches the current winner's, but the hotkey differs and the commitment block is later, the challenger is DQ'd (`reason = "duplicate_of_winner"`).
-2. **Non-copies need a small edge.** A new server must strictly exceed `winner_score x (1 + e(age))`.
+1. **Copycats get disqualified.** If a challenger's Docker image hash matches the current leader's, but the hotkey differs and the commitment block is later, the challenger is DQ'd (`reason = "duplicate_of_leader"`).
+2. **Non-copies need a small edge.** A new server must strictly exceed `leader_score x (1 + e(age))`.
 
-   where `e` starts at **1%** at the block when the winner takes the top spot and **decays linearly to 0** over **~50,400 blocks (~7 days)**. After that, the threshold is just `winner_score`, and any strict improvement wins.
+   where `e` starts at **1%** at the block when the leader takes the top spot and **decays linearly to 0** over **~50,400 blocks (~7 days)**. After that, the threshold is just `leader_score`, and any strict improvement wins.
 
 Why:
 
 - Running the same server twice can produce small score variance from GPU clock drift, scheduling jitter, and network overhead. Without the moat, rankings could flip on noise.
 - Without the copycat disqualification, miners are incentivized to wait, copy the leader, and register it themselves.
-- The decaying margin means a winner cannot sit on a free 1% edge indefinitely.
+- The decaying margin means a leader cannot sit on a free 1% edge indefinitely.
 
 ## One commitment per hotkey
 

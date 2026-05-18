@@ -55,10 +55,15 @@ export function PulseSection() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <MetricCard label="Winner UID" value={s?.winner_uid ?? '-'} accent loading={status.loading} />
         <MetricCard
-          label="Winner Score"
-          value={s ? fmtScore(s.winner_score) : '-'}
+          label="Leader UID"
+          value={s?.leader_uid ?? '-'}
+          accent
+          loading={status.loading}
+        />
+        <MetricCard
+          label="Leader Score"
+          value={s ? fmtScore(s.leader_score) : '-'}
           accent
           loading={status.loading}
         />

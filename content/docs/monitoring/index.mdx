@@ -1,6 +1,6 @@
 ---
 title: Monitoring API
-description: Read-only HTTP API for evaluation results, winner status, container logs, and round history.
+description: Read-only HTTP API for evaluation results, leader status, container logs, and round history.
 ---
 
 The monitoring API is a read-only HTTP surface that exposes the validator's on-disk state. Miners can check their evaluation results, see why they were disqualified, and pull raw container logs without needing SSH access to the validator.
@@ -13,22 +13,22 @@ The monitoring API is a read-only HTTP surface that exposes the validator's on-d
 
 ### Health and status
 
-| Method | Path          | Description                                                               |
-| ------ | ------------- | ------------------------------------------------------------------------- |
-| GET    | `/api/health` | Liveness check. Returns `{"status": "ok"}` if the API is up               |
-| GET    | `/api/status` | Validator overview: current winner, eval counts, time since last evaluation |
+| Method | Path          | Description                                                                 |
+| ------ | ------------- | --------------------------------------------------------------------------- |
+| GET    | `/api/health` | Liveness check. Returns `{"status": "ok"}` if the API is up                 |
+| GET    | `/api/status` | Validator overview: current leader, eval counts, time since last evaluation |
 
 ```bash
 curl https://api.cacheon.ai/api/health
 curl https://api.cacheon.ai/api/status
 ```
 
-### Winner
+### Leader
 
-| Method | Path                   | Description                                            |
-| ------ | ---------------------- | ------------------------------------------------------ |
-| GET    | `/api/winner`          | Current winner record (UID, score, image, won block)   |
-| GET    | `/api/winner/history` | Chronological list of overtakes                        |
+| Method | Path                  | Description                                          |
+| ------ | --------------------- | ---------------------------------------------------- |
+| GET    | `/api/leader`         | Current leader record (UID, score, image, won block) |
+| GET    | `/api/leader/history` | Chronological list of overtakes                      |
 
 ### Evaluations
 

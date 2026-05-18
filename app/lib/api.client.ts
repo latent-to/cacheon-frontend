@@ -19,9 +19,9 @@ export interface HealthResponse {
 }
 
 export interface StatusResponse {
-  winner_uid: number | null
-  winner_score: number | null
-  winner_image: string | null
+  leader_uid: number | null
+  leader_score: number | null
+  leader_image: string | null
   n_evaluated: number
   n_active: number
   n_disqualified: number
@@ -31,7 +31,7 @@ export interface StatusResponse {
   last_weights_set_block: number | null
 }
 
-export interface WinnerRecord {
+export interface LeaderRecord {
   uid: number
   hotkey: string
   commit_block: number
@@ -46,27 +46,27 @@ export interface WinnerRecord {
   won_at_block: number
 }
 
-export interface WinnerResponse {
-  winner: WinnerRecord | null
+export interface LeaderResponse {
+  leader: LeaderRecord | null
   message?: string
 }
 
-export interface WinnerHistoryEntry {
+export interface LeaderHistoryEntry {
   ts: number
   block: number
-  new_winner_uid: number
-  new_winner_hotkey: string
-  new_winner_score: number
-  new_winner_image: string
-  new_winner_digest: string
+  new_leader_uid: number
+  new_leader_hotkey: string
+  new_leader_score: number
+  new_leader_image: string
+  new_leader_digest: string
   overtake_threshold: number
-  prev_winner_uid?: number
-  prev_winner_hotkey?: string
-  prev_winner_score?: number
+  prev_leader_uid?: number
+  prev_leader_hotkey?: string
+  prev_leader_score?: number
 }
 
-export interface WinnerHistoryResponse {
-  history: WinnerHistoryEntry[]
+export interface LeaderHistoryResponse {
+  history: LeaderHistoryEntry[]
   total: number
 }
 
@@ -175,8 +175,8 @@ export interface ContainerLogsResponse {
 
 export const fetchHealth = () => get<HealthResponse>('/api/health')
 export const fetchStatus = () => get<StatusResponse>('/api/status')
-export const fetchWinner = () => get<WinnerResponse>('/api/winner')
-export const fetchWinnerHistory = () => get<WinnerHistoryResponse>('/api/winner/history')
+export const fetchLeader = () => get<LeaderResponse>('/api/leader')
+export const fetchLeaderHistory = () => get<LeaderHistoryResponse>('/api/leader/history')
 export const fetchEvaluations = (status?: 'active' | 'dq') =>
   get<EvaluationsResponse>(`/api/evaluations${status ? `?status=${status}` : ''}`)
 export const fetchEvaluationsByUid = (uid: number) =>

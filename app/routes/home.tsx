@@ -14,13 +14,13 @@ export function meta(_: Route.MetaArgs) {
     {
       name: 'description',
       content:
-        'Compete on speed for a flagship OSS model. Fair benchmark, clear winner, real reason to route traffic.',
+        'Compete on speed for a flagship OSS model. Fair benchmark, clear leader, real reason to route traffic.',
     },
     { property: 'og:title', content: 'Cacheon: Inference Optimization Arena' },
     {
       property: 'og:description',
       content:
-        'Compete on speed for a flagship OSS model. Fair benchmark, clear winner, real reason to route traffic.',
+        'Compete on speed for a flagship OSS model. Fair benchmark, clear leader, real reason to route traffic.',
     },
     { property: 'og:type', content: 'website' },
     { property: 'og:url', content: 'https://cacheon.ai' },

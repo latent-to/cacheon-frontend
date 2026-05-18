@@ -5,7 +5,7 @@ export default [
   route('dashboard', 'routes/dashboard.tsx', [
     index('routes/dashboard._index.tsx'),
     route('pulse', 'routes/dashboard.pulse.tsx'),
-    route('winner', 'routes/dashboard.winner.tsx'),
+    route('leader', 'routes/dashboard.leader.tsx'),
     route('evaluations', 'routes/dashboard.evaluations.tsx'),
     route('rounds', 'routes/dashboard.rounds.tsx'),
     route('logs', 'routes/dashboard.logs.tsx'),

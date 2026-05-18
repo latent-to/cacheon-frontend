@@ -2,7 +2,7 @@ import { LinkButton } from '~/components/ui/link-button'
 
 export const DASHBOARD_TABS = [
   { slug: 'pulse', label: 'Pulse' },
-  { slug: 'winner', label: 'Winner' },
+  { slug: 'leader', label: 'Leader' },
   { slug: 'evaluations', label: 'Evaluations' },
   { slug: 'rounds', label: 'Rounds' },
   { slug: 'logs', label: 'Logs' },
