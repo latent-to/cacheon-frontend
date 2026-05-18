@@ -62,10 +62,10 @@ This is the fastest way to debug why your container failed. The log contains the
 
 ### Validator logs
 
-| Method | Path                          | Description                                          |
-| ------ | ----------------------------- | ---------------------------------------------------- |
-| GET    | `/api/validator-logs`         | List available validator log files (CPU and GPU)     |
-| GET    | `/api/validator-log/{label}`  | Raw validator process log (plain text)               |
+| Method | Path                         | Description                                      |
+| ------ | ---------------------------- | ------------------------------------------------ |
+| GET    | `/api/validator-logs`        | List available validator log files (CPU and GPU) |
+| GET    | `/api/validator-log/{label}` | Raw validator process log (plain text)           |
 
 Labels follow the pattern `cpu_validator_{YYYYMMDD}_{HHMMSS}` for CPU validator runs and `gpu_eval_{YYYYMMDD}_{HHMMSS}` for GPU eval runs.
 

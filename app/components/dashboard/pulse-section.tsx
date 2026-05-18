@@ -239,7 +239,15 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
               {gpu.gpu_type ? ` ${gpu.num_gpus ?? ''}x ${gpu.gpu_type}` : ''}
             </Pill>
           )}
-          {gpu?.pod_id && <Pill>{gpu.pod_id}</Pill>}
+          {gpu?.pod_id && (
+            <Pill>
+              Pod ID:{' '}
+              {gpu.pod_id.length > 8
+                ? `${gpu.pod_id.slice(0, 4)}...${gpu.pod_id.slice(-4)}`
+                : gpu.pod_id}
+            </Pill>
+          )}
+
           {challengers.length > 0 && (
             <Pill>
               {challengers.length} challenger{challengers.length !== 1 ? 's' : ''}
