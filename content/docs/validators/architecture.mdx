@@ -71,10 +71,10 @@ The validator and GPU pod share a single S3 prefix (`validator/sync.py`). Both s
 
 `state.json` tracks the leader record, evaluation history with per-prompt breakdowns, precheck failures, and scan/weight-setting block numbers. Written atomically (temp file + rename).
 
-Typical mirrored layout under `state/`:
+Typical mirrored layout under `state-mainnet/`:
 
 ```
-state/
+state-mainnet/
   state.json
   eval_job.json
   leader-history.jsonl

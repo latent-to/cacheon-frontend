@@ -9,8 +9,10 @@
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
+  /* ── Colors ── */
   --color-bg: var(--bg);
   --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
   --color-primary: var(--text);
   --color-secondary: var(--text-secondary);
   --color-border: var(--border);
@@ -21,9 +23,33 @@
   --color-btn-primary-fg: var(--btn-primary-fg);
   --color-link: var(--link);
   --color-link-hover: var(--link-hover);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
   --color-diagram-bar: var(--diagram-bar);
   --color-diagram-bar-strong: var(--diagram-bar-strong);
   --color-diagram-flow: var(--diagram-flow);
+
+  /* ── Type scale ── */
+  --text-2xs: 0.62rem;
+  --text-xs: 0.69rem;
+  --text-sm2: 0.78rem;
+  --text-sm: 0.84rem;
+  --text-base2: 0.89rem;
+  --text-base: 0.97rem;
+  --text-lg2: 1.04rem;
+
+  /* ── Letter spacing ── */
+  --tracking-caps: 0.18em;
+  --tracking-caps-wide: 0.22em;
+
+  /* ── Shadows (glow effects) ── */
+  --shadow-accent-sm: 0 0 6px rgba(45, 212, 191, 0.6);
+  --shadow-accent-md: 0 0 16px rgba(45, 212, 191, 0.4);
+  --shadow-accent-lg: 0 0 24px rgba(45, 212, 191, 0.15);
+  --shadow-accent-text: 0 0 32px rgba(45, 212, 191, 0.18);
+  --shadow-error-sm: 0 0 6px rgba(248, 113, 113, 0.5);
 }
 
 /* ── Theme tokens (dark only) ───────────────────────── */
@@ -32,6 +58,7 @@
   color-scheme: dark;
   --bg: #030405;
   --surface: #09090b;
+  --surface-raised: #060709;
   --text: #ffffff;
   --text-secondary: #c8d0db;
   --border: #1e2330;
@@ -42,6 +69,10 @@
   --btn-primary-fg: #080a0c;
   --link: #e2e8f0;
   --link-hover: #2dd4bf;
+  --success: #4ade80;
+  --warning: #facc15;
+  --error: #f87171;
+  --info: #a78bfa;
   --diagram-bar: rgba(248, 250, 252, 0.14);
   --diagram-bar-strong: rgba(248, 250, 252, 0.26);
   --diagram-flow: rgba(248, 250, 252, 0.45);

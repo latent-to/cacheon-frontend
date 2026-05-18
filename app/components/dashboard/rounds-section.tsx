@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 
+import { cn } from '~/lib/cn'
 import { usePoll } from '~/lib/use-poll'
 import { fetchRounds, type Round } from '~/lib/api.client'
 import {
@@ -56,7 +58,7 @@ export function RoundsSection() {
             <button
               type="button"
               onClick={() => setVisibleCount((c) => c + 10)}
-              className="border-border/40 text-secondary hover:border-border hover:text-primary mt-4 w-full cursor-pointer rounded-lg border bg-transparent py-2.5 font-mono text-[0.72rem] font-semibold tracking-[0.16em] uppercase transition-colors"
+              className="border-border/40 tracking-caps text-secondary hover:border-border hover:text-primary mt-4 w-full cursor-pointer rounded-lg border bg-transparent py-2.5 font-mono text-xs font-semibold uppercase transition-colors"
             >
               Load more ({list.length - visibleCount} remaining)
             </button>
@@ -89,25 +91,22 @@ function RoundCard({
           <span className="text-primary font-mono text-sm font-bold">
             {relativeTimeAgo(round.evaluated_at)}
           </span>
-          <span className="text-secondary/40 font-mono text-[0.62rem]">
+          <span className="text-2xs text-secondary/40 font-mono">
             Block #{round.evaluation_block}
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-secondary rounded-md bg-white/[0.04] px-2 py-0.5 font-mono text-[0.62rem] font-semibold">
+          <span className="text-2xs text-secondary rounded-md bg-white/[0.04] px-2 py-0.5 font-mono font-semibold">
             {round.n_challengers} challenger{round.n_challengers !== 1 ? 's' : ''}
           </span>
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className={`text-secondary/40 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
+          <ChevronDown
+            size={16}
+            strokeWidth={2}
+            className={cn(
+              'text-secondary/40 transition-transform duration-200',
+              expanded && 'rotate-180',
+            )}
+          />
         </div>
       </div>
 
@@ -117,12 +116,16 @@ function RoundCard({
             {round.challengers.map((c) => (
               <div
                 key={`${c.hotkey}:${round.evaluation_block}`}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 font-mono text-[0.72rem] ${
-                  c.disqualified ? 'opacity-50' : ''
-                }`}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 font-mono text-xs',
+                  c.disqualified && 'opacity-50',
+                )}
               >
                 <span
-                  className={`w-10 font-bold ${c.disqualified ? 'text-red-400/60' : 'text-primary'}`}
+                  className={cn(
+                    'w-10 font-bold',
+                    c.disqualified ? 'text-error/60' : 'text-primary',
+                  )}
                 >
                   {c.uid}
                 </span>
@@ -131,7 +134,10 @@ function RoundCard({
                 </span>
                 <ImageTag image={c.image} className="hidden max-w-[24rem] sm:flex" />
                 <span
-                  className={`w-16 text-right font-bold ${c.disqualified ? 'text-red-400/60' : 'text-accent'}`}
+                  className={cn(
+                    'w-16 text-right font-bold',
+                    c.disqualified ? 'text-error/60' : 'text-accent',
+                  )}
                 >
                   {fmtScore(c.score)}
                 </span>
@@ -144,7 +150,7 @@ function RoundCard({
             .map((c) => (
               <div
                 key={`dq-${c.hotkey}`}
-                className="mt-2 rounded-lg border border-red-400/20 bg-red-400/[0.05] px-3 py-2 font-mono text-[0.65rem] text-red-300/80"
+                className="border-error/20 bg-error/[0.05] text-error/80 mt-2 rounded-lg border px-3 py-2 font-mono text-xs"
               >
                 UID {c.uid}: {c.disqualify_reason}
               </div>

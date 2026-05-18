@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react'
+import { cn } from '~/lib/cn'
 import { usePoll } from '~/lib/use-poll'
 import {
   fetchHealth,
@@ -29,6 +30,36 @@ import {
 import { fmtScore, relativeTimeAgo, truncHotkey, truncImage, MetricCard, StatusDot } from './shared'
 import { CopyButton } from '~/components/ui/copy-button'
 import { LinkButton } from '~/components/ui/link-button'
+import { Badge } from '~/components/ui/badge'
+
+/** Splits "38 min ago" → { n: "38", unit: "min ago" } for two-line metric display. */
+function splitRelativeTime(s: string): { n: string; unit: string } | null {
+  if (s === '-') return null
+  // "Less than 1 min ago"
+  if (s.startsWith('Less')) return { n: '<1', unit: 'min ago' }
+  const m = /^(\d+)\s+(.+)$/.exec(s)
+  if (!m) return null
+  return { n: m[1], unit: m[2] }
+}
+
+function LastEvalValue({ ts }: { ts: number | null | undefined }) {
+  const raw = relativeTimeAgo(ts)
+  const split = splitRelativeTime(raw)
+  if (!split)
+    return (
+      <span className="text-primary font-mono text-[1.9rem] leading-none font-black tracking-tight">
+        —
+      </span>
+    )
+  return (
+    <div className="flex items-baseline gap-1">
+      <span className="text-primary font-mono text-[1.9rem] leading-none font-black tracking-tight">
+        {split.n}{' '}
+      </span>
+      <span className="text-secondary/60 font-mono text-xs font-semibold"> {split.unit}</span>
+    </div>
+  )
+}
 
 export function PulseSection() {
   const health = usePoll(fetchHealth, 10_000)
@@ -47,14 +78,14 @@ export function PulseSection() {
 
   return (
     <section>
-      <div className="mb-8 flex items-center gap-3">
+      <div className="mb-6 flex items-center gap-3">
         <StatusDot alive={alive} />
-        <h3 className="text-secondary font-mono text-[0.68rem] font-semibold tracking-[0.2em] uppercase">
+        <h3 className="text-secondary font-mono text-sm font-semibold tracking-[0.12em] uppercase">
           {alive === null ? 'Connecting...' : alive ? 'API Online' : 'API Unreachable'}
         </h3>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <MetricCard
           label="Leader UID"
           value={s?.leader_uid ?? '-'}
@@ -76,14 +107,13 @@ export function PulseSection() {
         <MetricCard label="Evaluated" value={s?.n_evaluated ?? '-'} loading={status.loading} />
         <MetricCard
           label="Last eval"
-          value={relativeTimeAgo(s?.last_eval_ts)}
+          value={<LastEvalValue ts={s?.last_eval_ts} />}
           loading={status.loading}
-          valueClassName="text-xl sm:text-2xl"
         />
       </div>
 
       {s && (s.last_scan_block || s.last_weights_set_block) && (
-        <div className="text-secondary/70 mt-3 flex flex-wrap gap-4 font-mono text-xs tracking-wide">
+        <div className="text-secondary/70 mt-4 flex flex-wrap gap-4 font-mono text-sm">
           {s.last_scan_block != null && <span>Last scan: block #{s.last_scan_block}</span>}
           {s.last_weights_set_block != null && (
             <span>Weights set: block #{s.last_weights_set_block}</span>
@@ -103,23 +133,23 @@ export function PulseSection() {
 const PHASE_META: Record<string, { label: string; icon: ReactNode }> = {
   challengers_found: {
     label: 'Challengers identified',
-    icon: <Users size={10} strokeWidth={1.5} />,
+    icon: <Users size={13} strokeWidth={1.5} />,
   },
-  gpu_searching: { label: 'Searching for GPU', icon: <Search size={10} strokeWidth={1.5} /> },
-  gpu_match_found: { label: 'GPU matched', icon: <Cpu size={10} strokeWidth={1.5} /> },
-  gpu_renting: { label: 'Renting pod', icon: <CreditCard size={10} strokeWidth={1.5} /> },
-  gpu_ready: { label: 'Pod ready', icon: <Server size={10} strokeWidth={1.5} /> },
-  gpu_setup: { label: 'Setting up pod', icon: <Wrench size={10} strokeWidth={1.5} /> },
+  gpu_searching: { label: 'Searching for GPU', icon: <Search size={13} strokeWidth={1.5} /> },
+  gpu_match_found: { label: 'GPU matched', icon: <Cpu size={13} strokeWidth={1.5} /> },
+  gpu_renting: { label: 'Renting pod', icon: <CreditCard size={13} strokeWidth={1.5} /> },
+  gpu_ready: { label: 'Pod ready', icon: <Server size={13} strokeWidth={1.5} /> },
+  gpu_setup: { label: 'Setting up pod', icon: <Wrench size={13} strokeWidth={1.5} /> },
   gpu_setup_complete: {
     label: 'Pod setup complete',
-    icon: <CheckCircle size={10} strokeWidth={1.5} />,
+    icon: <CheckCircle size={13} strokeWidth={1.5} />,
   },
-  gpu_eval_started: { label: 'GPU eval running', icon: <Play size={10} strokeWidth={1.5} /> },
-  prompts_generated: { label: 'Prompts generated', icon: <FileText size={10} strokeWidth={1.5} /> },
-  baseline_running: { label: 'Running baseline', icon: <Activity size={10} strokeWidth={1.5} /> },
-  baseline_complete: { label: 'Baseline complete', icon: <Check size={10} strokeWidth={1.5} /> },
-  challenger_eval: { label: 'Evaluating challengers', icon: <Zap size={10} strokeWidth={1.5} /> },
-  eval_complete: { label: 'Eval complete', icon: <Award size={10} strokeWidth={1.5} /> },
+  gpu_eval_started: { label: 'GPU eval running', icon: <Play size={13} strokeWidth={1.5} /> },
+  prompts_generated: { label: 'Prompts generated', icon: <FileText size={13} strokeWidth={1.5} /> },
+  baseline_running: { label: 'Running baseline', icon: <Activity size={13} strokeWidth={1.5} /> },
+  baseline_complete: { label: 'Baseline complete', icon: <Check size={13} strokeWidth={1.5} /> },
+  challenger_eval: { label: 'Evaluating challengers', icon: <Zap size={13} strokeWidth={1.5} /> },
+  eval_complete: { label: 'Eval complete', icon: <Award size={13} strokeWidth={1.5} /> },
 }
 
 function phaseLabel(phase: string | undefined, detail?: string | null): string {
@@ -139,15 +169,15 @@ const CHALLENGER_STYLES: Record<string, { dot: string; bg: string; text: string;
   {
     pending: { dot: 'bg-secondary/30', bg: '', text: 'text-secondary/50', label: 'Queued' },
     pulling: {
-      dot: 'bg-yellow-400',
-      bg: 'bg-yellow-400/[0.04]',
-      text: 'text-yellow-400',
+      dot: 'bg-warning',
+      bg: 'bg-warning/[0.04]',
+      text: 'text-warning',
       label: 'Pulling',
     },
     started: {
-      dot: 'bg-yellow-400',
-      bg: 'bg-yellow-400/[0.04]',
-      text: 'text-yellow-400',
+      dot: 'bg-warning',
+      bg: 'bg-warning/[0.04]',
+      text: 'text-warning',
       label: 'Starting',
     },
     evaluating: {
@@ -157,12 +187,12 @@ const CHALLENGER_STYLES: Record<string, { dot: string; bg: string; text: string;
       label: 'Evaluating',
     },
     scored: {
-      dot: 'bg-green-400',
-      bg: 'bg-green-400/[0.04]',
-      text: 'text-green-400',
+      dot: 'bg-success',
+      bg: 'bg-success/[0.04]',
+      text: 'text-success',
       label: 'Scored',
     },
-    dq: { dot: 'bg-red-400', bg: 'bg-red-400/[0.04]', text: 'text-red-400', label: 'DQ' },
+    dq: { dot: 'bg-error', bg: 'bg-error/[0.04]', text: 'text-error', label: 'DQ' },
     skipped: { dot: 'bg-secondary/40', bg: '', text: 'text-secondary/40', label: 'Skipped' },
   }
 
@@ -193,38 +223,41 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
   const stale = progress.possibly_stale
   const steps = progress.steps ?? []
 
-  const borderColor = stale ? 'border-yellow-500/25' : 'border-accent/20'
-  const accentColor = stale ? 'text-yellow-500' : 'text-accent'
-  const pingColor = stale ? 'bg-yellow-500/50' : 'bg-accent/50'
-  const dotColor = stale ? 'bg-yellow-500' : 'bg-accent'
+  const borderColor = stale ? 'border-warning/25' : 'border-accent/20'
+  const accentColor = stale ? 'text-warning' : 'text-accent'
+  const pingColor = stale ? 'bg-warning/50' : 'bg-accent/50'
+  const dotColor = stale ? 'bg-warning' : 'bg-accent'
 
   const completed = challengers.filter(
     (c) => c.status === 'scored' || c.status === 'dq' || c.status === 'skipped',
   )
 
   return (
-    <div className={`mt-6 overflow-hidden rounded-xl border ${borderColor} bg-white/[0.015]`}>
+    <div className={cn('mt-8 overflow-hidden rounded-xl border bg-white/[0.015]', borderColor)}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-5 pt-4 pb-3">
+      <div className="flex items-center gap-3 px-6 pt-4 pb-3">
         <span className="relative flex size-2.5 shrink-0">
           <span
-            className={`absolute inline-flex h-full w-full animate-ping rounded-full ${pingColor}`}
+            className={cn(
+              'absolute inline-flex h-full w-full animate-ping rounded-full',
+              pingColor,
+            )}
           />
-          <span className={`relative inline-flex size-2.5 rounded-full ${dotColor}`} />
+          <span className={cn('relative inline-flex size-2.5 rounded-full', dotColor)} />
         </span>
         <div className="flex min-w-0 flex-1 items-baseline gap-3">
-          <span className={`font-mono text-[0.9rem] leading-none font-semibold ${accentColor}`}>
+          <span className={cn('font-mono text-base leading-none font-semibold', accentColor)}>
             {stale ? 'Signal stale' : phaseLabel(progress.phase, progress.detail)}
           </span>
           {progress.started_at != null && (
-            <span className="text-secondary/60 flex items-center gap-1 font-mono text-xs leading-none">
+            <span className="text-secondary/60 flex items-center gap-1 font-mono text-sm leading-none">
               <Clock size={11} strokeWidth={1.5} className="shrink-0 opacity-60" />
               <ElapsedTime startedAt={progress.started_at} />
             </span>
           )}
         </div>
         {progress.round_block != null && (
-          <span className="text-secondary/60 flex shrink-0 items-center gap-1 font-mono text-xs">
+          <span className="text-secondary/60 flex shrink-0 items-center gap-1 font-mono text-sm">
             #{progress.round_block}
             <LinkButton href={`https://tao.app/block/${progress.round_block}`} />
           </span>
@@ -233,47 +266,31 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
 
       {/* GPU + meta pills */}
       {(gpu || challengers.length > 0) && (
-        <div className="flex flex-wrap items-center gap-1.5 px-5 pb-3">
+        <div className="flex flex-wrap items-center gap-2 px-6 pb-3">
           {gpu?.provider && (
-            <Pill>
+            <Badge>
               {gpu.provider}
               {gpu.gpu_type ? ` ${gpu.num_gpus ?? ''}x ${gpu.gpu_type}` : ''}
-            </Pill>
+            </Badge>
           )}
           {gpu?.pod_id && (
-            <Pill>
+            <Badge>
               Pod ID:{' '}
               {gpu.pod_id.length > 8
                 ? `${gpu.pod_id.slice(0, 6)}...${gpu.pod_id.slice(-4)}`
                 : gpu.pod_id}
-            </Pill>
+            </Badge>
           )}
-
           {challengers.length > 0 && (
-            <Pill>
+            <Badge>
               {challengers.length} challenger{challengers.length !== 1 ? 's' : ''}
-            </Pill>
+            </Badge>
           )}
           {progress.phase === 'challenger_eval' && challengers.length > 0 && (
-            <Pill accent>
+            <Badge variant="accent">
               {completed.length}/{challengers.length} done
-            </Pill>
+            </Badge>
           )}
-        </div>
-      )}
-
-      {/* Progress bar (during challenger eval) */}
-      {progress.phase === 'challenger_eval' && challengers.length > 0 && (
-        <div className="mx-5 mb-3 h-[3px] overflow-hidden rounded-full bg-white/[0.04]">
-          <div
-            className="bg-accent/60 h-full rounded-full transition-all duration-700 ease-out"
-            style={{
-              width:
-                challengers.length > 0
-                  ? `${Math.round((completed.length / challengers.length) * 100)}%`
-                  : '0%',
-            }}
-          />
         </div>
       )}
 
@@ -297,20 +314,6 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
   )
 }
 
-// ── Pill ─────────────────────────────────────────────────
-
-function Pill({ children, accent }: { children: React.ReactNode; accent?: boolean }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-md px-2.5 py-1 font-mono text-xs tracking-wide ${
-        accent ? 'bg-accent/10 text-accent font-semibold' : 'text-secondary/75 bg-white/[0.06]'
-      }`}
-    >
-      {children}
-    </span>
-  )
-}
-
 // ── Challenger row ───────────────────────────────────────
 
 function ChallengerRow({
@@ -327,34 +330,39 @@ function ChallengerRow({
 
   return (
     <div
-      className={`flex items-center gap-3 px-5 py-3 font-mono transition-colors ${
-        active ? style.bg : ''
-      } ${!last ? 'border-b border-white/[0.06]' : ''}`}
+      className={cn(
+        'flex items-center gap-4 px-6 py-3 font-mono transition-colors',
+        active && style.bg,
+        !last && 'border-b border-white/[0.06]',
+      )}
     >
-      {/* Status dot (pings when live) */}
+      {/* Status dot */}
       <span className="relative flex size-2.5 shrink-0">
         {isLive && active && (
           <span
-            className={`absolute inline-flex h-full w-full animate-ping rounded-full ${style.dot} opacity-60`}
+            className={cn(
+              'absolute inline-flex h-full w-full animate-ping rounded-full opacity-60',
+              style.dot,
+            )}
           />
         )}
-        <span className={`relative inline-flex size-2.5 rounded-full ${style.dot}`} />
+        <span className={cn('relative inline-flex size-2.5 rounded-full', style.dot)} />
       </span>
 
       {/* UID */}
-      <span className="text-secondary/70 w-16 shrink-0 text-xs whitespace-nowrap">UID {c.uid}</span>
+      <span className="text-secondary/70 w-16 shrink-0 text-sm whitespace-nowrap">UID {c.uid}</span>
 
       {/* Hotkey + image */}
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex min-w-0 items-center gap-1">
-          <span className="text-secondary/85 truncate text-xs leading-none">
+          <span className="text-secondary/85 truncate text-sm leading-none">
             {truncHotkey(c.hotkey)}
           </span>
           <CopyButton value={c.hotkey} />
         </div>
         {c.image && (
           <div className="flex min-w-0 items-center gap-1">
-            <span className="text-secondary/85 truncate text-xs leading-none">
+            <span className="text-secondary/85 truncate text-sm leading-none">
               {truncImage(c.image)}
             </span>
             <CopyButton value={c.image} />
@@ -367,20 +375,20 @@ function ChallengerRow({
 
       {/* Score / DQ reason */}
       {c.score != null && c.status === 'scored' && (
-        <span className="shrink-0 text-xs font-semibold text-green-400">{fmtScore(c.score)}</span>
+        <span className="text-success shrink-0 text-sm font-semibold">{fmtScore(c.score)}</span>
       )}
       {c.dq_reason && (
-        <span
-          className="max-w-[12rem] shrink-0 truncate text-xs text-red-400/80"
-          title={c.dq_reason}
-        >
+        <span className="text-error/80 max-w-[12rem] shrink-0 truncate text-sm" title={c.dq_reason}>
           {c.dq_reason}
         </span>
       )}
 
       {/* Status badge */}
       <span
-        className={`inline-flex w-20 shrink-0 items-center justify-end text-xs font-semibold tracking-wider uppercase ${style.text}`}
+        className={cn(
+          'inline-flex w-20 shrink-0 items-center justify-end text-sm font-semibold tracking-[0.1em] uppercase',
+          style.text,
+        )}
       >
         {style.label}
       </span>
@@ -396,11 +404,11 @@ function StepTimeline({ steps }: { steps: EvalProgressStep[] }) {
   const hidden = steps.length - visible.length
 
   return (
-    <div className="border-t border-white/[0.06] px-5 py-4">
+    <div className="border-t border-white/[0.06] px-6 py-4">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="text-secondary/55 hover:text-secondary/80 mb-3 flex items-center gap-1.5 font-mono text-xs tracking-[0.15em] uppercase transition-colors"
+        className="tracking-caps text-secondary/55 hover:text-secondary/80 mb-3 flex cursor-pointer items-center gap-1.5 border-none bg-transparent font-mono text-xs uppercase transition-colors"
       >
         <span>
           {expanded ? (
@@ -411,20 +419,16 @@ function StepTimeline({ steps }: { steps: EvalProgressStep[] }) {
         </span>
         <span>Timeline{!expanded && hidden > 0 ? ` (+${hidden} earlier)` : ''}</span>
       </button>
-      <div className="relative flex flex-col gap-0">
-        {visible.map((step, i) => (
-          <TimelineEntry
-            key={`${step.ts}-${step.phase}`}
-            step={step}
-            last={i === visible.length - 1}
-          />
+      <div className="flex flex-col gap-0">
+        {visible.map((step) => (
+          <TimelineEntry key={`${step.ts}-${step.phase}`} step={step} />
         ))}
       </div>
     </div>
   )
 }
 
-function TimelineEntry({ step, last }: { step: EvalProgressStep; last: boolean }) {
+function TimelineEntry({ step }: { step: EvalProgressStep }) {
   const d = new Date(step.ts * 1000)
   const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 
@@ -439,20 +443,15 @@ function TimelineEntry({ step, last }: { step: EvalProgressStep; last: boolean }
 
   return (
     <div className="flex items-start gap-3">
-      {/* Vertical line + dot */}
-      <div className="flex flex-col items-center">
-        <span className="bg-secondary/50 mt-[5px] inline-block size-1.5 shrink-0 rounded-full" />
-        {!last && <span className="bg-secondary/20 w-px flex-1" style={{ minHeight: 14 }} />}
-      </div>
-      {/* Content */}
-      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 pb-2">
-        <span className="text-secondary/55 shrink-0 font-mono text-xs tabular-nums">{time}</span>
-        <span className="text-secondary/80 inline-flex items-center gap-1.5 font-mono text-xs leading-snug">
+      <span className="bg-secondary/50 mt-[6px] inline-block size-1.5 shrink-0 rounded-full" />
+      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 pb-1">
+        <span className="text-secondary/55 shrink-0 font-mono text-sm tabular-nums">{time}</span>
+        <span className="text-secondary/80 inline-flex items-center gap-1.5 font-mono text-sm leading-snug">
           {phaseIcon(step.phase)}
           {phaseLabel(step.phase, typeof step.step === 'string' ? step.step : undefined)}
         </span>
         {extra.length > 0 && (
-          <span className="text-secondary/55 font-mono text-[0.65rem]">{extra.join(' · ')}</span>
+          <span className="text-secondary/55 font-mono text-sm">{extra.join(' · ')}</span>
         )}
       </div>
     </div>

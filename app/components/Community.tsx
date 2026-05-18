@@ -1,4 +1,5 @@
 import SectionHeader from './SectionHeader'
+import { Button } from '~/components/ui/button'
 
 function Icon({ id, size = 18 }: { id: string; size?: number }) {
   return (
@@ -15,32 +16,34 @@ export default function Community() {
         <SectionHeader align="center" eyebrow="Get involved" title="Join the community." />
 
         <div className="flex flex-wrap justify-center gap-3">
-          <a
+          <Button
+            as="a"
             href="https://discord.gg/bittensor"
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-btn-primary text-btn-primary-fg inline-flex items-center gap-2 rounded-md px-6 py-2.5 font-sans text-[0.92rem] font-semibold no-underline transition-opacity hover:opacity-85"
           >
             <Icon id="icon-discord" />
             Discord
-          </a>
-          <a
+          </Button>
+          <Button
+            as="a"
+            variant="secondary"
             href="https://github.com/latent-to/cacheon"
             target="_blank"
             rel="noopener noreferrer"
-            className="border-border/80 bg-surface/60 text-primary hover:border-border hover:bg-surface inline-flex items-center gap-2 rounded-md border px-6 py-2.5 font-sans text-[0.92rem] font-medium no-underline backdrop-blur-sm transition-colors"
           >
             <Icon id="icon-github" />
             GitHub
-          </a>
-          <a
+          </Button>
+          <Button
+            as="a"
+            variant="secondary"
             href="https://tao.app/subnets/14"
             target="_blank"
             rel="noopener noreferrer"
-            className="border-border/80 bg-surface/60 text-primary hover:border-border hover:bg-surface inline-flex items-center gap-2 rounded-md border px-6 py-2.5 font-sans text-[0.92rem] font-medium no-underline backdrop-blur-sm transition-colors"
           >
             TAO.app
-          </a>
+          </Button>
         </div>
       </div>
     </section>

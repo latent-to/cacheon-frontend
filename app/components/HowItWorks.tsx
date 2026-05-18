@@ -1,4 +1,6 @@
+import { cn } from '~/lib/cn'
 import SectionHeader from './SectionHeader'
+import { GlassCard } from './dashboard/shared'
 
 const STEPS = [
   {
@@ -83,25 +85,22 @@ export default function HowItWorks() {
         {/* Steps */}
         <div className="mb-14 grid grid-cols-1 gap-6 md:grid-cols-3">
           {STEPS.map((s) => (
-            <article
-              key={s.num}
-              className="border-border/60 bg-surface/60 hover:border-border hover:bg-surface/80 rounded-xl border p-5 backdrop-blur-sm transition-colors sm:p-7"
-            >
-              <div className="text-accent mb-4 font-mono text-[0.7rem] font-semibold tracking-[0.22em] uppercase">
+            <GlassCard key={s.num} className="p-5 sm:p-7">
+              <div className="tracking-caps-wide text-accent mb-4 font-mono text-xs font-semibold uppercase">
                 {s.num}
               </div>
-              <h3 className="text-primary mb-3 font-sans text-[1rem] font-semibold">{s.title}</h3>
-              <p className="text-secondary font-sans text-[0.92rem] leading-[1.6]">{s.desc}</p>
-            </article>
+              <h3 className="text-primary mb-3 font-sans text-base font-semibold">{s.title}</h3>
+              <p className="text-base2 text-secondary font-sans leading-[1.6]">{s.desc}</p>
+            </GlassCard>
           ))}
         </div>
 
         {/* Score formula */}
-        <div className="border-border/60 bg-surface/60 mb-8 rounded-xl border p-5 backdrop-blur-sm sm:p-7">
-          <div className="text-accent mb-4 font-mono text-[0.7rem] font-semibold tracking-[0.22em] uppercase">
+        <GlassCard className="mb-8 p-5 sm:p-7">
+          <div className="tracking-caps-wide text-accent mb-4 font-mono text-xs font-semibold uppercase">
             scoring
           </div>
-          <pre className="text-primary m-0 overflow-x-auto font-mono text-[0.75rem] leading-[1.85] sm:text-[0.85rem]">
+          <pre className="text-sm2 text-primary sm:text-sm2 m-0 overflow-x-auto font-mono leading-[1.85]">
             <span className="text-secondary">
               {'// Correctness gate: first-mismatch logprob check'}
             </span>
@@ -124,29 +123,30 @@ export default function HowItWorks() {
             <span className="text-accent">0.5</span>
             {' x tps_imp'}
           </pre>
-        </div>
+        </GlassCard>
 
         {/* Metric cards */}
         <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
           {METRICS.map((m) => (
             <div
               key={m.label}
-              className={`hover:border-border hover:bg-surface/80 rounded-xl border p-5 backdrop-blur-sm transition-colors sm:p-6 ${
-                m.highlight ? 'border-accent/50 bg-accent/5' : 'border-border/60 bg-surface/60'
-              }`}
+              className={cn(
+                'hover:border-border hover:bg-surface/80 rounded-xl border p-5 backdrop-blur-sm transition-colors sm:p-6',
+                m.highlight ? 'border-accent/50 bg-accent/5' : 'border-border/60 bg-surface/60',
+              )}
             >
               <div className="text-primary mb-2 font-mono text-2xl leading-none font-bold sm:text-3xl">
                 {m.value}
               </div>
-              <div className="text-accent mb-2 font-mono text-[0.72rem] font-semibold tracking-[0.18em] uppercase">
+              <div className="tracking-caps text-accent mb-2 font-mono text-xs font-semibold uppercase">
                 {m.label}
               </div>
-              <p className="text-secondary font-sans text-[0.9rem] leading-[1.55]">{m.desc}</p>
+              <p className="text-base2 text-secondary font-sans leading-[1.55]">{m.desc}</p>
             </div>
           ))}
         </div>
 
-        <p className="text-secondary border-border/40 mt-2 border-t pt-6 text-center font-sans text-[0.93rem] leading-[1.65]">
+        <p className="border-border/40 text-base2 text-secondary mt-2 border-t pt-6 text-center font-sans leading-[1.65]">
           Speed is measured in a streaming pass without logprobs. Correctness is measured separately
           with logprobs enabled. Both relative to the same vLLM baseline on the same hardware.
         </p>

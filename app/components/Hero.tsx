@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
+import { Button } from '~/components/ui/button'
 
 const FaultyTerminal = lazy(() => import('./FaultyTerminal'))
 
@@ -26,7 +27,7 @@ const FEATURES = [
 export default function Hero() {
   return (
     <section id="hero" className="relative flex min-h-screen flex-col overflow-hidden">
-      {/* WebGL terminal background (client-only) */}
+      {/* WebGL terminal background */}
       <div className="absolute inset-0 z-0">
         <ClientOnly>
           <Suspense fallback={null}>
@@ -62,15 +63,13 @@ export default function Hero() {
       {/* Hero content */}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-24 pb-0 text-center">
         {/* Pill */}
-        <div className="border-accent/40 bg-accent-surface text-accent mb-8 inline-flex items-center rounded-full border px-3.5 py-1 font-mono text-[0.72rem] font-semibold tracking-[0.22em] uppercase">
+        <div className="border-accent/40 bg-accent-surface tracking-caps-wide text-accent mb-8 inline-flex items-center rounded-full border px-3.5 py-1 font-mono text-xs font-semibold uppercase">
           Launching on May 19, 2026
         </div>
 
         {/* Headline */}
         <h1 className="mb-6 max-w-[min(100%,48rem)] font-mono text-[clamp(1.75rem,4.6vw,3.15rem)] leading-[1.22] font-extrabold tracking-tight text-balance">
-          <span className="text-accent [text-shadow:0_0_32px_rgba(45,212,191,0.18)]">
-            Build the Fastest
-          </span>
+          <span className="text-accent shadow-accent-text">Build the Fastest</span>
           <span className="text-secondary/45"> </span>
           <span className="text-primary">Inference Server</span>
         </h1>
@@ -98,20 +97,18 @@ export default function Hero() {
 
         {/* CTAs */}
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <a
-            href="/docs"
-            className="bg-btn-primary text-btn-primary-fg inline-flex items-center gap-2 rounded-md px-6 py-2.5 font-sans text-[0.92rem] font-semibold no-underline transition-opacity hover:opacity-85"
-          >
+          <Button as="a" href="/docs">
             Read the docs <span aria-hidden>→</span>
-          </a>
-          <a
+          </Button>
+          <Button
+            as="a"
+            variant="secondary"
             href="https://discord.gg/bittensor"
             target="_blank"
             rel="noopener noreferrer"
-            className="border-border/80 bg-surface/60 text-primary hover:border-border hover:bg-surface inline-flex items-center gap-2 rounded-md border px-6 py-2.5 font-sans text-[0.92rem] font-medium no-underline backdrop-blur-sm transition-colors"
           >
             Join Discord
-          </a>
+          </Button>
         </div>
       </div>
 
@@ -120,10 +117,10 @@ export default function Hero() {
         <div className="border-border/40 mx-auto grid max-w-6xl grid-cols-1 gap-y-8 border-t pt-10 sm:grid-cols-3 sm:gap-x-12 sm:gap-y-8 lg:gap-x-16 xl:gap-x-20">
           {FEATURES.map((f) => (
             <div key={f.title} className="text-center sm:px-2 lg:px-4">
-              <h2 className="text-primary mb-2 font-mono text-[0.8rem] font-semibold tracking-[0.16em] uppercase sm:text-[0.85rem]">
+              <h2 className="text-sm2 tracking-caps text-primary mb-2 font-mono font-semibold uppercase">
                 {f.title}
               </h2>
-              <p className="text-secondary font-sans text-[0.95rem] leading-[1.6] sm:text-base sm:leading-[1.55]">
+              <p className="text-base2 text-secondary font-sans leading-[1.6] sm:text-base sm:leading-[1.55]">
                 {f.body}
               </p>
             </div>

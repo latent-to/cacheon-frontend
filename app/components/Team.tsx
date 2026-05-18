@@ -1,5 +1,6 @@
 import { TEAM, type TeamMember } from '../constants/team'
 import SectionHeader from './SectionHeader'
+import { GlassCard } from './dashboard/shared'
 
 function IconGithub({ size = 16 }: { size?: number }) {
   return (
@@ -43,7 +44,7 @@ export default function Team() {
 
 function MemberCard({ member }: { member: TeamMember }) {
   return (
-    <div className="group border-border/60 bg-surface/60 hover:border-border hover:bg-surface/80 rounded-xl border p-4 backdrop-blur-sm transition-colors sm:p-5">
+    <GlassCard className="group p-4 sm:p-5">
       <div className="border-border/60 mb-4 size-12 overflow-hidden rounded-full border">
         <img
           src={member.image}
@@ -64,10 +65,8 @@ function MemberCard({ member }: { member: TeamMember }) {
         </div>
       </div>
 
-      <div className="text-primary mb-0.5 font-sans text-[0.95rem] font-semibold">
-        {member.name}
-      </div>
-      <div className="text-secondary mb-3 font-mono text-[0.68rem] tracking-[0.16em] uppercase">
+      <div className="text-base2 text-primary mb-0.5 font-sans font-semibold">{member.name}</div>
+      <div className="tracking-caps text-secondary mb-3 font-mono text-xs uppercase">
         {member.role}
       </div>
 
@@ -106,6 +105,6 @@ function MemberCard({ member }: { member: TeamMember }) {
           </a>
         )}
       </div>
-    </div>
+    </GlassCard>
   )
 }
