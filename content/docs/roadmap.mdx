@@ -38,7 +38,7 @@ _Last updated: 2026-05-08._
 
 V1 evaluation is manually triggered: the operator checks GPU availability, provisions a pod, SSHs in, and runs the eval. V1.5 closes this loop.
 
-- **Automated GPU provisioning**: CPU host checks for challengers, queries `gpu_search.py`, provisions a pod via provider API when suitable hardware is available, and tears it down after eval completes
+- **Automated GPU provisioning**: CPU host checks for challengers, queries `validator.providers.TIERS` (8-GPU tier configs only), provisions a pod via provider API when suitable hardware is available, and tears it down after eval completes
 - **CPU-to-GPU SSH dispatch**: CPU SSHs into the GPU pod to trigger eval instead of the operator doing it manually
 
 V1.5 makes the validator fully hands-off. An operator spins up the CPU host once and the system handles everything from challenger detection through eval and weight setting.

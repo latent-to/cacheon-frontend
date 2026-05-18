@@ -115,7 +115,7 @@ docker run -d \
 docker logs -f cacheon-local-test
 ```
 
-Wait until your server prints that it is ready (e.g. `Uvicorn running on http://0.0.0.0:8000`). On a single B200 or 4x H100 this typically takes 3-7 minutes.
+Wait until your server prints that it is ready (e.g. `Uvicorn running on http://0.0.0.0:8000`). On an 8x H200 or 8x B200 pod this typically takes 3-7 minutes.
 
 ### Step 5: Test `/health`
 
@@ -178,13 +178,13 @@ docker network rm cacheon-test-internal
 
 Before pushing your image and committing on-chain:
 
-| Check                                      | How to verify                                                         |
-| ------------------------------------------ | --------------------------------------------------------------------- |
-| Container does not exit immediately        | Path 1 passes with your startup logs visible                          |
-| No internet access during startup          | No HuggingFace download attempts in logs when on `--internal` network |
-| `/health` returns 200                      | Step 5 above                                                          |
-| `/v1/chat/completions` streams SSE         | Step 6 above -- `data:` chunks present                                |
-| Logprobs returned                          | Each chunk has `logprobs.content[].top_logprobs`                      |
-| Model name `Qwen2.5-72B-Instruct` accepted | Step 6 request not rejected                                           |
-| Startup completes within 10 minutes        | Container healthy before timeout                                      |
-| `--tensor-parallel-size` not hardcoded     | Startup script uses `nvidia-smi` to detect GPU count at runtime       |
+| Check                                      | How to verify                                                                                                                                        |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container does not exit immediately        | Path 1 passes with your startup logs visible                                                                                                         |
+| No internet access during startup          | No HuggingFace download attempts in logs when on `--internal` network                                                                                |
+| `/health` returns 200                      | Step 5 above                                                                                                                                         |
+| `/v1/chat/completions` streams SSE         | Step 6 above -- `data:` chunks present                                                                                                               |
+| Logprobs returned                          | Each chunk has `logprobs.content[].top_logprobs`                                                                                                     |
+| Model name `Qwen2.5-72B-Instruct` accepted | Step 6 request not rejected                                                                                                                          |
+| Startup completes within 10 minutes        | Container healthy before timeout                                                                                                                     |
+| `--tensor-parallel-size` not hardcoded     | Startup script uses `nvidia-smi` to detect GPU count at runtime (on-chain evaluation always uses 8 GPUs, but detection keeps local testing flexible) |

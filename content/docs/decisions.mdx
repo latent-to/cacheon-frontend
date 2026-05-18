@@ -9,7 +9,7 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 **Decision:** Start with 72B on multi-GPU from V1.
 
-**Reasoning:** 72B on 4x H200 is a genuinely hard infrastructure challenge. It requires tensor parallelism, NVLink communication optimization, and distributed KV cache management. This is the "tip of the spear" positioning: the competition is inherently difficult, which makes winning meaningful. 14B on a single GPU is too easy and doesn't produce differentiation worth competing for. The mechanism is kept simple (one model, one endpoint, no speculative decoding, no quantization) to offset the model-size complexity.
+**Reasoning:** 72B on 8-GPU TP=8 (H200/B200/B300) is a genuinely hard infrastructure challenge. It requires tensor parallelism, NVLink communication optimization, and distributed KV cache management. This is the "tip of the spear" positioning: the competition is inherently difficult, which makes winning meaningful. 14B on a single GPU is too easy and doesn't produce differentiation worth competing for. The mechanism is kept simple (one model, one endpoint, no speculative decoding, no quantization) to offset the model-size complexity.
 
 **Rejected:** Starting with 14B. Too easy to serve fast; insufficient optimization surface. Starting with 7B. Trivial.
 

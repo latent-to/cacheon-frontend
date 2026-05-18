@@ -1,47 +1,61 @@
-# Cacheon — frontend
+# Cacheon.ai Frontend
 
-Frontend (cacheon.ai) for **Cacheon** (Bittensor subnet SN14)
+Frontend for [cacheon.ai](https://cacheon.ai) — the dashboard and docs site for [Cacheon](https://github.com/latent-to/cacheon) (Bittensor SN14).
 
 ## Stack
 
-| Layer      | Choice                                                                            |
-| ---------- | --------------------------------------------------------------------------------- |
-| UI         | React 19, TypeScript                                                              |
-| Build      | Vite 8                                                                            |
-| Styling    | Tailwind CSS v4 (`@import "tailwindcss"` in `src/index.css`)                      |
-| Background | [ogl](https://github.com/oframe/ogl) — `FaultyTerminal` shader (react-bits style) |
+| Layer   | Choice                                |
+| ------- | ------------------------------------- |
+| UI      | React 19, TypeScript                  |
+| Routing | React Router v7                       |
+| Build   | Vite                                  |
+| Styling | Tailwind CSS v4                       |
+| Docs    | Fumadocs (MDX under `content/docs/`)  |
+| Deploy  | Cloudflare Workers (`wrangler.jsonc`) |
 
-Theme tokens live in `app/app.css`.
+## Getting started
+
+Node 20+ required.
+
+```bash
+git clone https://github.com/latent-to/cacheon-frontend.git
+cd cacheon-frontend
+npm install
+npm run dev        # http://localhost:5173
+```
 
 ## Scripts
 
 ```bash
-npm install
-npm run dev      # http://localhost:5173
-npm run build    # tsc + vite build → dist/
-npm run preview  # serve production build locally
+npm run dev            # dev server
+npm run build          # production build
+npm run preview        # build + wrangler dev (local Worker)
+npm run deploy         # build + wrangler deploy
+npm run typecheck      # full type check (fumadocs-mdx + react-router typegen + tsc)
 npm run lint
+npm run format:check
 ```
 
 ## Project layout
 
 ```
-frontend/
-├── public/
-│   ├── team/           # Team headshots (referenced from src/constants/team.ts)
-│   └── icons.svg
-├── src/
-│   ├── components/     # Nav, Hero, WhatIs, HowItWorks, Roadmap, Team, Community, Footer, FaultyTerminal, …
-│   ├── constants/      # team.ts, roadmap.ts
-│   ├── diagrams/       # SVG/React diagrams (e.g. ValidatorDiagram)
-│   ├── App.tsx
-│   ├── main.tsx
-│   └── index.css       # Tailwind + CSS variables (accent, surfaces, fonts)
-├── index.html
-├── vite.config.ts
-└── package.json
+app/
+  routes/           React Router routes (home, dashboard/*, docs)
+  components/       Shared UI components and dashboard sections
+  constants/        Static data (team, roadmap)
+  diagrams/         SVG/React diagrams
+  app.css           Tailwind + CSS variables (colors, fonts)
+content/
+  docs/             Fumadocs MDX -- canonical docs source
+public/             Static assets (team photos, icons)
+workers/            Cloudflare Worker entry points
 ```
 
-## Notes
+## Contributing
 
-- The hero background uses a canvas; mouse movement is tracked at the window level so overlays do not block the effect.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, style guide, and PR guidelines. Issues and contributions are welcome.
+
+## Community
+
+- Discord: [# ㄷ・cacheon・14](https://discord.com/channels/799672011265015819/1503393871172866098) ([Bittensor](https://discord.com/invite/bittensor) server)
+- X: [@cacheon_ai](https://x.com/cacheon_ai)

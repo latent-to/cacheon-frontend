@@ -27,9 +27,9 @@ A single long-running process handles the full lifecycle:
 
 ## GPU requirements
 
-Evaluation runs `Qwen2.5-72B-Instruct` with tensor parallelism. Use NVLink/SXM-class multi-GPU hardware where the workload is bottlenecked on cross-GPU bandwidth, and attach enough persistent disk for weights, images, and caches (see [Validator setup](/docs/validators/setup)).
+Evaluation runs `Qwen2.5-72B-Instruct` with tensor parallelism. Use 8-GPU NVLink/SXM-class hardware where the workload is bottlenecked on cross-GPU bandwidth, and attach enough persistent disk for weights, images, and caches (see [Validator setup](/docs/validators/setup)).
 
-The CPU orchestrator and `scripts/gpu_search.py` share one tier list in-repo (`validator.providers.TIERS`). All eval hardware uses 8 GPUs with tensor parallelism 8 (TP=8) on NVLink/SXM-class nodes. Matching uses GPU type, GPU count, and minimum VRAM per GPU (B300 `>=` 288 GB, B200 `>=` 180 GB, H200 `>=` 141 GB, H100 `>=` 80 GB). Within a tier, the cheapest hourly price wins; Tier B is only used when no Tier A config is available.
+The CPU orchestrator and `scripts/gpu_search.py` share one tier list in-repo (`validator.providers.TIERS`). All evaluation hardware uses 8 GPUs with tensor parallelism 8 (`TP=8`) on NVLink/SXM-class nodes. Matching uses GPU type, GPU count, and minimum VRAM per GPU (B300 `>=` 288 GB, B200 `>=` 180 GB, H200 `>=` 141 GB, H100 `>=` 80 GB). Within a tier, the cheapest hourly price wins; Tier B is only used when no Tier A config is available.
 
 | Tier              | Configs (cheapest within tier wins) | When used                                                |
 | ----------------- | ----------------------------------- | -------------------------------------------------------- |
