@@ -3,7 +3,6 @@ import { useCallback, useMemo, useState } from 'react'
 import { cn } from '~/lib/cn'
 import { usePoll } from '~/lib/use-poll'
 import { fetchContainerLogs, fetchContainerLog, type ContainerLogEntry } from '~/lib/api.client'
-import { inputCls } from './shared'
 import { LogViewer, type LogEntry } from './log-viewer'
 
 function logLabelUidDigits(label: string): string | null {

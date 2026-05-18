@@ -1,4 +1,3 @@
-import { cn } from '~/lib/cn'
 import { TEAM, type TeamMember } from '../constants/team'
 import SectionHeader from './SectionHeader'
 import { GlassCard } from './dashboard/shared'
