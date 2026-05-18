@@ -9,6 +9,7 @@ export default [
     route('evaluations', 'routes/dashboard.evaluations.tsx'),
     route('rounds', 'routes/dashboard.rounds.tsx'),
     route('logs', 'routes/dashboard.logs.tsx'),
+    route('validator-logs', 'routes/dashboard.validator-logs.tsx'),
   ]),
   route('docs/*', 'routes/docs.tsx'),
   route('api/search', 'routes/api.search.ts'),

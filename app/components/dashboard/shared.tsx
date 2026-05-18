@@ -5,7 +5,8 @@ export const DASHBOARD_TABS = [
   { slug: 'leader', label: 'Leader' },
   { slug: 'evaluations', label: 'Evaluations' },
   { slug: 'rounds', label: 'Rounds' },
-  { slug: 'logs', label: 'Logs' },
+  { slug: 'logs', label: 'Miner Logs' },
+  { slug: 'validator-logs', label: 'Validator Logs' },
 ] as const
 
 // ── Formatters ──────────────────────────────────────────

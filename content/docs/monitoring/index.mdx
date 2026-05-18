@@ -60,6 +60,19 @@ curl https://api.cacheon.ai/api/container-log/uid5_5CG7KRPk_7105042
 
 This is the fastest way to debug why your container failed. The log contains the full Docker output from your container's startup attempt.
 
+### Validator logs
+
+| Method | Path                          | Description                                          |
+| ------ | ----------------------------- | ---------------------------------------------------- |
+| GET    | `/api/validator-logs`         | List available validator log files (CPU and GPU)     |
+| GET    | `/api/validator-log/{label}`  | Raw validator process log (plain text)               |
+
+Labels follow the pattern `cpu_validator_{YYYYMMDD}_{HHMMSS}` for CPU validator runs and `gpu_eval_{YYYYMMDD}_{HHMMSS}` for GPU eval runs.
+
+```bash
+curl https://api.cacheon.ai/api/validator-log/gpu_eval_20260518_112858
+```
+
 ### Rounds
 
 | Method | Path            | Description                                                  |

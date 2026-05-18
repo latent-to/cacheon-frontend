@@ -171,6 +171,17 @@ export interface ContainerLogsResponse {
   total: number
 }
 
+export interface ValidatorLogEntry {
+  label: string
+  filename: string
+  size_bytes: number
+}
+
+export interface ValidatorLogsResponse {
+  logs: ValidatorLogEntry[]
+  total: number
+}
+
 // ── Fetchers ────────────────────────────────────────────
 
 export const fetchHealth = () => get<HealthResponse>('/api/health')
@@ -186,3 +197,6 @@ export const fetchEvalProgress = () => get<EvalProgressResponse>('/api/eval-prog
 export const fetchContainerLogs = () => get<ContainerLogsResponse>('/api/container-logs')
 export const fetchContainerLog = (label: string) =>
   getText(`/api/container-log/${encodeURIComponent(label)}`)
+export const fetchValidatorLogs = () => get<ValidatorLogsResponse>('/api/validator-logs')
+export const fetchValidatorLog = (label: string) =>
+  getText(`/api/validator-log/${encodeURIComponent(label)}`)
