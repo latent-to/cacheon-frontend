@@ -6,7 +6,7 @@ import { DASHBOARD_TABS } from '~/components/dashboard/shared'
 
 export function meta(_: Route.MetaArgs) {
   return [
-    { title: 'Testnet Dashboard · Cacheon' },
+    { title: 'Mainnet (Dry Run) Dashboard · Cacheon' },
     {
       name: 'description',
       content: 'Live monitoring dashboard for the Cacheon inference arena.',
@@ -28,7 +28,7 @@ export default function DashboardLayout() {
       <main className="mx-auto max-w-6xl px-6 pt-24 pb-20">
         <div className="mb-8">
           <h1 className="text-primary font-mono text-[clamp(1.6rem,3.4vw,2.2rem)] leading-[1.15] font-bold tracking-tight">
-            Testnet Dashboard
+            Mainnet (Dry Run) Dashboard
           </h1>
         </div>
 
