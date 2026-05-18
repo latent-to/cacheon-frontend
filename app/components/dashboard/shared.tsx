@@ -166,6 +166,12 @@ export function ImageTag({
   )
 }
 
+export const inputCls =
+  'border-border/60 bg-surface/40 text-primary mt-1 w-full min-w-0 rounded-md border px-2 py-1.5 font-mono text-[0.72rem] outline-none placeholder:text-secondary/35 focus:border-accent/40'
+
+export const labelCls =
+  'text-secondary/50 flex min-w-0 flex-[1_1_7rem] flex-col font-mono text-[0.58rem] font-semibold tracking-[0.14em] uppercase'
+
 export function MiniStat({
   label,
   value,

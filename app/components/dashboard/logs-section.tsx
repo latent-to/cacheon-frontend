@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { usePoll } from '~/lib/use-poll'
 import { fetchContainerLogs, fetchContainerLog, type ContainerLogEntry } from '~/lib/api.client'
-import { fmtBytes, GlassCard, Skeleton } from './shared'
+import { fmtBytes, GlassCard, Skeleton, inputCls, labelCls } from './shared'
 import { CopyButton } from '~/components/ui/copy-button'
 
 /** Miner log labels use `uid{n}_{hotkey}_{block#}` (see validator log capture). */
@@ -11,13 +11,13 @@ function logLabelUidDigits(label: string): string | null {
   return m ? m[1] : null
 }
 
-/** Extract block number from the last underscore-separated segment (numeric). */
+/** Extract block number from the last underscore-separated segment (strictly numeric). */
 function logLabelBlockNum(label: string): number | null {
   const parts = label.split('_')
   if (parts.length < 2) return null
   const last = parts[parts.length - 1]
-  const n = parseInt(last, 10)
-  return isNaN(n) ? null : n
+  if (!/^\d+$/.test(last)) return null
+  return parseInt(last, 10)
 }
 
 function uidFilterMatches(label: string, query: string): boolean {
@@ -70,12 +70,6 @@ function sortLogs(entries: ContainerLogEntry[], sortBy: LogsSortOption): Contain
   })
   return out
 }
-
-const inputCls =
-  'border-border/60 bg-surface/40 text-primary mt-1 w-full min-w-0 rounded-md border px-2 py-1.5 font-mono text-[0.72rem] outline-none placeholder:text-secondary/35 focus:border-accent/40'
-
-const labelCls =
-  'text-secondary/50 flex min-w-0 flex-[1_1_7rem] flex-col font-mono text-[0.58rem] font-semibold tracking-[0.14em] uppercase'
 
 export function LogsSection() {
   const logs = usePoll(fetchContainerLogs, 60_000)
