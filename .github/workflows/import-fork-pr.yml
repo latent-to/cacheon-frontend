@@ -17,11 +17,26 @@ jobs:
       issues: write
 
     steps:
+      - name: Check exact /import command
+        id: check
+        env:
+          COMMENT: ${{ github.event.comment.body }}
+        run: |
+          # Require /import at the start of a line, followed by whitespace or end of string.
+          # This rejects /imports, /important, /importing, etc.
+          if echo "$COMMENT" | grep -qP '(?m)^/import(\s|$)'; then
+            echo "is_import=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_import=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v5
+        if: steps.check.outputs.is_import == 'true'
         with:
           fetch-depth: 0
 
       - name: Fetch fork branch and create internal PR
+        if: steps.check.outputs.is_import == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
