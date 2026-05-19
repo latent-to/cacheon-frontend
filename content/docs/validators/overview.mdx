@@ -14,12 +14,12 @@ A single long-running process handles the full lifecycle:
 3. **GPU search**: queries Targon and Lium for the cheapest available pod that meets [GPU requirements](#gpu-requirements)
 4. **Automated rental**: rents a GPU pod, SSHs in, runs `setup-gpu.sh`, configures the environment, and starts `docker compose -f gpu-compose.yml up`
 5. **Evaluation**: the GPU pod runs the vLLM baseline, evaluates each challenger, and uploads results to S3
-6. **Teardown**: the pod is terminated after eval completes (or on failure/timeout)
+6. **Teardown**: the pod is terminated after the evaluation completes (or on failure/timeout)
 7. **Weight setting**: the validator downloads results from S3 and sets weights to the current leader and runner-up
 
 <Callout type="idea" title="Why this design?">
 
-**Security:** The CPU host holds the wallets; the GPU pod has no wallet and only does eval work. S3 is the handoff layer.
+**Security:** The CPU host holds the wallets, while the GPU pod performs evaluation only and has no wallet access. S3 acts as the handoff layer between them.
 
 **Cost:** GPUs are rented only when challengers exist and hardware is available. A configurable price cap (`CACHEON_MAX_HOURLY_PRICE`) prevents runaway spend, and the pod timeout scales automatically with the number of challengers.
 
@@ -29,7 +29,7 @@ A single long-running process handles the full lifecycle:
 
 Evaluation runs `Qwen2.5-72B-Instruct` with tensor parallelism. Use 8-GPU NVLink/SXM-class hardware where the workload is bottlenecked on cross-GPU bandwidth, and attach enough persistent disk for weights, images, and caches (see [Validator setup](/docs/validators/setup)).
 
-The CPU orchestrator and `scripts/gpu_search.py` share one tier list in-repo (`validator.providers.TIERS`). All evaluation hardware uses 8 GPUs with tensor parallelism 8 (`TP=8`) on NVLink/SXM-class nodes. Matching uses GPU type, GPU count, and minimum VRAM per GPU (B300 `>=` 288 GB, B200 `>=` 180 GB, H200 `>=` 141 GB, H100 `>=` 80 GB). Within a tier, the cheapest hourly price wins; Tier B is only used when no Tier A config is available.
+The CPU orchestrator uses an in-repo tier list (`validator.providers.TIERS`). All evaluations run on 8-GPU NVLink/SXM-class nodes with tensor parallelism set to 8 (`TP=8`). Matching uses GPU type, GPU count, and minimum VRAM per GPU (B300 `>=` 288 GB, B200 `>=` 180 GB, H200 `>=` 141 GB, H100 `>=` 80 GB). Within a tier, the cheapest hourly price wins; Tier B is only used when no Tier A config is available.
 
 | Tier              | Configs (cheapest within tier wins) | When used                                                |
 | ----------------- | ----------------------------------- | -------------------------------------------------------- |
