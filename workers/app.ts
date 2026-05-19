@@ -85,7 +85,7 @@ export default {
             statusText: res.statusText,
             headers: new Headers({
               ...Object.fromEntries(headers),
-              'Cache-Control': `public, max-age=${ttl}`,
+              'Cache-Control': `public, max-age=${ttl}, stale-if-error=0`,
             }),
           })
           ctx.waitUntil(cache.put(cacheKey, toStore))
