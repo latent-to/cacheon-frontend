@@ -23,6 +23,13 @@ type EvalFilter = 'all' | 'active' | 'dq'
 type SortDir = 'desc' | 'asc'
 type SortKey = 'score' | 'ttft_improvement' | 'throughput_improvement' | 'token_match_rate'
 
+const TOKEN_MATCH_DQ_THRESHOLD = 0.25
+
+/** Treat as DQ if the API flagged it OR if token match is below 25%. */
+function isEffectiveDq(e: EvaluationRecord): boolean {
+  return e.disqualified || e.token_match_rate < TOKEN_MATCH_DQ_THRESHOLD
+}
+
 export function EvaluationsSection() {
   const [filter, setFilter] = useState<EvalFilter>('all')
   const [sortKey, setSortKey] = useState<SortKey>('score')
@@ -33,9 +40,9 @@ export function EvaluationsSection() {
   const allEvals = evals.data?.evaluations ?? []
   const filtered =
     filter === 'active'
-      ? allEvals.filter((e) => !e.disqualified)
+      ? allEvals.filter((e) => !isEffectiveDq(e))
       : filter === 'dq'
-        ? allEvals.filter((e) => e.disqualified)
+        ? allEvals.filter((e) => isEffectiveDq(e))
         : allEvals
   const list = [...filtered].sort((a, b) =>
     sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey],
@@ -58,8 +65,8 @@ export function EvaluationsSection() {
             ? f === 'all'
               ? allEvals.length
               : f === 'active'
-                ? allEvals.filter((e) => !e.disqualified).length
-                : allEvals.filter((e) => e.disqualified).length
+                ? allEvals.filter((e) => !isEffectiveDq(e)).length
+                : allEvals.filter((e) => isEffectiveDq(e)).length
             : null
           return (
             <button
@@ -222,7 +229,7 @@ function SortableHeader({
 }
 
 function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: number) => void }) {
-  const dq = ev.disqualified
+  const dq = isEffectiveDq(ev)
   return (
     <tr
       className={cn(
@@ -357,13 +364,16 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                 <MiniStat label="Token Match" value={fmtPct(ev.token_match_rate)} />
               </div>
 
-              {ev.disqualified && (
+              {isEffectiveDq(ev) && (
                 <div className="border-error/30 bg-error/10 rounded-lg border px-4 py-3">
                   <div className="text-2xs tracking-caps text-error mb-1 font-mono font-bold uppercase">
                     Disqualified
                   </div>
                   <div className="text-sm2 text-error/80 font-mono">
-                    {ev.disqualify_reason || 'No reason provided'}
+                    {ev.disqualify_reason ||
+                      (!ev.disqualified && ev.token_match_rate < TOKEN_MATCH_DQ_THRESHOLD
+                        ? `Token match rate ${(ev.token_match_rate * 100).toFixed(1)}% is below the 25% threshold`
+                        : 'No reason provided')}
                   </div>
                 </div>
               )}
@@ -436,13 +446,13 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                             {relativeTimeAgo(e.evaluated_at)} · Block #{e.evaluation_block}
                           </span>
                         </div>
-                        <span className={e.disqualified ? 'text-error/60' : 'text-accent'}>
+                        <span className={isEffectiveDq(e) ? 'text-error/60' : 'text-accent'}>
                           {fmtScore(e.score)}
                         </span>
                         <span className="justify-self-start sm:justify-self-end">
                           <StatusPill
-                            active={!e.disqualified}
-                            label={e.disqualified ? 'DQ' : 'SCORED'}
+                            active={!isEffectiveDq(e)}
+                            label={isEffectiveDq(e) ? 'DQ' : 'SCORED'}
                           />
                         </span>
                       </div>
