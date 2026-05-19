@@ -140,6 +140,12 @@ export interface EvalProgressStep {
   [key: string]: unknown
 }
 
+export interface EvalProgressIncumbent {
+  uid: number
+  hotkey: string
+  image: string
+}
+
 export interface EvalProgressResponse {
   status: 'idle' | 'running'
   phase?: string
@@ -147,6 +153,8 @@ export interface EvalProgressResponse {
   round_block?: number
   current_idx?: number | null
   challengers?: EvalProgressChallenger[]
+  leader?: EvalProgressIncumbent | null
+  runner_up?: EvalProgressIncumbent | null
   gpu?: {
     provider?: string
     pod_id?: string
