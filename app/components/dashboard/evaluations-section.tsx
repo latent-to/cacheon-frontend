@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ArrowDown, ArrowUp } from 'lucide-react'
 
 import { cn } from '~/lib/cn'
 import { usePoll } from '~/lib/use-poll'
@@ -19,19 +20,35 @@ import { CopyButton } from '~/components/ui/copy-button'
 import { CloseButton } from '~/components/ui/close-button'
 
 type EvalFilter = 'all' | 'active' | 'dq'
+type SortDir = 'desc' | 'asc'
+type SortKey = 'score' | 'ttft_improvement' | 'throughput_improvement' | 'token_match_rate'
 
 export function EvaluationsSection() {
   const [filter, setFilter] = useState<EvalFilter>('all')
+  const [sortKey, setSortKey] = useState<SortKey>('score')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [selectedUid, setSelectedUid] = useState<number | null>(null)
 
   const evals = usePoll(fetchEvaluations, 30_000)
   const allEvals = evals.data?.evaluations ?? []
-  const list =
+  const filtered =
     filter === 'active'
       ? allEvals.filter((e) => !e.disqualified)
       : filter === 'dq'
         ? allEvals.filter((e) => e.disqualified)
         : allEvals
+  const list = [...filtered].sort((a, b) =>
+    sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey],
+  )
+
+  const handleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))
+    } else {
+      setSortKey(key)
+      setSortDir('desc')
+    }
+  }
 
   return (
     <section>
@@ -104,18 +121,38 @@ export function EvaluationsSection() {
                 <th className="text-2xs tracking-caps text-secondary/40 px-3 py-2.5 text-left font-semibold uppercase">
                   Image
                 </th>
-                <th className="text-2xs tracking-caps text-secondary/40 w-20 px-3 py-2.5 text-right font-semibold uppercase">
-                  Score
-                </th>
-                <th className="text-2xs tracking-caps text-secondary/40 w-16 px-3 py-2.5 text-right font-semibold uppercase">
-                  TTFT
-                </th>
-                <th className="text-2xs tracking-caps text-secondary/40 w-16 px-3 py-2.5 text-right font-semibold uppercase">
-                  TPS
-                </th>
-                <th className="text-2xs tracking-caps text-secondary/40 w-16 px-3 py-2.5 text-right font-semibold uppercase">
-                  Match
-                </th>
+                <SortableHeader
+                  label="Score"
+                  sortKey="score"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  className="w-20"
+                />
+                <SortableHeader
+                  label="TTFT"
+                  sortKey="ttft_improvement"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  className="w-16"
+                />
+                <SortableHeader
+                  label="TPS"
+                  sortKey="throughput_improvement"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  className="w-16"
+                />
+                <SortableHeader
+                  label="Match"
+                  sortKey="token_match_rate"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  className="w-16"
+                />
                 <th className="text-2xs tracking-caps text-secondary/40 w-24 px-4 py-2.5 text-right font-semibold uppercase">
                   Status
                 </th>
@@ -138,6 +175,49 @@ export function EvaluationsSection() {
         <EvalDetailDrawer uid={selectedUid} onClose={() => setSelectedUid(null)} />
       )}
     </section>
+  )
+}
+
+function SortableHeader({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+  className,
+}: {
+  label: string
+  sortKey: SortKey
+  activeKey: SortKey
+  dir: SortDir
+  onSort: (key: SortKey) => void
+  className?: string
+}) {
+  const isActive = activeKey === sortKey
+  const Arrow = dir === 'desc' ? ArrowDown : ArrowUp
+  return (
+    <th
+      className={cn('px-3 py-2.5 text-right', className)}
+      aria-sort={isActive ? (dir === 'desc' ? 'descending' : 'ascending') : 'none'}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        aria-label={`Sort by ${label} ${isActive && dir === 'desc' ? 'ascending' : 'descending'}`}
+        className={cn(
+          'text-2xs tracking-caps inline-flex cursor-pointer items-center gap-1 font-mono font-semibold uppercase transition-colors',
+          isActive ? 'text-secondary' : 'text-secondary/40 hover:text-secondary/70',
+        )}
+      >
+        {label}
+        <Arrow
+          size={11}
+          strokeWidth={2.5}
+          className={cn('transition-opacity', isActive ? 'text-accent' : 'opacity-0')}
+          aria-hidden
+        />
+      </button>
+    </th>
   )
 }
 
