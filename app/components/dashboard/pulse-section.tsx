@@ -16,6 +16,8 @@ import {
   Clock,
   ChevronDown,
   ChevronRight,
+  Crown,
+  Medal,
 } from 'lucide-react'
 import { cn } from '~/lib/cn'
 import { usePoll } from '~/lib/use-poll'
@@ -150,6 +152,8 @@ const PHASE_META: Record<string, { label: string; icon: ReactNode }> = {
   baseline_complete: { label: 'Baseline complete', icon: <Check size={13} strokeWidth={1.5} /> },
   challenger_eval: { label: 'Evaluating challengers', icon: <Zap size={13} strokeWidth={1.5} /> },
   eval_complete: { label: 'Eval complete', icon: <Award size={13} strokeWidth={1.5} /> },
+  leader_running: { label: 'Leader running', icon: <Crown size={13} strokeWidth={1.5} /> },
+  runner_up_running: { label: 'Runner-up running', icon: <Medal size={13} strokeWidth={1.5} /> },
 }
 
 function phaseLabel(phase: string | undefined, detail?: string | null): string {
@@ -228,6 +232,33 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
   const pingColor = stale ? 'bg-warning/50' : 'bg-accent/50'
   const dotColor = stale ? 'bg-warning' : 'bg-accent'
 
+  // Build ordered list matching GPU eval order: leader → runner_up → challengers
+  const incumbents: EvalProgressChallenger[] = [
+    ...(progress.leader
+      ? [
+          {
+            idx: -2,
+            uid: progress.leader.uid,
+            hotkey: progress.leader.hotkey,
+            image: progress.leader.image,
+            status: 'pending' as const,
+          },
+        ]
+      : []),
+    ...(progress.runner_up
+      ? [
+          {
+            idx: -1,
+            uid: progress.runner_up.uid,
+            hotkey: progress.runner_up.hotkey,
+            image: progress.runner_up.image,
+            status: 'pending' as const,
+          },
+        ]
+      : []),
+  ]
+  const allRows = [...incumbents, ...challengers]
+
   const completed = challengers.filter(
     (c) => c.status === 'scored' || c.status === 'dq' || c.status === 'skipped',
   )
@@ -294,15 +325,15 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
         </div>
       )}
 
-      {/* Challenger list */}
-      {challengers.length > 0 && (
+      {/* Eval list: leader → runner_up → challengers (GPU eval order) */}
+      {allRows.length > 0 && (
         <div className="border-t border-white/[0.04]">
-          {challengers.map((c, i) => (
+          {allRows.map((c, i) => (
             <ChallengerRow
               key={c.idx}
               challenger={c}
               active={c.idx === progress.current_idx}
-              last={i === challengers.length - 1}
+              last={i === allRows.length - 1}
             />
           ))}
         </div>
@@ -327,6 +358,8 @@ function ChallengerRow({
 }) {
   const style = CHALLENGER_STYLES[c.status] ?? CHALLENGER_STYLES.pending
   const isLive = c.status === 'pulling' || c.status === 'started' || c.status === 'evaluating'
+  const isLeader = c.idx === -2
+  const isRunnerUp = c.idx === -1
 
   return (
     <div
@@ -390,7 +423,19 @@ function ChallengerRow({
           style.text,
         )}
       >
-        {style.label}
+        {isLeader ? (
+          <>
+            <Crown size={13} className="text-accent mr-1 mb-[2px] shrink-0 opacity-80" />
+            Leader
+          </>
+        ) : isRunnerUp ? (
+          <>
+            <Medal size={13} className="text-secondary/50 mr-1 mb-[2px] shrink-0" />
+            Runner Up
+          </>
+        ) : (
+          style.label
+        )}
       </span>
     </div>
   )
