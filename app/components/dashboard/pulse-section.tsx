@@ -22,7 +22,6 @@ import {
 import { cn } from '~/lib/cn'
 import { usePoll } from '~/lib/use-poll'
 import {
-  fetchHealth,
   fetchStatus,
   fetchEvalProgress,
   type EvalProgressResponse,
@@ -64,12 +63,26 @@ function LastEvalValue({ ts }: { ts: number | null | undefined }) {
 }
 
 export function PulseSection() {
-  const health = usePoll(fetchHealth, 10_000)
   const status = usePoll(fetchStatus, 30_000)
   const progress = usePoll(fetchEvalProgress, 10_000)
   const [, setTick] = useState(0)
 
-  const alive = health.loading ? null : !health.error
+  // Derive API liveness from the two polls we already run.
+  // - null  = still loading (no answer yet from either)
+  // - true  = at least one returned data, or both are only rate-limited (API is up)
+  // - false = both failed with a hard error (network down or server truly unreachable)
+  const alive: boolean | null = (() => {
+    const bothPending = status.loading && progress.loading
+    if (bothPending) return null
+    if (status.data != null || progress.data != null) return true
+    // If every failure is just a rate-limit the API is reachable.
+    const allRateLimited =
+      (status.error == null || status.rateLimited) &&
+      (progress.error == null || progress.rateLimited)
+    if (allRateLimited) return true
+    return false
+  })()
+
   const s = status.data
 
   useEffect(() => {
@@ -83,7 +96,13 @@ export function PulseSection() {
       <div className="mb-6 flex items-center gap-3">
         <StatusDot alive={alive} />
         <h3 className="text-secondary font-mono text-sm font-semibold tracking-[0.12em] uppercase">
-          {alive === null ? 'Connecting...' : alive ? 'API Online' : 'API Unreachable'}
+          {alive === null
+            ? 'Connecting...'
+            : alive
+              ? 'API Online'
+              : status.rateLimited || progress.rateLimited
+                ? 'API Busy'
+                : 'API Unreachable'}
         </h3>
       </div>
 

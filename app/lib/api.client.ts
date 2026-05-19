@@ -1,14 +1,26 @@
 const API_BASE = '/proxy-api'
 
+export class ApiError extends Error {
+  readonly status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+  get isRateLimit() {
+    return this.status === 429
+  }
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`)
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`)
   return res.json() as Promise<T>
 }
 
 async function getText(path: string): Promise<string> {
   const res = await fetch(`${API_BASE}${path}`)
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`)
   return res.text()
 }
 
@@ -48,6 +60,7 @@ export interface LeaderRecord {
 
 export interface LeaderResponse {
   leader: LeaderRecord | null
+  runner_up: LeaderRecord | null
   message?: string
 }
 
