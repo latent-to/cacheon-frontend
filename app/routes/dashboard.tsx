@@ -7,7 +7,7 @@ import { cn } from '~/lib/cn'
 
 export function meta(_: Route.MetaArgs) {
   return [
-    { title: 'Mainnet (Dry Run) Dashboard · Cacheon' },
+    { title: 'Dashboard · Cacheon' },
     {
       name: 'description',
       content: 'Live monitoring dashboard for the Cacheon inference arena.',
@@ -18,7 +18,7 @@ export function meta(_: Route.MetaArgs) {
 export default function DashboardLayout() {
   const tabCls = ({ isActive }: { isActive: boolean }) =>
     cn(
-      'cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1.5 font-mono text-xs font-semibold uppercase tracking-[0.12em] no-underline transition-colors',
+      'cursor-pointer whitespace-nowrap rounded-md px-3 py-1.5 font-mono text-[0.8rem] font-semibold uppercase tracking-[0.12em] no-underline transition-colors',
       isActive
         ? 'bg-accent/12 text-accent'
         : 'text-secondary hover:bg-white/[0.03] hover:text-primary',
@@ -28,9 +28,9 @@ export default function DashboardLayout() {
     <>
       <Nav />
       <main className="mx-auto max-w-6xl px-6 pt-24 pb-20">
-        <div className="mb-8">
-          <h1 className="text-primary font-mono text-[clamp(1.6rem,3.4vw,2.2rem)] leading-[1.15] font-bold tracking-tight">
-            Mainnet (Dry Run) Dashboard
+        <div className="mb-6">
+          <h1 className="text-primary font-mono text-[clamp(1.1rem,2vw,1.4rem)] leading-[1.2] font-semibold tracking-tight">
+            Mainnet Dashboard
           </h1>
         </div>
 
