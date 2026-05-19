@@ -232,6 +232,14 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
   const pingColor = stale ? 'bg-warning/50' : 'bg-accent/50'
   const dotColor = stale ? 'bg-warning' : 'bg-accent'
 
+  function incumbentStatus(idx: number): EvalProgressChallenger['status'] {
+    const cur = progress.current_idx
+    if (cur == null) return 'pending'
+    if (cur > idx) return 'scored'
+    if (cur === idx) return 'evaluating'
+    return 'pending'
+  }
+
   // Build ordered list matching GPU eval order: leader → runner_up → challengers
   const incumbents: EvalProgressChallenger[] = [
     ...(progress.leader
@@ -241,7 +249,7 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
             uid: progress.leader.uid,
             hotkey: progress.leader.hotkey,
             image: progress.leader.image,
-            status: 'pending' as const,
+            status: incumbentStatus(-2),
           },
         ]
       : []),
@@ -252,7 +260,7 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
             uid: progress.runner_up.uid,
             hotkey: progress.runner_up.hotkey,
             image: progress.runner_up.image,
-            status: 'pending' as const,
+            status: incumbentStatus(-1),
           },
         ]
       : []),
@@ -423,19 +431,9 @@ function ChallengerRow({
           style.text,
         )}
       >
-        {isLeader ? (
-          <>
-            <Crown size={13} className="text-accent mr-1 mb-[2px] shrink-0 opacity-80" />
-            Leader
-          </>
-        ) : isRunnerUp ? (
-          <>
-            <Medal size={13} className="text-secondary/50 mr-1 mb-[2px] shrink-0" />
-            Runner Up
-          </>
-        ) : (
-          style.label
-        )}
+        {isLeader && <Crown size={13} className="text-accent mr-1 mb-[2px] shrink-0 opacity-80" />}
+        {isRunnerUp && <Medal size={13} className="text-secondary/50 mr-1 mb-[2px] shrink-0" />}
+        {style.label}
       </span>
     </div>
   )
