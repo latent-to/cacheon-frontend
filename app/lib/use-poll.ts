@@ -29,8 +29,12 @@ export function usePoll<T>(fetcher: () => Promise<T>, intervalMs: number): PollS
       if (mounted.current) {
         const isRL = e instanceof ApiError && e.isRateLimit
         setRateLimited(isRL)
-        // On a rate-limit, keep the previous data visible; only clear on a real error.
-        if (!isRL) setError(e instanceof Error ? e.message : String(e))
+        if (isRL) {
+          // Rate-limit: API is alive, keep previous data and clear any stale hard error.
+          setError(null)
+        } else {
+          setError(e instanceof Error ? e.message : String(e))
+        }
       }
     } finally {
       if (mounted.current) setLoading(false)
