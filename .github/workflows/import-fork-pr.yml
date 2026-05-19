@@ -1,0 +1,77 @@
+name: Import fork PR
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  import:
+    if: >-
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/import') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Check exact /import command
+        id: check
+        env:
+          COMMENT: ${{ github.event.comment.body }}
+        run: |
+          # Require /import at the start of a line, followed by whitespace or end of string.
+          # This rejects /imports, /important, /importing, etc.
+          if echo "$COMMENT" | grep -qP '(?m)^/import(\s|$)'; then
+            echo "is_import=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_import=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.check.outputs.is_import == 'true'
+        with:
+          fetch-depth: 0
+
+      - name: Fetch fork branch and create internal PR
+        if: steps.check.outputs.is_import == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ github.event.issue.number }}"
+          PR_JSON=$(gh pr view "$PR_NUMBER" --json headRefName,headRepositoryOwner,headRepository,title,body,author)
+
+          FORK_OWNER=$(echo "$PR_JSON" | jq -r '.headRepositoryOwner.login')
+          FORK_REPO=$(echo "$PR_JSON" | jq -r '.headRepository.name')
+          HEAD_REF=$(echo "$PR_JSON" | jq -r '.headRefName')
+          PR_TITLE=$(echo "$PR_JSON" | jq -r '.title')
+          PR_BODY=$(echo "$PR_JSON" | jq -r '.body // ""')
+          PR_AUTHOR=$(echo "$PR_JSON" | jq -r '.author.login')
+
+          INTERNAL_BRANCH="contrib/${FORK_OWNER}/${HEAD_REF}"
+
+          if git ls-remote --exit-code origin "refs/heads/${INTERNAL_BRANCH}" >/dev/null 2>&1; then
+            gh pr comment "$PR_NUMBER" --body "Branch \`${INTERNAL_BRANCH}\` already exists. Delete it first or push updates to the fork."
+            exit 1
+          fi
+
+          git remote add fork "https://github.com/${FORK_OWNER}/${FORK_REPO}.git"
+          git fetch fork "$HEAD_REF"
+          git checkout -b "$INTERNAL_BRANCH" "fork/${HEAD_REF}"
+          git push origin "$INTERNAL_BRANCH"
+
+          BODY="${PR_BODY}
+
+          ---
+          Imported from #${PR_NUMBER} by @${PR_AUTHOR} (via \`/import\`)."
+
+          NEW_PR_URL=$(gh pr create \
+            --title "$PR_TITLE" \
+            --body "$BODY" \
+            --base main \
+            --head "$INTERNAL_BRANCH")
+
+          gh pr comment "$PR_NUMBER" \
+            --body "Imported to ${NEW_PR_URL} so all CI checks can run. Review continues there."
