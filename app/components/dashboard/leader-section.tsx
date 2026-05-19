@@ -1,7 +1,12 @@
-import { Trophy } from 'lucide-react'
+import { Trophy, Medal } from 'lucide-react'
 import { cn } from '~/lib/cn'
 import { usePoll } from '~/lib/use-poll'
-import { fetchLeader, fetchLeaderHistory, type LeaderHistoryEntry } from '~/lib/api.client'
+import {
+  fetchLeader,
+  fetchLeaderHistory,
+  type LeaderRecord,
+  type LeaderHistoryEntry,
+} from '~/lib/api.client'
 import {
   fmtScore,
   fmtImprovement,
@@ -15,68 +20,38 @@ import {
 } from './shared'
 import { CopyButton } from '~/components/ui/copy-button'
 import { LinkButton } from '~/components/ui/link-button'
+import type { ReactNode } from 'react'
 
 export function LeaderSection() {
   const leader = usePoll(fetchLeader, 30_000)
   const history = usePoll(fetchLeaderHistory, 30_000)
 
   const l = leader.data?.leader
+  const ru = leader.data?.runner_up
 
   return (
     <section>
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-        <GlassCard className="p-6">
-          <div className="text-2xs tracking-caps text-secondary mb-4 font-mono font-semibold uppercase">
-            Current Leader
-          </div>
-          {leader.loading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-8 w-40" />
-              <Skeleton className="h-4 w-56" />
-              <Skeleton className="h-4 w-48" />
-            </div>
-          ) : leader.error ? (
-            <p className="text-secondary/60 font-mono text-sm">Could not load data</p>
-          ) : !l ? (
-            <p className="text-secondary/60 font-mono text-sm">No leader yet</p>
-          ) : (
-            <>
-              <div className="mb-4 flex items-center gap-3">
-                <span className="drop-shadow-[0_0_8px_var(--accent-glow)]">
-                  <Trophy size={28} strokeWidth={1.5} className="text-accent" />
-                </span>
-                <span className="text-accent font-mono text-3xl font-black tracking-tight">
-                  {truncHotkey(l.hotkey)}
-                </span>
-              </div>
-
-              <div className="text-sm2 mb-4 space-y-1.5 font-mono">
-                <div className="flex gap-2">
-                  <span className="text-secondary/50">UID</span>
-                  <span className="text-secondary">{l.uid}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-secondary/50 shrink-0">Image</span>
-                  <ImageTag image={l.image} />
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-secondary/50 shrink-0">Won</span>
-                  <div className="text-sm2 flex min-w-0 flex-col gap-0.5 font-mono">
-                    <span className="text-primary">{relativeTimeAgo(l.evaluated_at)}</span>
-                    <span className="text-secondary/45 text-xs">Block #{l.won_at_block}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <MiniStat label="Score" value={fmtScore(l.score)} accent />
-                <MiniStat label="TTFT" value={fmtImprovement(l.ttft_improvement)} />
-                <MiniStat label="Throughput" value={fmtImprovement(l.throughput_improvement)} />
-                <MiniStat label="Token Match" value={fmtPct(l.token_match_rate)} />
-              </div>
-            </>
-          )}
-        </GlassCard>
+        <div className="flex flex-col gap-6">
+          <RankCard
+            title="Current Leader"
+            icon={<Trophy size={24} strokeWidth={1.5} className="text-accent" />}
+            iconGlow
+            record={l}
+            loading={leader.loading}
+            error={!!leader.error}
+            emptyText="No leader yet"
+            accent
+          />
+          <RankCard
+            title="Runner-up"
+            icon={<Medal size={24} strokeWidth={1.5} className="text-secondary/60" />}
+            record={ru}
+            loading={leader.loading}
+            error={!!leader.error}
+            emptyText="No runner-up yet"
+          />
+        </div>
 
         <GlassCard className="p-6">
           <div className="text-2xs tracking-caps text-secondary mb-4 font-mono font-semibold uppercase">
@@ -103,6 +78,86 @@ export function LeaderSection() {
         </GlassCard>
       </div>
     </section>
+  )
+}
+
+function RankCard({
+  title,
+  icon,
+  iconGlow,
+  record,
+  loading,
+  error,
+  emptyText,
+  accent,
+}: {
+  title: string
+  icon: ReactNode
+  iconGlow?: boolean
+  record: LeaderRecord | null | undefined
+  loading: boolean
+  error: boolean
+  emptyText: string
+  accent?: boolean
+}) {
+  return (
+    <GlassCard className="p-6">
+      <div className="text-2xs tracking-caps text-secondary mb-4 font-mono font-semibold uppercase">
+        {title}
+      </div>
+      {loading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-4 w-56" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+      ) : error ? (
+        <p className="text-secondary/60 font-mono text-sm">Could not load data</p>
+      ) : !record ? (
+        <p className="text-secondary/60 font-mono text-sm">{emptyText}</p>
+      ) : (
+        <>
+          <div className="mb-4 flex items-center gap-3">
+            <span className={iconGlow ? 'drop-shadow-[0_0_8px_var(--accent-glow)]' : ''}>
+              {icon}
+            </span>
+            <span
+              className={cn(
+                'font-mono text-3xl font-black tracking-tight',
+                accent ? 'text-accent' : 'text-primary',
+              )}
+            >
+              {truncHotkey(record.hotkey)}
+            </span>
+          </div>
+
+          <div className="text-sm2 mb-4 space-y-1.5 font-mono">
+            <div className="flex gap-2">
+              <span className="text-secondary/50">UID</span>
+              <span className="text-secondary">{record.uid}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-secondary/50 shrink-0">Image</span>
+              <ImageTag image={record.image} />
+            </div>
+            <div className="flex gap-2">
+              <span className="text-secondary/50 shrink-0">Won</span>
+              <div className="text-sm2 flex min-w-0 flex-col gap-0.5 font-mono">
+                <span className="text-primary">{relativeTimeAgo(record.evaluated_at)}</span>
+                <span className="text-secondary/45 text-xs">Block #{record.won_at_block}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <MiniStat label="Score" value={fmtScore(record.score)} accent={accent} />
+            <MiniStat label="TTFT" value={fmtImprovement(record.ttft_improvement)} />
+            <MiniStat label="Throughput" value={fmtImprovement(record.throughput_improvement)} />
+            <MiniStat label="Token Match" value={fmtPct(record.token_match_rate)} />
+          </div>
+        </>
+      )}
+    </GlassCard>
   )
 }
 

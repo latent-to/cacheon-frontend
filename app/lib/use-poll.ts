@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ApiError } from './api.client'
 
-export function usePoll<T>(
-  fetcher: () => Promise<T>,
-  intervalMs: number,
-): { data: T | null; error: string | null; loading: boolean; refetch: () => void } {
+export interface PollState<T> {
+  data: T | null
+  error: string | null
+  /** True when the last failure was an HTTP 429 (rate-limited), not a real outage. */
+  rateLimited: boolean
+  loading: boolean
+  refetch: () => void
+}
+
+export function usePoll<T>(fetcher: () => Promise<T>, intervalMs: number): PollState<T> {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [rateLimited, setRateLimited] = useState(false)
   const [loading, setLoading] = useState(true)
   const mounted = useRef(true)
 
@@ -15,9 +23,15 @@ export function usePoll<T>(
       if (mounted.current) {
         setData(result)
         setError(null)
+        setRateLimited(false)
       }
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : String(e))
+      if (mounted.current) {
+        const isRL = e instanceof ApiError && e.isRateLimit
+        setRateLimited(isRL)
+        // On a rate-limit, keep the previous data visible; only clear on a real error.
+        if (!isRL) setError(e instanceof Error ? e.message : String(e))
+      }
     } finally {
       if (mounted.current) setLoading(false)
     }
@@ -33,5 +47,5 @@ export function usePoll<T>(
     }
   }, [run, intervalMs])
 
-  return { data, error, loading, refetch: run }
+  return { data, error, rateLimited, loading, refetch: run }
 }
