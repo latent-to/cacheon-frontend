@@ -5,9 +5,9 @@ description: CPU validator loop, GPU eval entrypoint, S3 handoff, challenger det
 
 ## Validator main loop
 
-The CPU validator loops in `validator/cpu_validator.py`. Operators usually run it in Docker Compose (`validator/docker-compose.yml`, image from `validator/Dockerfile.cpu`); alternatively you can run `python -m validator.cpu_validator` on the host with the same env and mounts.
+The CPU validator loop lives in `validator/cpu_validator.py`. Operators usually run it through Docker Compose `validator/docker-compose.yml`, using the image built from `validator/Dockerfile.cpu`. Alternatively you can also run it directly on the host with `python -m validator.cpu_validator` while using the same environment variables and mounts.
 
-Between ticks the process sleeps for `poll_interval`, from `CACHEON_POLL_INTERVAL_S` or `--poll-interval`. The bundled Compose file passes a default of `600` seconds when that variable is unset.
+Between ticks, the process sleeps for `poll_interval`, configured through `CACHEON_POLL_INTERVAL_S` or `--poll-interval`. The bundled Compose setup defaults to `600` seconds when that variable is unset.
 
 ```py
 while True:
@@ -47,7 +47,7 @@ Weight setting triggers in three situations:
 
 ## GPU eval entrypoint
 
-The GPU host runs `validator/gpu_eval.py` as a one-shot job, usually from the image built by `validator/Dockerfile.gpu` and started with `validator/gpu-compose.yml`. Compose mounts the host Docker socket so the runner can start baseline and miner containers for each challenger (`evaluate_in_docker` in the pseudocode below). No Bittensor dependency.
+The GPU host runs `validator/gpu_eval.py` as a one-shot job, usually from the image built by `validator/Dockerfile.gpu` and started with `validator/gpu-compose.yml`. Docker Compose mounts the host Docker socket so the runner can start baseline and miner containers for each challenger (`evaluate_in_docker` in the pseudocode below). This component has no Bittensor dependency.
 
 ```py
 s3_download(state_dir)
