@@ -129,9 +129,11 @@ export function PulseSection() {
         <EvalProgressBanner progress={progress.data} />
       )}
 
-      {progress.data?.status !== 'running' && evalJob.data?.eval_job && evalJob.data.eval_job.challengers.length > 0 && (
-        <EvalPendingBanner job={evalJob.data.eval_job} />
-      )}
+      {progress.data?.status !== 'running' &&
+        evalJob.data?.eval_job &&
+        evalJob.data.eval_job.challengers.length > 0 && (
+          <EvalPendingBanner job={evalJob.data.eval_job} />
+        )}
     </section>
   )
 }
@@ -534,7 +536,7 @@ function EvalPendingBanner({ job }: { job: NonNullable<EvalJobResponse['eval_job
                 )}
               </div>
 
-              <span className="text-secondary/40 shrink-0 font-mono text-xs uppercase tracking-[0.1em]">
+              <span className="text-secondary/40 shrink-0 font-mono text-xs tracking-[0.1em] uppercase">
                 Queued
               </span>
             </div>
