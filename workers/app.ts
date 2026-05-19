@@ -61,7 +61,11 @@ export default {
           const h = new Headers(cached.headers)
           h.set('access-control-allow-origin', '*')
           h.set('x-cache', 'HIT')
-          return new Response(cached.body, { status: cached.status, statusText: cached.statusText, headers: h })
+          return new Response(cached.body, {
+            status: cached.status,
+            statusText: cached.statusText,
+            headers: h,
+          })
         }
 
         const res = await fetch(target, {
@@ -79,7 +83,10 @@ export default {
           const toStore = new Response(res.clone().body, {
             status: res.status,
             statusText: res.statusText,
-            headers: new Headers({ ...Object.fromEntries(headers), 'Cache-Control': `public, max-age=${ttl}` }),
+            headers: new Headers({
+              ...Object.fromEntries(headers),
+              'Cache-Control': `public, max-age=${ttl}`,
+            }),
           })
           ctx.waitUntil(cache.put(cacheKey, toStore))
         }
