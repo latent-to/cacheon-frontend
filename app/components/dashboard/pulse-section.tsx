@@ -17,11 +17,12 @@ import {
   ChevronDown,
   ChevronRight,
   Hourglass,
+  Crown,
+  Medal,
 } from 'lucide-react'
 import { cn } from '~/lib/cn'
 import { usePoll } from '~/lib/use-poll'
 import {
-  fetchHealth,
   fetchStatus,
   fetchEvalProgress,
   fetchEvalJob,
@@ -65,13 +66,27 @@ function LastEvalValue({ ts }: { ts: number | null | undefined }) {
 }
 
 export function PulseSection() {
-  const health = usePoll(fetchHealth, 10_000)
   const status = usePoll(fetchStatus, 30_000)
   const progress = usePoll(fetchEvalProgress, 10_000)
   const evalJob = usePoll(fetchEvalJob, 30_000)
   const [, setTick] = useState(0)
 
-  const alive = health.loading ? null : !health.error
+  // Derive API liveness from the two polls we already run.
+  // - null  = still loading (no answer yet from either)
+  // - true  = at least one returned data, or both are only rate-limited (API is up)
+  // - false = both failed with a hard error (network down or server truly unreachable)
+  const alive: boolean | null = (() => {
+    const bothPending = status.loading && progress.loading
+    if (bothPending) return null
+    if (status.data != null || progress.data != null) return true
+    // If every failure is just a rate-limit the API is reachable.
+    const allRateLimited =
+      (status.error == null || status.rateLimited) &&
+      (progress.error == null || progress.rateLimited)
+    if (allRateLimited) return true
+    return false
+  })()
+
   const s = status.data
 
   useEffect(() => {
@@ -85,7 +100,13 @@ export function PulseSection() {
       <div className="mb-6 flex items-center gap-3">
         <StatusDot alive={alive} />
         <h3 className="text-secondary font-mono text-sm font-semibold tracking-[0.12em] uppercase">
-          {alive === null ? 'Connecting...' : alive ? 'API Online' : 'API Unreachable'}
+          {alive === null
+            ? 'Connecting...'
+            : alive
+              ? 'API Online'
+              : status.rateLimited || progress.rateLimited
+                ? 'API Busy'
+                : 'API Unreachable'}
         </h3>
       </div>
 
@@ -160,6 +181,8 @@ const PHASE_META: Record<string, { label: string; icon: ReactNode }> = {
   baseline_complete: { label: 'Baseline complete', icon: <Check size={13} strokeWidth={1.5} /> },
   challenger_eval: { label: 'Evaluating challengers', icon: <Zap size={13} strokeWidth={1.5} /> },
   eval_complete: { label: 'Eval complete', icon: <Award size={13} strokeWidth={1.5} /> },
+  leader_running: { label: 'Leader running', icon: <Crown size={13} strokeWidth={1.5} /> },
+  runner_up_running: { label: 'Runner-up running', icon: <Medal size={13} strokeWidth={1.5} /> },
 }
 
 function phaseLabel(phase: string | undefined, detail?: string | null): string {
@@ -238,6 +261,41 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
   const pingColor = stale ? 'bg-warning/50' : 'bg-accent/50'
   const dotColor = stale ? 'bg-warning' : 'bg-accent'
 
+  function incumbentStatus(idx: number): EvalProgressChallenger['status'] {
+    const cur = progress.current_idx
+    if (cur == null) return 'pending'
+    if (cur > idx) return 'scored'
+    if (cur === idx) return 'evaluating'
+    return 'pending'
+  }
+
+  // Build ordered list matching GPU eval order: leader → runner_up → challengers
+  const incumbents: EvalProgressChallenger[] = [
+    ...(progress.leader
+      ? [
+          {
+            idx: -2,
+            uid: progress.leader.uid,
+            hotkey: progress.leader.hotkey,
+            image: progress.leader.image,
+            status: incumbentStatus(-2),
+          },
+        ]
+      : []),
+    ...(progress.runner_up
+      ? [
+          {
+            idx: -1,
+            uid: progress.runner_up.uid,
+            hotkey: progress.runner_up.hotkey,
+            image: progress.runner_up.image,
+            status: incumbentStatus(-1),
+          },
+        ]
+      : []),
+  ]
+  const allRows = [...incumbents, ...challengers]
+
   const completed = challengers.filter(
     (c) => c.status === 'scored' || c.status === 'dq' || c.status === 'skipped',
   )
@@ -304,15 +362,15 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
         </div>
       )}
 
-      {/* Challenger list */}
-      {challengers.length > 0 && (
+      {/* Eval list: leader → runner_up → challengers (GPU eval order) */}
+      {allRows.length > 0 && (
         <div className="border-t border-white/[0.04]">
-          {challengers.map((c, i) => (
+          {allRows.map((c, i) => (
             <ChallengerRow
               key={c.idx}
               challenger={c}
               active={c.idx === progress.current_idx}
-              last={i === challengers.length - 1}
+              last={i === allRows.length - 1}
             />
           ))}
         </div>
@@ -337,6 +395,8 @@ function ChallengerRow({
 }) {
   const style = CHALLENGER_STYLES[c.status] ?? CHALLENGER_STYLES.pending
   const isLive = c.status === 'pulling' || c.status === 'started' || c.status === 'evaluating'
+  const isLeader = c.idx === -2
+  const isRunnerUp = c.idx === -1
 
   return (
     <div
@@ -400,6 +460,8 @@ function ChallengerRow({
           style.text,
         )}
       >
+        {isLeader && <Crown size={13} className="text-accent mr-1 mb-[2px] shrink-0 opacity-80" />}
+        {isRunnerUp && <Medal size={13} className="text-secondary/50 mr-1 mb-[2px] shrink-0" />}
         {style.label}
       </span>
     </div>

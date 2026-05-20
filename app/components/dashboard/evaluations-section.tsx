@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ArrowDown, ArrowUp } from 'lucide-react'
 
 import { cn } from '~/lib/cn'
 import { usePoll } from '~/lib/use-poll'
@@ -19,19 +20,42 @@ import { CopyButton } from '~/components/ui/copy-button'
 import { CloseButton } from '~/components/ui/close-button'
 
 type EvalFilter = 'all' | 'active' | 'dq'
+type SortDir = 'desc' | 'asc'
+type SortKey = 'score' | 'ttft_improvement' | 'throughput_improvement' | 'token_match_rate'
+
+const TOKEN_MATCH_DQ_THRESHOLD = 0.25
+
+/** Treat as DQ if the API flagged it OR if token match is below 25%. */
+function isEffectiveDq(e: EvaluationRecord): boolean {
+  return e.disqualified || e.token_match_rate < TOKEN_MATCH_DQ_THRESHOLD
+}
 
 export function EvaluationsSection() {
   const [filter, setFilter] = useState<EvalFilter>('all')
+  const [sortKey, setSortKey] = useState<SortKey>('score')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [selectedUid, setSelectedUid] = useState<number | null>(null)
 
   const evals = usePoll(fetchEvaluations, 30_000)
   const allEvals = evals.data?.evaluations ?? []
-  const list =
+  const filtered =
     filter === 'active'
-      ? allEvals.filter((e) => !e.disqualified)
+      ? allEvals.filter((e) => !isEffectiveDq(e))
       : filter === 'dq'
-        ? allEvals.filter((e) => e.disqualified)
+        ? allEvals.filter((e) => isEffectiveDq(e))
         : allEvals
+  const list = [...filtered].sort((a, b) =>
+    sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey],
+  )
+
+  const handleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))
+    } else {
+      setSortKey(key)
+      setSortDir('desc')
+    }
+  }
 
   return (
     <section>
@@ -41,8 +65,8 @@ export function EvaluationsSection() {
             ? f === 'all'
               ? allEvals.length
               : f === 'active'
-                ? allEvals.filter((e) => !e.disqualified).length
-                : allEvals.filter((e) => e.disqualified).length
+                ? allEvals.filter((e) => !isEffectiveDq(e)).length
+                : allEvals.filter((e) => isEffectiveDq(e)).length
             : null
           return (
             <button
@@ -104,18 +128,38 @@ export function EvaluationsSection() {
                 <th className="text-2xs tracking-caps text-secondary/40 px-3 py-2.5 text-left font-semibold uppercase">
                   Image
                 </th>
-                <th className="text-2xs tracking-caps text-secondary/40 w-20 px-3 py-2.5 text-right font-semibold uppercase">
-                  Score
-                </th>
-                <th className="text-2xs tracking-caps text-secondary/40 w-16 px-3 py-2.5 text-right font-semibold uppercase">
-                  TTFT
-                </th>
-                <th className="text-2xs tracking-caps text-secondary/40 w-16 px-3 py-2.5 text-right font-semibold uppercase">
-                  TPS
-                </th>
-                <th className="text-2xs tracking-caps text-secondary/40 w-16 px-3 py-2.5 text-right font-semibold uppercase">
-                  Match
-                </th>
+                <SortableHeader
+                  label="Score"
+                  sortKey="score"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  className="w-20"
+                />
+                <SortableHeader
+                  label="TTFT"
+                  sortKey="ttft_improvement"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  className="w-16"
+                />
+                <SortableHeader
+                  label="TPS"
+                  sortKey="throughput_improvement"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  className="w-16"
+                />
+                <SortableHeader
+                  label="Match"
+                  sortKey="token_match_rate"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={handleSort}
+                  className="w-16"
+                />
                 <th className="text-2xs tracking-caps text-secondary/40 w-24 px-4 py-2.5 text-right font-semibold uppercase">
                   Status
                 </th>
@@ -141,8 +185,51 @@ export function EvaluationsSection() {
   )
 }
 
+function SortableHeader({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+  className,
+}: {
+  label: string
+  sortKey: SortKey
+  activeKey: SortKey
+  dir: SortDir
+  onSort: (key: SortKey) => void
+  className?: string
+}) {
+  const isActive = activeKey === sortKey
+  const Arrow = dir === 'desc' ? ArrowDown : ArrowUp
+  return (
+    <th
+      className={cn('px-3 py-2.5 text-right', className)}
+      aria-sort={isActive ? (dir === 'desc' ? 'descending' : 'ascending') : 'none'}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        aria-label={`Sort by ${label} ${isActive && dir === 'desc' ? 'ascending' : 'descending'}`}
+        className={cn(
+          'text-2xs tracking-caps inline-flex cursor-pointer items-center gap-1 font-mono font-semibold uppercase transition-colors',
+          isActive ? 'text-secondary' : 'text-secondary/40 hover:text-secondary/70',
+        )}
+      >
+        {label}
+        <Arrow
+          size={11}
+          strokeWidth={2.5}
+          className={cn('transition-opacity', isActive ? 'text-accent' : 'opacity-0')}
+          aria-hidden
+        />
+      </button>
+    </th>
+  )
+}
+
 function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: number) => void }) {
-  const dq = ev.disqualified
+  const dq = isEffectiveDq(ev)
   return (
     <tr
       className={cn(
@@ -277,13 +364,16 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                 <MiniStat label="Token Match" value={fmtPct(ev.token_match_rate)} />
               </div>
 
-              {ev.disqualified && (
+              {isEffectiveDq(ev) && (
                 <div className="border-error/30 bg-error/10 rounded-lg border px-4 py-3">
                   <div className="text-2xs tracking-caps text-error mb-1 font-mono font-bold uppercase">
                     Disqualified
                   </div>
                   <div className="text-sm2 text-error/80 font-mono">
-                    {ev.disqualify_reason || 'No reason provided'}
+                    {ev.disqualify_reason ||
+                      (!ev.disqualified && ev.token_match_rate < TOKEN_MATCH_DQ_THRESHOLD
+                        ? `Token match rate ${(ev.token_match_rate * 100).toFixed(1)}% is below the 25% threshold`
+                        : 'No reason provided')}
                   </div>
                 </div>
               )}
@@ -356,13 +446,13 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                             {relativeTimeAgo(e.evaluated_at)} · Block #{e.evaluation_block}
                           </span>
                         </div>
-                        <span className={e.disqualified ? 'text-error/60' : 'text-accent'}>
+                        <span className={isEffectiveDq(e) ? 'text-error/60' : 'text-accent'}>
                           {fmtScore(e.score)}
                         </span>
                         <span className="justify-self-start sm:justify-self-end">
                           <StatusPill
-                            active={!e.disqualified}
-                            label={e.disqualified ? 'DQ' : 'SCORED'}
+                            active={!isEffectiveDq(e)}
+                            label={isEffectiveDq(e) ? 'DQ' : 'SCORED'}
                           />
                         </span>
                       </div>

@@ -15,14 +15,6 @@ description: Advanced reference for running GPU eval manually on a rented pod, w
 - Hippius S3 credentials (same bucket as the validator)
 - The validator must have detected challengers and written `eval_job.json` to S3
 
-## Find an available pod
-
-```bash
-python scripts/gpu_search.py --best
-```
-
-This queries Targon and Lium and returns the cheapest available instance that meets the tier requirements (see [GPU requirements](/docs/validators/overview#gpu-requirements)). Provision the instance through the provider's UI or API, then SSH in.
-
 ## Setup script
 
 Run the following commands once on a fresh machine:
@@ -55,11 +47,23 @@ Navigate to the `cacheon/validator` directory:
 ```bash
 cd cacheon/validator
 cp .env.example .env
-# edit .env with S3 credentials and GPU-specific values
+```
+
+Then, update the required values in the `.env` file with your specific configuration. See [Validator setup](/docs/validators/setup#configuration) for more information on the environment variables.
+
+Once the file is configured, load the environment variables into your current shell session:
+
+```bash
 set -a; . .env; set +a
 ```
 
-The GPU pod needs these env vars at minimum: `HIPPIUS_ACCESS_KEY`, `HIPPIUS_SECRET_KEY`, `CACHEON_S3_BUCKET`. GPU count and baseline digest are auto-detected by the eval container. Setting `CACHEON_AUTO_RENT=1` provisions 8-GPU tier configs only; for manual operation, you must rent an 8-GPU pod (see [GPU requirements](/docs/validators/overview#gpu-requirements)).
+<Callout type="info">
+
+- The GPU pod needs these environment variables at minimum: `HIPPIUS_ACCESS_KEY`, `HIPPIUS_SECRET_KEY`, `CACHEON_S3_BUCKET`.
+- Setting `CACHEON_AUTO_RENT=1` provisions 8-GPU tier configs only; for manual operation, you must rent an 8-GPU pod (see [GPU requirements](/docs/validators/overview#gpu-requirements)).
+- The baseline digest is automatically detected by the evaluation container.
+
+</Callout>
 
 ## Run an evaluation
 

@@ -34,11 +34,10 @@ export default {
         method: 'GET',
         headers: { 'User-Agent': 'cacheon-frontend-proxy' },
       })
-      const body = res.body
       const headers = new Headers(res.headers)
       headers.delete('access-control-allow-origin')
       headers.set('access-control-allow-origin', '*')
-      return new Response(body, { status: res.status, statusText: res.statusText, headers })
+      return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
     }
 
     return requestHandler(request, {
