@@ -51,19 +51,22 @@ The GPU host runs `validator/gpu_eval.py` as a one-shot job, usually from the im
 
 ```py
 s3_download(state_dir)
-eval_job = load_eval_job()        # written by CPU
+eval_job = load_eval_job()        # written by CPU; includes current leader and runner_up
 prompts = sample_prompts(block_hash)
 baseline = run_baseline_if_needed(prompts)
 
-for challenger in eval_job.challengers:
-    result = evaluate_in_docker(challenger, prompts, baseline)
+# Leader and runner-up are re-evaluated first, then challengers.
+# All scores in a round are fresh; no cached score carries forward.
+for entry in eval_job.incumbents + eval_job.challengers:
+    result = evaluate_in_docker(entry, prompts, baseline)
     state.record_evaluation(result)
 
+state.rerank_round()   # pick winner and runner-up from this round's scores
 s3_upload(state_dir)
 exit
 ```
 
-The GPU reads `eval_job.json` (block context + challenger list), runs evaluations, writes results into `state.json`, and exits. Each challenger is saved and uploaded to S3 individually, so partial results survive pod crashes.
+The GPU reads `eval_job.json` (block context + incumbent and challenger list), runs evaluations, calls `rerank_round` to select the winner and runner-up from fresh scores, writes results into `state.json`, and exits. Each entry is saved individually so partial results survive pod crashes.
 
 ## State and S3 handoff
 
