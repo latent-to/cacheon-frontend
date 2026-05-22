@@ -43,39 +43,30 @@ Before the scored prompts, the validator sends **1-2 warmup prompts** that are d
 
 ## Correctness gate
 
-Correctness verifies that the miner serves the **exact same model with the same weights** using **greedy decoding** (`temperature=0`).
+Correctness verifies that the miner's streamed output is **plausible under the baseline model** at `temperature=0`. After phase 1 (speed), a pinned scoring vLLM image runs `prompt_logprobs` over the full prompt plus the miner's assistant text (capped at 256 tokens).
 
-Because multi-GPU tensor parallelism introduces tiny numerical differences between runs, a strict global token-match rate falsely disqualifies legitimate miners. One near-tie flip at an early token causes the entire rest of the sequence to diverge (the cascade effect).
+For each miner output token, the baseline assigns a logprob conditioned on the miner's own prefix (teacher-forcing). The prompt passes only if:
 
-Instead, the gate uses **per-prompt first-divergence analysis**:
+- **Mean logprob** across all miner tokens is above `MEAN_LOGPROB_THRESHOLD` (default `-4.0`)
+- **Min logprob** for any single token is above `MIN_LOGPROB_THRESHOLD` (default `-12.0`)
 
-1. For each prompt, the validator walks the baseline and miner outputs token-by-token until the first mismatch.
-2. If there is no mismatch, the prompt passes.
-3. If there is a mismatch, the validator checks the logprobs at that position:
-   - The baseline's token must appear in the miner's **top-5** logprobs
-   - The logprob gap between the miner's chosen token and the baseline's token must be **`<= 0.5`**
-   - The miner's chosen token must be its own **top-1** (greedy decoding verification)
-4. If all three hold, the divergence is classified as tensor-parallel numerical noise and the prompt passes.
+Configurable via `CACHEON_MEAN_LOGPROB_THRESHOLD` and `CACHEON_MIN_LOGPROB_THRESHOLD`.
 
 ### Prompt-level pass rate
 
-**Every scored prompt must pass.** A single failed prompt disqualifies the submission (`docker_eval.evaluate_challenger` returns a DQ record as soon as `any_failed` is true). A wrong model or quantized weights will typically fail on many prompts, but the gate fires on the first one.
+**Every scored prompt must pass.** A single failed prompt disqualifies the submission. Garbage tokens, fabricated streams, and many quantized-weight setups score far below threshold.
+
+`token_match_rate` is recorded for dashboards but is **not** a DQ gate in V1. The subnet goal is same-model inference optimization; at `temperature=0`, honest stacks should still show high match in practice.
 
 ### Why this catches bad actors
 
-- **Quantized weights** (INT8/INT4/FP8): logprob shifts are typically 0.5-2.0+. The baseline token will not be in the top-5 with a small gap.
-- **Modified architecture** (missing layers, different attention): distributions are completely different. Caught immediately.
-- **Non-greedy decoding** (`temperature > 0`): the miner's chosen token will not be its own top-1.
-- **Fabricated logprobs**: the miner does not know the baseline output (prompts are block-hash seeded). To fabricate correctly they would need to run the exact correct model, defeating any speed advantage.
+- **Garbage after a valid prefix**: low mean/min logprob on garbage tokens.
+- **Wrong or quantized weights**: baseline assigns near-zero probability to miner tokens.
+- **Implausible fluent padding**: may pass if every inserted token is high probability (TPS gaming is handled separately; see throughput below).
 
-### Why not full KL divergence
+### Scoring baseline image
 
-The OpenAI-compatible API returns top-N logprobs, not the full vocabulary distribution. True KL divergence requires the full ~152K-token distribution per position. Returning that through an HTTP API would be:
-
-- ~600KB per token position at float32
-- ~150MB per prompt at 256 generated tokens
-
-This is impractical for an API benchmark and would itself distort speed measurements. First-divergence logprob analysis achieves the same goal with minimal overhead.
+Speed eval uses the latest pinned generation baseline. Teacher-forcing uses a separate pinned image (`v0.6.6.post1`) because large `prompt_logprobs` on long contexts is unstable on newer vLLM builds.
 
 ## TTFT improvement
 
@@ -91,13 +82,22 @@ TTFT captures prefill efficiency; that is, how fast the server processes the ful
 
 ## Throughput improvement
 
-Throughput improvements are measured using the following formula
+Per prompt, aligned throughput is:
+
+```
+miner_tps = baseline_output_tokens / miner_time_to_emit_that_many_tokens
+baseline_tps = baseline_output_tokens / baseline_time_to_emit_that_many_tokens
+```
+
+If the miner emits fewer tokens than the baseline for that prompt, `miner_tps = 0` for that prompt (no speed credit, not a length DQ).
+
+Improvement vs baseline:
 
 ```
 throughput_improvement = max(0, (miner_tps - baseline_tps) / baseline_tps)
 ```
 
-The final score is computed as the median across the 10 prompts and also floored at zero. Throughput captures decode efficiency: how fast the server generates output tokens once prefill is complete.
+The final score uses the **median** across the 10 scored prompts. Extra tokens beyond the baseline length do not help: the client stops at `max_tokens`, and the TPS numerator is fixed to the baseline token count.
 
 ## Baseline: vLLM
 
