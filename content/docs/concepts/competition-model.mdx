@@ -17,7 +17,7 @@ Cacheon uses a competitive incentive model. The leader is the miner with the fas
 
 The overtake rule is not a plain `>`. It must pass two checks:
 
-1. **Copycats get disqualified.** If a challenger's Docker image hash matches the current leader's, but the hotkey differs and the commitment block is later, the challenger is DQ'd (`reason = "duplicate_of_leader"`).
+1. **Copycats get disqualified.** If a challenger's Docker image hash matches the current leader's, but the hotkey differs and the commitment block is later, the challenger is DQ'd (`reason = "duplicate_of_winner"`).
 2. **Non-copies need a small edge.** A new server must strictly exceed `leader_score x 1.01`. The 1% moat is fixed.
 
 Why:
@@ -25,14 +25,23 @@ Why:
 - Running the same server twice can produce small score variance from GPU clock drift, scheduling jitter, and network overhead. Without the moat, rankings could flip on noise.
 - Without the copycat disqualification, miners are incentivized to wait, copy the leader, and register it themselves.
 
-## One commitment per hotkey
+## Resubmitting on the same hotkey
 
-Each hotkey gets **exactly one submission**. To submit a new server, miners must register a new hotkey.
+Each on-chain commitment is keyed by **(hotkey, commit block)**. Miners can commit again on the same hotkey after paying a new submission fee. The validator always uses the **latest** revealed commitment per hotkey, but each new block is treated as a separate submission.
 
-This is deliberate:
+- **Payment per attempt.** Every new commitment must include fresh `payment_tx` and `payment_block` fields tied to that image digest via the on-chain remark.
+- **Local testing first.** Submission fees and GPU eval time are real costs; validate locally before committing.
+- **History stays keyed by block.** Prior scores remain under the old `hotkey:commit_block` entry; a new commit starts a new challenger record.
 
-- **Commitment pressure.** Since every submission costs both time and fees, miners are incentivized to validate locally before registering.
-- **Clean on-chain record.** One hotkey maps to one Docker image at one pinned digest. No ambiguity about which server produced which score.
+## Submission fee (payment gate)
+
+Before GPU evaluation, the CPU validator verifies that the miner paid the configured submission fee:
+
+1. Read `payment_tx` and `payment_block` from the commitment JSON.
+2. Call `substrate.retrieve_extrinsic_by_hash` (one RPC lookup; no payment database).
+3. Confirm the extrinsic succeeded, was signed by the miner's coldkey, emitted a `Balances.Transfer` to the treasury with at least the configured fee, and included remark `cacheon:<hotkey>:<digest>` in the batch call.
+
+Miners submit payment via `miner/commit.py`, which atomically runs `Utility.batch_all([transfer, remark])` then reveals the commitment. Validators enable the gate with `CACHEON_SUBMISSION_FEE_RAO` (RAO; `0` disables verification).
 
 ## What validators score on
 

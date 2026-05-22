@@ -16,8 +16,9 @@ while True:
 
     metagraph, block, block_hash = scan_chain()
     commitments = parse_commitments(metagraph)
+    commitments = gate_unpaid_commitments(state, commitments)  # verify payment_tx on-chain
 
-    if leader_hotkey_deregistered():
+    if winner_hotkey_deregistered():
         promote_runner_up_or_clear()
 
     if new_eval_results() or weights_stale():
@@ -42,7 +43,7 @@ while True:
 Weight setting triggers in three situations:
 
 - **New eval results**: GPU completed evaluations (detected by comparing `evaluation_block` against `last_weights_set_block`)
-- **First weight set**: a leader exists but weights have never been set
+- **First weight set**: a winner exists but weights have never been set
 - **Staleness refresh**: weights are older than one tempo (~360 blocks, ~72 min) to stay active in consensus
 
 ## GPU eval entrypoint
@@ -72,7 +73,7 @@ The GPU reads `eval_job.json` (block context + incumbent and challenger list), r
 
 The validator and GPU pod share a single S3 prefix (`validator/sync.py`). Both sides download the full state directory before starting work and upload after completing it. The validator writes `eval_job.json` and `state.json` (after weight setting); the GPU writes `state.json` (eval results, leader changes), `baseline_cache/`, `container_logs/`, and `logs/`.
 
-`state.json` tracks the leader record, evaluation history with per-prompt breakdowns, precheck failures, and scan/weight-setting block numbers. Written atomically (temp file + rename).
+`state.json` tracks the winner record, runner-up, evaluation history with per-prompt breakdowns, precheck failures (including unpaid submissions), and scan/weight-setting block numbers. Written atomically (temp file + rename).
 
 Typical mirrored layout under `state-mainnet/`:
 
@@ -80,7 +81,7 @@ Typical mirrored layout under `state-mainnet/`:
 state-mainnet/
   state.json
   eval_job.json
-  leader-history.jsonl
+  winner-history.jsonl
   baseline_cache/
     baseline_{hash}.json
   container_logs/
