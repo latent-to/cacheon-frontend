@@ -104,12 +104,12 @@ After the speed pass, a separate scoring baseline runs **teacher-forcing**: the 
 
 Every scored prompt produces a detailed breakdown stored in the evaluation record:
 
-| Field              | Type  | Description                                          |
-| ------------------ | ----- | ---------------------------------------------------- |
-| `ttft_s`           | float | Time to first token for this prompt                  |
+| Field              | Type  | Description                                                  |
+| ------------------ | ----- | ------------------------------------------------------------ |
+| `ttft_s`           | float | Time to first token for this prompt                          |
 | `throughput_tps`   | float | Aligned TPS for this prompt (`baseline_N / miner_time_to_N`) |
-| `output_tokens`    | int   | Number of output tokens generated                    |
-| `token_match_rate` | float | Fraction of tokens matching baseline for this prompt |
+| `output_tokens`    | int   | Number of output tokens generated                            |
+| `token_match_rate` | float | Fraction of tokens matching baseline for this prompt         |
 
 These per-prompt results are available in `state.json` (inside each `EvaluationRecord`) and uploaded to S3 for frontend dashboards. Miners can inspect their performance per prompt to understand where their server excels or struggles.
 
