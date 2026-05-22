@@ -99,12 +99,12 @@ The commitment you post on-chain is a JSON object:
 }
 ```
 
-| Field           | Required | Description                                              |
-| --------------- | -------- | -------------------------------------------------------- |
-| `image`         | Yes      | Full Docker image reference (registry/repo:tag)          |
-| `digest`        | Yes      | Image manifest digest (`sha256:...`)                     |
+| Field           | Required | Description                                                 |
+| --------------- | -------- | ----------------------------------------------------------- |
+| `image`         | Yes      | Full Docker image reference (registry/repo:tag)             |
+| `digest`        | Yes      | Image manifest digest (`sha256:...`)                        |
 | `payment_tx`    | Yes\*    | Extrinsic hash of the fee batch when the payment gate is on |
-| `payment_block` | Yes\*    | Block hash where that extrinsic was included             |
+| `payment_block` | Yes\*    | Block hash where that extrinsic was included                |
 
 \*Required when validators set `CACHEON_SUBMISSION_FEE_RAO` `> 0`. Use [`miner/commit.py`](https://github.com/latent-to/cacheon/blob/main/miner/commit.py) to pay and commit in one flow.
 

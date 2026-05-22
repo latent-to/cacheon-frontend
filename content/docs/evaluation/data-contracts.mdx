@@ -16,12 +16,12 @@ Miners post a JSON commitment via `subtensor.set_reveal_commitment()`. When the 
 }
 ```
 
-| Field           | Type   | Description                                                     |
-| --------------- | ------ | --------------------------------------------------------------- |
-| `image`         | string | Full Docker image reference (registry/repo:tag)                 |
-| `digest`        | string | Image manifest digest (`sha256:...`)                            |
-| `payment_tx`    | string | Extrinsic hash of the fee batch (`0x` + 64 hex chars)           |
-| `payment_block` | string | Block hash where that extrinsic was included                    |
+| Field           | Type   | Description                                           |
+| --------------- | ------ | ----------------------------------------------------- |
+| `image`         | string | Full Docker image reference (registry/repo:tag)       |
+| `digest`        | string | Image manifest digest (`sha256:...`)                  |
+| `payment_tx`    | string | Extrinsic hash of the fee batch (`0x` + 64 hex chars) |
+| `payment_block` | string | Block hash where that extrinsic was included          |
 
 The digest pins the exact image content. Tag mutations do not affect evaluation.
 
@@ -134,11 +134,11 @@ Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
 | ------------------------ | -------------- | ---------------------------------------------------------------------------------- |
 | `score`                  | float          | `0.5 * ttft_improvement + 0.5 * throughput_improvement`; 0.0 if DQ'd               |
 | `ttft_improvement`       | float          | `max(0, (baseline - miner) / baseline)` on medians                                 |
-| `throughput_improvement` | float          | `max(0, (miner - baseline) / baseline)` on medians of aligned TPS                    |
+| `throughput_improvement` | float          | `max(0, (miner - baseline) / baseline)` on medians of aligned TPS                  |
 | `token_match_rate`       | float          | Fraction of output tokens matching baseline (reporting; not a V1 DQ gate)          |
 | `disqualified`           | bool           | Whether the submission was DQ'd                                                    |
 | `disqualify_reason`      | string or null | Reason for DQ (e.g. `correctness_failed`, `health_timeout`, `duplicate_of_winner`) |
-| `per_prompt`             | array or null  | Per-prompt breakdown (TTFT, aligned `throughput_tps`, match rate, token count)       |
+| `per_prompt`             | array or null  | Per-prompt breakdown (TTFT, aligned `throughput_tps`, match rate, token count)     |
 
 The `per_prompt` array gives miners visibility into how their server performed on each individual prompt.
 

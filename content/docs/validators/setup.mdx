@@ -27,20 +27,20 @@ Then, update the required values in the .env file with your specific configurati
 
 The following environment variables are related to the Bittensor chain and wallet identity:
 
-| Env var                   | Required | Description                                           |
-| ------------------------- | -------- | ----------------------------------------------------- |
-| `CACHEON_NETWORK`         | Yes      | `finney` (mainnet) or `test` (testnet)                |
-| `CACHEON_NETUID`          | Yes      | `14` (mainnet) or `470` (testnet)                     |
-| `CACHEON_WALLET_NAME`     | Yes      | Bittensor wallet name                                 |
-| `CACHEON_WALLET_HOTKEY`   | Yes      | Bittensor hotkey name                                 |
-| `CACHEON_POLL_INTERVAL_S` | No       | Seconds between chain scans (default `600`)           |
-| `CACHEON_DRY_RUN`         | No       | Set to `1` to skip `set_weights` (useful for testing) |
-| `CACHEON_SUBMISSION_FEE_RAO` | No    | Minimum submission fee in RAO (`0` disables payment gate; default `0`. Mainnet operators typically set `100000000` for `0.1` TAO) |
+| Env var                      | Required | Description                                                                                                                       |
+| ---------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `CACHEON_NETWORK`            | Yes      | `finney` (mainnet) or `test` (testnet)                                                                                            |
+| `CACHEON_NETUID`             | Yes      | `14` (mainnet) or `470` (testnet)                                                                                                 |
+| `CACHEON_WALLET_NAME`        | Yes      | Bittensor wallet name                                                                                                             |
+| `CACHEON_WALLET_HOTKEY`      | Yes      | Bittensor hotkey name                                                                                                             |
+| `CACHEON_POLL_INTERVAL_S`    | No       | Seconds between chain scans (default `600`)                                                                                       |
+| `CACHEON_DRY_RUN`            | No       | Set to `1` to skip `set_weights` (useful for testing)                                                                             |
+| `CACHEON_SUBMISSION_FEE_RAO` | No       | Minimum submission fee in RAO (`0` disables payment gate; default `0`. Mainnet operators typically set `100000000` for `0.1` TAO) |
 
 <Callout type="info" title="Submission fee gate">
   When `CACHEON_SUBMISSION_FEE_RAO` is greater than `0`, the CPU validator rejects commitments
-  missing valid `payment_tx` / `payment_block` fields. Miners pay via `miner/commit.py`; see
-  [Miner registration](/docs/miners/registration).
+  missing valid `payment_tx` / `payment_block` fields. Miners pay via `miner/commit.py`; see [Miner
+  registration](/docs/miners/registration).
 </Callout>
 
 <Callout type="info" title="Bittensor wallet directory">

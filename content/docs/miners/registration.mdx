@@ -67,19 +67,19 @@ On-chain commitment JSON (written by the script):
 }
 ```
 
-| Field           | Description                                                                 |
-| --------------- | --------------------------------------------------------------------------- |
-| `image`         | Full Docker image reference (registry/repo:tag)                             |
-| `digest`        | Image manifest digest (`sha256:...`)                                        |
-| `payment_tx`    | Extrinsic hash of the fee batch (`0x` + 64 hex chars)                       |
-| `payment_block` | Block hash where that extrinsic was included                                |
+| Field           | Description                                           |
+| --------------- | ----------------------------------------------------- |
+| `image`         | Full Docker image reference (registry/repo:tag)       |
+| `digest`        | Image manifest digest (`sha256:...`)                  |
+| `payment_tx`    | Extrinsic hash of the fee batch (`0x` + 64 hex chars) |
+| `payment_block` | Block hash where that extrinsic was included          |
 
 Validators look up `payment_tx` with `substrate.retrieve_extrinsic_by_hash`, confirm the coldkey signer, an executed `Balances.Transfer` to the treasury, and the remark in the batch. One RPC lookup per submission; no separate payment database.
 
 <Callout type="info" title="Resubmitting on the same hotkey">
-  You can commit again on the same hotkey. Each new commitment needs a fresh fee payment and
-  new `payment_tx` / `payment_block` fields. The validator uses the latest revealed commitment
-  per hotkey; each commit block is tracked separately. Test locally before paying and committing.
+  You can commit again on the same hotkey. Each new commitment needs a fresh fee payment and new
+  `payment_tx` / `payment_block` fields. The validator uses the latest revealed commitment per
+  hotkey; each commit block is tracked separately. Test locally before paying and committing.
 </Callout>
 
 ## What happens after
