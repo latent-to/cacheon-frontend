@@ -17,7 +17,7 @@ Cacheon uses a competitive incentive model. The leader is the miner with the fas
 
 The overtake rule is not a plain `>`. It must pass two checks:
 
-1. **Copycats get disqualified.** If a challenger's Docker image hash matches the current leader's, but the hotkey differs and the commitment block is later, the challenger is DQ'd (`reason = "duplicate_of_winner"`).
+1. **Copycats get disqualified.** If a challenger's Docker image hash matches the current leader's, but the hotkey differs and the commitment block is later, the challenger is DQ'd (`reason = "duplicate_of_leader"`).
 2. **Non-copies need a small edge.** A new server must strictly exceed `leader_score x 1.01`. The 1% moat is fixed.
 
 Why:
