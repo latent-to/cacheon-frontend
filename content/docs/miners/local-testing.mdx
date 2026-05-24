@@ -60,7 +60,7 @@ On a fresh Ubuntu 22.04/24.04 GPU machine, run the [validator GPU setup script](
 ```bash
 export HF_TOKEN=...  # optional, speeds up the model download
 sudo apt-get install -y curl vim git
-curl -fsSL "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup-gpu.sh" | sudo -E bash
+sudo -E DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a bash -c 'curl -fsSL "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup-gpu.sh" | bash'
 ```
 
 If Docker and NVIDIA Container Toolkit are already installed and you only need the weights, you can skip the script and download the model weights directly:
