@@ -11,7 +11,7 @@ Registration is three steps:
 2. Run `miner/commit.py` (pays the submission fee and commits in one flow)
 3. The validator verifies payment on-chain and schedules evaluation
 
-The validator scans for new commitments approximately every 5 minutes. When it finds yours, it pulls your image and evaluates it.
+The validator scans for new commitments approximately every 10 minutes. When it finds yours, it pulls your image and evaluates it.
 
 ## Prerequisites
 
@@ -40,10 +40,10 @@ docker inspect --format='{{index .RepoDigests 0}}' docker.io/myuser/cacheon-mine
 
 Use the Cacheon commit script in the [Cacheon GitHub repository](https://github.com/latent-to/cacheon/blob/main/miner/commit.py). It runs **two steps in one command**:
 
-1. **Pay the submission fee.** Your coldkey signs `Utility.batch_all([transfer, remark])`:
+1. **Pays the submission fee.** Your coldkey signs `Utility.batch_all([transfer, remark])`:
    - `Balances.transfer_keep_alive` sends the fee to the subnet treasury address
    - `System.remark` carries `cacheon:<hotkey>:<digest>` so the payment is tied to this image
-2. **Reveal the commitment.** Your hotkey posts JSON with the image, digest, and payment proof.
+2. **Reveals the commitment.** Your hotkey posts JSON with the image, digest, and payment proof.
 
 ```bash
 python miner/commit.py \
@@ -79,7 +79,8 @@ Validators look up `payment_tx` with `substrate.retrieve_extrinsic_by_hash`, con
 <Callout type="info" title="Resubmitting on the same hotkey">
   You can commit again on the same hotkey. Each new commitment needs a fresh fee payment and new
   `payment_tx` / `payment_block` fields. The validator uses the latest revealed commitment per
-  hotkey; each commit block is tracked separately. Test locally before paying and committing.
+  hotkey; each commit block is tracked separately. For more information, see [Resubmitting on the
+  same hotkey](/docs/concepts/competition-model#resubmitting-on-the-same-hotkey).
 </Callout>
 
 <Callout type="warn" title="Register before you pay">

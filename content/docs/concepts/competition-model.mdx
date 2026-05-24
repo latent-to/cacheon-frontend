@@ -27,21 +27,21 @@ Why:
 
 ## Resubmitting on the same hotkey
 
-Each on-chain commitment is keyed by **(hotkey, commit block)**. Miners can commit again on the same hotkey after paying a new submission fee. The validator always uses the **latest** revealed commitment per hotkey, but each new block is treated as a separate submission.
+Each on-chain commitment is identified by **(hotkey, commit block)**. Miners can commit again on the same hotkey after paying a new submission fee. The validator always uses the **latest** revealed commitment per hotkey, but each new block is treated as a separate submission.
 
 - **Payment per attempt.** Every new commitment must include fresh `payment_tx` and `payment_block` fields tied to that image digest via the on-chain remark.
 - **Local testing first.** Submission fees and GPU eval time are real costs; validate locally before committing.
-- **History stays keyed by block.** Prior scores remain under the old `hotkey:commit_block` entry; a new commit starts a new challenger record.
+- **History remains identified by block.** Prior scores remain under the old `hotkey:commit_block` entry; a new commit starts a new challenger record.
 
 ## Submission fee (payment gate)
 
-Before GPU evaluation, the CPU validator verifies that the miner paid the configured submission fee:
+Before GPU evaluation, the CPU validator verifies that the miner paid the configured submission fee. This is done through the following steps:
 
-1. Read `payment_tx` and `payment_block` from the commitment JSON.
-2. Call `substrate.retrieve_extrinsic_by_hash` (one RPC lookup; no payment database).
-3. Confirm the extrinsic succeeded, was signed by the miner's coldkey, emitted a `Balances.Transfer` to the treasury with at least the configured fee, and included remark `cacheon:<hotkey>:<digest>` in the batch call.
+1. Reads `payment_tx` and `payment_block` from the commitment JSON.
+2. Calls `substrate.retrieve_extrinsic_by_hash` (one RPC lookup; no payment database).
+3. Confirms that the extrinsic succeeded, was signed by the miner's coldkey, emitted a `Balances.Transfer` to the treasury with at least the configured fee, and included remark `cacheon:<hotkey>:<digest>` in the batch call.
 
-Miners submit payment via `miner/commit.py`, which atomically runs `Utility.batch_all([transfer, remark])` then reveals the commitment. Validators enable the gate with `CACHEON_SUBMISSION_FEE_RAO` (RAO; `0` disables verification).
+Miners submit payment via `miner/commit.py`, which atomically runs `Utility.batch_all([transfer, remark])` then reveals the commitment. Utility.batch_all([transfer, remark]) before revealing the commitment. Validators enforce the submission payment gate with `CACHEON_SUBMISSION_FEE_RAO` environment variable (specified in RAO); setting it to 0 disables payment verification.
 
 ## What validators score on
 

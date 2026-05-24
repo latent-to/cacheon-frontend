@@ -27,13 +27,13 @@ The digest pins the exact image content. Tag mutations do not affect evaluation.
 
 ### Payment verification (CPU validator)
 
-When `CACHEON_SUBMISSION_FEE_RAO` is greater than `0`, the CPU validator gates commitments before challenger selection:
+When `CACHEON_SUBMISSION_FEE_RAO` is greater than `0`, the CPU validator enforces a payment gate on commitments before challenger selection:
 
 1. Require `payment_tx` and `payment_block` in the commitment JSON.
 2. `substrate.retrieve_extrinsic_by_hash(block_hash=payment_block, extrinsic_hash=payment_tx)`.
 3. Reject unless the extrinsic succeeded, was signed by the miner's coldkey, emitted a `Balances.Transfer` to the treasury address with value `>= CACHEON_SUBMISSION_FEE_RAO`, and the batch call includes remark `cacheon:<hotkey>:<digest>`.
 
-Transient RPC errors defer verification to the next scan without tombstoning the miner. Definitive failures are recorded in `precheck_failures` keyed by `{hotkey}:{commit_block}`.
+Transient RPC errors defer verification to the next scan without marking the miner as failed. Definitive failures are recorded in `precheck_failures` and identified by `{hotkey}:{commit_block}`.
 
 Miners pay via `miner/commit.py`: coldkey signs `Utility.batch_all([Balances.transfer_keep_alive, System.remark])`, then the hotkey reveals the commitment with the returned hashes.
 
@@ -166,4 +166,4 @@ Append-only audit trail of leader changes. One JSON line per overtake:
 
 `state.json` includes a `schema_version` field (V1 starts at version 1). The validator rejects state files with a newer schema version than it supports, preventing silent data corruption from downgrades.
 
-Legacy state files may still use `winner` or `king` instead of `leader`, and `winner-history.jsonl` instead of `leader-history.jsonl`. The validator and monitoring API accept those aliases when reading.
+Legacy state files may still use `winner` or `king` instead of `leader`, and `winner-history.jsonl` instead of `leader-history.jsonl`. The validator and monitoring API accept these aliases when reading.
