@@ -10,25 +10,33 @@ description: Advanced reference for running GPU eval manually on a rented pod, w
 
 ## Prerequisites
 
-- A fresh Ubuntu 22.04 or 24.04 VM from Targon or Lium (must support nested Docker/DinD)
+- A fresh Ubuntu 22.04 or 24.04 VM from Targon, Lium, or Shadeform
 - At least 400 GB fast disk under `/workspace`
 - Hippius S3 credentials (same bucket as the validator)
 - The validator must have detected challengers and written `eval_job.json` to S3
 
 ## Setup script
 
-Run the following commands once on a fresh machine:
+Run once on a fresh machine. Optional: `export HF_TOKEN=...` before setup (speeds up model download).
+
+**Targon or Lium** (nested Docker / DinD):
 
 ```bash
-export HF_TOKEN=...     # optional: speeds up model download
+export CACHEON_NESTED_DIN=1
+curl -fsSL "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup-gpu.sh" | sudo -E DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a bash
+```
+
+**Shadeform** (bare VM):
+
+```bash
+export CACHEON_NESTED_DIN=0
 sudo apt-get install -y curl vim git # if not already installed
+curl -fsSL "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup-gpu.sh" | sudo -E DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a bash
 ```
 
-```bash
-sudo -E DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a bash -c 'curl -fsSL "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup-gpu.sh" | bash'
-```
+When `CACHEON_AUTO_RENT=1`, the orchestrator sets `CACHEON_NESTED_DIN` per provider automatically.
 
-The setup script provisions all required system packages, Docker, GPU configuration, dependencies, models, and verifies the environment for GPU validation.
+The setup script provisions system packages, Docker, GPU configuration, dependencies, models, and verifies the environment for GPU validation.
 
 ### Code-only refresh
 
