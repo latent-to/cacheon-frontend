@@ -30,8 +30,8 @@ You build a Docker image, push it to a container registry, and commit the image 
 2. Build your inference server and Dockerfile. See [Submission format](/docs/miners/submission-format)
 3. Test locally before submitting. See [Local testing](/docs/miners/local-testing)
 4. Push your Docker image to a public registry
-5. Commit the image reference on-chain. See [Registration](/docs/miners/registration)
-6. Validator picks you up, pulls your image, evaluates, scores
+5. Run `miner/commit.py` to pay the submission fee and commit on-chain. See [Registration](/docs/miners/registration)
+6. Validator verifies payment, pulls your image, evaluates, scores
 
 ## Common pitfalls
 

@@ -22,7 +22,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/proxy-api': {
-        target: 'https://api.cacheon.ai',
+        target: 'http://localhost:8080',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/proxy-api/, ''),
       },
