@@ -364,20 +364,6 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                 <MiniStat label="Token Match" value={fmtPct(ev.token_match_rate)} />
               </div>
 
-              {isEffectiveDq(ev) && (
-                <div className="border-error/30 bg-error/10 rounded-lg border px-4 py-3">
-                  <div className="text-2xs tracking-caps text-error mb-1 font-mono font-bold uppercase">
-                    Disqualified
-                  </div>
-                  <div className="text-sm2 text-error/80 font-mono">
-                    {ev.disqualify_reason ||
-                      (!ev.disqualified && ev.token_match_rate < TOKEN_MATCH_DQ_THRESHOLD
-                        ? `Token match rate ${(ev.token_match_rate * 100).toFixed(1)}% is below the 25% threshold`
-                        : 'No reason provided')}
-                  </div>
-                </div>
-              )}
-
               {ev.per_prompt && ev.per_prompt.length > 0 && (
                 <div>
                   <div className="text-2xs tracking-caps text-secondary/50 mb-2 font-mono font-semibold uppercase">

@@ -5,21 +5,37 @@ description: Wire formats for on-chain commitments, the CPU-to-GPU eval job hand
 
 ## On-chain commitment
 
-Miners post a JSON commitment via `subtensor.set_reveal_commitment()`:
+Miners post a JSON commitment via `subtensor.set_reveal_commitment()`. When the submission fee gate is enabled, the payload includes payment proof:
 
 ```json
 {
   "image": "docker.io/miner/server:v1",
-  "digest": "sha256:a3b4c5d6e7f8..."
+  "digest": "sha256:a3b4c5d6e7f8...",
+  "payment_tx": "0xabc123...",
+  "payment_block": "0xdef456..."
 }
 ```
 
-| Field    | Type   | Description                                     |
-| -------- | ------ | ----------------------------------------------- |
-| `image`  | string | Full Docker image reference (registry/repo:tag) |
-| `digest` | string | Image manifest digest (sha256:...)              |
+| Field           | Type   | Description                                           |
+| --------------- | ------ | ----------------------------------------------------- |
+| `image`         | string | Full Docker image reference (registry/repo:tag)       |
+| `digest`        | string | Image manifest digest (`sha256:...`)                  |
+| `payment_tx`    | string | Extrinsic hash of the fee batch (`0x` + 64 hex chars) |
+| `payment_block` | string | Block hash where that extrinsic was included          |
 
 The digest pins the exact image content. Tag mutations do not affect evaluation.
+
+### Payment verification (CPU validator)
+
+When `CACHEON_SUBMISSION_FEE_RAO` is greater than `0`, the CPU validator enforces a payment gate on commitments before challenger selection:
+
+1. Require `payment_tx` and `payment_block` in the commitment JSON.
+2. `substrate.retrieve_extrinsic_by_hash(block_hash=payment_block, extrinsic_hash=payment_tx)`.
+3. Reject unless the extrinsic succeeded, was signed by the miner's coldkey, emitted a `Balances.Transfer` to the treasury address with value `>= CACHEON_SUBMISSION_FEE_RAO`, and the batch call includes remark `cacheon:<hotkey>:<digest>`.
+
+Transient RPC errors defer verification to the next scan without marking the miner as failed. Definitive failures are recorded in `precheck_failures` and identified by `{hotkey}:{commit_block}`.
+
+Miners pay via `miner/commit.py`: coldkey signs `Utility.batch_all([Balances.transfer_keep_alive, System.remark])`, then the hotkey reveals the commitment with the returned hashes.
 
 ## `eval_job.json` (CPU to GPU handoff)
 
@@ -72,6 +88,7 @@ The shared state file, read and written by both CPU and GPU:
     "evaluation_block": 7066048,
     "commit_block": 7066040
   },
+  "runner_up": null,
   "evaluations": {
     "5F3sa8...:7066040": { "...per EvaluationRecord..." }
   },
@@ -81,7 +98,7 @@ The shared state file, read and written by both CPU and GPU:
 }
 ```
 
-The CPU reads `last_weights_set_block` to decide when to set weights. The GPU reads evaluations to skip already-evaluated challengers.
+The CPU reads `last_weights_set_block` to decide when to set weights. The GPU reads evaluations to skip already-evaluated challengers. Evaluations and precheck failures are keyed by `{hotkey}:{commit_block}`; a hotkey may have multiple entries across resubmissions.
 
 ## `EvaluationRecord`
 
@@ -117,11 +134,11 @@ Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
 | ------------------------ | -------------- | ---------------------------------------------------------------------------------- |
 | `score`                  | float          | `0.5 * ttft_improvement + 0.5 * throughput_improvement`; 0.0 if DQ'd               |
 | `ttft_improvement`       | float          | `max(0, (baseline - miner) / baseline)` on medians                                 |
-| `throughput_improvement` | float          | `max(0, (miner - baseline) / baseline)` on medians                                 |
-| `token_match_rate`       | float          | Fraction of output tokens matching baseline (all prompts)                          |
+| `throughput_improvement` | float          | `max(0, (miner - baseline) / baseline)` on medians of aligned TPS                  |
+| `token_match_rate`       | float          | Fraction of output tokens matching baseline (reporting; not a V1 DQ gate)          |
 | `disqualified`           | bool           | Whether the submission was DQ'd                                                    |
 | `disqualify_reason`      | string or null | Reason for DQ (e.g. `correctness_failed`, `health_timeout`, `duplicate_of_leader`) |
-| `per_prompt`             | array or null  | Per-prompt breakdown (TTFT, throughput, match rate, token count)                   |
+| `per_prompt`             | array or null  | Per-prompt breakdown (TTFT, aligned `throughput_tps`, match rate, token count)     |
 
 The `per_prompt` array gives miners visibility into how their server performed on each individual prompt.
 
@@ -148,3 +165,5 @@ Append-only audit trail of leader changes. One JSON line per overtake:
 ## Schema versioning
 
 `state.json` includes a `schema_version` field (V1 starts at version 1). The validator rejects state files with a newer schema version than it supports, preventing silent data corruption from downgrades.
+
+Legacy state files may still use `winner` or `king` instead of `leader`, and `winner-history.jsonl` instead of `leader-history.jsonl`. The validator and monitoring API accept these aliases when reading.
