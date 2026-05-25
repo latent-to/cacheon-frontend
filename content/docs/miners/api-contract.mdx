@@ -15,7 +15,7 @@ Returns `HTTP 200` when the server is ready to serve requests. The validator pol
 
 ### `POST /v1/chat/completions`
 
-Standard OpenAI chat completions endpoint. The validator sends all prompts here during both the speed pass and the correctness pass.
+The validator sends stress and audit prompts here during evaluation (`max_tokens` is **512** for Pass 1 stress, **256** for Pass 2 audit).
 
 **Request format:**
 
@@ -23,7 +23,7 @@ Standard OpenAI chat completions endpoint. The validator sends all prompts here 
 {
   "model": "Qwen2.5-72B-Instruct",
   "messages": [{ "role": "user", "content": "<instruction with long-context passage>" }],
-  "max_tokens": 256,
+  "max_tokens": 512,
   "temperature": 0,
   "stream": true,
   "logprobs": true,
@@ -45,27 +45,19 @@ Standard OpenAI chat completions endpoint. The validator sends all prompts here 
 
 Standard _Server-Sent Event_ (_SSE_) with `data: {"choices": [{"delta": {"content": "..."}, "logprobs": {...}}]}` chunks. Final chunk is `data: [DONE]`.
 
-## Single-pass evaluation
+## Two-pass evaluation
 
-The validator evaluates your server in one pass that measures speed and correctness at the same time:
+The validator runs your server in one container session with two prompt regimes, then scores audit outputs on a separate vLLM:
 
-```json
-{
-  "model": "Qwen2.5-72B-Instruct",
-  "messages": [{ "role": "user", "content": "..." }],
-  "max_tokens": 256,
-  "temperature": 0,
-  "stream": true,
-  "logprobs": true,
-  "top_logprobs": 5
-}
-```
+**Pass 1 (stress):** 12 prompts (2 warmup discarded, 10 scored), long context, `max_tokens=512`. Measures TTFT and aligned throughput vs the cached generation baseline. Streamed top-5 logprobs are collected but are not a DQ gate.
+
+**Pass 2 (audit generation):** 8 prompts, ~4k context, `max_tokens=256`, no warmup. Correctness is checked later via teacher-forcing on a scoring vLLM (`prompt_logprobs`), not from your streamed logprobs.
 
 The validator measures:
 
-- **TTFT**: wall-clock time from request send to first SSE data chunk
-- **Throughput**: output tokens per second, measured from SSE timestamps
-- **Correctness**: your output against the baseline using **per-prompt first-divergence analysis** with logprob verification. See [Scoring](/docs/evaluation/scoring) for the full specification.
+- **TTFT**: wall-clock time from request send to first SSE data chunk (Pass 1 stress)
+- **Throughput**: aligned TPS vs cached baseline (Pass 1 stress)
+- **Correctness**: Pass 2 teacher-forcing on audit outputs. See [Scoring](/docs/evaluation/scoring).
 
 ## Model identity
 

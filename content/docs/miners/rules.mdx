@@ -69,7 +69,7 @@ The harness runs your container on an internal Docker network (`cacheon-internal
 | Network exfiltration       | Internal-only network for the miner container            |
 | Host escape                | No `--privileged`; normal Docker namespace isolation     |
 | GPU snooping across miners | One container at a time; GPU state cleared between evals |
-| Prompt prediction          | Block-hash-seeded prompts; order shuffled per challenger |
+| Prompt prediction          | Block-hash-seeded prompts; deterministic order per round |
 | Resource exhaustion        | Memory/CPU/PID limits and timeouts; OOM = DQ             |
 
 Weights are public on Hugging Face. There is nothing secret to steal from the mount.
@@ -78,4 +78,4 @@ Weights are public on Hugging Face. There is nothing secret to steal from the mo
 
 **Faking TTFT:** Even if you game the speed pass (e.g. by emitting a fast first token and stalling), you still have to pass the correctness gate. That requires running real inference against the exact same model weights.
 
-**Fabricating logprobs:** Fake logprobs cannot affect your speed score. To pass correctness, **every** scored prompt must pass: at its first divergence point the baseline token must appear in your top-5 with a gap under 0.5. A single failing prompt disqualifies the submission. Prompts are block-hash-seeded, so the baseline output is unknown until the block arrives. You would need to run the exact correct model to know what to fabricate, defeating any speed advantage.
+**Fabricating logprobs:** Pass 1 streamed logprobs are not a DQ gate. Pass 2 correctness uses a separate scoring vLLM with `prompt_logprobs` teacher-forcing over your audit outputs. Garbage or wrong-weight outputs score far below the mean/min logprob thresholds; all 8 audit prompts must pass. Prompts are block-hash-seeded, so you cannot precompute plausible outputs without running the real model.

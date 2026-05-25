@@ -1,61 +1,77 @@
 ---
 title: Evaluation harness
-description: How the harness orchestrates containerized evaluation. Docker lifecycle, vLLM baseline, single-pass measurement, warmup, and median aggregation.
+description: How the harness orchestrates two-pass containerized evaluation. Baseline cache, miner stress + audit, scoring container teacher-forcing, warmup, and median aggregation.
 ---
 
-The harness is the system that pulls miner containers, starts them, sends prompts, and measures performance against the vLLM baseline.
+The harness pulls miner containers, runs Pass 1 (stress speed + match) and Pass 2 (audit generation + teacher-forcing scoring), and compares results against a cached vLLM generation baseline.
 
-## Lifecycle
+## Round lifecycle
 
-For each challenger:
+1. **Sample prompts** from `block_hash`: 12 stress (10 scored + 2 warmup) and 8 audit
+2. **Generation baseline once**: start `vllm/vllm-openai:latest`, run stress prompts, cache results, tear down
+3. **Per miner** (leader, runner-up, then challengers):
+   - `docker stop` the scoring container if it is running (GPU handoff)
+   - Start miner container; run **Pass 1 stress** (12 prompts, discard 2 warmup) then **Pass 2 audit generation** (8 prompts, no warmup) in one session
+   - Tear down miner container; reset GPUs
+   - If Pass 1 aggregate match ≥ 25%: compute speed score from stress prompts; start or resume scoring vLLM (`v0.9.2`, audit-sized context cap) and teacher-force the 8 audit outputs
+   - If match fails or Pass 2 fails: `score = 0.0`
+4. **Kill scoring container** at end of round
 
-1. Pull Docker image by digest
-2. Start container with `--gpus all`, model volume mount, internal network
-3. Poll `GET /health` every 5s until 200 (startup timeout: 10 min)
-4. Send 2 warmup prompts before evaluation; their results are discarded (see [Warmup](#warmup))
-5. Send 10 streaming requests with logprobs; measure TTFT + throughput and collect tokens + logprobs in the same pass
-6. Stop and remove container
-7. Clean up GPU state across all GPUs by resetting clocks and clearing caches (see [GPU state cleanup](#gpu-state-cleanup))
-8. Compute median TTFT/throughput, correctness check, score
-9. Compare against leader
+Miner and scoring baseline **never share GPUs**. The scoring container stays alive via `docker stop` / `docker start` between miners.
 
 ### Warmup
 
-Before scored prompts, the harness sends 2 warmup requests that are discarded. This absorbs one-time costs: CUDA graph compilation, KV cache pre-allocation, GPU clock ramping. Both baseline and miner receive the same warmup treatment. The competition measures steady-state serving speed.
+Before scored stress prompts, the harness sends **2 warmup requests** that are discarded. Both baseline and miner receive the same warmup. The competition measures steady-state serving speed.
 
 ### Timeouts
 
-| Timeout        | Value       | What happens if exceeded |
-| -------------- | ----------- | ------------------------ |
-| **Startup**    | 10 minutes  | Container terminated, DQ |
-| **Per-prompt** | 120 seconds | Request cancelled, DQ    |
+| Timeout                                   | Value       | What happens if exceeded           |
+| ----------------------------------------- | ----------- | ---------------------------------- |
+| **Startup (miner / generation baseline)** | 10 minutes  | Container terminated, DQ           |
+| **Startup (scoring baseline)**            | 15 minutes  | `baseline_scoring_unavailable`, DQ |
+| **Per-prompt**                            | 120 seconds | Request cancelled, DQ              |
 
 ### GPU state cleanup
 
-Between evaluations, the harness resets GPU state across all GPUs to prevent one miner's run from affecting the next:
+Between evaluations, the harness resets GPU state across all GPUs:
 
 - CUDA contexts are destroyed
 - GPU clocks are reset to default
 - Memory allocator caches are cleared
 
-This ensures each miner starts from a clean GPU state, identical to what the baseline saw.
+Each miner starts from a clean GPU state, identical to what the generation baseline saw.
 
-## vLLM baseline
+## vLLM images
 
-The baseline is a pinned version of vLLM serving `Qwen2.5-72B-Instruct`. The validator starts the baseline container on demand when prompts change, runs evaluation, caches the results, then tears it down.
+| Role                           | Default image                             | Context                                                       |
+| ------------------------------ | ----------------------------------------- | ------------------------------------------------------------- |
+| **Pass 1 generation baseline** | `vllm/vllm-openai:latest` (digest-pinned) | Up to ~128k (`--max-model-len` from GPU count + model config) |
+| **Pass 2 teacher-forcing**     | `vllm/vllm-openai:v0.9.2`                 | Audit-sized cap (~4.5k tokens), not full 128k                 |
 
-Baseline results are **pre-computed and cached** per prompt set. When the block hash changes, this triggers the generation of new prompts. The baseline runs once and then all challengers in that round are compared against the same cached baseline numbers. This saves ~50% of eval wall time per challenger.
-
-On a cache miss, baseline is driven the same way as challengers: streaming completions with logprobs and the same warmup discards.
+Generation baseline results are **cached** per block hash under `baseline_cache/`. On a cache miss, baseline runs with the same warmup discards and streaming logprobs as miners.
 
 ## Prompt delivery
 
-Prompts are delivered as OpenAI-compatible chat completion requests over HTTP:
+Stress prompts (Pass 1):
 
 ```json
 {
   "model": "Qwen2.5-72B-Instruct",
-  "messages": [{ "role": "user", "content": "<instruction with passage context>" }],
+  "messages": [{ "role": "user", "content": "<instruction with long passage>" }],
+  "max_tokens": 512,
+  "temperature": 0,
+  "stream": true,
+  "logprobs": true,
+  "top_logprobs": 5
+}
+```
+
+Audit prompts (Pass 2 generation in miner container):
+
+```json
+{
+  "model": "Qwen2.5-72B-Instruct",
+  "messages": [{ "role": "user", "content": "<instruction with ~4k passage>" }],
   "max_tokens": 256,
   "temperature": 0,
   "stream": true,
@@ -64,45 +80,37 @@ Prompts are delivered as OpenAI-compatible chat completion requests over HTTP:
 }
 ```
 
-The same prompts are sent to both baseline and miner. Prompt order is shuffled per challenger to prevent order-dependent optimizations.
+Prompt order is **deterministic** from the block-hash seed (same order for every miner in the round).
+
+Pass 2 correctness scoring uses a non-streaming request with `prompt_logprobs=1` on the separate scoring container. See [Scoring](/docs/evaluation/scoring#pass-2-correctness-teacher-forcing).
 
 ## Measurement
 
 ### TTFT
 
-Measured as wall-clock time from the moment the HTTP request is sent to the moment the first _Server-Sent Events_ (_SSE_) data chunk arrives. This includes:
+Wall-clock time from HTTP request send to the first SSE data chunk. Includes server prefill, first-token sampling, and response serialization. Does not include container startup.
 
-- Server-side prefill computation
-- First token sampling
-- HTTP response serialization
+### Throughput (Pass 1 stress only)
 
-It does not include container startup (that happens before evaluation begins).
-
-### Throughput
-
-Measured as **aligned** output tokens per second. The validator client stops reading the SSE stream once `max_tokens` (256) completion tokens are received, so miners cannot inflate the score by streaming extra tokens after `[DONE]`.
-
-Per prompt, throughput uses the **baseline output length** for that prompt (`N` tokens, often 256, sometimes fewer if EOS):
+**Aligned** output tokens per second on stress prompts (`max_tokens=512`):
 
 ```
 throughput = N / (time_to_emit_token_N - time_to_emit_token_1)
 ```
 
-`N` is the baseline's `output_tokens` for the same prompt. The miner's clock runs until it emits `N` tokens. If the miner stops early, that prompt gets **0 throughput credit** (not an automatic DQ).
-
-This measures sustained decode speed for the same completion budget, not including prefill.
+`N` is the baseline's `output_tokens` for that prompt. If the miner stops early, that prompt gets **0 throughput credit** (not an automatic DQ).
 
 ### Aggregation
 
-Both TTFT and throughput are aggregated using the **median** across the 10 scored prompts. Median is robust to outliers (GC pauses, memory pressure spikes) and prevents gaming by being fast on easy prompts but slow on hard ones.
+TTFT and throughput use the **median** across the **10 scored stress prompts**.
 
-### Correctness
+### Correctness (Pass 2)
 
-After the speed pass, a separate scoring baseline runs **teacher-forcing**: the baseline model scores each miner output token in one forward pass. See [Scoring](/docs/evaluation/scoring#correctness-gate). Streamed output is capped at `max_tokens` before scoring.
+Teacher-forcing on the scoring vLLM after miner teardown. See [Scoring](/docs/evaluation/scoring#pass-2-correctness-teacher-forcing).
 
 ## Per-prompt metrics
 
-Every scored prompt produces a detailed breakdown stored in the evaluation record:
+`per_prompt` on an `EvaluationRecord` covers **Pass 1 stress only** (10 entries):
 
 | Field              | Type  | Description                                                  |
 | ------------------ | ----- | ------------------------------------------------------------ |
@@ -111,13 +119,14 @@ Every scored prompt produces a detailed breakdown stored in the evaluation recor
 | `output_tokens`    | int   | Number of output tokens generated                            |
 | `token_match_rate` | float | Fraction of tokens matching baseline for this prompt         |
 
-These per-prompt results are available in `state.json` (inside each `EvaluationRecord`) and uploaded to S3 for frontend dashboards. Miners can inspect their performance per prompt to understand where their server excels or struggles.
+These are available in `state.json` and uploaded to S3 for dashboards.
 
 ## Container log capture
 
-After each evaluation (success or failure), the harness captures the full stdout/stderr from the container via `docker logs`. Logs are saved to `state-mainnet/container_logs/`:
+After each evaluation (success or failure), the harness captures stdout/stderr via `docker logs` into `state-mainnet/container_logs/`:
 
-- Baseline: `baseline_{cache_key}.log`
+- Generation baseline: `baseline_{cache_key}.log`
+- Scoring baseline: `baseline_scoring.log`
 - Miner: `uid{N}_{hotkey_prefix}_{block}.log`
 
-Container logs are never truncated. They are uploaded to S3 with the rest of the state directory for post-mortem debugging.
+Logs are uploaded to S3 with the rest of the state directory.

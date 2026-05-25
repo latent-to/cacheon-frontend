@@ -29,15 +29,13 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 **Rejected:** HuggingFace Transformers as baseline. Too slow. Beating vanilla HF is not impressive; beating vLLM is.
 
-## Correctness: first-divergence logprob analysis
+## Correctness: Pass 1 match + Pass 2 teacher-forcing
 
-**Decision:** Per-prompt first-divergence gate with logprob sanity checks.
+**Decision:** Two-pass gate. Pass 1 aggregate token match (mean of per-prompt rates) must be ≥ 25% or the miner is DQ'd before Pass 2. Pass 2 runs teacher-forcing on 8 short audit outputs via a separate scoring vLLM (`prompt_logprobs`): mean logprob ≥ -4.0 and every token ≥ -12.0 per prompt; all 8 must pass.
 
-**Reasoning:** With multi-GPU tensor parallelism, floating-point reduction order varies slightly between runs. At positions where two tokens are nearly tied in probability, this noise can flip the greedy argmax. Once one token diverges, the entire rest of the sequence cascades. A global token-match threshold falsely disqualifies legitimate miners running the exact same model.
+**Reasoning:** Global token match alone falsely DQ'd legitimate stacks when greedy decode diverged early and cascaded. Pass 1 match at 25% catches wrong-model garbage while allowing honest variance on long stress prompts. Pass 2 teacher-forcing validates that streamed audit outputs are plausible under the real BF16 weights without requiring byte-identical tokens on every stress prompt. Short audit context keeps `prompt_logprobs` stable on a pinned v0.9.2 scoring image.
 
-The first-divergence approach checks only the first mismatch per prompt: if the baseline's token is in the miner's top-5 logprobs with a gap `<= 0.5`, and the miner is using greedy decoding, the divergence is from TP noise and the prompt passes. This catches quantized models and wrong architectures while forgiving legitimate numerical variance.
-
-**Rejected:** Global token-match threshold (fails on cascade). Full-vocabulary KL via API logprobs (impractical data volume).
+**Rejected:** First-divergence top-5 logprob gate on Pass 1 stream (replaced by Pass 2 teacher-forcing). Full 128k teacher-forcing (OOM on newer vLLM). Global token-match-only DQ at high threshold (cascade false positives).
 
 ## V1 restrictions: no spec-dec, no quantization
 
