@@ -84,10 +84,10 @@ Do this **before** `bash setup-cpu.sh`:
 
 <Callout type="info" title="Set a Preferred Provider">
   If Targon is never used (for example only **`LIUM_API_KEY`** is set, or
-  **`CACHEON_PREFERRED_PROVIDER=lium`**), leave `TARGON_VOLUME_UID` unset. On **Lium**, the client
-  creates or reuses a volume named **`cacheon-sn14-volume`** when you rent. On **Shadeform**, the
-  provider creates a fresh 500 GB volume on each rental and deletes it after teardown; no extra env
-  vars are required beyond **`SHADEFORM_API_KEY`**.
+  **`CACHEON_PREFERRED_PROVIDER=lium|shadeform`**), leave `TARGON_VOLUME_UID` unset. On **Lium**,
+  the client creates or reuses a volume named **`cacheon-sn14-volume`** when you rent. On
+  **Shadeform**, the provider creates a fresh 500 GB volume on each rental and deletes it after
+  teardown; no extra environment variables are required beyond the **`SHADEFORM_API_KEY`**.
 </Callout>
 
 ## Start
