@@ -135,16 +135,16 @@ export function MetricCard({
   valueClassName?: string
 }) {
   return (
-    <GlassCard className="px-5 py-5">
-      <div className="text-secondary/75 mb-2 font-mono text-xs font-semibold tracking-[0.12em] uppercase">
+    <GlassCard className="px-3 py-3.5 sm:px-5 sm:py-5">
+      <div className="text-secondary/75 mb-1.5 font-mono text-[0.65rem] font-semibold tracking-[0.12em] uppercase sm:mb-2 sm:text-xs">
         {label}
       </div>
       {loading ? (
-        <Skeleton className="mt-1 h-7 w-20" />
+        <Skeleton className="mt-1 h-6 w-16 sm:h-7 sm:w-20" />
       ) : (
         <div
           className={cn(
-            'font-mono text-[1.9rem] leading-none font-black tracking-tight',
+            'font-mono text-xl leading-none font-black tracking-tight sm:text-[1.9rem]',
             accent ? 'text-accent' : 'text-primary',
             valueClassName,
           )}

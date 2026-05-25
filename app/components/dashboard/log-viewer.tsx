@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ChevronLeft } from 'lucide-react'
 import { cn } from '~/lib/cn'
 import { fmtBytes, Skeleton } from './shared'
 import { CopyButton } from '~/components/ui/copy-button'
@@ -74,12 +75,14 @@ export function LogViewer({
   const empty = !loading && entries.length === 0
 
   return (
-    <div
-      className="border-border/60 bg-surface/60 overflow-hidden rounded-xl border backdrop-blur-sm"
-      style={{ minHeight: '520px', display: 'flex', height: '600px' }}
-    >
+    <div className="border-border/60 bg-surface/60 flex min-h-[min(420px,70vh)] flex-col overflow-hidden rounded-xl border backdrop-blur-sm md:h-[600px] md:min-h-[520px] md:flex-row">
       {/* ── Sidebar ── */}
-      <div className="border-border/40 flex w-64 shrink-0 flex-col border-r">
+      <div
+        className={cn(
+          'border-border/40 flex w-full shrink-0 flex-col border-b md:w-64 md:border-r md:border-b-0',
+          selectedLabel && 'hidden md:flex',
+        )}
+      >
         {/* Controls slot */}
         {sidebarControls && <div className="border-border/40 border-b p-3">{sidebarControls}</div>}
 
@@ -91,7 +94,7 @@ export function LogViewer({
         </div>
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto px-1.5 pb-2">
+        <div className="max-h-[min(320px,45vh)] flex-1 overflow-y-auto px-1.5 pb-2 md:max-h-none">
           {loading ? (
             <div className="space-y-1.5 px-1 pt-1">
               {[...Array(6)].map((_, i) => (
@@ -142,9 +145,14 @@ export function LogViewer({
       </div>
 
       {/* ── Viewer pane ── */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div
+        className={cn(
+          'flex min-h-[min(280px,40vh)] min-w-0 flex-1 flex-col md:min-h-0',
+          !selectedLabel && 'hidden md:flex',
+        )}
+      >
         {!selectedLabel ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
             <div className="text-secondary/25 font-mono text-sm">Select a log file to view</div>
             <div className="text-secondary/15 font-mono text-xs">
               {entries.length > 0
@@ -158,18 +166,32 @@ export function LogViewer({
           </div>
         ) : (
           <>
-            <div className="border-border/40 flex shrink-0 items-center justify-between border-b bg-white/[0.02] px-4 py-2.5">
-              <span className="text-accent min-w-0 truncate font-mono text-xs font-semibold">
-                {selectedLabel}
-              </span>
+            <div className="border-border/40 flex shrink-0 items-center justify-between border-b bg-white/[0.02] px-3 py-2.5 sm:px-4">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedLabel(null)}
+                  className="text-secondary/60 hover:text-primary -ml-1 shrink-0 cursor-pointer rounded border-none bg-transparent p-1 md:hidden"
+                  aria-label="Back to log list"
+                >
+                  <ChevronLeft size={18} strokeWidth={2} />
+                </button>
+                <span className="text-accent min-w-0 truncate font-mono text-xs font-semibold">
+                  {selectedLabel}
+                </span>
+              </div>
               <div className="ml-2 flex shrink-0 items-center gap-0.5">
                 {logText && <CopyButton value={logText} className="p-1" />}
-                <CloseButton onClick={() => setSelectedLabel(null)} size={13} />
+                <CloseButton
+                  onClick={() => setSelectedLabel(null)}
+                  size={13}
+                  className="hidden md:inline-flex"
+                />
               </div>
             </div>
             <pre
               ref={logViewerRef}
-              className="bg-bg/60 text-secondary/75 flex-1 overflow-auto px-4 py-3 font-mono text-xs leading-[1.7] break-all whitespace-pre-wrap"
+              className="bg-bg/60 text-secondary/75 flex-1 overflow-auto px-3 py-3 font-mono text-xs leading-[1.7] break-all whitespace-pre-wrap sm:px-4"
             >
               {logText}
             </pre>
