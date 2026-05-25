@@ -53,7 +53,7 @@ export function LeaderSection() {
           />
         </div>
 
-        <GlassCard className="p-6">
+        <GlassCard className="p-4 sm:p-6">
           <div className="text-2xs tracking-caps text-secondary mb-4 font-mono font-semibold uppercase">
             Leader History
           </div>
@@ -101,7 +101,7 @@ function RankCard({
   accent?: boolean
 }) {
   return (
-    <GlassCard className="p-6">
+    <GlassCard className="p-4 sm:p-6">
       <div className="text-2xs tracking-caps text-secondary mb-4 font-mono font-semibold uppercase">
         {title}
       </div>
@@ -123,7 +123,7 @@ function RankCard({
             </span>
             <span
               className={cn(
-                'font-mono text-3xl font-black tracking-tight',
+                'min-w-0 truncate font-mono text-2xl font-black tracking-tight sm:text-3xl',
                 accent ? 'text-accent' : 'text-primary',
               )}
             >
@@ -131,16 +131,16 @@ function RankCard({
             </span>
           </div>
 
-          <div className="text-sm2 mb-4 space-y-1.5 font-mono">
-            <div className="flex gap-2">
+          <div className="text-sm2 mb-4 space-y-2 font-mono">
+            <div className="flex flex-wrap gap-x-2 gap-y-1">
               <span className="text-secondary/50">UID</span>
               <span className="text-secondary">{record.uid}</span>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
               <span className="text-secondary/50 shrink-0">Image</span>
               <ImageTag image={record.image} />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
               <span className="text-secondary/50 shrink-0">Won</span>
               <div className="text-sm2 flex min-w-0 flex-col gap-0.5 font-mono">
                 <span className="text-primary">{relativeTimeAgo(record.evaluated_at)}</span>
@@ -163,7 +163,7 @@ function RankCard({
 
 function LeaderHistoryNode({ entry, isLatest }: { entry: LeaderHistoryEntry; isLatest: boolean }) {
   return (
-    <div className="relative flex gap-4 py-3 pl-6">
+    <div className="relative flex gap-3 py-3 pl-5 sm:gap-4 sm:pl-6">
       <span
         className={cn(
           'absolute top-4 left-0 size-[14px] rounded-full border-2',
