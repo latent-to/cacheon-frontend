@@ -48,16 +48,19 @@ function LastEvalValue({ ts }: { ts: number | null | undefined }) {
   const split = splitRelativeTime(raw)
   if (!split)
     return (
-      <span className="text-primary font-mono text-[1.9rem] leading-none font-black tracking-tight">
+      <span className="text-primary font-mono text-xl leading-none font-black tracking-tight sm:text-[1.9rem]">
         —
       </span>
     )
   return (
-    <div className="flex items-baseline gap-1">
-      <span className="text-primary font-mono text-[1.9rem] leading-none font-black tracking-tight">
+    <div className="flex flex-wrap items-baseline gap-x-1 gap-y-0">
+      <span className="text-primary font-mono text-xl leading-none font-black tracking-tight sm:text-[1.9rem]">
         {split.n}{' '}
       </span>
-      <span className="text-secondary/60 font-mono text-xs font-semibold"> {split.unit}</span>
+      <span className="text-secondary/60 font-mono text-[0.65rem] font-semibold sm:text-xs">
+        {' '}
+        {split.unit}
+      </span>
     </div>
   )
 }
@@ -106,7 +109,7 @@ export function PulseSection() {
         </h3>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
         <MetricCard
           label="Leader UID"
           value={s?.leader_uid ?? '-'}
@@ -133,7 +136,7 @@ export function PulseSection() {
         />
       </div>
 
-      {s && (s.last_scan_block || s.last_weights_set_block) && (
+      {s && (s.last_scan_block != null || s.last_weights_set_block != null) && (
         <div className="text-secondary/70 mt-4 flex flex-wrap gap-4 font-mono text-sm">
           {s.last_scan_block != null && <span>Last scan: block #{s.last_scan_block}</span>}
           {s.last_weights_set_block != null && (
@@ -293,7 +296,7 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
   return (
     <div className={cn('mt-8 overflow-hidden rounded-xl border bg-white/[0.015]', borderColor)}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-6 pt-4 pb-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-4 pb-3 sm:px-6">
         <span className="relative flex size-2.5 shrink-0">
           <span
             className={cn(
@@ -303,8 +306,10 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
           />
           <span className={cn('relative inline-flex size-2.5 rounded-full', dotColor)} />
         </span>
-        <div className="flex min-w-0 flex-1 items-baseline gap-3">
-          <span className={cn('font-mono text-base leading-none font-semibold', accentColor)}>
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span
+            className={cn('font-mono text-sm leading-none font-semibold sm:text-base', accentColor)}
+          >
             {stale ? 'Signal stale' : phaseLabel(progress.phase, progress.detail)}
           </span>
           {progress.started_at != null && (
@@ -324,7 +329,7 @@ function EvalProgressBanner({ progress }: { progress: EvalProgressResponse }) {
 
       {/* GPU + meta pills */}
       {(gpu || challengers.length > 0) && (
-        <div className="flex flex-wrap items-center gap-2 px-6 pb-3">
+        <div className="flex flex-wrap items-center gap-2 px-4 pb-3 sm:px-6">
           {gpu?.provider && (
             <Badge>
               {gpu.provider}
@@ -391,29 +396,49 @@ function ChallengerRow({
   return (
     <div
       className={cn(
-        'flex items-center gap-4 px-6 py-3 font-mono transition-colors',
+        'flex flex-col gap-2 px-4 py-3 font-mono transition-colors sm:flex-row sm:items-center sm:gap-4 sm:px-6',
         active && style.bg,
         !last && 'border-b border-white/[0.06]',
       )}
     >
-      {/* Status dot */}
-      <span className="relative flex size-2.5 shrink-0">
-        {isLive && active && (
-          <span
-            className={cn(
-              'absolute inline-flex h-full w-full animate-ping rounded-full opacity-60',
-              style.dot,
+      <div className="flex items-center justify-between gap-3 sm:contents">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-4">
+          {/* Status dot */}
+          <span className="relative flex size-2.5 shrink-0">
+            {isLive && active && (
+              <span
+                className={cn(
+                  'absolute inline-flex h-full w-full animate-ping rounded-full opacity-60',
+                  style.dot,
+                )}
+              />
             )}
-          />
-        )}
-        <span className={cn('relative inline-flex size-2.5 rounded-full', style.dot)} />
-      </span>
+            <span className={cn('relative inline-flex size-2.5 rounded-full', style.dot)} />
+          </span>
 
-      {/* UID */}
-      <span className="text-secondary/70 w-16 shrink-0 text-sm whitespace-nowrap">UID {c.uid}</span>
+          {/* UID */}
+          <span className="text-secondary/70 shrink-0 text-sm whitespace-nowrap sm:w-16">
+            UID {c.uid}
+          </span>
+        </div>
+
+        {/* Status badge */}
+        <span
+          className={cn(
+            'inline-flex shrink-0 items-center justify-end text-xs font-semibold tracking-[0.1em] uppercase sm:w-20 sm:text-sm',
+            style.text,
+          )}
+        >
+          {isLeader && (
+            <Crown size={13} className="text-accent mr-1 mb-[2px] shrink-0 opacity-80" />
+          )}
+          {isRunnerUp && <Medal size={13} className="text-secondary/50 mr-1 mb-[2px] shrink-0" />}
+          {style.label}
+        </span>
+      </div>
 
       {/* Hotkey + image */}
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:min-w-[8rem]">
         <div className="flex min-w-0 items-center gap-1">
           <span className="text-secondary/85 truncate text-sm leading-none">
             {truncHotkey(c.hotkey)}
@@ -434,26 +459,21 @@ function ChallengerRow({
       </div>
 
       {/* Score / DQ reason */}
-      {c.score != null && c.status === 'scored' && (
-        <span className="text-success shrink-0 text-sm font-semibold">{fmtScore(c.score)}</span>
-      )}
-      {c.dq_reason && (
-        <span className="text-error/80 max-w-[12rem] shrink-0 truncate text-sm" title={c.dq_reason}>
-          {c.dq_reason}
-        </span>
-      )}
-
-      {/* Status badge */}
-      <span
-        className={cn(
-          'inline-flex w-20 shrink-0 items-center justify-end text-sm font-semibold tracking-[0.1em] uppercase',
-          style.text,
-        )}
-      >
-        {isLeader && <Crown size={13} className="text-accent mr-1 mb-[2px] shrink-0 opacity-80" />}
-        {isRunnerUp && <Medal size={13} className="text-secondary/50 mr-1 mb-[2px] shrink-0" />}
-        {style.label}
-      </span>
+      {(c.score != null && c.status === 'scored') || c.dq_reason ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:shrink-0 sm:justify-end">
+          {c.score != null && c.status === 'scored' && (
+            <span className="text-success text-sm font-semibold">{fmtScore(c.score)}</span>
+          )}
+          {c.dq_reason && (
+            <span
+              className="text-error/80 max-w-full truncate text-sm sm:max-w-[12rem]"
+              title={c.dq_reason}
+            >
+              {c.dq_reason}
+            </span>
+          )}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -466,7 +486,7 @@ function StepTimeline({ steps }: { steps: EvalProgressStep[] }) {
   const hidden = steps.length - visible.length
 
   return (
-    <div className="border-t border-white/[0.06] px-6 py-4">
+    <div className="border-t border-white/[0.06] px-4 py-4 sm:px-6">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}

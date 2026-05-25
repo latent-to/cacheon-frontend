@@ -59,7 +59,7 @@ export function EvaluationsSection() {
 
   return (
     <section>
-      <div className="mb-4 flex items-center gap-1">
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
         {(['all', 'active', 'dq'] as EvalFilter[]).map((f) => {
           const count = evals.data
             ? f === 'all'
@@ -98,7 +98,7 @@ export function EvaluationsSection() {
         })}
       </div>
 
-      <GlassCard className="overflow-x-auto">
+      <GlassCard className="overflow-hidden md:overflow-x-auto">
         {evals.loading ? (
           <div className="space-y-0 px-6">
             {[...Array(5)].map((_, i) => (
@@ -116,65 +116,79 @@ export function EvaluationsSection() {
             No evaluations found
           </div>
         ) : (
-          <table className="w-full min-w-[720px] font-mono">
-            <thead>
-              <tr className="border-border/30 border-b bg-white/[0.015]">
-                <th className="text-2xs tracking-caps text-secondary/40 w-14 px-4 py-2.5 text-left font-semibold uppercase">
-                  UID
-                </th>
-                <th className="text-2xs tracking-caps text-secondary/40 px-3 py-2.5 text-left font-semibold uppercase">
-                  Hotkey
-                </th>
-                <th className="text-2xs tracking-caps text-secondary/40 px-3 py-2.5 text-left font-semibold uppercase">
-                  Image
-                </th>
-                <SortableHeader
-                  label="Score"
-                  sortKey="score"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onSort={handleSort}
-                  className="w-20"
-                />
-                <SortableHeader
-                  label="TTFT"
-                  sortKey="ttft_improvement"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onSort={handleSort}
-                  className="w-16"
-                />
-                <SortableHeader
-                  label="TPS"
-                  sortKey="throughput_improvement"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onSort={handleSort}
-                  className="w-16"
-                />
-                <SortableHeader
-                  label="Match"
-                  sortKey="token_match_rate"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onSort={handleSort}
-                  className="w-16"
-                />
-                <th className="text-2xs tracking-caps text-secondary/40 w-24 px-4 py-2.5 text-right font-semibold uppercase">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            {/* Mobile cards */}
+            <div className="divide-border/20 divide-y md:hidden">
               {list.map((ev) => (
-                <EvalRow
+                <EvalCard
                   key={`${ev.hotkey}:${ev.commit_block}`}
                   ev={ev}
                   onSelect={setSelectedUid}
                 />
               ))}
-            </tbody>
-          </table>
+            </div>
+
+            {/* Desktop table */}
+            <table className="hidden w-full font-mono md:table">
+              <thead>
+                <tr className="border-border/30 border-b bg-white/[0.015]">
+                  <th className="text-2xs tracking-caps text-secondary/40 w-14 px-4 py-2.5 text-left font-semibold uppercase">
+                    UID
+                  </th>
+                  <th className="text-2xs tracking-caps text-secondary/40 px-3 py-2.5 text-left font-semibold uppercase">
+                    Hotkey
+                  </th>
+                  <th className="text-2xs tracking-caps text-secondary/40 px-3 py-2.5 text-left font-semibold uppercase">
+                    Image
+                  </th>
+                  <SortableHeader
+                    label="Score"
+                    sortKey="score"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    className="w-20"
+                  />
+                  <SortableHeader
+                    label="TTFT"
+                    sortKey="ttft_improvement"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    className="w-16"
+                  />
+                  <SortableHeader
+                    label="TPS"
+                    sortKey="throughput_improvement"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    className="w-16"
+                  />
+                  <SortableHeader
+                    label="Match"
+                    sortKey="token_match_rate"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                    className="w-16"
+                  />
+                  <th className="text-2xs tracking-caps text-secondary/40 w-24 px-4 py-2.5 text-right font-semibold uppercase">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((ev) => (
+                  <EvalRow
+                    key={`${ev.hotkey}:${ev.commit_block}`}
+                    ev={ev}
+                    onSelect={setSelectedUid}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </GlassCard>
 
@@ -284,6 +298,46 @@ function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numbe
   )
 }
 
+function EvalCard({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: number) => void }) {
+  const dq = isEffectiveDq(ev)
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(ev.uid)}
+      className={cn(
+        'w-full cursor-pointer border-none bg-transparent px-4 py-3.5 text-left transition-colors hover:bg-white/[0.02]',
+        dq && 'opacity-60',
+      )}
+    >
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className={cn('font-mono text-sm font-bold', dq ? 'text-error/60' : 'text-primary')}>
+            UID {ev.uid}
+          </div>
+          <div className="mt-1 flex min-w-0 items-center gap-1">
+            <span className="text-secondary/60 truncate font-mono text-xs" title={ev.hotkey}>
+              {truncHotkey(ev.hotkey)}
+            </span>
+            <CopyButton value={ev.hotkey} />
+          </div>
+        </div>
+        <StatusPill active={!dq} label={dq ? 'DQ' : 'SCORED'} />
+      </div>
+
+      <div className="mb-3">
+        <ImageTag image={ev.image} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <MiniStat label="Score" value={fmtScore(ev.score)} accent={!dq} />
+        <MiniStat label="TTFT" value={fmtImprovement(ev.ttft_improvement)} />
+        <MiniStat label="TPS" value={fmtImprovement(ev.throughput_improvement)} />
+        <MiniStat label="Match" value={fmtPct(ev.token_match_rate)} />
+      </div>
+    </button>
+  )
+}
+
 function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }) {
   const [data, setData] = useState<EvaluationRecord[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -309,13 +363,13 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="border-border/60 bg-bg relative z-10 flex h-full w-full max-w-lg flex-col overflow-y-auto border-l">
-        <div className="border-border/40 flex items-center justify-between border-b px-6 py-4">
+      <div className="border-border/60 bg-bg relative z-10 flex h-full w-full max-w-lg flex-col overflow-y-auto border-l sm:max-w-md">
+        <div className="border-border/40 flex items-center justify-between border-b px-4 py-4 sm:px-6">
           <h3 className="text-primary font-mono text-sm font-bold">UID {uid}</h3>
           <CloseButton onClick={onClose} size={20} />
         </div>
 
-        <div className="flex-1 space-y-6 p-6">
+        <div className="flex-1 space-y-6 p-4 sm:p-6">
           {error && (
             <div className="border-error/30 bg-error/10 text-error rounded-lg border px-4 py-3 font-mono text-sm">
               {error}

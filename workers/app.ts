@@ -9,7 +9,7 @@ declare module 'react-router' {
   }
 }
 
-const API_UPSTREAM = 'https://api.cacheon.ai'
+const API_UPSTREAM = import.meta.env.PROD ? 'https://api.cacheon.ai' : 'http://127.0.0.1:8080'
 const PROXY_PREFIX = '/proxy-api/'
 
 const requestHandler = createRequestHandler(

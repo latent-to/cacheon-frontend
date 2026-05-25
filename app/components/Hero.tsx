@@ -62,11 +62,6 @@ export default function Hero() {
 
       {/* Hero content */}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-24 pb-0 text-center">
-        {/* Pill */}
-        <div className="border-accent/40 bg-accent-surface tracking-caps-wide text-accent mb-8 inline-flex items-center rounded-full border px-3.5 py-1 font-mono text-xs font-semibold uppercase">
-          Launching on May 19, 2026
-        </div>
-
         {/* Headline */}
         <h1 className="mb-6 max-w-[min(100%,48rem)] font-mono text-[clamp(1.75rem,4.6vw,3.15rem)] leading-[1.22] font-extrabold tracking-tight text-balance">
           <span className="text-accent shadow-accent-text">Build the Fastest</span>

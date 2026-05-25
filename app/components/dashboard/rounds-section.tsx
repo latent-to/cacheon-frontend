@@ -81,7 +81,7 @@ function RoundCard({
   return (
     <GlassCard>
       <div
-        className="flex cursor-pointer items-center justify-between px-5 py-3.5"
+        className="flex cursor-pointer flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5"
         onClick={onToggle}
         onKeyDown={(e) => e.key === 'Enter' && onToggle()}
         role="button"
@@ -95,7 +95,7 @@ function RoundCard({
             Block #{round.evaluation_block}
           </span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3 sm:justify-end">
           <span className="text-2xs text-secondary rounded-md bg-white/[0.04] px-2 py-0.5 font-mono font-semibold">
             {round.n_challengers} challenger{round.n_challengers !== 1 ? 's' : ''}
           </span>
@@ -103,7 +103,7 @@ function RoundCard({
             size={16}
             strokeWidth={2}
             className={cn(
-              'text-secondary/40 transition-transform duration-200',
+              'text-secondary/40 shrink-0 transition-transform duration-200',
               expanded && 'rotate-180',
             )}
           />
@@ -111,37 +111,42 @@ function RoundCard({
       </div>
 
       {expanded && (
-        <div className="border-border/30 border-t px-5 py-3">
-          <div className="space-y-1.5">
+        <div className="border-border/30 border-t px-4 py-3 sm:px-5">
+          <div className="space-y-2">
             {round.challengers.map((c) => (
               <div
                 key={`${c.hotkey}:${round.evaluation_block}`}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 font-mono text-xs',
+                  'flex flex-col gap-2 rounded-lg px-3 py-2.5 font-mono text-xs sm:flex-row sm:items-center sm:gap-3',
                   c.disqualified && 'opacity-50',
                 )}
               >
+                <div className="flex min-w-0 items-center justify-between gap-3 sm:contents">
+                  <span
+                    className={cn(
+                      'shrink-0 font-bold sm:w-10',
+                      c.disqualified ? 'text-error/60' : 'text-primary',
+                    )}
+                  >
+                    {c.uid}
+                  </span>
+                  <StatusPill active={!c.disqualified} label={c.disqualified ? 'DQ' : 'OK'} />
+                </div>
                 <span
-                  className={cn(
-                    'w-10 font-bold',
-                    c.disqualified ? 'text-error/60' : 'text-primary',
-                  )}
+                  className="text-secondary/50 min-w-0 flex-1 truncate sm:order-none"
+                  title={c.hotkey}
                 >
-                  {c.uid}
-                </span>
-                <span className="text-secondary/50 min-w-0 flex-1 truncate" title={c.hotkey}>
                   {truncHotkey(c.hotkey)}
                 </span>
-                <ImageTag image={c.image} className="hidden max-w-[24rem] sm:flex" />
+                <ImageTag image={c.image} className="max-w-full sm:max-w-[24rem]" />
                 <span
                   className={cn(
-                    'w-16 text-right font-bold',
+                    'shrink-0 font-bold sm:w-16 sm:text-right',
                     c.disqualified ? 'text-error/60' : 'text-accent',
                   )}
                 >
                   {fmtScore(c.score)}
                 </span>
-                <StatusPill active={!c.disqualified} label={c.disqualified ? 'DQ' : 'OK'} />
               </div>
             ))}
           </div>
