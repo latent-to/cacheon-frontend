@@ -1,16 +1,16 @@
 ---
 title: Scoring
-description: Two-pass evaluation. Pass 1 measures speed against a cached baseline with a token-match gate, while Pass 2 validates correctness through teacher-forcing. Final metrics use median aggregation across the stress prompts.
+description: Two-pass evaluation. Pass 1 measures speed against a cached baseline with a token-match gate, while Pass 2 validates correctness through teacher-forcing. Final metrics use median aggregation across the speed evaluation prompts.
 ---
 
 Final score is **correctness-gated**: Pass 1 aggregate token match must clear the threshold, Pass 2 teacher-forcing must pass, and only then does the speed score count. Otherwise `score = 0.0`.
 
 ## Two-pass overview
 
-| Pass                | Prompts              | Context / output                            | Container                                                                     | Purpose                       |
-| ------------------- | -------------------- | ------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------- |
-| **Pass 1 (stress)** | 10 scored + 2 warmup | Long context (up to ~128k cap), **512** out | Miner + cached generation baseline (`vllm/vllm-openai:latest`)                | Speed vs baseline; match gate |
-| **Pass 2 (audit)**  | 8, no warmup         | ~**4k** in / **256** out                    | Miner generates outputs; separate scoring vLLM (`v0.9.2`) teacher-forces them | Correctness gate              |
+| Pass                     | Prompts              | Context / output                            | Container                                                                     | Purpose                       |
+| ------------------------ | -------------------- | ------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------- |
+| **Pass 1 (speed)**       | 10 scored + 2 warmup | Long context (up to ~128k cap), **512** out | Miner + cached generation baseline (`vllm/vllm-openai:latest`)                | Speed vs baseline; match gate |
+| **Pass 2 (correctness)** | 8, no warmup         | ~**4k** in / **256** out                    | Miner generates outputs; separate scoring vLLM (`v0.9.2`) teacher-forces them | Correctness gate              |
 
 Pass 1 baseline numbers are **pre-computed once per block hash** and cached. Pass 2 does not re-run a generation baseline for speed; a dedicated scoring container runs `prompt_logprobs` over each miner's audit outputs after the miner container is torn down.
 
@@ -28,40 +28,40 @@ else:
 <Callout title="Scoring axes" type="info">
 Gates and axes, in order of enforcement:
 
-1. **Pass 1 match gate:** aggregate token match below 25% → `pass1_match_fail`, skip Pass 2 scoring.
-2. **Pass 2 correctness gate:** teacher-forcing fail → `correctness_fail` or `scoring_infra_fail`; speed zeroed.
-3. **TTFT:** 50% of the weighted speed score (stress prompts only).
-4. **Throughput:** 50% of the weighted speed score (stress prompts only).
+1. **Pass 1 match gate:** if aggregate token match below 25%, return `pass1_match_fail`; skip Pass 2 scoring.
+2. **Pass 2 correctness gate:** if teacher-forcing fail, return `correctness_fail` or `scoring_infra_fail`; speed zeroed.
+3. **TTFT:** 50% of the weighted speed score (speed evaluation prompts only).
+4. **Throughput:** 50% of the weighted speed score (correctness evaluation prompts only).
 
 Improvements are floored at zero. If your server is slower than vLLM on one axis, that axis contributes 0, not a negative number.
 
 </Callout>
 
-## Pass 1: speed and match
+## Pass 1: speed and token match
 
 ### Aggregation
 
-Pass 1 sends **12 stress prompts** (2 warmup discarded, **10 scored**) to the miner. Baseline TTFT and aligned throughput use the **median** across those 10 scored prompts.
+Pass 1 sends **12 speed evaluation prompts** (2 warmup discarded, **10 scored**) to the miner. Baseline TTFT and aligned throughput use the **median** across those 10 scored prompts.
 
 ### Measurement
 
-Stress prompts use **streaming chat completions** with `logprobs` (`stream=true`, `logprobs=true`, `top_logprobs=5`). TTFT and throughput come from SSE timing. Top-5 logprobs are collected and cached with the baseline but are **not** a DQ gate in V1.
+Speed evaluation prompts use **streaming chat completions** with `logprobs` (`stream=true`, `logprobs=true`, `top_logprobs=5`). TTFT and throughput come from SSE timing. Top-5 logprobs are collected and cached with the baseline but are **not** a DQ gate in V1.
 
 ### Warmup
 
-Before scored stress prompts, the validator sends **2 warmup prompts** that are discarded. Both baseline and miner receive the same warmup. The competition measures steady-state serving speed, not startup optimization.
+Before scored speed evaluation prompts, the validator sends **2 warmup prompts** that are discarded. Both baseline and miner receive the same warmup. The competition measures steady-state serving speed, not startup optimization.
 
 ### Pass 1 match gate
 
-Aggregate match is the **mean of per-prompt token match rates** across the 10 scored stress prompts (not a single pooled token average).
+Aggregate match is the **mean of per-prompt token match rates** across the 10 scored speed evaluation prompts (not a single pooled token average).
 
-If aggregate match is below `PASS1_MATCH_DQ_THRESHOLD` (default **25%**), the miner is DQ'd with `pass1_match_fail` and Pass 2 teacher-forcing is skipped. Configurable via `CACHEON_PASS1_MATCH_DQ_THRESHOLD`.
+If aggregate match is below `PASS1_MATCH_DQ_THRESHOLD` (default **25%**), the miner is disqualified with `pass1_match_fail` and Pass 2 teacher-forcing is skipped. Configurable via `CACHEON_PASS1_MATCH_DQ_THRESHOLD` variable in the [validator config](<https://github.com/latent-to/cacheon/blob/main/validator/config.py#:~:text=%20%20%20%20os.environ.get(%22CACHEON_PASS1_MATCH_DQ_THRESHOLD%22%2C%20%220.25%22)>).
 
 `token_match_rate` on the evaluation record stores this aggregate Pass 1 value for dashboards.
 
 ## Pass 2: correctness (teacher-forcing)
 
-After Pass 1 match passes, the validator starts or resumes a **separate scoring vLLM** container (`CACHEON_SCORING_IMAGE`, default `vllm/vllm-openai:v0.9.2`). It boots with a **small `--max-model-len`** sized for audit prompts (~4.5k), not the 128k stress budget, so `prompt_logprobs` stays stable.
+After Pass 1 match passes, the validator starts or resumes a **separate scoring vLLM** container (`CACHEON_SCORING_IMAGE`, default `vllm/vllm-openai:v0.9.2`). It boots with a **small `--max-model-len`** sized for correctness evaluation prompts (~4.5k), not the 128k speed evaluation budget, so `prompt_logprobs` stays stable.
 
 The scoring container teacher-forces each of the **8 audit outputs** the miner already generated (`prompt_logprobs=1` on `/v1/chat/completions` with prompt + assistant text). Per prompt, all miner output tokens must satisfy:
 
@@ -70,9 +70,9 @@ The scoring container teacher-forces each of the **8 audit outputs** the miner a
 
 Configurable via `CACHEON_MEAN_LOGPROB_THRESHOLD` and `CACHEON_MIN_LOGPROB_THRESHOLD`.
 
-**Every audit prompt must pass.** One failure disqualifies the submission (`correctness_fail`). Empty or missing logprobs (OOM, HTTP 500) → `scoring_infra_fail`.
+**Every correctness evaluation prompt must pass.** One failure disqualifies the submission (`correctness_fail`). Empty or missing logprobs (OOM, HTTP 500) → `scoring_infra_fail`.
 
-The ~4k audit pass does **not** prove 128k behavior; that is a known V1 gap.
+The ~4k correctness pass does **not** prove 128k behavior; that is a known V1 gap.
 
 ### Why this catches bad actors
 
@@ -82,7 +82,7 @@ The ~4k audit pass does **not** prove 128k behavior; that is a known V1 gap.
 
 ### Scoring baseline image
 
-Speed eval uses the generation baseline (`vllm/vllm-openai:latest`, digest-pinned). Teacher-forcing uses **`vllm/vllm-openai:v0.9.2`** because newer vLLM builds OOM on long `prompt_logprobs`; audit prompts stay short (~4k) and the scoring server context cap matches that budget.
+Speed eval uses the generation baseline (`vllm/vllm-openai:latest`, digest-pinned). Teacher-forcing uses **`vllm/vllm-openai:v0.9.2`** because newer vLLM builds OOM on long `prompt_logprobs`; correctness evaluation prompts stay short (~4k) and the scoring server context cap matches that budget.
 
 ## TTFT improvement
 
@@ -90,11 +90,11 @@ Speed eval uses the generation baseline (`vllm/vllm-openai:latest`, digest-pinne
 ttft_improvement = max(0, (baseline_ttft - miner_ttft) / baseline_ttft)
 ```
 
-Computed from the **median** TTFT across 10 scored stress prompts. At long input (often tens of thousands of tokens on 8x H200/B200, `TP=8`), TTFT is dominated by prefill attention.
+Computed from the **median** TTFT across 10 scored speed evaluation prompts. At long input (often tens of thousands of tokens on 8x H200/B200, `TP=8`), TTFT is dominated by prefill attention.
 
 ## Throughput improvement
 
-Per stress prompt, aligned throughput is:
+Per speed evaluation prompt, aligned throughput is:
 
 ```
 miner_tps = baseline_output_tokens / miner_time_to_emit_that_many_tokens
@@ -109,7 +109,7 @@ Improvement vs baseline:
 throughput_improvement = max(0, (miner_tps - baseline_tps) / baseline_tps)
 ```
 
-The final score uses the **median** across the 10 scored stress prompts (`max_tokens=512`). Extra tokens beyond the baseline length do not help: the TPS numerator is fixed to the baseline token count.
+The final score uses the **median** across the 10 scored speed evaluation prompts (`max_tokens=512`). Extra tokens beyond the baseline length do not help: the TPS numerator is fixed to the baseline token count.
 
 ## Baseline: vLLM
 
