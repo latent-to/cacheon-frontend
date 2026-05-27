@@ -439,7 +439,7 @@ function EvalOutcomeCard({ ev }: { ev: EvaluationRecord }) {
         </div>
       )}
 
-      {!ev.disqualified && ev.score === 0 && (
+      {!ev.disqualified && ev.score === 0 && gates.pass1 === 'pass' && gates.pass2 === 'pass' && (
         <p className="text-secondary/50 font-mono text-xs">
           Gates passed but score is 0: no TTFT or throughput improvement vs baseline.
         </p>

@@ -81,8 +81,8 @@ export function summarizeEvalGates(ev: {
     return {
       prefix,
       shortLabel: 'Prompt error',
-      pass1: 'fail',
-      pass2: 'skipped',
+      pass1: pass1MatchOk ? 'pass' : 'fail',
+      pass2: pass1MatchOk ? 'fail' : 'skipped',
       isInfraFail: false,
     }
   }

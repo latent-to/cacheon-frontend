@@ -42,6 +42,7 @@ export function LogViewer({
   const [logText, setLogText] = useState<string | null>(null)
   const [logLoading, setLogLoading] = useState(false)
   const logViewerRef = useRef<HTMLPreElement>(null)
+  const appliedInitialRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!selectedLabel) return
@@ -50,8 +51,10 @@ export function LogViewer({
 
   useEffect(() => {
     if (!initialSelectedLabel) return
+    if (appliedInitialRef.current === initialSelectedLabel) return
     if (entries.some((l) => l.label === initialSelectedLabel)) {
       setSelectedLabel(initialSelectedLabel)
+      appliedInitialRef.current = initialSelectedLabel
     }
   }, [initialSelectedLabel, entries])
 
