@@ -1,18 +1,21 @@
 ---
 title: Prompts
-description: Instruct prompts with PG19 context, seeded by block hash. Two regimes — stress (Pass 1) and audit (Pass 2).
+description: Instruct prompts with PG19 context, seeded by block hash. Two categories — stress (Pass 1) and audit (Pass 2).
 ---
 
-Prompts are **instruct-style requests** built from curated instruction templates filled with PG19 passages. A **block-hash-derived seed** makes them deterministic: same block, same prompts, anywhere, any machine.
+Prompts are **instruct-style requests** built from curated instruction templates filled with [**PG19** (Project Gutenberg)](https://www.tensorflow.org/datasets/catalog/pg19) passages. A **block-hash-derived seed** makes them deterministic: same block, same prompts, anywhere, any machine.
 
-## Two regimes
+## Two prompt categories
 
-| Regime     | Pass                   | Count                                     | Input context          | `max_tokens` | Seed suffix |
+Two prompt sets are used during evaluation: _stress prompts_ and _audit prompts_.
+
+Stress prompts are long-context generation workloads used to measure TTFT and throughput. Audit prompts are shorter prompts used for correctness validation through teacher-forcing.
+| Category | Pass | Count | Input context | `max_tokens` | Seed suffix |
 | ---------- | ---------------------- | ----------------------------------------- | ---------------------- | ------------ | ----------- |
-| **Stress** | Pass 1 (speed + match) | 12 total (10 scored + 2 warmup discarded) | Long (up to ~128k cap) | 512          | (none)      |
-| **Audit**  | Pass 2 (correctness)   | 8, no warmup                              | ~4k tokens             | 256          | `:audit`    |
+| **Stress** | Pass 1 (speed + match) | 12 total (10 scored + 2 warmup discarded) | Long (up to ~128k cap) | 512 | (none) |
+| **Audit** | Pass 2 (correctness) | 8, no warmup | ~4k tokens | 256 | `:audit` |
 
-Both sets are sampled independently from PG19 using the same block hash with different seed suffixes.
+Both prompt sets are independently sampled from PG19 using the current block_hash with different seed suffixes, ensuring that every challenger in the round is evaluated against the same workload.
 
 ## Why instruct format
 
@@ -49,7 +52,7 @@ PG19 is pinned to Hugging Face revision `a0e01428956e39868fa36ccfa0ee236ff04e6a6
 
 | Filter                | Stress threshold | Audit threshold | Rejects                           |
 | --------------------- | ---------------- | --------------- | --------------------------------- |
-| Minimum length        | 16,000 chars     | 4,000 chars     | Rows too short for the regime     |
+| Minimum length        | 16,000 chars     | 4,000 chars     | Rows too short for the category   |
 | Alpha character ratio | ≥ 50%            | ≥ 50%           | OCR noise, numeric tables         |
 | Whitespace ratio      | ≤ 35%            | ≤ 35%           | Chapter headers, blank-heavy rows |
 

@@ -1,6 +1,6 @@
 ---
 title: Scoring
-description: Two-pass evaluation. Pass 1 speed vs cached baseline with a match gate. Pass 2 teacher-forcing correctness. Median aggregation across stress prompts.
+description: Two-pass evaluation. Pass 1 measures speed against a cached baseline with a token-match gate, while Pass 2 validates correctness through teacher-forcing. Final metrics use median aggregation across the stress prompts.
 ---
 
 Final score is **correctness-gated**: Pass 1 aggregate token match must clear the threshold, Pass 2 teacher-forcing must pass, and only then does the speed score count. Otherwise `score = 0.0`.

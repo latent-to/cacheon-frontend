@@ -47,7 +47,7 @@ Standard _Server-Sent Event_ (_SSE_) with `data: {"choices": [{"delta": {"conten
 
 ## Two-pass evaluation
 
-The validator runs your server in one container session with two prompt regimes, then scores audit outputs on a separate vLLM:
+The validator runs your server in one container session with two prompt categories, then scores audit outputs on a separate vLLM:
 
 **Pass 1 (stress):** 12 prompts (2 warmup discarded, 10 scored), long context, `max_tokens=512`. Measures TTFT and aligned throughput vs the cached generation baseline. Streamed top-5 logprobs are collected but are not a DQ gate.
 

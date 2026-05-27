@@ -3,15 +3,15 @@ title: Evaluation harness
 description: How the harness orchestrates two-pass containerized evaluation. Baseline cache, miner stress + audit, scoring container teacher-forcing, warmup, and median aggregation.
 ---
 
-The harness pulls miner containers, runs Pass 1 (stress speed + match) and Pass 2 (audit generation + teacher-forcing scoring), and compares results against a cached vLLM generation baseline.
+The harness pulls miner containers, runs Pass 1 (stress speed + match) and Pass 2 (audit generation + teacher-forced scoring), and compares results against a cached vLLM generation baseline.
 
 ## Round lifecycle
 
-1. **Sample prompts** from `block_hash`: 12 stress (10 scored + 2 warmup) and 8 audit
+1. **Sample prompts** from `block_hash`: 12 stress prompts (10 scored + 2 warmup) and 8 audit prompts
 2. **Generation baseline once**: start `vllm/vllm-openai:latest`, run stress prompts, cache results, tear down
 3. **Per miner** (leader, runner-up, then challengers):
    - `docker stop` the scoring container if it is running (GPU handoff)
-   - Start miner container; run **Pass 1 stress** (12 prompts, discard 2 warmup) then **Pass 2 audit generation** (8 prompts, no warmup) in one session
+   - Start miner container; run **Pass 1 stress evaluation** (12 prompts with 2 warmup prompts discarded) then **Pass 2 audit generation** (8 prompts, no warmup) in one session
    - Tear down miner container; reset GPUs
    - If Pass 1 aggregate match ≥ 25%: compute speed score from stress prompts; start or resume scoring vLLM (`v0.9.2`, audit-sized context cap) and teacher-force the 8 audit outputs
    - If match fails or Pass 2 fails: `score = 0.0`
@@ -21,7 +21,7 @@ Miner and scoring baseline **never share GPUs**. The scoring container stays ali
 
 ### Warmup
 
-Before scored stress prompts, the harness sends **2 warmup requests** that are discarded. Both baseline and miner receive the same warmup. The competition measures steady-state serving speed.
+Before starting the scored stress prompts, the harness sends **2 warmup requests** that are discarded. Both baseline and miner receive the same warmup. The competition measures steady-state serving speed.
 
 ### Timeouts
 
