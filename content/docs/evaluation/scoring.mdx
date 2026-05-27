@@ -1,14 +1,23 @@
 ---
 title: Scoring
-description: Single-pass evaluation. Correctness-gated speed scoring. TTFT and throughput improvements relative to vLLM baseline. Median across prompts.
+description: Two-pass evaluation. Pass 1 measures speed against a cached baseline with a token-match gate, while Pass 2 validates correctness through teacher-forcing. Final metrics use median aggregation across the speed evaluation prompts.
 ---
 
-Scoring is **correctness-gated**: failing correctness yields zero; otherwise _Time to First Token_ (_TTFT_) and throughput improvements versus the pinned vLLM baseline are averaged (50/50).
+Final score is **correctness-gated**: Pass 1 aggregate token match must clear the threshold, Pass 2 teacher-forcing must pass, and only then does the speed score count. Otherwise `score = 0.0`.
+
+## Two-pass overview
+
+| Pass                     | Prompts              | Context / output                            | Container                                                                     | Purpose                       |
+| ------------------------ | -------------------- | ------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------- |
+| **Pass 1 (speed)**       | 10 scored + 2 warmup | Long context (up to ~128k cap), **512** out | Miner + cached generation baseline (`vllm/vllm-openai:latest`)                | Speed vs baseline; match gate |
+| **Pass 2 (correctness)** | 8, no warmup         | ~**4k** in / **256** out                    | Miner generates outputs; separate scoring vLLM (`v0.9.2`) teacher-forces them | Correctness gate              |
+
+Pass 1 baseline numbers are **pre-computed once per block hash** and cached. Pass 2 does not re-run a generation baseline for speed; a dedicated scoring container runs `prompt_logprobs` over each miner's audit outputs after the miner container is torn down.
 
 ## Scoring formula
 
 ```python
-if not correctness_pass:
+if pass1_match_fail or not pass2_correctness_pass:
     score = 0.0
 else:
     ttft_imp = max(0, (baseline_ttft - miner_ttft) / baseline_ttft)
@@ -17,93 +26,94 @@ else:
 ```
 
 <Callout title="Scoring axes" type="info">
-Three axes, in order of enforcement:
+Gates and axes, in order of enforcement:
 
-1. **Correctness gate:** fail this and nothing else matters.
-2. **TTFT:** 50% of the weighted score.
-3. **Throughput:** 50% of the weighted score.
+1. **Pass 1 match gate:** if aggregate token match below 25%, return `pass1_match_fail`; skip Pass 2 scoring.
+2. **Pass 2 correctness gate:** if teacher-forcing fail, return `correctness_fail` or `scoring_infra_fail`; speed zeroed.
+3. **TTFT:** 50% of the weighted speed score (speed evaluation prompts only).
+4. **Throughput:** 50% of the weighted speed score (correctness evaluation prompts only).
 
 Improvements are floored at zero. If your server is slower than vLLM on one axis, that axis contributes 0, not a negative number.
 
-The equal split rewards **prefill latency** (TTFT, perceived wait and interactive steps) and **decode throughput** (cost per GPU-hour and long completions).
-
 </Callout>
 
-## Aggregation
+## Pass 1: speed and token match
 
-Each evaluation round sends **10 prompts** to both baseline and miner. Per-prompt TTFT and throughput use the **median** across prompts so spikes and cherry-picking easy prompts hurt less.
+### Aggregation
 
-## Single-pass evaluation
+Pass 1 sends **12 speed evaluation prompts** (2 warmup discarded, **10 scored**) to the miner. Baseline TTFT and aligned throughput use the **median** across those 10 scored prompts.
 
-Each prompt is sent once over **streaming chat completions** with `logprobs` (`stream=true`, `logprobs=true`, `top_logprobs=5`). TTFT and throughput come from SSE timing; tokens and top logprobs feed correctness. Extra logprob cost applies equally to baseline and miner, so relative improvements stay comparable.
+### Measurement
 
-## Warmup
+Speed evaluation prompts use **streaming chat completions** with `logprobs` (`stream=true`, `logprobs=true`, `top_logprobs=5`). TTFT and throughput come from SSE timing. Top-5 logprobs are collected and cached with the baseline but are **not** a DQ gate in V1.
 
-Before the scored prompts, the validator sends **1-2 warmup prompts** that are discarded. This absorbs one-time costs: CUDA graph compilation, KV cache pre-allocation, GPU clock ramping. Both baseline and miner receive the same warmup. The competition measures steady-state serving speed, not startup optimization.
+### Warmup
 
-## Correctness gate
+Before scored speed evaluation prompts, the validator sends **2 warmup prompts** that are discarded. Both baseline and miner receive the same warmup. The competition measures steady-state serving speed, not startup optimization.
 
-Correctness verifies that the miner serves the **exact same model with the same weights** using **greedy decoding** (`temperature=0`).
+### Pass 1 match gate
 
-Because multi-GPU tensor parallelism introduces tiny numerical differences between runs, a strict global token-match rate falsely disqualifies legitimate miners. One near-tie flip at an early token causes the entire rest of the sequence to diverge (the cascade effect).
+Aggregate match is the **mean of per-prompt token match rates** across the 10 scored speed evaluation prompts (not a single pooled token average).
 
-Instead, the gate uses **per-prompt first-divergence analysis**:
+If aggregate match is below `PASS1_MATCH_DQ_THRESHOLD` (default **25%**), the miner is disqualified with `pass1_match_fail` and Pass 2 teacher-forcing is skipped. Configurable via `CACHEON_PASS1_MATCH_DQ_THRESHOLD` variable in the [validator config](<https://github.com/latent-to/cacheon/blob/main/validator/config.py#:~:text=%20%20%20%20os.environ.get(%22CACHEON_PASS1_MATCH_DQ_THRESHOLD%22%2C%20%220.25%22)>).
 
-1. For each prompt, the validator walks the baseline and miner outputs token-by-token until the first mismatch.
-2. If there is no mismatch, the prompt passes.
-3. If there is a mismatch, the validator checks the logprobs at that position:
-   - The baseline's token must appear in the miner's **top-5** logprobs
-   - The logprob gap between the miner's chosen token and the baseline's token must be **`<= 0.5`**
-   - The miner's chosen token must be its own **top-1** (greedy decoding verification)
-4. If all three hold, the divergence is classified as tensor-parallel numerical noise and the prompt passes.
+`token_match_rate` on the evaluation record stores this aggregate Pass 1 value for dashboards.
 
-### Prompt-level pass rate
+## Pass 2: correctness (teacher-forcing)
 
-**Every scored prompt must pass.** A single failed prompt disqualifies the submission (`docker_eval.evaluate_challenger` returns a DQ record as soon as `any_failed` is true). A wrong model or quantized weights will typically fail on many prompts, but the gate fires on the first one.
+After Pass 1 match passes, the validator starts or resumes a **separate scoring vLLM** container (`CACHEON_SCORING_IMAGE`, default `vllm/vllm-openai:v0.9.2`). It boots with a **small `--max-model-len`** sized for correctness evaluation prompts (~4.5k), not the 128k speed evaluation budget, so `prompt_logprobs` stays stable.
+
+The scoring container teacher-forces each of the **8 audit outputs** the miner already generated (`prompt_logprobs=1` on `/v1/chat/completions` with prompt + assistant text). Per prompt, all miner output tokens must satisfy:
+
+- **Mean logprob** ≥ `MEAN_LOGPROB_THRESHOLD` (default `-4.0`)
+- **Min logprob** for any single token ≥ `MIN_LOGPROB_THRESHOLD` (default `-12.0`)
+
+Configurable via `CACHEON_MEAN_LOGPROB_THRESHOLD` and `CACHEON_MIN_LOGPROB_THRESHOLD`.
+
+**Every correctness evaluation prompt must pass.** One failure disqualifies the submission (`correctness_fail`). Empty or missing logprobs (OOM, HTTP 500) → `scoring_infra_fail`.
+
+The ~4k correctness pass does **not** prove 128k behavior; that is a known V1 gap.
 
 ### Why this catches bad actors
 
-- **Quantized weights** (INT8/INT4/FP8): logprob shifts are typically 0.5-2.0+. The baseline token will not be in the top-5 with a small gap.
-- **Modified architecture** (missing layers, different attention): distributions are completely different. Caught immediately.
-- **Non-greedy decoding** (`temperature > 0`): the miner's chosen token will not be its own top-1.
-- **Fabricated logprobs**: the miner does not know the baseline output (prompts are block-hash seeded). To fabricate correctly they would need to run the exact correct model, defeating any speed advantage.
+- **Garbage after a valid prefix**: low mean/min logprob on garbage tokens.
+- **Wrong or quantized weights**: baseline assigns near-zero probability to miner tokens.
+- **Implausible fluent padding**: may pass if every inserted token is high probability (TPS gaming is handled separately; see throughput below).
 
-### Why not full KL divergence
+### Scoring baseline image
 
-The OpenAI-compatible API returns top-N logprobs, not the full vocabulary distribution. True KL divergence requires the full ~152K-token distribution per position. Returning that through an HTTP API would be:
-
-- ~600KB per token position at float32
-- ~150MB per prompt at 256 generated tokens
-
-This is impractical for an API benchmark and would itself distort speed measurements. First-divergence logprob analysis achieves the same goal with minimal overhead.
+Speed eval uses the generation baseline (`vllm/vllm-openai:latest`, digest-pinned). Teacher-forcing uses **`vllm/vllm-openai:v0.9.2`** because newer vLLM builds OOM on long `prompt_logprobs`; correctness evaluation prompts stay short (~4k) and the scoring server context cap matches that budget.
 
 ## TTFT improvement
-
-TTFT improvements are measured using the following formula:
 
 ```
 ttft_improvement = max(0, (baseline_ttft - miner_ttft) / baseline_ttft)
 ```
 
-The final score is computed as the median across all 10 prompts and floored at zero. This means that servers slower than the baseline on TTFT receive no score contribution from this axis.
-
-TTFT captures prefill efficiency; that is, how fast the server processes the full input prompt and produces the first output token. At 32K input tokens on e.g. 8x H200 (`TP=8`), this is dominated by the attention computation during prefill.
+Computed from the **median** TTFT across 10 scored speed evaluation prompts. At long input (often tens of thousands of tokens on 8x H200/B200, `TP=8`), TTFT is dominated by prefill attention.
 
 ## Throughput improvement
 
-Throughput improvements are measured using the following formula
+Per speed evaluation prompt, aligned throughput is:
+
+```
+miner_tps = baseline_output_tokens / miner_time_to_emit_that_many_tokens
+baseline_tps = baseline_output_tokens / baseline_time_to_emit_that_many_tokens
+```
+
+If the miner emits fewer tokens than the baseline for that prompt, `miner_tps = 0` for that prompt (no speed credit, not a length DQ).
+
+Improvement vs baseline:
 
 ```
 throughput_improvement = max(0, (miner_tps - baseline_tps) / baseline_tps)
 ```
 
-The final score is computed as the median across the 10 prompts and also floored at zero. Throughput captures decode efficiency: how fast the server generates output tokens once prefill is complete.
+The final score uses the **median** across the 10 scored speed evaluation prompts (`max_tokens=512`). Extra tokens beyond the baseline length do not help: the TPS numerator is fixed to the baseline token count.
 
 ## Baseline: vLLM
 
-The baseline is a pinned version of vLLM serving `Qwen2.5-72B-Instruct` on the same hardware as the challengers. See [this section](/docs/validators/overview#gpu-requirements) for minimum hardware requirements. Baseline results are **pre-computed and cached** per prompt set: the baseline runs once when prompts rotate (new block hash), and all challengers in that round are compared against the same cached baseline numbers.
-
-vLLM is a strong baseline. It implements PagedAttention, continuous batching, FlashAttention, and other production optimizations. Beating it requires genuine innovation, not just a different framework.
+The generation baseline is a pinned vLLM instance serving `Qwen2.5-72B-Instruct` on the same hardware as challengers. See [GPU requirements](/docs/validators/overview#gpu-requirements). Baseline results are **pre-computed and cached** per block hash; all challengers in the round share the same cached numbers.
 
 ## Explicitly not in V1
 
@@ -117,20 +127,7 @@ These restrictions will be relaxed in V2 once the eval pipeline is proven.
 
 ## Reproducibility
 
-Every scored run produces a `ScoreResult`:
-
-```
-ScoreResult
-  ttft_improvement     float
-  throughput_improvement float
-  token_match_rate     float
-  correctness_pass     bool
-  score                float
-  disqualified         bool
-  disqualify_reason    str | None
-```
-
-Combined with the block hash that seeded the prompts and the pinned Docker image digest, anyone can replay the eval and verify the result.
+Every scored run produces an `EvaluationRecord` with `score`, `ttft_improvement`, `throughput_improvement`, `token_match_rate`, `disqualified`, and `disqualify_reason`. Combined with the block hash that seeded prompts and pinned Docker digests, anyone can replay the eval and verify the result.
 
 ## Emission scaling
 

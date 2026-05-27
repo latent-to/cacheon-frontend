@@ -1,30 +1,38 @@
 ---
 title: Prompts
-description: Instruct prompts with PG19 context, seeded by block hash.
+description: Instruct prompts with PG19 context, seeded by block hash. Two categories — speed (Pass 1) and correctness (Pass 2).
 ---
 
-Prompts are **instruct-style requests** built from curated instruction templates filled with long-context passages from [**PG19** (Project Gutenberg books)](https://www.tensorflow.org/datasets/catalog/pg19). A **block-hash-derived seed** makes them deterministic: same block, same prompts, anywhere, any machine.
+Prompts are **instruct-style requests** built from curated instruction templates filled with [**PG19** (Project Gutenberg)](https://www.tensorflow.org/datasets/catalog/pg19) passages. A **block-hash-derived seed** makes them deterministic: same block, same prompts, anywhere, any machine.
+
+## Two prompt categories
+
+Two prompt sets are used during evaluation: _speed evaluation prompts_ and _correctness evaluation prompts_.
+
+Speed evaluation prompts are long-context generation workloads used to measure TTFT and throughput. Correctness evaluation prompts are shorter prompts used for correctness validation through teacher-forcing.
+| Category | Pass | Count | Input context | `max_tokens` | Seed suffix |
+| ---------- | ---------------------- | ----------------------------------------- | ---------------------- | ------------ | ----------- |
+| **Speed** | Pass 1 (speed + token match) | 12 total (10 scored + 2 warmup discarded) | Long (up to ~128k cap) | 512 | (none) |
+| **Correctness** | Pass 2 (correctness) | 8, no warmup | ~4k tokens | 256 | `:audit` |
+
+Both prompt sets are independently sampled from PG19 using the current block_hash with different seed suffixes, ensuring that every challenger in the round is evaluated against the same workload.
 
 ## Why instruct format
 
-The target model is `Qwen2.5-72B-Instruct` and the long-term positioning is "fastest backend for agentic workflows". Benchmarking with raw text continuation does not reflect real serving workloads. Instruct-format prompts test what production deployments actually send.
+The target model is `Qwen2.5-72B-Instruct`. Instruct-format prompts reflect real serving workloads rather than raw text continuation.
 
 ## Prompt design
 
-Each prompt combines two pieces:
+Each prompt combines:
 
 1. **Instruction template**: one of 20 curated literary-analysis tasks
-2. **Context passage**: a long slice of text sampled from a PG19 book
+2. **Context passage**: a slice of text sampled from a PG19 book
 
-Both are selected deterministically via the block-hash seed. The template determines the output shape; the PG19 passage provides the input context.
-
-All templates follow the pattern `<instruction>\n\n{context}`. The full list is in the `TEMPLATES` constant in [`validator/prompts.py`](https://github.com/latent-to/cacheon/blob/main/validator/prompts.py).
-
-Because all templates operate on literary passage analysis, they produce **structured, grounded outputs** from fixed input. This keeps greedy decoding stable and the correctness gate meaningful.
+Both are selected deterministically via the block-hash seed. Templates live in [`validator/prompts.py`](https://github.com/latent-to/cacheon/blob/main/validator/prompts.py).
 
 ## Why PG19 for context
 
-Inference benchmarking needs long, continuous sequences that stress prefill, attention, and KV cache. Short documents produce trivially fast responses where optimization differences are lost in noise.
+Long, continuous sequences stress prefill, attention, and KV cache. Short documents produce trivially fast responses where optimization differences are lost in noise.
 
 | Dataset          | Typical doc length             | Why rejected or chosen                                  |
 | ---------------- | ------------------------------ | ------------------------------------------------------- |
@@ -32,7 +40,7 @@ Inference benchmarking needs long, continuous sequences that stress prefill, att
 | MMLU / HellaSwag | ~100-500 tokens                | Evaluation benchmarks, not serving workloads            |
 | **PG19**         | **100K+ tokens (full novels)** | **Chosen**: long-form text forces real serving at scale |
 
-PG19 is pinned to a specific Hugging Face dataset revision (`a0e01428956e39868fa36ccfa0ee236ff04e6a6b`). Row ordering is stable across upstream updates.
+PG19 is pinned to Hugging Face revision `a0e01428956e39868fa36ccfa0ee236ff04e6a6b`.
 
 <Callout title="PG19 Setup Requirement" type="info">
   **PG19 must be pre-downloaded** to the local HuggingFace cache before starting the validator. If
@@ -40,44 +48,33 @@ PG19 is pinned to a specific Hugging Face dataset revision (`a0e01428956e39868fa
   command rather than attempting an 11 GB download mid-evaluation.
 </Callout>
 
-## Why PG19 is hard to game
-
-PG19 has 28,000+ full books. Each prompt pairs a long slice from a random book with one of 20 templates. The search space is enormous (many books, many offsets, many templates), so pre-caching answers for every possible prompt is impractical.
-
-Fixed public benchmarks like **LongBench** are different: the prompt set is small and enumerable. A miner could download it, generate offline, and cache outputs. PG19 plus templates expands the pool enough that enumeration stops being the easy path.
-
 ## Passage quality filters
 
-Not all PG19 rows are usable. OCR artifacts, chapter headers, and whitespace-heavy rows are rejected before a passage is accepted:
+| Filter                | Speed evaluation threshold | Correctness evaluation threshold | Rejects                           |
+| --------------------- | -------------------------- | -------------------------------- | --------------------------------- |
+| Minimum length        | 16,000 chars               | 4,000 chars                      | Rows too short for the category   |
+| Alpha character ratio | ≥ 50%                      | ≥ 50%                            | OCR noise, numeric tables         |
+| Whitespace ratio      | ≤ 35%                      | ≤ 35%                            | Chapter headers, blank-heavy rows |
 
-| Filter                | Threshold    | Rejects                           |
-| --------------------- | ------------ | --------------------------------- |
-| Minimum length        | 16,000 chars | Rows too short to stress prefill  |
-| Alpha character ratio | ≥ 50%        | OCR noise, numeric tables         |
-| Whitespace ratio      | ≤ 35%        | Chapter headers, blank-heavy rows |
-
-The sampler retries up to 1,000 times before raising an error. Valid PG19 data should never exhaust this limit in practice.
+The sampler retries up to 1,000 times before raising an error.
 
 ## Parameter defaults
 
-| Parameter               | Value         | Notes                                                                                                        |
-| ----------------------- | ------------- | ------------------------------------------------------------------------------------------------------------ |
-| `n` (prompts/round)     | 10            | Balance between statistical signal and eval time                                                             |
-| `MAX_CONTEXT_CHARS`     | 131,072       | Caps passage length; long enough for prefill to be a real bottleneck                                         |
-| `MIN_CONTEXT_CHARS`     | 16,000        | Every prompt stresses prefill                                                                                |
-| `max_tokens`            | 256           | Output length per prompt                                                                                     |
-| `MAX_SAMPLE_ATTEMPTS`   | 1,000         | Bounded retries on quality filter failures                                                                   |
-| `PROMPT_ENGINE_VERSION` | 1             | Included in the baseline cache key; bump when templates or sampling logic change to force cache invalidation |
-| dataset `revision`      | `a0e01428...` | Pinned commit SHA for stable row ordering                                                                    |
+| Parameter               | Speed (Pass 1)               | Correctness (Pass 2) | Notes                                           |
+| ----------------------- | ---------------------------- | -------------------- | ----------------------------------------------- |
+| Scored prompts / round  | 10 (+ 2 warmup)              | 8                    | Warmup discarded before scoring                 |
+| `max_tokens`            | 512                          | 256                  |                                                 |
+| Context budget          | Up to 131,072 tokens (8 GPU) | ~4,096 tokens        | Speed fills toward cap; correctness stays short |
+| `MIN_CONTEXT_CHARS`     | 16,000                       | 4,000                |                                                 |
+| `PROMPT_ENGINE_VERSION` | 2                            | 2                    | In baseline cache key; bump on sampling changes |
+| dataset `revision`      | `a0e01428...`                | `a0e01428...`        | Pinned commit SHA                               |
 
-## Open-ended prompts and the correctness gate
+## Correctness and prompts
 
-At `temperature=0` the model is deterministic for fixed weights and input. The risk is not "creative" output, but **numerical ties**: where top-2 token log-probabilities are very close, different kernels or accumulation order can flip the argmax.
+Pass 2 correctness prompts are short (~4k) by design: teacher-forcing via `prompt_logprobs` is run on a separate scoring vLLM with a matching small context cap. That pass validates output plausibility under the real model weights; it does **not** prove 128k behavior (known V1 gap).
 
-The correctness gate handles this via **per-prompt first-divergence analysis**: at the first mismatch, the baseline token must appear in the miner's top-5 logprobs with a gap `<= 0.5` (see [Scoring](/docs/evaluation/scoring)).
-
-Template diversity is kept because real workloads include varied request shapes and diversity makes the benchmark more representative than only rigid extraction-style tasks.
+Pass 1 collects top-5 streamed logprobs for diagnostics and baseline cache; correctness is **not** gated on first-divergence logprob analysis.
 
 ## V2 direction
 
-V2 adds multi-turn conversations, RAG-style workloads with variable-length context, and concurrent request batches. V1 focuses on single-request instruct workloads with long context. For more information, see [Roadmap](/docs/roadmap)
+V2 adds multi-turn conversations, RAG-style workloads, and concurrent request batches. V1 focuses on single-request instruct workloads with long stress context plus a short correctness pass. See [Roadmap](/docs/roadmap).
