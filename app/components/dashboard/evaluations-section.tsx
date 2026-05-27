@@ -170,7 +170,7 @@ export function EvaluationsSection() {
                     className="w-16"
                   />
                   <SortableHeader
-                    label="Speed match"
+                    label="Token match"
                     title={P1_MATCH_TITLE}
                     sortKey="token_match_rate"
                     activeKey={sortKey}
@@ -489,7 +489,7 @@ function EvalOutcomeCard({ ev }: { ev: EvaluationRecord }) {
           Reason codes
         </a>
       </div>
-      <p className="text-secondary/35 font-mono text-[0.6rem]">Expected log label: {logLabel}</p>
+      <p className="text-secondary/35 font-mono text-[0.6rem]">Log Label: {logLabel}</p>
     </div>
   )
 }
@@ -572,7 +572,7 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
 
               <div className="grid grid-cols-2 gap-3">
                 <MiniStat label="Score" value={fmtScore(ev.score)} accent />
-                <MiniStat label="Speed · match" value={fmtPct(ev.token_match_rate)} />
+                <MiniStat label="Pass 1 Token Match" value={fmtPct(ev.token_match_rate)} />
                 <MiniStat label="TTFT" value={fmtImprovement(ev.ttft_improvement)} />
                 <MiniStat label="Throughput" value={fmtImprovement(ev.throughput_improvement)} />
               </div>
