@@ -122,7 +122,7 @@ When `disqualified` is true, the evaluation record's `disqualify_reason` field e
 | `scoring_infra_fail`           | Pass 2      | No              | Scoring vLLM could not produce usable logprobs (OOM, HTTP error, incomplete extraction). Retry or check validator GPU logs (`baseline_scoring.log`, `gpu_eval_*.log`). Not a miner correctness verdict. |
 | `baseline_scoring_unavailable` | Pass 2      | No              | Scoring container failed to start, resume, or respond before any correctness evaluation prompt was scored.                                                                                              |
 | `prompt_errors`                | Pass 1 or 2 | Usually yes     | One or more prompts returned HTTP errors, timeouts, or stream parse failures while the challenger container was running.                                                                                |
-| `duplicate_of_winner`          | Pre-eval    | N/A             | Submission matches the current leader's image digest; not re-evaluated.                                                                                                                                 |
+| `duplicate_of_leader`          | Pre-eval    | N/A             | Submission matches the current leader's image digest; not re-evaluated.                                                                                                                                 |
 | _(raw message)_                | Startup     | Varies          | Container lifecycle failure: e.g. `/health` not ready within 600s, Docker pull error, GPU detection failure. Check `container_logs/uid{N}_*.log`.                                                       |
 
 Example full strings:

@@ -27,7 +27,7 @@ export function summarizeEvalGates(ev: {
   const prefix = disqualifyPrefix(ev.disqualify_reason)
   const pass1MatchOk = ev.token_match_rate >= PASS1_MATCH_DQ_THRESHOLD
 
-  if (prefix === 'duplicate_of_winner') {
+  if (prefix === 'duplicate_of_leader') {
     return {
       prefix,
       shortLabel: 'Skipped',
