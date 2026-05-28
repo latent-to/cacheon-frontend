@@ -72,7 +72,8 @@ Pass 2 is **text-canonical and cross-engine safe**. Correctness uses the scoring
 | **challenger_output_text**        | Challenger SSE                 | Exact UTF-8 text reconstructed from the challenger's stream (Pass 2 source of truth)          |
 | **challenger_stream_token_count** | Challenger SSE                 | Count of token strings from `logprobs.content[].token` during streaming (telemetry only)      |
 | **scoring_canonical_token_count** | Scoring vLLM `/tokenize`       | Assistant positions after tokenizing `messages + challenger_output_text`, minus prompt prefix |
-| **scoring_logprob_count**         | Scoring vLLM `prompt_logprobs` | Teacher-forcing logprobs extracted for those positions                                        |
+| **scoring_logprob_count**         | Scoring vLLM `prompt_logprobs` | Teacher-forcing logprobs extracted for assistant positions (M)                                |
+| **scoring_scored_token_count**    | Validator                      | `min(N, M)` logprobs used for mean/min correctness thresholds                                 |
 
 ### challenger_output_text reconstruction
 
@@ -84,18 +85,18 @@ When the challenger streams with logprobs:
 
 ### Correctness gate
 
-The scoring container teacher-forces each of the **8 correctness evaluation outputs** the challenger already generated (`prompt_logprobs=1` on `/v1/chat/completions` with prompt + assistant text). Per prompt, all **scoring canonical tokens** must satisfy:
+The scoring container teacher-forces each of the **8 correctness evaluation outputs** the challenger already generated (`prompt_logprobs=1` on `/v1/chat/completions` with prompt + assistant text). Per prompt, all **extracted scoring logprobs** (up to `min(scoring_canonical_token_count, scoring_logprob_count)`) must satisfy:
 
 - **Mean logprob** ≥ `MEAN_LOGPROB_THRESHOLD` (default `-4.0`)
 - **Min logprob** for any single token ≥ `MIN_LOGPROB_THRESHOLD` (default `-12.0`)
 
 Configurable via `CACHEON_MEAN_LOGPROB_THRESHOLD` and `CACHEON_MIN_LOGPROB_THRESHOLD`.
 
-**Every correctness evaluation prompt must pass.** One failure disqualifies the submission (`correctness_fail`). Empty or missing logprobs (OOM, HTTP 500), or extracted logprobs below the scoring canonical token count on the same scoring engine → `scoring_infra_fail`.
+**Every correctness evaluation prompt must pass.** One failure disqualifies the submission (`correctness_fail`). Empty logprobs (OOM, HTTP 500) or near-empty extraction (below 50% of `scoring_canonical_token_count`) → `scoring_infra_fail`.
 
 Large drift between `challenger_stream_token_count` and `scoring_canonical_token_count` is logged as telemetry (`possible_stream_spam`, `stream_canonical_drift`) but does **not** DQ in V1.
 
-Same-engine coverage allows a **1-token gap** between `scoring_canonical_token_count` and `scoring_logprob_count` (chat-template EOS suffix). See [Disqualification reason codes](#disqualification-reason-codes).
+Small same-engine gaps (e.g. 256 extracted logprobs vs 261 `/tokenize` positions from EOS/special-token suffixes) are scored on the extracted set; they do **not** infra-fail. See [Disqualification reason codes](#disqualification-reason-codes).
 
 The ~4k correctness pass does **not** prove 128k behavior; that is a known V1 gap.
 
@@ -130,7 +131,7 @@ Example full strings:
 ```
 pass1_match_fail: aggregate match 0.0029 below threshold 0.10
 correctness_fail: prompt 0: mean_logprob -8.120 below threshold -4.0
-scoring_infra_fail: prompt 0: scoring_infra_fail: extracted 10/50 scoring canonical tokens
+scoring_infra_fail: prompt 0: scoring_infra_fail: extracted 10/50 scoring canonical tokens (below 50% coverage floor)
 baseline_scoring_unavailable: Connection refused
 prompt_errors: prompt 3: request_failed: timed out
 ```
@@ -142,14 +143,14 @@ Pass 2 failures include `prompt {N}:` before the detail. These come from teacher
 | Detail pattern                                                   | Wrapped as           | Meaning                                                                                                                                                                                                                                       | What to do                                                                                                                                                     |
 | ---------------------------------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scoring_infra_fail: no scoring logprobs available`              | `scoring_infra_fail` | Scoring vLLM returned no extractable logprobs (empty response, tokenize failure, or HTTP error).                                                                                                                                              | Check `baseline_scoring.log` and `gpu_eval_*.log`. Validator-side issue.                                                                                       |
-| `scoring_infra_fail: extracted {N}/{M} scoring canonical tokens` | `scoring_infra_fail` | Scoring vLLM extracted fewer logprobs than expected on the **same engine**. `{M}` is `scoring_canonical_token_count`; `{N}` is `scoring_logprob_count`. A 1-token gap is tolerated (EOS suffix). Larger gaps indicate scoring infra problems. | Not a cross-engine tokenizer mismatch. If `{N}` is close to `{M}`, check scoring container stability.                                                          |
-| `mean_logprob {X} below threshold {Y}`                           | `correctness_fail`   | Average teacher-forcing logprob across scoring canonical tokens is too low. Legitimate stacks typically score roughly `-0.5` to `-2.0`; garbage or wrong weights score much lower. Default threshold `Y` is `-4.0`.                           | Output is not plausible under Qwen. Verify exact BF16 weights, greedy decode, and that correctness evaluation outputs match what your server actually returns. |
+| `scoring_infra_fail: extracted {N}/{M} scoring canonical tokens (below 50% coverage floor)` | `scoring_infra_fail` | Scoring vLLM returned too few logprobs vs `/tokenize` count on the **same engine** (partial response, OOM). `{M}` is `scoring_canonical_token_count`; `{N}` is `scoring_logprob_count`. Small suffix gaps (e.g. 256/261) are scored normally. | Validator-side issue. Check `baseline_scoring.log`.                                                                                                            |
+| `mean_logprob {X} below threshold {Y}`                           | `correctness_fail`   | Average teacher-forcing logprob across scored tokens (`min(N, M)`) is too low. Legitimate stacks typically score roughly `-0.5` to `-2.0`; garbage or wrong weights score much lower. Default threshold `Y` is `-4.0`.                           | Output is not plausible under Qwen. Verify exact BF16 weights, greedy decode, and that correctness evaluation outputs match what your server actually returns. |
 | `min_logprob {X} below threshold {Y}`                            | `correctness_fail`   | At least one token scored below the per-token floor. Catches isolated garbage tokens in an otherwise fluent response. Default threshold `Y` is `-12.0`.                                                                                       | Same as mean logprob fail; inspect whether specific tokens are corrupted or injected.                                                                          |
 
 Pass 2 GPU eval logs also print counts per prompt:
 
 ```
-prompt 0: correctness=FAIL mean_lp=-1.200 min_lp=-3.400 challenger_stream_token_count=162 scoring_canonical_token_count=161 scoring_logprob_count=161
+prompt 0: correctness=FAIL mean_lp=-1.200 min_lp=-3.400 challenger_stream_token_count=162 scoring_canonical_token_count=161 scoring_logprob_count=161 scoring_scored_token_count=161
 ```
 
 `challenger_stream_token_count` is telemetry only; it is **not** used for DQ.
