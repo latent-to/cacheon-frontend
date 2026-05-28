@@ -22,6 +22,8 @@ interface LogViewerProps {
   sidebarControls?: ReactNode
   /** Optional footer line (e.g. "Showing X of Y") */
   sidebarFooter?: ReactNode
+  /** Optional label to auto-select when it appears in `entries` */
+  initialSelectedLabel?: string | null
 }
 
 export function LogViewer({
@@ -34,16 +36,27 @@ export function LogViewer({
   emptyMessage = 'No logs available',
   sidebarControls,
   sidebarFooter,
+  initialSelectedLabel,
 }: LogViewerProps) {
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null)
   const [logText, setLogText] = useState<string | null>(null)
   const [logLoading, setLogLoading] = useState(false)
   const logViewerRef = useRef<HTMLPreElement>(null)
+  const appliedInitialRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!selectedLabel) return
     if (!entries.some((l) => l.label === selectedLabel)) setSelectedLabel(null)
   }, [entries, selectedLabel])
+
+  useEffect(() => {
+    if (!initialSelectedLabel) return
+    if (appliedInitialRef.current === initialSelectedLabel) return
+    if (entries.some((l) => l.label === initialSelectedLabel)) {
+      setSelectedLabel(initialSelectedLabel)
+      appliedInitialRef.current = initialSelectedLabel
+    }
+  }, [initialSelectedLabel, entries])
 
   useEffect(() => {
     if (!selectedLabel) {

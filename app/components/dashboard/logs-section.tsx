@@ -1,6 +1,8 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router'
 
 import { cn } from '~/lib/cn'
+import { findContainerLogLabel } from '~/lib/eval-gates'
 import { usePoll } from '~/lib/use-poll'
 import { fetchContainerLogs, fetchContainerLog, type ContainerLogEntry } from '~/lib/api.client'
 import { LogViewer, type LogEntry } from './log-viewer'
@@ -73,13 +75,33 @@ const compactInputCls =
   'w-full min-w-0 rounded border border-border/50 bg-surface/40 px-2 py-1 font-mono text-xs text-primary outline-none placeholder:text-secondary/30 focus:border-accent/40'
 
 export function LogsSection() {
+  const [searchParams] = useSearchParams()
   const logs = usePoll(fetchContainerLogs, 60_000)
   const [uidFilter, setUidFilter] = useState('')
   const [hotkeyFilter, setHotkeyFilter] = useState('')
   const [sortBy, setSortBy] = useState<LogsSortOption>('size_desc')
   const [excludeBaseline, setExcludeBaseline] = useState(false)
 
+  useEffect(() => {
+    const uid = searchParams.get('uid')
+    if (uid) setUidFilter(uid)
+  }, [searchParams])
+
   const list = logs.data?.logs ?? []
+
+  const initialSelectedLabel = useMemo(() => {
+    const uidParam = searchParams.get('uid')
+    const blockParam = searchParams.get('block')
+    if (!uidParam || !blockParam) return null
+    const uid = parseInt(uidParam, 10)
+    const block = parseInt(blockParam, 10)
+    if (!Number.isFinite(uid) || !Number.isFinite(block)) return null
+    return findContainerLogLabel(
+      list.map((l) => l.label),
+      uid,
+      block,
+    )
+  }, [searchParams, list])
 
   const processedLogs: LogEntry[] = useMemo(() => {
     const filtered = list.filter(
@@ -165,6 +187,7 @@ export function LogsSection() {
         emptyMessage={emptyMessage}
         sidebarControls={controls}
         sidebarFooter={footer}
+        initialSelectedLabel={initialSelectedLabel}
       />
     </section>
   )

@@ -12,7 +12,7 @@ Final score is **correctness-gated**: Pass 1 aggregate token match must clear th
 | **Pass 1 (speed)**       | 10 scored + 2 warmup | Long context (up to ~128k cap), **512** out | Miner + cached generation baseline (`vllm/vllm-openai:latest`)                | Speed vs baseline; match gate |
 | **Pass 2 (correctness)** | 8, no warmup         | ~**4k** in / **256** out                    | Miner generates outputs; separate scoring vLLM (`v0.9.2`) teacher-forces them | Correctness gate              |
 
-Pass 1 baseline numbers are **pre-computed once per block hash** and cached. Pass 2 does not re-run a generation baseline for speed; a dedicated scoring container runs `prompt_logprobs` over each miner's audit outputs after the miner container is torn down.
+Pass 1 baseline numbers are **pre-computed once per block hash** and cached. Pass 2 does not re-run a generation baseline for speed; a dedicated scoring container runs `prompt_logprobs` over each miner's correctness evaluation outputs after the miner container is torn down.
 
 ## Scoring formula
 
@@ -28,7 +28,7 @@ else:
 <Callout title="Scoring axes" type="info">
 Gates and axes, in order of enforcement:
 
-1. **Pass 1 match gate:** if aggregate token match below 25%, return `pass1_match_fail`; skip Pass 2 scoring.
+1. **Pass 1 match gate:** if aggregate token match below 10%, return `pass1_match_fail`; skip Pass 2 scoring.
 2. **Pass 2 correctness gate:** if teacher-forcing fail, return `correctness_fail` or `scoring_infra_fail`; speed zeroed.
 3. **TTFT:** 50% of the weighted speed score (speed evaluation prompts only).
 4. **Throughput:** 50% of the weighted speed score (correctness evaluation prompts only).
@@ -55,7 +55,7 @@ Before scored speed evaluation prompts, the validator sends **2 warmup prompts**
 
 Aggregate match is the **mean of per-prompt token match rates** across the 10 scored speed evaluation prompts (not a single pooled token average).
 
-If aggregate match is below `PASS1_MATCH_DQ_THRESHOLD` (default **25%**), the miner is disqualified with `pass1_match_fail` and Pass 2 teacher-forcing is skipped. Configurable via `CACHEON_PASS1_MATCH_DQ_THRESHOLD` variable in the [validator config](<https://github.com/latent-to/cacheon/blob/main/validator/config.py#:~:text=%20%20%20%20os.environ.get(%22CACHEON_PASS1_MATCH_DQ_THRESHOLD%22%2C%20%220.25%22)>).
+If aggregate match is below `PASS1_MATCH_DQ_THRESHOLD` (default **10%**), the miner is disqualified with `pass1_match_fail` and Pass 2 teacher-forcing is skipped. Configurable via `CACHEON_PASS1_MATCH_DQ_THRESHOLD` in [validator config](https://github.com/latent-to/cacheon/blob/main/validator/config.py).
 
 `token_match_rate` on the evaluation record stores this aggregate Pass 1 value for dashboards.
 
@@ -63,14 +63,40 @@ If aggregate match is below `PASS1_MATCH_DQ_THRESHOLD` (default **25%**), the mi
 
 After Pass 1 match passes, the validator starts or resumes a **separate scoring vLLM** container (`CACHEON_SCORING_IMAGE`, default `vllm/vllm-openai:v0.9.2`). It boots with a **small `--max-model-len`** sized for correctness evaluation prompts (~4.5k), not the 128k speed evaluation budget, so `prompt_logprobs` stays stable.
 
-The scoring container teacher-forces each of the **8 audit outputs** the miner already generated (`prompt_logprobs=1` on `/v1/chat/completions` with prompt + assistant text). Per prompt, all miner output tokens must satisfy:
+Pass 2 is **text-canonical and cross-engine safe**. Correctness uses the scoring vLLM tokenizer only; challenger stream token counts are never compared for DQ.
+
+### Terminology
+
+| Term                              | Source                         | Meaning                                                                                       |
+| --------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------- |
+| **challenger_output_text**        | Challenger SSE                 | Exact UTF-8 text reconstructed from the challenger's stream (Pass 2 source of truth)          |
+| **challenger_stream_token_count** | Challenger SSE                 | Count of token strings from `logprobs.content[].token` during streaming (telemetry only)      |
+| **scoring_canonical_token_count** | Scoring vLLM `/tokenize`       | Assistant positions after tokenizing `messages + challenger_output_text`, minus prompt prefix |
+| **scoring_logprob_count**         | Scoring vLLM `prompt_logprobs` | Teacher-forcing logprobs extracted for assistant positions (M)                                |
+| **scoring_scored_token_count**    | Validator                      | `min(N, M)` logprobs used for mean/min correctness thresholds                                 |
+
+### challenger_output_text reconstruction
+
+When the challenger streams with logprobs:
+
+1. **Primary:** concatenate `delta.content` chunks (OpenAI-compatible).
+2. **Fallback:** if logprobs were streamed but content deltas are empty, join streamed token strings.
+3. Do not normalize whitespace. The exact bytes are passed to the scoring vLLM.
+
+### Correctness gate
+
+The scoring container teacher-forces each of the **8 correctness evaluation outputs** the challenger already generated (`prompt_logprobs=1` on `/v1/chat/completions` with prompt + assistant text). Per prompt, all **extracted scoring logprobs** (up to `min(scoring_canonical_token_count, scoring_logprob_count)`) must satisfy:
 
 - **Mean logprob** ≥ `MEAN_LOGPROB_THRESHOLD` (default `-4.0`)
 - **Min logprob** for any single token ≥ `MIN_LOGPROB_THRESHOLD` (default `-12.0`)
 
 Configurable via `CACHEON_MEAN_LOGPROB_THRESHOLD` and `CACHEON_MIN_LOGPROB_THRESHOLD`.
 
-**Every correctness evaluation prompt must pass.** One failure disqualifies the submission (`correctness_fail`). Empty or missing logprobs (OOM, HTTP 500) → `scoring_infra_fail`.
+**Every correctness evaluation prompt must pass.** One failure disqualifies the submission (`correctness_fail`). Empty logprobs (OOM, HTTP 500) or near-empty extraction (below 50% of `scoring_canonical_token_count`) → `scoring_infra_fail`.
+
+Large drift between `challenger_stream_token_count` and `scoring_canonical_token_count` is logged as telemetry (`possible_stream_spam`, `stream_canonical_drift`) but does **not** DQ in V1.
+
+Small same-engine gaps (e.g. 256 extracted logprobs vs 261 `/tokenize` positions from EOS/special-token suffixes) are scored on the extracted set; they do **not** infra-fail. See [Disqualification reason codes](#disqualification-reason-codes).
 
 The ~4k correctness pass does **not** prove 128k behavior; that is a known V1 gap.
 
@@ -83,6 +109,51 @@ The ~4k correctness pass does **not** prove 128k behavior; that is a known V1 ga
 ### Scoring baseline image
 
 Speed eval uses the generation baseline (`vllm/vllm-openai:latest`, digest-pinned). Teacher-forcing uses **`vllm/vllm-openai:v0.9.2`** because newer vLLM builds OOM on long `prompt_logprobs`; correctness evaluation prompts stay short (~4k) and the scoring server context cap matches that budget.
+
+## Disqualification reason codes
+
+When `disqualified` is true, the evaluation record's `disqualify_reason` field explains why. Format is usually `prefix: details`. Visible on the dashboard (Rounds, Evaluations) and via `GET /api/evaluations/{uid}`.
+
+### Top-level prefixes
+
+| Code                           | When        | Miner at fault? | What it means                                                                                                                                                                                           |
+| ------------------------------ | ----------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pass1_match_fail`             | Pass 1      | Usually yes     | Aggregate token match vs the generation baseline is below 10%. Pass 2 is skipped. Wrong model, severely divergent outputs, or broken inference.                                                         |
+| `correctness_fail`             | Pass 2      | Yes             | Correctness evaluation output text is implausible under Qwen per teacher-forcing logprobs. See [Pass 2 detail codes](#pass-2-detail-codes) below.                                                       |
+| `scoring_infra_fail`           | Pass 2      | No              | Scoring vLLM could not produce usable logprobs (OOM, HTTP error, incomplete extraction). Retry or check validator GPU logs (`baseline_scoring.log`, `gpu_eval_*.log`). Not a miner correctness verdict. |
+| `baseline_scoring_unavailable` | Pass 2      | No              | Scoring container failed to start, resume, or respond before any correctness evaluation prompt was scored.                                                                                              |
+| `prompt_errors`                | Pass 1 or 2 | Usually yes     | One or more prompts returned HTTP errors, timeouts, or stream parse failures while the challenger container was running.                                                                                |
+| `duplicate_of_leader`          | Pre-eval    | N/A             | Submission matches the current leader's image digest; not re-evaluated.                                                                                                                                 |
+| _(raw message)_                | Startup     | Varies          | Container lifecycle failure: e.g. `/health` not ready within 600s, Docker pull error, GPU detection failure. Check `container_logs/uid{N}_*.log`.                                                       |
+
+Example full strings:
+
+```
+pass1_match_fail: aggregate match 0.0029 below threshold 0.10
+correctness_fail: prompt 0: mean_logprob -8.120 below threshold -4.0
+scoring_infra_fail: prompt 0: scoring_infra_fail: extracted 10/50 scoring canonical tokens (below 50% coverage floor)
+baseline_scoring_unavailable: Connection refused
+prompt_errors: prompt 3: request_failed: timed out
+```
+
+### Pass 2 detail codes
+
+Pass 2 failures include `prompt {N}:` before the detail. These come from teacher-forcing on **scoring canonical tokens** (not challenger stream token count).
+
+| Detail pattern                                                                              | Wrapped as           | Meaning                                                                                                                                                                                                                                       | What to do                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scoring_infra_fail: no scoring logprobs available`                                         | `scoring_infra_fail` | Scoring vLLM returned no extractable logprobs (empty response, tokenize failure, or HTTP error).                                                                                                                                              | Check `baseline_scoring.log` and `gpu_eval_*.log`. Validator-side issue.                                                                                       |
+| `scoring_infra_fail: extracted {N}/{M} scoring canonical tokens (below 50% coverage floor)` | `scoring_infra_fail` | Scoring vLLM returned too few logprobs vs `/tokenize` count on the **same engine** (partial response, OOM). `{M}` is `scoring_canonical_token_count`; `{N}` is `scoring_logprob_count`. Small suffix gaps (e.g. 256/261) are scored normally. | Validator-side issue. Check `baseline_scoring.log`.                                                                                                            |
+| `mean_logprob {X} below threshold {Y}`                                                      | `correctness_fail`   | Average teacher-forcing logprob across scored tokens (`min(N, M)`) is too low. Legitimate stacks typically score roughly `-0.5` to `-2.0`; garbage or wrong weights score much lower. Default threshold `Y` is `-4.0`.                        | Output is not plausible under Qwen. Verify exact BF16 weights, greedy decode, and that correctness evaluation outputs match what your server actually returns. |
+| `min_logprob {X} below threshold {Y}`                                                       | `correctness_fail`   | At least one token scored below the per-token floor. Catches isolated garbage tokens in an otherwise fluent response. Default threshold `Y` is `-12.0`.                                                                                       | Same as mean logprob fail; inspect whether specific tokens are corrupted or injected.                                                                          |
+
+Pass 2 GPU eval logs also print counts per prompt:
+
+```
+prompt 0: correctness=FAIL mean_lp=-1.200 min_lp=-3.400 challenger_stream_token_count=162 scoring_canonical_token_count=161 scoring_logprob_count=161 scoring_scored_token_count=161
+```
+
+`challenger_stream_token_count` is telemetry only; it is **not** used for DQ.
 
 ## TTFT improvement
 

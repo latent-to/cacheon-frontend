@@ -526,14 +526,18 @@ function TimelineEntry({ step }: { step: EvalProgressStep }) {
   return (
     <div className="flex items-start gap-3">
       <span className="bg-secondary/50 mt-[6px] inline-block size-1.5 shrink-0 rounded-full" />
-      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 pb-1">
-        <span className="text-secondary/55 shrink-0 font-mono text-sm tabular-nums">{time}</span>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 pb-1">
+        <span className="text-secondary/55 shrink-0 font-mono text-sm leading-snug tabular-nums">
+          {time}
+        </span>
         <span className="text-secondary/80 inline-flex items-center gap-1.5 font-mono text-sm leading-snug">
           {phaseIcon(step.phase)}
           {phaseLabel(step.phase, typeof step.step === 'string' ? step.step : undefined)}
         </span>
         {extra.length > 0 && (
-          <span className="text-secondary/55 font-mono text-sm">{extra.join(' · ')}</span>
+          <span className="text-secondary/55 font-mono text-sm leading-snug">
+            {extra.join(' · ')}
+          </span>
         )}
       </div>
     </div>

@@ -135,9 +135,9 @@ Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
 | `score`                  | float          | `0.5 * ttft_improvement + 0.5 * throughput_improvement`; 0.0 if DQ'd                                                                   |
 | `ttft_improvement`       | float          | `max(0, (baseline - miner) / baseline)` on medians                                                                                     |
 | `throughput_improvement` | float          | `max(0, (miner - baseline) / baseline)` on medians of aligned TPS                                                                      |
-| `token_match_rate`       | float          | Aggregate token match on Pass 1 (mean of per-prompt rates); hard DQ below 25% (`pass1_match_fail`)                                     |
+| `token_match_rate`       | float          | Aggregate token match on Pass 1 (mean of per-prompt rates); hard DQ below 10% (`pass1_match_fail`)                                     |
 | `disqualified`           | bool           | Whether the submission was DQ'd                                                                                                        |
-| `disqualify_reason`      | string or null | Reason for DQ (e.g. `pass1_match_fail`, `correctness_fail`, `scoring_infra_fail`, `health_timeout`, `duplicate_of_leader`)             |
+| `disqualify_reason`      | string or null | Reason for DQ. See [Disqualification reason codes](/docs/evaluation/scoring#disqualification-reason-codes) for the full reference.     |
 | `per_prompt`             | array or null  | Array of per-prompt speed and performance breakdowns from Pass 1 (TTFT, aligned `throughput_tps`, match rate, token count; 10 entries) |
 
 The `per_prompt` array gives miners visibility into how their server performed on each individual prompt.
