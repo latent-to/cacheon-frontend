@@ -13,7 +13,7 @@ The harness pulls miner containers, runs Pass 1 (speed evaluation) and Pass 2 (c
    - `docker stop` the scoring container if it is running (GPU handoff)
    - Start miner container; run **Pass 1 speed evaluation** (12 prompts with 2 warmup prompts discarded) then **Pass 2 correctness evaluation** (8 prompts, no warmup) in one session
    - Tear down miner container; reset GPUs
-   - If the aggregate token match on Pass 1 is at least 25%: compute speed score from the evaluated prompts; start or resume scoring vLLM (`v0.9.2`, audit-sized context cap) and teacher-force the 8 audit outputs
+   - If the aggregate token match on Pass 1 is at least 10%: compute speed score from the evaluated prompts; start or resume scoring vLLM (`v0.9.2`, audit-sized context cap) and teacher-force the 8 audit outputs
    - If token match threshold fails or Pass 2 fails: `score = 0.0`
 4. **Kill scoring container** at end of round
 

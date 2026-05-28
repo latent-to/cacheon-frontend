@@ -1,5 +1,5 @@
 /** Pass 1 aggregate token-match DQ threshold (matches validator default). */
-export const PASS1_MATCH_DQ_THRESHOLD = 0.25
+export const PASS1_MATCH_DQ_THRESHOLD = 0.1
 
 export type PassStatus = 'pass' | 'fail' | 'skipped' | 'na'
 

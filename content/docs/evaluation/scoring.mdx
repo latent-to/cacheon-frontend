@@ -28,7 +28,7 @@ else:
 <Callout title="Scoring axes" type="info">
 Gates and axes, in order of enforcement:
 
-1. **Pass 1 match gate:** if aggregate token match below 25%, return `pass1_match_fail`; skip Pass 2 scoring.
+1. **Pass 1 match gate:** if aggregate token match below 10%, return `pass1_match_fail`; skip Pass 2 scoring.
 2. **Pass 2 correctness gate:** if teacher-forcing fail, return `correctness_fail` or `scoring_infra_fail`; speed zeroed.
 3. **TTFT:** 50% of the weighted speed score (speed evaluation prompts only).
 4. **Throughput:** 50% of the weighted speed score (correctness evaluation prompts only).
@@ -55,7 +55,7 @@ Before scored speed evaluation prompts, the validator sends **2 warmup prompts**
 
 Aggregate match is the **mean of per-prompt token match rates** across the 10 scored speed evaluation prompts (not a single pooled token average).
 
-If aggregate match is below `PASS1_MATCH_DQ_THRESHOLD` (default **25%**), the miner is disqualified with `pass1_match_fail` and Pass 2 teacher-forcing is skipped. Configurable via `CACHEON_PASS1_MATCH_DQ_THRESHOLD` variable in the [validator config](<https://github.com/latent-to/cacheon/blob/main/validator/config.py#:~:text=%20%20%20%20os.environ.get(%22CACHEON_PASS1_MATCH_DQ_THRESHOLD%22%2C%20%220.25%22)>).
+If aggregate match is below `PASS1_MATCH_DQ_THRESHOLD` (default **10%**), the miner is disqualified with `pass1_match_fail` and Pass 2 teacher-forcing is skipped. Configurable via `CACHEON_PASS1_MATCH_DQ_THRESHOLD` in [validator config](https://github.com/latent-to/cacheon/blob/main/validator/config.py).
 
 `token_match_rate` on the evaluation record stores this aggregate Pass 1 value for dashboards.
 
@@ -117,7 +117,7 @@ When `disqualified` is true, the evaluation record's `disqualify_reason` field e
 
 | Code                           | When        | Miner at fault? | What it means                                                                                                                                                                                           |
 | ------------------------------ | ----------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pass1_match_fail`             | Pass 1      | Usually yes     | Aggregate token match vs the generation baseline is below 25%. Pass 2 is skipped. Wrong model, severely divergent outputs, or broken inference.                                                         |
+| `pass1_match_fail`             | Pass 1      | Usually yes     | Aggregate token match vs the generation baseline is below 10%. Pass 2 is skipped. Wrong model, severely divergent outputs, or broken inference.                                                         |
 | `correctness_fail`             | Pass 2      | Yes             | Correctness evaluation output text is implausible under Qwen per teacher-forcing logprobs. See [Pass 2 detail codes](#pass-2-detail-codes) below.                                                       |
 | `scoring_infra_fail`           | Pass 2      | No              | Scoring vLLM could not produce usable logprobs (OOM, HTTP error, incomplete extraction). Retry or check validator GPU logs (`baseline_scoring.log`, `gpu_eval_*.log`). Not a miner correctness verdict. |
 | `baseline_scoring_unavailable` | Pass 2      | No              | Scoring container failed to start, resume, or respond before any correctness evaluation prompt was scored.                                                                                              |
@@ -128,7 +128,7 @@ When `disqualified` is true, the evaluation record's `disqualify_reason` field e
 Example full strings:
 
 ```
-pass1_match_fail: aggregate match 0.0029 below threshold 0.25
+pass1_match_fail: aggregate match 0.0029 below threshold 0.10
 correctness_fail: prompt 0: mean_logprob -8.120 below threshold -4.0
 scoring_infra_fail: prompt 0: scoring_infra_fail: extracted 10/50 scoring canonical tokens
 baseline_scoring_unavailable: Connection refused

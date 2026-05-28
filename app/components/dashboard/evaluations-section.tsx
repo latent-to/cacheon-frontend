@@ -29,12 +29,12 @@ type EvalFilter = 'all' | 'active' | 'dq'
 type SortDir = 'desc' | 'asc'
 type SortKey = 'score' | 'ttft_improvement' | 'throughput_improvement' | 'token_match_rate'
 
-/** Treat as DQ if the API flagged it OR if token match is below 25%. */
+/** Treat as DQ if the API flagged it OR if token match is below config.PASS1_MATCH_DQ_THRESHOLD. */
 function isEffectiveDq(e: EvaluationRecord): boolean {
   return e.disqualified || e.token_match_rate < PASS1_MATCH_DQ_THRESHOLD
 }
 
-const P1_MATCH_TITLE = 'Pass 1 Speed: aggregate token match vs baseline (gate ≥25%)'
+const P1_MATCH_TITLE = 'Pass 1 Speed: aggregate token match vs baseline (gate ≥10%)'
 
 export function EvaluationsSection() {
   const [filter, setFilter] = useState<EvalFilter>('all')
@@ -648,7 +648,7 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                     </table>
                   </div>
                   <p className="text-secondary/35 mt-2 font-mono text-[0.6rem]">
-                    Highlighted rows: match below 25% or zero TPS (stream ended before baseline
+                    Highlighted rows: match below 10% or zero TPS (stream ended before baseline
                     length).
                   </p>
                 </div>
