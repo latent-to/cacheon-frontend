@@ -93,7 +93,7 @@ Once the evaluation completes, the container automatically exits. Each run perfo
 1. **S3 download**: pulls `state.json`, `eval_job.json`, `baseline_cache/` from S3
 2. **Prompt generation**: seeds from `block_hash`, produces 12 speed evaluation + 8 correctness evaluation prompts
 3. **Generation baseline**: starts `vllm/vllm-openai:latest`, runs speed pass once, caches results, tears down
-4. **Per miner**: pause scoring container if up → miner Pass 1 speed + Pass 2 correctness evaluation → Pass 2 teacher-forcing on scoring vLLM (`v0.9.2`) if match gate passes → teardown
+4. **Per miner**: pause scoring container if running → run Pass 1 speed evaluation followed by Pass 2 correctness evaluation → if the token match gate passes, run Pass 2 teacher-forcing on the scoring vLLM (`v0.9.2`) → teardown.
 5. **Container logs**: full stdout/stderr saved to `state-mainnet/container_logs/`
 6. **S3 upload**: pushes updated `state.json`, logs, and baseline cache
 
