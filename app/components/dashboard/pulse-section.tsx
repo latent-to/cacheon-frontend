@@ -16,6 +16,7 @@ import {
   Clock,
   ChevronDown,
   ChevronRight,
+  Hourglass,
   Crown,
   Medal,
 } from 'lucide-react'
@@ -24,9 +25,11 @@ import { usePoll } from '~/lib/use-poll'
 import {
   fetchStatus,
   fetchEvalProgress,
+  fetchEvalJob,
   type EvalProgressResponse,
   type EvalProgressChallenger,
   type EvalProgressStep,
+  type EvalJobResponse,
 } from '~/lib/api.client'
 import { fmtScore, relativeTimeAgo, truncHotkey, truncImage, MetricCard, StatusDot } from './shared'
 import { CopyButton } from '~/components/ui/copy-button'
@@ -68,6 +71,7 @@ function LastEvalValue({ ts }: { ts: number | null | undefined }) {
 export function PulseSection() {
   const status = usePoll(fetchStatus, 30_000)
   const progress = usePoll(fetchEvalProgress, 10_000)
+  const evalJob = usePoll(fetchEvalJob, 30_000)
   const [, setTick] = useState(0)
 
   // Derive API liveness from the two polls we already run.
@@ -148,6 +152,12 @@ export function PulseSection() {
       {progress.data && progress.data.status === 'running' && (
         <EvalProgressBanner progress={progress.data} />
       )}
+
+      {progress.data?.status !== 'running' &&
+        evalJob.data?.eval_job &&
+        evalJob.data.eval_job.challengers.length > 0 && (
+          <EvalPendingBanner job={evalJob.data.eval_job} />
+        )}
     </section>
   )
 }
@@ -540,6 +550,85 @@ function TimelineEntry({ step }: { step: EvalProgressStep }) {
           </span>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Pending eval job banner ──────────────────────────────
+
+function EvalPendingBanner({ job }: { job: NonNullable<EvalJobResponse['eval_job']> }) {
+  const { block, challengers, created_at } = job
+
+  return (
+    <div className="border-border/40 mt-8 overflow-hidden rounded-xl border bg-white/[0.015]">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-6 pt-4 pb-3">
+        <Hourglass size={14} strokeWidth={1.5} className="text-secondary/50 shrink-0" />
+        <div className="flex min-w-0 flex-1 items-baseline gap-3">
+          <span className="text-secondary/80 font-mono text-base leading-none font-semibold">
+            Evaluation pending
+          </span>
+          <span className="text-secondary/45 font-mono text-sm leading-none">
+            {relativeTimeAgo(created_at)}
+          </span>
+        </div>
+        <span className="text-secondary/50 flex shrink-0 items-center gap-1 font-mono text-sm">
+          #{block}
+          <LinkButton href={`https://tao.app/block/${block}`} />
+        </span>
+      </div>
+
+      {/* Challenger count pill */}
+      <div className="flex flex-wrap items-center gap-2 px-6 pb-3">
+        <Badge>
+          {challengers.length} challenger{challengers.length !== 1 ? 's' : ''} queued
+        </Badge>
+      </div>
+
+      {/* Challenger list */}
+      {challengers.length > 0 && (
+        <div className="border-t border-white/[0.04]">
+          {challengers.map((c, i) => (
+            <div
+              key={c.uid}
+              className={cn(
+                'flex items-center gap-4 px-6 py-3 font-mono',
+                i < challengers.length - 1 && 'border-b border-white/[0.06]',
+              )}
+            >
+              <span className="bg-secondary/25 relative inline-flex size-2.5 shrink-0 rounded-full" />
+
+              <span className="text-secondary/70 w-16 shrink-0 text-sm whitespace-nowrap">
+                UID {c.uid}
+              </span>
+
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <div className="flex min-w-0 items-center gap-1">
+                  <span className="text-secondary/85 truncate text-sm leading-none">
+                    {truncHotkey(c.hotkey)}
+                  </span>
+                  <CopyButton value={c.hotkey} />
+                </div>
+                {c.image && (
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span className="text-secondary/85 truncate text-sm leading-none">
+                      {truncImage(c.image)}
+                    </span>
+                    <CopyButton value={c.image} />
+                    <LinkButton
+                      href={`https://hub.docker.com/r/${c.image.replace(/:.*$/, '').replace(/^[^/]+\.[^/]+\//, '')}`}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <span className="text-secondary/40 shrink-0 font-mono text-xs tracking-[0.1em] uppercase">
+                Queued
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
