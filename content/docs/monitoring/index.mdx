@@ -43,7 +43,7 @@ curl https://api.cacheon.ai/api/status
 curl https://api.cacheon.ai/api/evaluations/5
 ```
 
-Each evaluation record includes `score`, `disqualify_reason` (if DQ'd), `ttft_improvement`, `throughput_improvement`, `token_match_rate`, and `per_prompt` stats when available.
+Each evaluation record includes `score`, `disqualify_reason` (if DQ'd), `speed_improvement`, `token_match_rate`, and `per_prompt` stats when available.
 
 ### Container logs
 
@@ -86,7 +86,7 @@ curl https://api.cacheon.ai/api/validator-log/gpu_eval_20260518_112858
 2. Check `disqualify_reason` in the response
 3. Look up the code in [Disqualification reason codes](/docs/evaluation/scoring#disqualification-reason-codes)
 4. Pull your container log: `GET /api/container-log/{label}` (format: `uid{N}_{hotkey8}_{block}`)
-5. For Pass 2 infra failures, also check validator logs: `GET /api/validator-log/gpu_eval_{timestamp}` and `GET /api/container-log/baseline_scoring`
+5. For Pass 2 infra failures, also check paired logs for the evaluation block: `GET /api/validator-log/gpu_eval_{timestamp}` and `GET /api/container-log/baseline_scoring_{block}_{timestamp}` (same `{timestamp}` on both)
 
 ## Data freshness
 

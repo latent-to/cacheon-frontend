@@ -91,21 +91,52 @@ docker compose -f gpu-compose.yml up --build
 Once the evaluation completes, the container automatically exits. Each run performs a single eval from start to finish:
 
 1. **S3 download**: pulls `state.json`, `eval_job.json`, `baseline_cache/` from S3
-2. **Prompt generation**: seeds from `block_hash`, produces 12 speed evaluation + 8 correctness evaluation prompts
-3. **Generation baseline**: starts `vllm/vllm-openai:latest`, runs speed pass once, caches results, tears down
-4. **Per miner**: pause scoring container if running → run Pass 1 speed evaluation followed by Pass 2 correctness evaluation → if the token match gate passes, run Pass 2 teacher-forcing on the scoring vLLM (`v0.9.2`) → teardown.
-5. **Container logs**: full stdout/stderr saved to `state-mainnet/container_logs/`
-6. **S3 upload**: pushes updated `state.json`, logs, and baseline cache
+2. **Prompt generation**: seeds from `block_hash`, produces 12 unified eval prompts (10 scored + 2 warmup)
+3. **Baseline**: starts `vllm/vllm-openai:v0.22.0`, runs eval prompts once, caches results, tears down
+4. **Per miner**: run eval prompts in the miner container, then teardown
+5. **Teacher-forcing batch**: one scoring vLLM boot (`v0.9.2`, 600s startup) teacher-forces scored outputs from miners that passed the token-match pre-filter, then teardown
+6. **Container logs**: full stdout/stderr saved to `state-mainnet/container_logs/` (scoring: `baseline_scoring_{block}_{timestamp}.log`)
+7. **S3 upload**: pushes updated `state.json`, logs, and baseline cache
 
 The validator detects new results on its next poll and sets weights automatically.
 
-## Verify results (optional)
+## Local GPU eval
 
-On your local machine after the eval completes:
+To run the production entrypoint on a rented pod with a hand-placed `eval_job.json`:
+
+Sample `eval_job.json` (challenger-only smoke test):
+
+```json
+{
+  "block": 1111111,
+  "block_hash": "0xsome_random_seed",
+  "challengers": [
+    {
+      "uid": 69,
+      "hotkey": "PLACEHOLDER_HOTKEY",
+      "commit_block": 1111111,
+      "image": "docker.io/YOUR_USERNAME/YOUR_DOCKER_IMAGE:v1",
+      "digest": "sha256:YOUR_DIGEST"
+    }
+  ],
+  "created_at": 0,
+  "leader": null,
+  "runner_up": null
+}
+```
 
 ```bash
-set -a && . .env && set +a
-python -m validator.sync download --state-dir /tmp/verify
-cat /tmp/verify/state.json | python -m json.tool
-ls /tmp/verify/container_logs/
+export CACHEON_STATE_DIR=/tmp/cacheon-gpu-test
+mkdir -p "$CACHEON_STATE_DIR/container_logs" "$CACHEON_STATE_DIR/logs"
+cp eval_job.json "$CACHEON_STATE_DIR/"
+
+export CACHEON_SKIP_S3=1
+export CACHEON_MODEL_VOLUME=/workspace/models/Qwen2.5-72B-Instruct
+export CACHEON_MODEL_PATH=/workspace/models/Qwen2.5-72B-Instruct
+# CACHEON_BASELINE_IMAGE / CACHEON_BASELINE_DIGEST from setup-gpu output
+
+python -m validator.gpu_eval
+# or: python scripts/eval_local.py
 ```
+
+Results stay under `$CACHEON_STATE_DIR` (`state.json`, `container_logs/`, `logs/`).

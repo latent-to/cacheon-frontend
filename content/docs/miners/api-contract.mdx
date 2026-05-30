@@ -15,14 +15,14 @@ Returns `HTTP 200` when the server is ready to serve requests. The validator pol
 
 ### `POST /v1/chat/completions`
 
-The validator sends speed evaluation and correctness evaluation prompts here during evaluation (`max_tokens` is **512** for Pass 1's speed evaluation, **256** for Pass 2's correctness evaluation).
+The validator sends unified eval prompts here during evaluation (`max_tokens` is **512**, ~6k input context).
 
 **Request format:**
 
 ```json
 {
   "model": "Qwen2.5-72B-Instruct",
-  "messages": [{ "role": "user", "content": "<instruction with long-context passage>" }],
+  "messages": [{ "role": "user", "content": "<instruction with ~6k passage>" }],
   "max_tokens": 512,
   "temperature": 0,
   "stream": true,
@@ -45,19 +45,18 @@ The validator sends speed evaluation and correctness evaluation prompts here dur
 
 Standard _Server-Sent Event_ (_SSE_) with `data: {"choices": [{"delta": {"content": "..."}, "logprobs": {...}}]}` chunks. Final chunk is `data: [DONE]`.
 
-## Two-pass evaluation
+## One-pass evaluation
 
-The validator runs your server in one container session with two prompt categories, then scores correctness outputs on a separate vLLM:
+The validator runs **12 eval prompts** (2 warmup discarded, 10 scored) in one container session, then teacher-forces your **same outputs** on a separate scoring vLLM:
 
-**Pass 1 (speed evaluation):** 12 prompts (2 warmup discarded, 10 scored), long context, `max_tokens=512`. Measures TTFT and aligned throughput vs the cached generation baseline. Streamed top-5 logprobs are collected but are not a DQ gate.
-
-**Pass 2 (correctness evaluation):** 8 prompts, ~4k context, `max_tokens=256`, no warmup. Correctness is checked later via teacher-forcing on a scoring vLLM (`prompt_logprobs`), not from your streamed logprobs.
+- **Speed:** ~6k context, `max_tokens=512`, streaming with logprobs. Measures TTFT and aligned throughput vs the cached baseline.
+- **Correctness:** teacher-forcing on those same 10 outputs via `prompt_logprobs` on the scoring vLLM, not from your streamed logprobs.
 
 The validator measures:
 
-- **TTFT**: wall-clock time from request send to first SSE data chunk (Pass 1 speed evaluation)
-- **Throughput**: aligned TPS vs cached baseline (Pass 1 speed evaluation)
-- **Correctness**: Pass 2 teacher-forcing on audit outputs. See [Scoring](/docs/evaluation/scoring).
+- **TTFT**: wall-clock time from request send to first SSE data chunk
+- **Throughput**: aligned TPS vs cached baseline
+- **Correctness**: teacher-forcing on the same outputs used for speed. See [Scoring](/docs/evaluation/scoring).
 
 ## Model identity
 
