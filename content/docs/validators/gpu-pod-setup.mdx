@@ -91,7 +91,7 @@ docker compose -f gpu-compose.yml up --build
 Once the evaluation completes, the container automatically exits. Each run performs a single eval from start to finish:
 
 1. **S3 download**: pulls `state.json`, `eval_job.json`, `baseline_cache/` from S3
-2. **Prompt generation**: seeds from `block_hash`, produces 12 unified eval prompts (10 scored + 2 warmup)
+2. **Prompt generation**: seeds from `block_hash`, produces 12 eval prompts (10 scored + 2 warmup)
 3. **Baseline**: starts `vllm/vllm-openai:v0.22.0`, runs eval prompts once, caches results, tears down
 4. **Per miner**: run eval prompts in the miner container, then teardown
 5. **Teacher-forcing batch**: one scoring vLLM boot (`v0.9.2`, 600s startup) teacher-forces scored outputs from miners that passed the token-match pre-filter, then teardown
