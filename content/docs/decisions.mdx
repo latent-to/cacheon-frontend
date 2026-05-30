@@ -45,7 +45,7 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 ## Aggregation: median across prompts
 
-**Decision:** Per-prompt TTFT and throughput are aggregated using the median across the 10 scored speed evaluation prompts.
+**Decision:** Per-prompt end-to-end speed improvements are aggregated using the median across the 10 scored eval prompts.
 
 **Reasoning:** Median aggregation prevents isolated events like GC pauses, memory allocation spikes or thermal throttling from distorting the final score. Using the mean would allow one bad prompt disproportionately affect the result. Trimmed mean is an alternative but more complex for no clear V1 benefit.
 

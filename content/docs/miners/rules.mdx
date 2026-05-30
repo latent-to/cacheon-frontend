@@ -73,9 +73,3 @@ The harness runs your container on an internal Docker network (`cacheon-internal
 | Resource exhaustion        | Memory/CPU/PID limits and timeouts; OOM = DQ             |
 
 Weights are public on Hugging Face. There is nothing secret to steal from the mount.
-
-## Why gaming the system does not work
-
-**Faking TTFT:** Even if you game the speed pass (e.g. by emitting a fast first token and stalling), you still have to pass the correctness gate. That requires running real inference against the exact same model weights.
-
-**Fabricating logprobs:** Pass 1 streamed logprobs are not a disqualification gate. Pass 2's correctness evaluation uses a separate scoring vLLM with `prompt_logprobs` teacher-forcing over your audit outputs. Garbage or wrong-weight outputs score far below the mean and minimum logprob thresholds; all 8 correctness evaluation prompts must pass. Prompts are seeded from the `block_hash`, preventing precomputation of valid outputs without executing the actual model.

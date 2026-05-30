@@ -122,7 +122,7 @@ Large differences between `challenger_stream_token_count` and `scoring_canonical
 
 ### Scoring baseline image
 
-Generation uses the pinned baseline (`vllm/vllm-openai:latest`). Teacher-forcing uses **`vllm/vllm-openai:v0.9.2`** because newer vLLM builds OOM on long `prompt_logprobs`; Eval prompts stay at ~6k input and the scoring server context cap matches that budget (~7168 tokens).
+Generation uses the pinned baseline (`vllm/vllm-openai:v0.22.0`). Teacher-forcing uses **`vllm/vllm-openai:v0.9.2`** because newer vLLM builds OOM on long `prompt_logprobs`; Eval prompts stay at ~6k input and the scoring server context cap matches that budget (~7168 tokens).
 
 ## Disqualification reason codes
 

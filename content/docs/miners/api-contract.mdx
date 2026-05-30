@@ -49,14 +49,13 @@ Standard _Server-Sent Event_ (_SSE_) with `data: {"choices": [{"delta": {"conten
 
 The validator runs **12 eval prompts** (2 warmup discarded, 10 scored) in one container session, then teacher-forces your **same outputs** on a separate scoring vLLM:
 
-- **Speed:** ~6k context, `max_tokens=512`, streaming with logprobs. Measures TTFT and aligned throughput vs the cached baseline.
+- **Speed:** ~6k context, `max_tokens=512`, streaming with logprobs. Measures end-to-end wall time vs the cached baseline (request to final token).
 - **Correctness:** teacher-forcing on those same 10 outputs via `prompt_logprobs` on the scoring vLLM, not from your streamed logprobs.
 
 The validator measures:
 
-- **TTFT**: wall-clock time from request send to first SSE data chunk
-- **Throughput**: aligned TPS vs cached baseline
-- **Correctness**: teacher-forcing on the same outputs used for speed. See [Scoring](/docs/evaluation/scoring).
+- **Speed:** total response time vs baseline (`speed_improvement` on the evaluation record)
+- **Correctness:** teacher-forcing on the same outputs used for speed. See [Scoring](/docs/evaluation/scoring).
 
 ## Model identity
 
