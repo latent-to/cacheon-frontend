@@ -11,7 +11,7 @@ One model, one hardware target, one mechanism. Prove that a containerized infere
 
 - Model: `Qwen2.5-72B-Instruct`, hardware: see [GPU table](/docs/validators/overview#gpu-requirements), baseline: pinned vLLM
 - Miners submit Docker containers; the harness evaluates against baseline on the same GPU
-- Scoring: `0.5 x TTFT + 0.5 x throughput` (median across 10 prompts, correctness gate required)
+- Scoring: median end-to-end speedup vs baseline (10 prompts, correctness gate required)
 - Competition with runner-up sharing and score-scaled emission
 - CPU/GPU split validator: always-on CPU VPS for chain interaction, ephemeral GPU pod for eval, state synced via Hippius S3
 - No speculative decoding or weight quantization in V1
@@ -25,7 +25,7 @@ _Last updated: 2026-05-08._
 | **1: API contract**            | `/v1/chat/completions` spec, health checks, streaming, logprobs              | ✅ Done |
 | **2: Container orchestration** | Docker lifecycle: pull, start, health poll, eval, teardown                   | ✅ Done |
 | **3: vLLM baseline**           | On-demand baseline container, caching per prompt set                         | ✅ Done |
-| **4: Scoring pipeline**        | Single-pass evaluation: speed (TTFT + throughput) + correctness gate         | ✅ Done |
+| **4: Scoring pipeline**        | Single-pass evaluation: end-to-end speed + correctness gate                  | ✅ Done |
 | **5: Security**                | Container isolation: internal network, resource limits, GPU cleanup          | ✅ Done |
 | **6A: Validator loop**         | Chain scan, challenger selection, Docker eval, state, `set_weights`          | ✅ Done |
 | **6B: GPU eval standalone**    | S3 sync, `eval_job.json` handoff, per-prompt metrics, container logs         | ✅ Done |

@@ -5,7 +5,7 @@ description: Cacheon (Bittensor Subnet 14) is a live, on-chain competition to bu
 
 **Cacheon** is Bittensor Subnet 14 (SN14). It is an open, on-chain competition for **production-grade inference optimization** of LLMs.
 
-Miners submit a **containerized inference server** that serves a fixed model via an OpenAI-compatible API. Validators run every submission against a vLLM baseline on the same hardware and score it on **time-to-first-token** (**TTFT**), **throughput**, and **output correctness**. The top-performing server receives the majority of emissions until another submission surpasses it.
+Miners submit a **containerized inference server** that serves a fixed model via an OpenAI-compatible API. Validators run every submission against a vLLM baseline on the same hardware and score **end-to-end response time** (request to final token) plus **output correctness**. The fastest correct server receives the majority of emissions until another submission surpasses it.
 
 <Callout title="TL;DR" className="my-2 gap-2 p-2 [&>*:last-child]:gap-1">
   <ul className="marker:text-fd-muted-foreground my-0 list-disc space-y-0.5 pl-4 leading-snug">
@@ -16,7 +16,7 @@ Miners submit a **containerized inference server** that serves a fixed model via
       <b>Submit:</b> Docker image with <code>/v1/chat/completions</code>; commit image on-chain
     </li>
     <li>
-      <b>Score:</b> <code>0.5 × TTFT + 0.5 × throughput</code>, correctness-gated.{" "}
+      <b>Score:</b> end-to-end speedup vs baseline (correctness-gated).{" "}
       <a href="./evaluation/scoring">Scoring</a>
     </li>
     <li>
@@ -51,7 +51,7 @@ See [Why it matters](/docs/concepts/why-it-matters) for the full problem stateme
   <Card
     title="I want to know what's measured"
     href="/docs/evaluation/scoring"
-    description="TTFT, throughput, two-pass correctness gate, and median aggregation."
+    description="End-to-end speed, correctness gate, and median aggregation."
   />
   <Card
     title="I want to see the roadmap"

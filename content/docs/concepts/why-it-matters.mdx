@@ -5,11 +5,11 @@ description: Training keeps advancing, but for most real-world use cases, the bo
 
 ## Training advances. Serving decides usability.
 
-Better models only matter if you can serve them. Frontier quality keeps improving, yet for most deployments the limiting factors are not research headlines but **inference**: latency, throughput, and cost on the hardware and traffic you actually run.
+Better models only matter if you can serve them. Frontier quality keeps improving, yet for most deployments the limiting factor is not research headlines but **how fast you get a complete answer** on the hardware and traffic you actually run.
 
-- **Latency**: how fast responses start and stream (time-to-first-token and tokens per second). Users and agents feel every delay.
-- **Throughput**: how many concurrent requests you can serve on fixed hardware.
-- **Cost**: GPU utilization and serving efficiency. Dollars per million tokens.
+- **Response time:** how long until the full reply is done, not when the first word appears.
+- **Throughput:** how many concurrent requests you can serve on fixed hardware.
+- **Cost:** GPU utilization and serving efficiency. Dollars per million tokens.
 
 These are **inference-time** constraints. Cacheon treats inference optimization as a competitive problem and pushes the network to discover the fastest, most efficient serving stacks in the open.
 
@@ -46,7 +46,7 @@ The **numbers don't compare.** Teams shipping production inference have no way t
 
 The endpoint is not a paper or a blog post. The endpoint is an inference server ranked #1 on the leaderboard, serving a top open-source model faster than vLLM on identical hardware. That is the product: the fastest way to run that model, discovered through open competition.
 
-Product-market fit comes when the system evolves from a benchmark leader into the backend people actually choose for latency-sensitive inference. That includes agent frameworks that need long-context throughput, Bittensor subnets that depend on reliable Qwen/GLM serving, and aggregators looking for differentiated performance. The target users are teams willing to pay for lower TTFT, higher tokens-per-second, and better GPU efficiency without building their own inference stack.
+Product-market fit comes when the system evolves from a benchmark leader into the backend people actually choose for latency-sensitive inference. That includes agent frameworks that need fast long-context replies, Bittensor subnets that depend on reliable Qwen/GLM serving, and aggregators looking for differentiated performance. The target users are teams willing to pay for faster end-to-end responses and better GPU efficiency without building their own inference stack.
 
 See the [roadmap](/docs/roadmap) for how V1 through V4 scale from single-model arena to production inference marketplace.
 

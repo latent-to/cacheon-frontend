@@ -78,8 +78,7 @@ The shared state file, read and written by both CPU and GPU:
     "uid": 3,
     "hotkey": "5F3sa8...",
     "score": 0.0312,
-    "ttft_improvement": 0.025,
-    "throughput_improvement": 0.0374,
+    "speed_improvement": 0.0312,
     "token_match_rate": 0.997,
     "image": "docker.io/miner/server:v1",
     "digest": "sha256:a3b4c5d6...",
@@ -112,8 +111,7 @@ Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
   "image": "docker.io/miner/server:v1",
   "digest": "sha256:a3b4c5d6...",
   "score": 0.0312,
-  "ttft_improvement": 0.025,
-  "throughput_improvement": 0.0374,
+  "speed_improvement": 0.0312,
   "token_match_rate": 0.997,
   "disqualified": false,
   "disqualify_reason": null,
@@ -122,7 +120,7 @@ Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
   "per_prompt": [
     {
       "ttft_s": 1.42,
-      "throughput_tps": 55.3,
+      "e2e_s": 12.8,
       "output_tokens": 512,
       "token_match_rate": 1.0
     }
@@ -130,15 +128,14 @@ Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
 }
 ```
 
-| Field                    | Type           | Description                                                                                                                            |
-| ------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `score`                  | float          | `0.5 * ttft_improvement + 0.5 * throughput_improvement`; 0.0 if DQ'd                                                                   |
-| `ttft_improvement`       | float          | `max(0, (baseline - miner) / baseline)` on medians                                                                                     |
-| `throughput_improvement` | float          | `max(0, (miner - baseline) / baseline)` on medians of aligned TPS                                                                      |
-| `token_match_rate`       | float          | Aggregate token match on Pass 1 (mean of per-prompt rates); hard DQ below 10% (`pass1_match_fail`)                                     |
-| `disqualified`           | bool           | Whether the submission was DQ'd                                                                                                        |
-| `disqualify_reason`      | string or null | Reason for DQ. See [Disqualification reason codes](/docs/evaluation/scoring#disqualification-reason-codes) for the full reference.     |
-| `per_prompt`             | array or null  | Array of per-prompt speed and performance breakdowns from Pass 1 (TTFT, aligned `throughput_tps`, match rate, token count; 10 entries) |
+| Field               | Type           | Description                                                                                                                        |
+| ------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `score`             | float          | `speed_improvement`; 0.0 if DQ'd                                                                                                   |
+| `speed_improvement` | float          | Median end-to-end speedup vs baseline (`max(0, (baseline_e2e - miner_e2e) / baseline_e2e)`)                                        |
+| `token_match_rate`  | float          | Aggregate token match on Pass 1 (mean of per-prompt rates); hard DQ below 10% (`pass1_match_fail`)                                 |
+| `disqualified`      | bool           | Whether the submission was DQ'd                                                                                                    |
+| `disqualify_reason` | string or null | Reason for DQ. See [Disqualification reason codes](/docs/evaluation/scoring#disqualification-reason-codes) for the full reference. |
+| `per_prompt`        | array or null  | Array of per-prompt speed breakdowns (TTFT, `e2e_s`, match rate, token count; 10 entries)                                          |
 
 The `per_prompt` array gives miners visibility into how their server performed on each individual prompt.
 
