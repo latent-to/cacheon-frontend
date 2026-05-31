@@ -95,20 +95,24 @@ export function LogsSection() {
     if (labelParam && labels.includes(labelParam)) {
       return labelParam
     }
+    const uidParam = searchParams.get('uid')
     const blockParam = searchParams.get('block')
-    if (blockParam) {
+    if (uidParam && blockParam) {
+      const uid = parseInt(uidParam, 10)
+      const block = parseInt(blockParam, 10)
+      if (Number.isFinite(uid) && Number.isFinite(block)) {
+        const miner = findContainerLogLabel(labels, uid, block)
+        if (miner) return miner
+      }
+    }
+    if (blockParam && !uidParam) {
       const block = parseInt(blockParam, 10)
       if (Number.isFinite(block)) {
         const scoring = findBaselineScoringLogLabel(labels, block)
         if (scoring) return scoring
       }
     }
-    const uidParam = searchParams.get('uid')
-    if (!uidParam || !blockParam) return null
-    const uid = parseInt(uidParam, 10)
-    const block = parseInt(blockParam, 10)
-    if (!Number.isFinite(uid) || !Number.isFinite(block)) return null
-    return findContainerLogLabel(labels, uid, block)
+    return null
   }, [searchParams, list])
 
   const processedLogs: LogEntry[] = useMemo(() => {

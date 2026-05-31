@@ -6,6 +6,7 @@ import {
   PASS1_MATCH_DQ_THRESHOLD,
   buildContainerLogLabel,
   containerLogHref,
+  findContainerLogLabel,
   findEvalRunLogLabels,
   summarizeEvalGates,
   validatorLogHref,
@@ -414,7 +415,10 @@ function EvalOutcomeCard({
 }) {
   const gates = summarizeEvalGates(ev)
   const logLabel = buildContainerLogLabel(ev.uid, ev.hotkey, ev.evaluation_block)
-  const logsHref = `/dashboard/logs?uid=${ev.uid}&block=${ev.evaluation_block}`
+  const minerLogLabel = findContainerLogLabel(containerLabels, ev.uid, ev.evaluation_block)
+  const logsHref = minerLogLabel
+    ? containerLogHref(minerLogLabel)
+    : `/dashboard/logs?uid=${ev.uid}&block=${ev.evaluation_block}`
   const runLogs = findEvalRunLogLabels(containerLabels, validatorLabels, ev.evaluation_block)
 
   return (
