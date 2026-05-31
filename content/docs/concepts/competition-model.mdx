@@ -11,7 +11,7 @@ Cacheon uses a competitive incentive model. The leader is the miner with the fas
 2. Any hotkey with a revealed commitment that hasn't been evaluated yet is a **challenger**.
 3. If there are no challengers, the leader keeps its weight, no GPU runs, and the loop sleeps.
 4. If challengers exist, the validator dispatches an evaluation job. The current leader and runner-up are re-evaluated in the same round alongside challengers, so all scores are fresh and no cached score carries forward.
-5. A challenger who beats the leader's fresh score **by more than 1%** takes the top spot. See [defender's moat](#the-defenders-moat). The leader receives 80% of the competition pool; the runner-up receives 20%. Total pool scales with the leader's improvement score.
+5. A challenger who beats the leader's fresh score **by more than 1%** takes the top spot. See [defender's moat](#the-defenders-moat). The leader receives 80% of the competition pool; the runner-up receives 20%.
 
 ## The defender's moat
 

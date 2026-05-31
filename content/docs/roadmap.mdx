@@ -12,7 +12,7 @@ One model, one hardware target, one mechanism. Prove that a containerized infere
 - Model: `Qwen2.5-72B-Instruct`, hardware: see [GPU table](/docs/validators/overview#gpu-requirements), baseline: pinned vLLM
 - Miners submit Docker containers; the harness evaluates against baseline on the same GPU
 - Scoring: median end-to-end speedup vs baseline (10 prompts, correctness gate required)
-- Competition with runner-up sharing and score-scaled emission
+- Competition with leader and runner-up emission split (80/20)
 - CPU/GPU split validator: always-on CPU VPS for chain interaction, ephemeral GPU pod for eval, state synced via Hippius S3
 
 ### V1 build phases
