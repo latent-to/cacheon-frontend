@@ -203,6 +203,23 @@ export interface ValidatorLogsResponse {
   total: number
 }
 
+export interface EvalJobChallenger {
+  uid: number
+  hotkey: string
+  commit_block: number
+  image: string
+  digest: string
+}
+
+export interface EvalJobResponse {
+  eval_job: {
+    block: number
+    block_hash: string
+    challengers: EvalJobChallenger[]
+    created_at: number
+  } | null
+}
+
 // ── Fetchers ────────────────────────────────────────────
 
 export const fetchHealth = () => get<HealthResponse>('/api/health')
@@ -221,3 +238,4 @@ export const fetchContainerLog = (label: string) =>
 export const fetchValidatorLogs = () => get<ValidatorLogsResponse>('/api/validator-logs')
 export const fetchValidatorLog = (label: string) =>
   getText(`/api/validator-log/${encodeURIComponent(label)}`)
+export const fetchEvalJob = () => get<EvalJobResponse>('/api/eval-job')
