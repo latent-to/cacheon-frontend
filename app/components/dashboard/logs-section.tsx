@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { cn } from '~/lib/cn'
-import { findContainerLogLabel } from '~/lib/eval-gates'
+import { findBaselineScoringLogLabel, findContainerLogLabel } from '~/lib/eval-gates'
 import { usePoll } from '~/lib/use-poll'
 import { fetchContainerLogs, fetchContainerLog, type ContainerLogEntry } from '~/lib/api.client'
 import { LogViewer, type LogEntry } from './log-viewer'
@@ -90,17 +90,29 @@ export function LogsSection() {
   const list = logs.data?.logs ?? []
 
   const initialSelectedLabel = useMemo(() => {
+    const labels = list.map((l) => l.label)
+    const labelParam = searchParams.get('label')
+    if (labelParam && labels.includes(labelParam)) {
+      return labelParam
+    }
     const uidParam = searchParams.get('uid')
     const blockParam = searchParams.get('block')
-    if (!uidParam || !blockParam) return null
-    const uid = parseInt(uidParam, 10)
-    const block = parseInt(blockParam, 10)
-    if (!Number.isFinite(uid) || !Number.isFinite(block)) return null
-    return findContainerLogLabel(
-      list.map((l) => l.label),
-      uid,
-      block,
-    )
+    if (uidParam && blockParam) {
+      const uid = parseInt(uidParam, 10)
+      const block = parseInt(blockParam, 10)
+      if (Number.isFinite(uid) && Number.isFinite(block)) {
+        const miner = findContainerLogLabel(labels, uid, block)
+        if (miner) return miner
+      }
+    }
+    if (blockParam && !uidParam) {
+      const block = parseInt(blockParam, 10)
+      if (Number.isFinite(block)) {
+        const scoring = findBaselineScoringLogLabel(labels, block)
+        if (scoring) return scoring
+      }
+    }
+    return null
   }, [searchParams, list])
 
   const processedLogs: LogEntry[] = useMemo(() => {
@@ -121,8 +133,8 @@ export function LogsSection() {
       : 'No logs available'
 
   const controls = (
-    <div className="space-y-2">
-      <div className="text-secondary/40 font-mono text-[0.6rem] font-semibold tracking-[0.14em] uppercase">
+    <div className="space-y-2.5">
+      <div className="text-secondary/55 font-mono text-xs font-semibold tracking-[0.1em] uppercase">
         Filter &amp; sort
       </div>
       <input
@@ -164,14 +176,14 @@ export function LogsSection() {
           className="accent-accent h-3 w-3 cursor-pointer rounded"
           aria-label="Exclude baseline logs"
         />
-        <span className="text-secondary/60 font-mono text-xs select-none">Hide baseline</span>
+        <span className="text-secondary/70 font-mono text-xs select-none">Hide baseline</span>
       </label>
     </div>
   )
 
   const footer =
     !logs.loading && list.length > 0 ? (
-      <p className="text-secondary/35 font-mono text-[0.6rem]">
+      <p className="text-secondary/50 font-mono text-xs">
         {processedLogs.length} / {list.length} log{list.length === 1 ? '' : 's'}
       </p>
     ) : undefined

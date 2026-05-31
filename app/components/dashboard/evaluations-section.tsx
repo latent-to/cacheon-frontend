@@ -5,11 +5,21 @@ import { cn } from '~/lib/cn'
 import {
   PASS1_MATCH_DQ_THRESHOLD,
   buildContainerLogLabel,
+  containerLogHref,
+  findContainerLogLabel,
+  findEvalRunLogLabels,
   summarizeEvalGates,
+  validatorLogHref,
   type PassStatus,
 } from '~/lib/eval-gates'
 import { usePoll } from '~/lib/use-poll'
-import { fetchEvaluations, fetchEvaluationsByUid, type EvaluationRecord } from '~/lib/api.client'
+import {
+  fetchContainerLogs,
+  fetchEvaluations,
+  fetchEvaluationsByUid,
+  fetchValidatorLogs,
+  type EvaluationRecord,
+} from '~/lib/api.client'
 import {
   fmtScore,
   fmtPct,
@@ -27,14 +37,14 @@ import { CloseButton } from '~/components/ui/close-button'
 
 type EvalFilter = 'all' | 'active' | 'dq'
 type SortDir = 'desc' | 'asc'
-type SortKey = 'score' | 'ttft_improvement' | 'throughput_improvement' | 'token_match_rate'
+type SortKey = 'score' | 'speed_improvement' | 'token_match_rate'
 
 /** Treat as DQ if the API flagged it OR if token match is below config.PASS1_MATCH_DQ_THRESHOLD. */
 function isEffectiveDq(e: EvaluationRecord): boolean {
   return e.disqualified || e.token_match_rate < PASS1_MATCH_DQ_THRESHOLD
 }
 
-const P1_MATCH_TITLE = 'Pass 1 Speed: aggregate token match vs baseline (gate ≥10%)'
+const P1_MATCH_TITLE = 'Speed pre-filter: aggregate token match vs baseline (gate ≥10%)'
 
 export function EvaluationsSection() {
   const [filter, setFilter] = useState<EvalFilter>('all')
@@ -43,6 +53,10 @@ export function EvaluationsSection() {
   const [selectedUid, setSelectedUid] = useState<number | null>(null)
 
   const evals = usePoll(fetchEvaluations, 30_000)
+  const containerLogs = usePoll(fetchContainerLogs, 60_000)
+  const validatorLogs = usePoll(fetchValidatorLogs, 60_000)
+  const containerLabels = containerLogs.data?.logs.map((l) => l.label) ?? []
+  const validatorLabels = validatorLogs.data?.logs.map((l) => l.label) ?? []
   const allEvals = evals.data?.evaluations ?? []
   const filtered =
     filter === 'active'
@@ -154,20 +168,12 @@ export function EvaluationsSection() {
                     className="w-20"
                   />
                   <SortableHeader
-                    label="TTFT"
-                    sortKey="ttft_improvement"
+                    label="Speed"
+                    sortKey="speed_improvement"
                     activeKey={sortKey}
                     dir={sortDir}
                     onSort={handleSort}
-                    className="w-16"
-                  />
-                  <SortableHeader
-                    label="TPS"
-                    sortKey="throughput_improvement"
-                    activeKey={sortKey}
-                    dir={sortDir}
-                    onSort={handleSort}
-                    className="w-16"
+                    className="w-20"
                   />
                   <SortableHeader
                     label="Token match"
@@ -198,7 +204,12 @@ export function EvaluationsSection() {
       </GlassCard>
 
       {selectedUid !== null && (
-        <EvalDetailDrawer uid={selectedUid} onClose={() => setSelectedUid(null)} />
+        <EvalDetailDrawer
+          uid={selectedUid}
+          onClose={() => setSelectedUid(null)}
+          containerLabels={containerLabels}
+          validatorLabels={validatorLabels}
+        />
       )}
     </section>
   )
@@ -304,10 +315,7 @@ function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numbe
         {fmtScore(ev.score)}
       </td>
       <td className="text-secondary px-3 py-3 text-right text-xs tabular-nums">
-        {fmtImprovement(ev.ttft_improvement)}
-      </td>
-      <td className="text-secondary px-3 py-3 text-right text-xs tabular-nums">
-        {fmtImprovement(ev.throughput_improvement)}
+        {fmtImprovement(ev.speed_improvement)}
       </td>
       <td
         className="text-secondary px-3 py-3 text-right text-xs tabular-nums"
@@ -356,10 +364,9 @@ function EvalCard({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numb
         <ImageTag image={ev.image} />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <MiniStat label="Score" value={fmtScore(ev.score)} accent={!dq} />
-        <MiniStat label="TTFT" value={fmtImprovement(ev.ttft_improvement)} />
-        <MiniStat label="TPS" value={fmtImprovement(ev.throughput_improvement)} />
+        <MiniStat label="Speed" value={fmtImprovement(ev.speed_improvement)} />
         <MiniStat label="Speed match" value={fmtPct(ev.token_match_rate)} />
       </div>
     </button>
@@ -397,10 +404,22 @@ function PassStatusLine({
   )
 }
 
-function EvalOutcomeCard({ ev }: { ev: EvaluationRecord }) {
+function EvalOutcomeCard({
+  ev,
+  containerLabels,
+  validatorLabels,
+}: {
+  ev: EvaluationRecord
+  containerLabels: string[]
+  validatorLabels: string[]
+}) {
   const gates = summarizeEvalGates(ev)
   const logLabel = buildContainerLogLabel(ev.uid, ev.hotkey, ev.evaluation_block)
-  const logsHref = `/dashboard/logs?uid=${ev.uid}&block=${ev.evaluation_block}`
+  const minerLogLabel = findContainerLogLabel(containerLabels, ev.uid, ev.evaluation_block)
+  const logsHref = minerLogLabel
+    ? containerLogHref(minerLogLabel)
+    : `/dashboard/logs?uid=${ev.uid}&block=${ev.evaluation_block}`
+  const runLogs = findEvalRunLogLabels(containerLabels, validatorLabels, ev.evaluation_block)
 
   return (
     <div className="border-border/40 space-y-3 rounded-lg border bg-white/[0.02] p-4">
@@ -410,7 +429,7 @@ function EvalOutcomeCard({ ev }: { ev: EvaluationRecord }) {
 
       <div className="space-y-2">
         <PassStatusLine
-          label="Pass 1: Speed"
+          label="Speed"
           status={gates.pass1}
           detail={
             gates.pass1 !== 'na'
@@ -419,15 +438,15 @@ function EvalOutcomeCard({ ev }: { ev: EvaluationRecord }) {
           }
         />
         <PassStatusLine
-          label="Pass 2: Correctness"
+          label="Correctness"
           status={gates.pass2}
           detail={gates.isInfraFail ? 'validator scoring' : undefined}
         />
       </div>
 
       <p className="text-secondary/45 font-mono text-[0.65rem] leading-relaxed">
-        Speed score (TTFT + TPS) uses long-context speed prompts only. Correctness is a separate
-        gate on 8 short outputs.
+        Speed and correctness use the same 10 scored prompts (~6k in, 512 out). Correctness
+        teacher-forcing runs on those same outputs after all miners finish.
       </p>
 
       {ev.disqualify_reason && (
@@ -441,7 +460,7 @@ function EvalOutcomeCard({ ev }: { ev: EvaluationRecord }) {
 
       {!ev.disqualified && ev.score === 0 && gates.pass1 === 'pass' && gates.pass2 === 'pass' && (
         <p className="text-secondary/50 font-mono text-xs">
-          Gates passed but score is 0: no TTFT or throughput improvement vs baseline.
+          Gates passed but score is 0: no end-to-end speed improvement vs baseline.
         </p>
       )}
 
@@ -453,9 +472,8 @@ function EvalOutcomeCard({ ev }: { ev: EvaluationRecord }) {
           </p>
           {gates.isInfraFail && (
             <p>
-              This looks like a validator scoring issue. Check Validator Logs (
-              <code className="text-secondary/70">baseline_scoring</code>,{' '}
-              <code className="text-secondary/70">gpu_eval_*</code>).
+              This looks like a validator scoring issue. Open the paired GPU eval log and scoring
+              baseline container log for block {ev.evaluation_block}.
             </p>
           )}
         </div>
@@ -471,14 +489,24 @@ function EvalOutcomeCard({ ev }: { ev: EvaluationRecord }) {
           Container log
         </a>
         {gates.isInfraFail && (
-          <a
-            href="/dashboard/validator-logs"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-2xs tracking-caps border-border/40 text-secondary hover:border-accent/40 hover:text-accent inline-flex rounded border bg-transparent px-2.5 py-1.5 font-mono font-semibold uppercase no-underline transition-colors"
-          >
-            Validator logs
-          </a>
+          <>
+            <a
+              href={validatorLogHref(runLogs.gpuEval)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-2xs tracking-caps border-border/40 text-secondary hover:border-accent/40 hover:text-accent inline-flex rounded border bg-transparent px-2.5 py-1.5 font-mono font-semibold uppercase no-underline transition-colors"
+            >
+              GPU eval log
+            </a>
+            <a
+              href={containerLogHref(runLogs.baselineScoring)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-2xs tracking-caps border-border/40 text-secondary hover:border-accent/40 hover:text-accent inline-flex rounded border bg-transparent px-2.5 py-1.5 font-mono font-semibold uppercase no-underline transition-colors"
+            >
+              Scoring baseline log
+            </a>
+          </>
         )}
         <a
           href="/docs/evaluation/scoring#disqualification-reason-codes"
@@ -489,12 +517,29 @@ function EvalOutcomeCard({ ev }: { ev: EvaluationRecord }) {
           Reason codes
         </a>
       </div>
-      <p className="text-secondary/35 font-mono text-[0.6rem]">Log Label: {logLabel}</p>
+      <p className="text-secondary/35 font-mono text-[0.6rem]">Miner log label: {logLabel}</p>
+      {gates.isInfraFail && (runLogs.gpuEval || runLogs.baselineScoring) && (
+        <p className="text-secondary/35 font-mono text-[0.6rem] break-all">
+          {runLogs.gpuEval && <>GPU: {runLogs.gpuEval}</>}
+          {runLogs.gpuEval && runLogs.baselineScoring && ' · '}
+          {runLogs.baselineScoring && <>Scoring: {runLogs.baselineScoring}</>}
+        </p>
+      )}
     </div>
   )
 }
 
-function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }) {
+function EvalDetailDrawer({
+  uid,
+  onClose,
+  containerLabels,
+  validatorLabels,
+}: {
+  uid: number
+  onClose: () => void
+  containerLabels: string[]
+  validatorLabels: string[]
+}) {
   const [data, setData] = useState<EvaluationRecord[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -542,7 +587,11 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
 
           {ev && (
             <>
-              <EvalOutcomeCard ev={ev} />
+              <EvalOutcomeCard
+                ev={ev}
+                containerLabels={containerLabels}
+                validatorLabels={validatorLabels}
+              />
 
               <div className="border-border/30 grid grid-cols-[5.5rem_1fr] gap-x-4 gap-y-2.5 rounded-lg border bg-white/[0.015] px-4 py-3.5 font-mono text-xs">
                 <span className="text-secondary/50 self-start pt-px">Hotkey</span>
@@ -570,22 +619,20 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <MiniStat label="Score" value={fmtScore(ev.score)} accent />
-                <MiniStat label="Pass 1 Token Match" value={fmtPct(ev.token_match_rate)} />
-                <MiniStat label="TTFT" value={fmtImprovement(ev.ttft_improvement)} />
-                <MiniStat label="Throughput" value={fmtImprovement(ev.throughput_improvement)} />
+                <MiniStat label="Speed" value={fmtImprovement(ev.speed_improvement)} />
+                <MiniStat label="Token match" value={fmtPct(ev.token_match_rate)} />
               </div>
 
               {ev.per_prompt && ev.per_prompt.length > 0 && (
                 <div>
                   <div className="text-2xs tracking-caps text-secondary/50 mb-1 font-mono font-semibold uppercase">
-                    Pass 1: Speed ({ev.per_prompt.length} prompts)
+                    Speed ({ev.per_prompt.length} prompts)
                   </div>
                   <p className="text-secondary/40 mb-2 font-mono text-[0.65rem]">
-                    Aggregate match {fmtPct(ev.token_match_rate)} · TTFT{' '}
-                    {fmtImprovement(ev.ttft_improvement)} · TPS{' '}
-                    {fmtImprovement(ev.throughput_improvement)}
+                    Aggregate match {fmtPct(ev.token_match_rate)} · Speed{' '}
+                    {fmtImprovement(ev.speed_improvement)}
                   </p>
                   <div className="border-border/40 overflow-x-auto rounded-lg border">
                     <table className="w-full font-mono text-xs">
@@ -596,7 +643,10 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                             TTFT
                           </th>
                           <th className="text-secondary/50 px-3 py-2 text-right font-semibold">
-                            TPS
+                            E2E
+                          </th>
+                          <th className="text-secondary/50 px-3 py-2 text-right font-semibold">
+                            Baseline
                           </th>
                           <th className="text-secondary/50 px-3 py-2 text-right font-semibold">
                             Tokens
@@ -609,13 +659,13 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                       <tbody>
                         {ev.per_prompt.map((pp, i) => {
                           const weakMatch = pp.token_match_rate < PASS1_MATCH_DQ_THRESHOLD
-                          const zeroTps = pp.throughput_tps === 0
+                          const zeroE2e = pp.e2e_s === 0
                           return (
                             <tr
                               key={i}
                               className={cn(
                                 'border-border/20 border-b',
-                                (weakMatch || zeroTps) && 'bg-error/[0.03]',
+                                (weakMatch || zeroE2e) && 'bg-error/[0.03]',
                               )}
                             >
                               <td className="text-secondary/40 px-3 py-1.5">{i + 1}</td>
@@ -625,10 +675,15 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                               <td
                                 className={cn(
                                   'px-3 py-1.5 text-right',
-                                  zeroTps ? 'text-error/70' : 'text-secondary',
+                                  zeroE2e ? 'text-error/70' : 'text-secondary',
                                 )}
                               >
-                                {pp.throughput_tps?.toFixed(1)}
+                                {pp.e2e_s > 0 ? `${pp.e2e_s.toFixed(3)}s` : '-'}
+                              </td>
+                              <td className="text-secondary/70 px-3 py-1.5 text-right">
+                                {pp.baseline_e2e_s != null && pp.baseline_e2e_s > 0
+                                  ? `${pp.baseline_e2e_s.toFixed(3)}s`
+                                  : '-'}
                               </td>
                               <td className="text-secondary px-3 py-1.5 text-right">
                                 {pp.output_tokens}
@@ -648,8 +703,8 @@ function EvalDetailDrawer({ uid, onClose }: { uid: number; onClose: () => void }
                     </table>
                   </div>
                   <p className="text-secondary/35 mt-2 font-mono text-[0.6rem]">
-                    Highlighted rows: match below 10% or zero TPS (stream ended before baseline
-                    length).
+                    Highlighted rows: match below 10% or zero E2E (stream ended before tolerance
+                    band).
                   </p>
                 </div>
               )}

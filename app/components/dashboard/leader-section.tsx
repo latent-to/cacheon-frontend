@@ -149,10 +149,9 @@ function RankCard({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <MiniStat label="Score" value={fmtScore(record.score)} accent={accent} />
-            <MiniStat label="TTFT" value={fmtImprovement(record.ttft_improvement)} />
-            <MiniStat label="Throughput" value={fmtImprovement(record.throughput_improvement)} />
+            <MiniStat label="Speed" value={fmtImprovement(record.speed_improvement)} />
             <MiniStat label="Token Match" value={fmtPct(record.token_match_rate)} />
           </div>
         </>
