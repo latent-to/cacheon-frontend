@@ -14,7 +14,6 @@ One model, one hardware target, one mechanism. Prove that a containerized infere
 - Scoring: median end-to-end speedup vs baseline (10 prompts, correctness gate required)
 - Competition with runner-up sharing and score-scaled emission
 - CPU/GPU split validator: always-on CPU VPS for chain interaction, ephemeral GPU pod for eval, state synced via Hippius S3
-- No speculative decoding or weight quantization in V1
 
 ### V1 build phases
 
@@ -45,12 +44,11 @@ V1.5 makes the validator fully hands-off. An operator spins up the CPU host once
 
 ## V2 - Expanded optimization surface
 
-After V1.5 stabilizes, restrictions on what miners can do are relaxed:
+After V1.5 stabilizes, the competition expands beyond single-request speed:
 
-- Speculative decoding (draft models, Medusa heads, lookahead)
-- Weight quantization (FP8, INT4, AWQ, GPTQ) if they pass a tightened correctness gate
 - Concurrency benchmarks: multiple simultaneous requests, throughput under SLA
 - Stricter correctness: full logprob KL validation
+- Multi-turn and RAG-style workloads
 
 ## V3 - Production inference provider
 

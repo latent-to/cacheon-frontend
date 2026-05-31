@@ -117,7 +117,7 @@ Large differences between `challenger_stream_token_count` and `scoring_canonical
 ### Why this catches bad actors
 
 - **Fast garbage on speed prompts**: fails teacher-forcing on the same output (no separate short audit set to fingerprint).
-- **Wrong or quantized weights**: scoring vLLM assigns near-zero probability to miner tokens.
+- **Wrong model weights**: scoring vLLM assigns low probability to implausible miner tokens.
 - **Garbage after a valid prefix**: low mean/min logprob on garbage tokens.
 
 ### Scoring baseline image
@@ -172,15 +172,10 @@ The validator may log `buffered stream suspected` when TTFT is much slower than 
 
 The generation baseline is a pinned vLLM instance serving `Qwen2.5-72B-Instruct` on the same hardware as challengers. See [GPU requirements](/docs/validators/overview#gpu-requirements). Baseline results are **pre-computed and cached** per block hash; all challengers in the round share the same cached numbers.
 
-## Explicitly not in V1
+## Hard requirements
 
-- **Speculative decoding** -- banned. Simplifies correctness checking.
-- **Weight quantization** -- banned. All servers must load exact BF16 weights.
-- **Alternate models** -- banned. Same model, same weights.
-- **Approximate attention** -- banned if it changes outputs beyond the gate's tolerance.
-- **Sampling-based evaluation** -- all eval is greedy (temperature=0).
-
-These restrictions will be relaxed in V2 once the eval pipeline is proven.
+- **Alternate models**: same model and canonical weights from `/models`.
+- **Greedy eval**: all eval requests use `temperature=0`.
 
 ## Reproducibility
 

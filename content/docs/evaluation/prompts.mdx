@@ -74,7 +74,7 @@ Passage length uses a conservative chars/token estimate plus overhead and safety
 
 ## Correctness and prompts
 
-Teacher-forcing via `prompt_logprobs` runs on the **same outputs** as speed scoring. The scoring vLLM uses a matching ~7k context cap. Speed credit only counts when those outputs pass the logprob gate. Streamed top-5 logprobs are collected for diagnostics and baseline cache.
+Teacher-forcing via `prompt_logprobs` runs on the **same outputs** as speed scoring. The scoring vLLM uses a matching ~7k context cap. End-to-end speed is measured during generation; the final score requires both the token-match pre-filter and teacher-forcing to pass. Streamed top-5 logprobs are collected for diagnostics and baseline cache.
 
 ## V2 direction
 
