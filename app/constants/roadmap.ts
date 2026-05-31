@@ -14,7 +14,7 @@ export const ROADMAP: RoadmapPhase[] = [
       'Qwen2.5-72B-Instruct on a 8x H200/B200-equivalent',
       'Miners submit Docker containers with full inference servers',
       'Scored against a production vLLM tensor-parallel baseline',
-      'First-mismatch correctness gate with logprob verification; no speculative decoding or quantization',
+      'Correctness gate: teacher-forcing logprob verification on miner outputs',
       'Any language, any framework, any optimization technique',
     ],
   },
@@ -23,7 +23,6 @@ export const ROADMAP: RoadmapPhase[] = [
     label: 'Expanded Optimization Surface',
     status: 'upcoming',
     items: [
-      'Speculative decoding and weight quantization allowed',
       'Concurrency benchmarks: throughput under load',
       'Batch throughput scoring with latency SLA',
       'Stricter correctness (full logprob KL validation)',

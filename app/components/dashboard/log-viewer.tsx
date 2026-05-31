@@ -97,11 +97,13 @@ export function LogViewer({
         )}
       >
         {/* Controls slot */}
-        {sidebarControls && <div className="border-border/40 border-b p-3">{sidebarControls}</div>}
+        {sidebarControls && (
+          <div className="border-border/40 border-b p-3.5">{sidebarControls}</div>
+        )}
 
         {/* Section label */}
         <div className="flex items-center justify-between px-3 pt-3 pb-1.5">
-          <span className="text-secondary/50 font-mono text-xs font-semibold tracking-[0.12em] uppercase">
+          <span className="text-secondary/60 font-mono text-xs font-semibold tracking-[0.12em] uppercase">
             {title}
           </span>
         </div>
@@ -127,25 +129,27 @@ export function LogViewer({
                 type="button"
                 onClick={() => setSelectedLabel(log.label === selectedLabel ? null : log.label)}
                 className={cn(
-                  'group flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border-none bg-transparent px-2 py-1.5 text-left transition-colors',
+                  'group flex w-full cursor-pointer rounded-md border-none bg-transparent px-2 py-2 text-left transition-colors',
                   selectedLabel === log.label
                     ? 'bg-accent/10 text-accent'
                     : 'text-secondary/70 hover:text-primary hover:bg-white/[0.04]',
                 )}
               >
-                <span className="min-w-0 truncate font-mono text-xs">
+                <span className="min-w-0 flex-1 truncate font-mono text-xs">
                   {renderLabel ? renderLabel(log) : log.label}
                 </span>
-                <span
-                  className={cn(
-                    'shrink-0 font-mono text-[0.6rem] tabular-nums transition-colors',
-                    selectedLabel === log.label
-                      ? 'text-accent/60'
-                      : 'text-secondary/30 group-hover:text-secondary/50',
-                  )}
-                >
-                  {fmtBytes(log.size_bytes)}
-                </span>
+                {!renderLabel && (
+                  <span
+                    className={cn(
+                      'shrink-0 font-mono text-xs tabular-nums transition-colors',
+                      selectedLabel === log.label
+                        ? 'text-accent/60'
+                        : 'text-secondary/40 group-hover:text-secondary/60',
+                    )}
+                  >
+                    {fmtBytes(log.size_bytes)}
+                  </span>
+                )}
               </button>
             ))
           )}
@@ -166,8 +170,8 @@ export function LogViewer({
       >
         {!selectedLabel ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
-            <div className="text-secondary/25 font-mono text-sm">Select a log file to view</div>
-            <div className="text-secondary/15 font-mono text-xs">
+            <div className="text-secondary/35 font-mono text-sm">Select a log file to view</div>
+            <div className="text-secondary/25 font-mono text-xs">
               {entries.length > 0
                 ? `${entries.length} file${entries.length !== 1 ? 's' : ''} available`
                 : ''}

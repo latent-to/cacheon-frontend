@@ -50,8 +50,7 @@ export interface LeaderRecord {
   image: string
   digest: string
   score: number
-  ttft_improvement: number
-  throughput_improvement: number
+  speed_improvement: number
   token_match_rate: number
   evaluated_at: number
   evaluation_block: number
@@ -90,8 +89,7 @@ export interface EvaluationRecord {
   image: string
   digest: string
   score: number
-  ttft_improvement: number
-  throughput_improvement: number
+  speed_improvement: number
   token_match_rate: number
   disqualified: boolean
   disqualify_reason: string | null
@@ -99,9 +97,10 @@ export interface EvaluationRecord {
   evaluation_block: number
   per_prompt?: Array<{
     ttft_s: number
-    throughput_tps: number
+    e2e_s: number
     output_tokens: number
     token_match_rate: number
+    baseline_e2e_s?: number
   }>
 }
 
@@ -120,7 +119,10 @@ export interface RoundChallenger {
   uid: number
   hotkey: string
   image: string
+  commit_block: number | null
   score: number | null
+  speed_improvement: number | null
+  token_match_rate: number | null
   disqualified: boolean
   disqualify_reason: string | null
 }
@@ -142,7 +144,15 @@ export interface EvalProgressChallenger {
   uid: number
   hotkey: string
   image: string
-  status: 'pending' | 'pulling' | 'started' | 'evaluating' | 'scored' | 'dq' | 'skipped'
+  status:
+    | 'pending'
+    | 'pulling'
+    | 'started'
+    | 'evaluating'
+    | 'awaiting_correctness'
+    | 'scored'
+    | 'dq'
+    | 'skipped'
   score?: number
   dq_reason?: string
 }
@@ -157,10 +167,13 @@ export interface EvalProgressIncumbent {
   uid: number
   hotkey: string
   image: string
+  status?: EvalProgressChallenger['status']
+  score?: number
+  dq_reason?: string
 }
 
 export interface EvalProgressResponse {
-  status: 'idle' | 'running'
+  status: 'idle' | 'running' | 'complete'
   phase?: string
   detail?: string
   round_block?: number
@@ -178,6 +191,7 @@ export interface EvalProgressResponse {
   steps?: EvalProgressStep[]
   started_at?: number
   updated_at?: number
+  completed_at?: number
   possibly_stale?: boolean
 }
 
