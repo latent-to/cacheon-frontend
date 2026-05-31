@@ -97,7 +97,7 @@ JSON field-level detail: [Data contracts](/docs/evaluation/data-contracts).
 
 Each GPU eval run captures:
 
-- **Per-prompt metrics**: TTFT, throughput, token match rate, output token count for every scored prompt
+- **Per-prompt metrics**: TTFT (telemetry), end-to-end time (`e2e_s`), token match rate, output token count for every scored prompt
 - **Container logs**: full stdout/stderr from baseline and miner containers, saved to `container_logs/`
 - **Timestamped validator logs**: one log file per GPU eval session under `logs/`
 

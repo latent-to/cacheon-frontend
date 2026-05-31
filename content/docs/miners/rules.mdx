@@ -1,6 +1,6 @@
 ---
 title: Rules
-description: What your container can and cannot do during evaluation. Network isolation, resource limits, V1 restrictions, and disqualification conditions.
+description: What your container can and cannot do during evaluation. Network isolation, resource limits, and disqualification conditions.
 ---
 
 ## Container environment
@@ -32,12 +32,10 @@ This section outlines operations and strategies that are permitted in V1:
 - Any serving architecture (single process, multi-process, etc.)
 - Chunked prefill, continuous batching, fused operations
 
-## What is not allowed (V1)
+## What is not allowed
 
-- **Speculative decoding:** Draft models, lookahead, and Medusa heads are banned in V1. This simplifies correctness checking. Will be allowed in V2.
-- **Weight quantization:** GPTQ, AWQ, FP8, INT4, or any other quantization scheme is banned in V1. Miners must load exact BF16 weights from the mounted volume.
 - **Network access:** Your container runs on an internal Docker network with no outbound access. All dependencies must be baked into the image. Model weights are provided via volume mount.
-- **Modified model weights:** You must serve the canonical `Qwen2.5-72B-Instruct` weights. Fine-tuned or distilled weights will fail the correctness gate.
+- **Modified model weights:** You must serve the canonical `Qwen2.5-72B-Instruct` weights from `/models`. Fine-tuned or distilled weights are likely to fail the token-match pre-filter or teacher-forcing gate.
 - **Fabricated outputs:** Returning cached or pre-computed responses instead of running actual inference. The validator uses block-hash-seeded prompts that are unpredictable.
 - **Container escape attempts:** The container runs without `--privileged`. Attempting to escape the sandbox results in permanent DQ.
 - **Excessive resource usage:** If your container OOMs or exceeds resource limits, it is terminated and DQ'd.
@@ -49,16 +47,10 @@ This section outlines operations and strategies that are permitted in V1:
 | Startup timeout exceeded (10 min)                   | DQ            |
 | Per-prompt timeout exceeded (120s)                  | DQ            |
 | `/health` never returns 200                         | DQ            |
-| Correctness gate fails (any prompt diverges)        | DQ, score = 0 |
+| Correctness gate fails (logprob thresholds)         | DQ, score = 0 |
 | OOM or container crash during eval                  | DQ            |
 | Duplicate of leader's image digest                  | DQ            |
 | Non-compliant API (missing endpoints, wrong format) | DQ            |
-
-<Callout type="info" title="How speculative decoding and quantization are enforced in V1">
-  V1 has no dedicated detector for speculative decoding or weight quantization. Both are policy
-  rules enforced indirectly: if your altered output diverges from the baseline beyond the top-5 /
-  logprob-gap tolerance, the correctness gate DQs the run. V2 will add direct detection.
-</Callout>
 
 ## Threat model
 
@@ -73,9 +65,3 @@ The harness runs your container on an internal Docker network (`cacheon-internal
 | Resource exhaustion        | Memory/CPU/PID limits and timeouts; OOM = DQ             |
 
 Weights are public on Hugging Face. There is nothing secret to steal from the mount.
-
-## Why gaming the system does not work
-
-**Faking TTFT:** Even if you game the speed pass (e.g. by emitting a fast first token and stalling), you still have to pass the correctness gate. That requires running real inference against the exact same model weights.
-
-**Fabricating logprobs:** Pass 1 streamed logprobs are not a disqualification gate. Pass 2's correctness evaluation uses a separate scoring vLLM with `prompt_logprobs` teacher-forcing over your audit outputs. Garbage or wrong-weight outputs score far below the mean and minimum logprob thresholds; all 8 correctness evaluation prompts must pass. Prompts are seeded from the `block_hash`, preventing precomputation of valid outputs without executing the actual model.

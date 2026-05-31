@@ -45,23 +45,11 @@ Miners submit payment via `miner/commit.py`, which atomically runs `Utility.batc
 
 ## What validators score on
 
-Each evaluation round measures three properties per challenger:
+Each evaluation round has two gates:
 
-| Axis        | How it's measured                                              |
-| ----------- | -------------------------------------------------------------- |
-| Correctness | First-divergence logprob analysis against baseline. Hard gate. |
-| TTFT        | Time-to-first-token improvement vs. vLLM baseline              |
-| Throughput  | Output tokens/sec improvement vs. vLLM baseline                |
+| Gate        | How it's measured                                                                 |
+| ----------- | --------------------------------------------------------------------------------- |
+| Correctness | Teacher-forcing logprob gate on the scoring vLLM. Hard gate: fail and score is 0. |
+| Speed       | Median end-to-end wall-time improvement vs. the vLLM baseline on the same prompts |
 
-The final score is:
-
-```python
-if not correctness_pass:
-    score = 0.0
-else:
-    ttft_imp = max(0, (baseline_ttft - miner_ttft) / baseline_ttft)
-    tps_imp  = max(0, (miner_tps - baseline_tps) / baseline_tps)
-    score = 0.5 * ttft_imp + 0.5 * tps_imp
-```
-
-See [Scoring](/docs/evaluation/scoring) for the full rationale.
+The final score is the median relative speedup from request start to the aligned output length, floored at zero. See [Scoring](/docs/evaluation/scoring) for the formula and tolerance band.
