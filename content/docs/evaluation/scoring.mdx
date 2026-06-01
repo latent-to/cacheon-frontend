@@ -3,7 +3,7 @@ title: Scoring
 description: One-pass evaluation. Speed (end-to-end wall time) and correctness (teacher-forcing) use the same prompts and miner outputs. Final metrics use median aggregation across 10 scored prompts.
 ---
 
-Final score is **correctness-gated**: the same miner outputs that earn speed credit must pass teacher-forcing on the scoring vLLM. A cheap token-match pre-filter can short-circuit hopeless submissions before scoring. Otherwise `score = 0.0` when either gate fails.
+Final score is **correctness-gated**: the same miner outputs that earn speed credit must pass teacher-forcing on the scoring vLLM. A cheap token-match pre-filter can filter out invalid submissions before scoring. Otherwise `score = 0.0` when either gate fails.
 
 ## One-pass overview
 
@@ -49,19 +49,19 @@ The harness sends **12 eval prompts** (2 warmup discarded, **10 scored**) to eac
 
 ### Measurement
 
-Eval prompts use **streaming chat completions** with `logprobs` (`stream=true`, `logprobs=true`, `top_logprobs=5`). The validator records request start, time to first token (TTFT), and per-token arrival times. **Score uses total wall time** from request start to the aligned k-th token, not decode-only throughput. This is buffering-invariant: a miner cannot gain credit by generating slowly and flushing tokens in one burst.
+Evaluation prompts use **streaming chat completions** with `logprobs` (`stream=true`, `logprobs=true`, `top_logprobs=5`). The validator records request start, time to first token (TTFT), and per-token arrival times. **Score uses total wall time** from request start to the aligned _k_-th token, not decode-only throughput. This makes the metric insensitive to buffering strategies: a miner cannot earn extra credit by generating tokens slowly and flushing them in a single burst.
 
 Per prompt:
 
-```
+```py
 k = min(baseline_output_tokens, miner_output_tokens)
 miner_e2e   = miner_ttft + miner_decode[k - 1]
 baseline_e2e = baseline_ttft + baseline_decode[k - 1]
 ```
 
-`decode[i]` is seconds from first token to token i. TTFT plus decode elapsed equals request start to that token.
+`decode[i]` is seconds from first token to token _i_. TTFT plus decode elapsed equals request start to that token.
 
-**Tolerance band:** the miner must emit at least `ceil(0.9 * baseline_N)` tokens (minimum 2). Otherwise that prompt gets 0 speed credit. Extra tokens beyond baseline length do not help.
+**Tolerance band:** the miner must emit at least `ceil(0.9 * baseline_N)` tokens (minimum of 2 tokens required). Otherwise that prompt gets 0 speed credit. Extra tokens beyond baseline length do not help.
 
 Top-5 logprobs are collected and cached with the baseline but are **not** a DQ gate in V1.
 
@@ -183,7 +183,7 @@ Every scored run produces an `EvaluationRecord` with `score`, `speed_improvement
 
 ## Emission schedule
 
-Total emission allocated to the competition pool follows a mainnet block schedule. The ramp keeps competition live while eval and incentive mechanics mature, without paying the full miner allocation before winners are reliable and inference revenue can align with emissions.
+Total emission allocated to the competition pool follows a mainnet block schedule. The ramp keeps competition active while evaluation and incentive mechanics mature, without paying the full miner allocation before winners are reliable and inference revenue can align with emissions.
 
 - **Before block 8,309,900 (~Jun 1, 2026):** 2% to the competition pool; the remainder goes to a burn UID
 - **Block 8,309,900 (~Jun 1, 2026) through 9,166,700 (~Sep 28, 2026):** linear ramp from 10% to 100% (~4 months at 12s/block)

@@ -174,8 +174,8 @@ export default function WhatIs() {
         {/* Scoring surface */}
         <div className="mt-10 flex flex-wrap items-center justify-center gap-6 sm:gap-8">
           {[
-            { metric: 'TTFT', direction: '↓ lower is better', accent: true },
-            { metric: 'TOKENS/SEC', direction: '↑ higher is better', accent: true },
+            { metric: 'END-TO-END SPEED', direction: '↓ lower is better', accent: true },
+            { metric: 'TOKEN MATCH', direction: 'must pass pre-filter', accent: false },
             { metric: 'CORRECTNESS', direction: 'must pass to score', accent: false },
           ].map((item) => (
             <div key={item.metric} className="text-center">

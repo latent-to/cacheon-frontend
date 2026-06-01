@@ -3,12 +3,12 @@ title: Harness
 description: How the harness orchestrates one-pass containerized evaluation, including baseline caching, miner generation, batched teacher-forcing, warmup requests, and median aggregation.
 ---
 
-The harness pulls miner containers, runs eval prompts (speed + correctness on the same outputs), and compares speed against a cached vLLM generation baseline.
+The harness pulls miner containers, runs evaluation prompts (speed + correctness on the same outputs), and compares speed against a cached vLLM generation baseline.
 
 ## Round lifecycle
 
-1. **Sample prompts** from `block_hash`: 12 eval prompts (10 scored + 2 warmup), ~6k input / 512 output each
-2. **Baseline once**: start `vllm/vllm-openai:v0.22.0`, run eval prompts, cache results, tear down
+1. **Sample prompts** from `block_hash`: 12 evaluation prompts (10 scored + 2 warmup), ~6k input / 512 output each
+2. **Baseline once**: start `vllm/vllm-openai:v0.22.0`, run evaluation prompts, cache results, tear down
 3. **Per miner** (leader, runner-up, then challengers):
    - Start miner container; run **12 eval prompts** (2 warmup discarded, 10 scored)
    - Tear down miner container; reset GPUs
@@ -47,7 +47,7 @@ Override via `CACHEON_BASELINE_IMAGE` / `CACHEON_SCORING_IMAGE` in [validator co
 
 ## Prompt delivery
 
-Eval prompts (generation in miner container):
+Evaluation prompts (generation in miner container):
 
 ```json
 {
@@ -88,7 +88,7 @@ Teacher-forcing on the scoring vLLM after all miners finish generation. See [Sco
 
 ## Per-prompt metrics
 
-`per_prompt` on an `EvaluationRecord` covers the **10 scored eval prompts**:
+`per_prompt` on an `EvaluationRecord` covers the **10 scored evaluation prompts**:
 
 | Field              | Type  | Description                                                 |
 | ------------------ | ----- | ----------------------------------------------------------- |

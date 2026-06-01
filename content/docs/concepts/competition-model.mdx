@@ -47,9 +47,9 @@ Miners submit payment via `miner/commit.py`, which atomically runs `Utility.batc
 
 Each evaluation round has two gates:
 
-| Gate        | How it's measured                                                                 |
-| ----------- | --------------------------------------------------------------------------------- |
-| Correctness | Teacher-forcing logprob gate on the scoring vLLM. Hard gate: fail and score is 0. |
-| Speed       | Median end-to-end wall-time improvement vs. the vLLM baseline on the same prompts |
+| Gate        | How it's measured                                                                                         |
+| ----------- | --------------------------------------------------------------------------------------------------------- |
+| Correctness | Teacher-forcing logprob gate on the scoring vLLM. This is a hard gate: failure results in a score of `0`. |
+| Speed       | Median end-to-end wall-time improvement vs. the vLLM baseline on the same prompts                         |
 
 The final score is the median relative speedup from request start to the aligned output length, floored at zero. See [Scoring](/docs/evaluation/scoring) for the formula and tolerance band.
