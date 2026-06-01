@@ -413,17 +413,23 @@ function ChallengerRow({
   const isLive = c.status === 'pulling' || c.status === 'started' || c.status === 'evaluating'
   const isLeader = c.idx === -2
   const isRunnerUp = c.idx === -1
+  const hasScore = c.score != null && c.status === 'scored'
+  const hasDq = Boolean(c.dq_reason)
+  const hasOutcome = hasScore || hasDq
 
   return (
     <div
       className={cn(
-        'grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 px-4 py-3 font-mono transition-colors sm:grid-cols-[auto_5.5rem_11.5rem_minmax(0,1fr)_auto] sm:gap-x-4 sm:px-6',
+        'grid items-center gap-x-2.5 gap-y-1.5 px-3 py-2.5 font-mono transition-colors',
+        'grid-cols-[auto_1fr_auto] grid-rows-[auto_auto]',
+        'sm:grid-cols-[auto_6.25rem_minmax(0,14rem)_1fr_auto_auto] sm:grid-rows-1',
+        'sm:gap-x-4 sm:px-6 sm:py-3',
         active && style.bg,
         !last && 'border-b border-white/[0.06]',
       )}
     >
       {/* Status dot */}
-      <span className="relative flex size-2.5 shrink-0">
+      <span className="relative row-span-2 flex size-2 shrink-0 self-center sm:row-span-1 sm:size-2.5">
         {isLive && active && (
           <span
             className={cn(
@@ -432,63 +438,84 @@ function ChallengerRow({
             )}
           />
         )}
-        <span className={cn('relative inline-flex size-2.5 rounded-full', style.dot)} />
+        <span className={cn('relative inline-flex size-full rounded-full', style.dot)} />
       </span>
 
-      {/* UID + status share the mobile header row */}
-      <div className="col-start-2 flex min-w-0 items-center justify-between gap-3 sm:contents">
-        <span className="text-secondary/70 shrink-0 text-sm whitespace-nowrap">UID {c.uid}</span>
-        <span
-          className={cn(
-            'inline-flex shrink-0 items-center justify-end text-xs leading-none font-semibold tracking-[0.1em] whitespace-nowrap uppercase sm:text-sm',
-            style.text,
-          )}
-        >
+      {/* UID + role badge (fixed width so hotkey column lines up) */}
+      <div className="flex w-[5.25rem] shrink-0 items-center gap-1 sm:w-full">
+        <span className="text-secondary/70 min-w-0 flex-1 truncate text-xs leading-none whitespace-nowrap sm:text-sm">
+          UID {c.uid}
+        </span>
+        <span className="flex w-3.5 shrink-0 items-center justify-center">
           {isLeader && (
-            <Crown size={13} className="text-accent mr-1 mb-[2px] shrink-0 opacity-80" />
+            <Crown size={16} className="text-accent shrink-0 opacity-80" strokeWidth={1.5} />
           )}
-          {isRunnerUp && <Medal size={13} className="text-secondary/50 mr-1 mb-[2px] shrink-0" />}
-          {style.label}
+          {isRunnerUp && (
+            <Medal size={16} className="text-secondary/50 shrink-0" strokeWidth={1.5} />
+          )}
         </span>
       </div>
 
-      {/* Hotkey + image */}
-      <div className="col-span-2 flex min-w-0 flex-col justify-center gap-1.5 sm:col-span-1 sm:col-start-4">
-        <div className="flex min-w-0 items-center gap-1">
-          <span className="text-secondary/85 truncate text-sm leading-none">
-            {truncHotkey(c.hotkey)}
-          </span>
-          <CopyButton value={c.hotkey} />
-        </div>
-        {c.image && (
-          <div className="flex min-w-0 items-center gap-1">
-            <span className="text-secondary/85 truncate text-sm leading-none">
-              {truncImage(c.image)}
-            </span>
-            <CopyButton value={c.image} />
-            <LinkButton
-              href={`https://hub.docker.com/r/${c.image.replace(/:.*$/, '').replace(/^[^/]+\.[^/]+\//, '')}`}
-            />
-          </div>
+      {/* Status */}
+      <span
+        className={cn(
+          'col-start-3 row-start-1 justify-self-end text-[10px] leading-none font-semibold tracking-[0.08em] whitespace-nowrap uppercase sm:col-start-5 sm:row-start-1 sm:text-sm sm:tracking-[0.1em]',
+          style.text,
         )}
-      </div>
+      >
+        <span className="sm:hidden">
+          {c.status === 'awaiting_correctness' ? 'Awaiting' : style.label}
+        </span>
+        <span className="hidden sm:inline">{style.label}</span>
+      </span>
 
       {/* Score / DQ reason */}
-      {(c.score != null && c.status === 'scored') || c.dq_reason ? (
-        <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 sm:col-span-1 sm:col-start-5 sm:justify-end">
-          {c.score != null && c.status === 'scored' && (
-            <span className="text-success text-sm font-semibold">{fmtScore(c.score)}</span>
+      {hasOutcome && (
+        <div className="col-start-3 row-start-2 flex max-w-[42vw] shrink-0 flex-col items-end gap-0.5 sm:col-start-6 sm:row-start-1 sm:max-w-none sm:flex-row sm:items-center sm:gap-2.5">
+          {hasScore && (
+            <span className="text-success text-xs leading-none font-semibold tabular-nums sm:text-sm">
+              {fmtScore(c.score)}
+            </span>
           )}
-          {c.dq_reason && (
+          {hasDq && (
             <span
-              className="text-error/80 max-w-full truncate text-sm sm:max-w-[12rem]"
-              title={c.dq_reason}
+              className="text-error/80 max-w-full truncate text-xs leading-none sm:max-w-[14rem] sm:text-sm"
+              title={c.dq_reason ?? undefined}
             >
               {c.dq_reason}
             </span>
           )}
         </div>
-      ) : null}
+      )}
+
+      {/* Hotkey + image stack */}
+      <div
+        className={cn(
+          'col-start-2 row-start-2 min-w-0',
+          !hasOutcome && 'col-end-4',
+          'sm:col-start-3 sm:col-end-auto sm:row-start-1',
+        )}
+      >
+        <div className="flex min-w-0 flex-col justify-center gap-0.5 sm:gap-1">
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="text-secondary/85 truncate text-xs leading-none sm:text-sm">
+              {truncHotkey(c.hotkey)}
+            </span>
+            <CopyButton value={c.hotkey} />
+          </div>
+          {c.image && (
+            <div className="flex min-w-0 items-center gap-1">
+              <span className="text-secondary/85 truncate text-xs leading-none sm:text-sm">
+                {truncImage(c.image)}
+              </span>
+              <CopyButton value={c.image} />
+              <LinkButton
+                href={`https://hub.docker.com/r/${c.image.replace(/:.*$/, '').replace(/^[^/]+\.[^/]+\//, '')}`}
+              />
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
