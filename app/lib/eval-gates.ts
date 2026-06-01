@@ -136,8 +136,14 @@ function pickNewestLabel(labels: string[], pattern: RegExp): string | null {
   return sorted[0] ?? null
 }
 
+/** True for pre-eval routine CPU logs (`cpu_idle_{ts}`). */
+export function isIdleCpuValidatorLog(label: string): boolean {
+  return /^cpu_idle_\d{8}_\d{6}$/.test(label)
+}
+
 /** Block from validator log label: cpu_{block}_{ts} or gpu_{block}_{ts}. */
 export function blockFromValidatorLogLabel(label: string): number | null {
+  if (isIdleCpuValidatorLog(label)) return null
   const m = /^(cpu|gpu)_(\d+)_\d{8}_\d{6}$/.exec(label)
   return m ? parseInt(m[2], 10) : null
 }
