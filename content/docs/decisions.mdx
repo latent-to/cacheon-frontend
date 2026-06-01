@@ -27,7 +27,7 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 **Reasoning:** vLLM is the de facto standard for production LLM serving. It implements PagedAttention, continuous batching, FlashAttention, and other optimizations. Beating it requires genuine innovation. A HuggingFace Transformers baseline would be too easy to beat and would not produce a useful signal about production readiness.
 
-**Rejected:** HuggingFace Transformers as baseline. Too slow. Beating vanilla HF is not impressive; beating vLLM is.
+**Rejected:** Hugging Face Transformers as the baseline. It is significantly slower than modern inference engines, and outperforming vanilla Transformers is not a meaningful benchmark. Cacheon uses vLLM because beating vLLM demonstrates a genuine inference improvement.
 
 ## Correctness: token match pre-filter + teacher-forcing
 

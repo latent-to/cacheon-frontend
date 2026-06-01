@@ -23,9 +23,9 @@ const STEPS = [
           href="/docs/evaluation/harness"
           className="text-accent underline-offset-2 hover:underline"
         >
-          two-pass eval
+          one-pass eval
         </a>{' '}
-        that measures speed (TTFT + throughput) and correctness.
+        that measures end-to-end speed and correctness.
       </>
     ),
   },
@@ -49,6 +49,7 @@ type MetricRow = {
 }
 
 const METRICS: MetricRow[] = [
+  // TODO? Seems misaligned with current scoring axes
   {
     value: '50%',
     label: 'TTFT weight',
@@ -101,27 +102,42 @@ export default function HowItWorks() {
             scoring
           </div>
           <pre className="text-sm2 text-primary sm:text-sm2 m-0 overflow-x-auto font-mono leading-[1.85]">
-            <span className="text-secondary">
-              {'// Correctness gate: first-mismatch logprob check'}
-            </span>
-            {'\n'}
             <span className="text-secondary">if</span>
-            {' not correctness_pass'}
+            {' pass1_match_fail or not correctness_pass:'}
             {'\n    score = '}
             <span className="text-secondary">0.0</span>
             {'\n'}
-            <span className="text-secondary">else</span>
-            {'\n    ttft_imp = '}
+            <span className="text-secondary">else</span> {'\n'}
+            <span className="text-secondary">
+              {'    '}
+              // Per prompt: wall time from request start to aligned k-th token
+            </span>
+            {'\n    k = '}
+            <span className="text-accent">min</span>
+            {'(baseline_N, miner_N)'}
+            {'\n    require k >= '}
             <span className="text-accent">max</span>
-            {'(0, (baseline - miner) / baseline)'}
-            {'\n    tps_imp  = '}
+            {'('}
+            <span className="text-accent">2</span>
+            {', ceil('}
+            <span className="text-accent">0.9</span>
+            {'* baseline_N))'}
+            <span className="text-secondary"> # tolerance band</span>
+            {'\n    miner_e2e = miner_ttft + miner_decode[k - '}
+            <span className="text-accent">1</span>
+            {']'}
+            {'\n    baseline_e2e = baseline_ttft + baseline_decode[k - '}
+            <span className="text-accent">1</span>
+            {']'}
+            {'\n    improvement = '}
             <span className="text-accent">max</span>
-            {'(0, (miner - baseline) / baseline)'}
-            {'\n    score    = '}
-            <span className="text-accent">0.5</span>
-            {' x ttft_imp + '}
-            <span className="text-accent">0.5</span>
-            {' x tps_imp'}
+            {'('} <span className="text-accent">0</span>
+            {', (baseline_e2e - miner_e2e) / baseline_e2e)'}
+            {'\n    speed_improvement = '}
+            <span className="text-accent">median</span>
+            {'(improvement across'} <span className="text-accent">10</span>
+            {' scored prompts)'}
+            {'\n    score = speed_improvement'}
           </pre>
         </GlassCard>
 

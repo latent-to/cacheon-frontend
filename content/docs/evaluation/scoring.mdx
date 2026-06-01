@@ -3,7 +3,7 @@ title: Scoring
 description: One-pass evaluation. Speed (end-to-end wall time) and correctness (teacher-forcing) use the same prompts and miner outputs. Final metrics use median aggregation across 10 scored prompts.
 ---
 
-Final score is **correctness-gated**: the same miner outputs that earn speed credit must pass teacher-forcing on the scoring vLLM. A cheap token-match pre-filter can short-circuit hopeless submissions before scoring. Otherwise `score = 0.0` when either gate fails.
+Final score is **correctness-gated**: the same miner outputs that earn speed credit must pass teacher-forcing on the scoring vLLM. A cheap token-match pre-filter can filter out invalid submissions before scoring. Otherwise `score = 0.0` when either gate fails.
 
 ## One-pass overview
 
@@ -183,7 +183,7 @@ Every scored run produces an `EvaluationRecord` with `score`, `speed_improvement
 
 ## Emission schedule
 
-Total emission allocated to the competition pool follows a mainnet block schedule. The ramp keeps competition live while eval and incentive mechanics mature, without paying the full miner allocation before winners are reliable and inference revenue can align with emissions.
+Total emission allocated to the competition pool follows a mainnet block schedule. The ramp keeps competition active while evaluation and incentive mechanics mature, without paying the full miner allocation before winners are reliable and inference revenue can align with emissions.
 
 - **Before block 8,309,900 (~Jun 1, 2026):** 2% to the competition pool; the remainder goes to a burn UID
 - **Block 8,309,900 (~Jun 1, 2026) through 9,166,700 (~Sep 28, 2026):** linear ramp from 10% to 100% (~4 months at 12s/block)
