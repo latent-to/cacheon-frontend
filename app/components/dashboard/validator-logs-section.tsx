@@ -2,7 +2,11 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 
 import { cn } from '~/lib/cn'
-import { blockFromValidatorLogLabel, findValidatorLogForBlock } from '~/lib/eval-gates'
+import {
+  blockFromValidatorLogLabel,
+  findValidatorLogForBlock,
+  isIdleCpuValidatorLog,
+} from '~/lib/eval-gates'
 import { usePoll } from '~/lib/use-poll'
 import { fetchValidatorLogs, fetchValidatorLog, type ValidatorLogEntry } from '~/lib/api.client'
 import { LogViewer, type LogEntry } from './log-viewer'
@@ -57,6 +61,7 @@ function ValidatorLogLabel({
   block?: number | null
 }): ReactNode {
   const isGpu = entry.label.startsWith('gpu_')
+  const isIdle = isIdleCpuValidatorLog(entry.label)
   const dateStr = fmtLogDate(entry.label)
   return (
     <span className="flex min-w-0 items-center gap-1.5">
@@ -72,6 +77,8 @@ function ValidatorLogLabel({
         <span className="text-primary/85 shrink-0 font-mono text-xs font-semibold tabular-nums">
           #{block}
         </span>
+      ) : isIdle ? (
+        <span className="text-secondary/60 shrink-0 font-mono text-xs font-semibold">Idle</span>
       ) : (
         <span className="text-secondary/40 shrink-0 font-mono text-xs">#—</span>
       )}
