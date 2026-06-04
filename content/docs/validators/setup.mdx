@@ -63,16 +63,18 @@ The following environment variables are related to the S3 bucket:
 
 The following environment variables are related to setting up the GPU configuration:
 
-| Env var                    | Required  | Description                                                                                                                                                                           |
-| -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CACHEON_AUTO_RENT`        | No        | Set to `1` to enable automatic GPU pod rental (default `0`)                                                                                                                           |
-| `LIUM_API_KEY`             | \*        | Lium API key (\* at least one provider key required)                                                                                                                                  |
-| `TARGON_API_KEY`           | \*        | Targon API key (\* at least one provider key required)                                                                                                                                |
-| `SHADEFORM_API_KEY`        | \*        | [Shadeform](https://docs.shadeform.ai/api-reference) API key (\* at least one provider key required)                                                                                  |
-| `TARGON_VOLUME_UID`        | If Targon | `vol-…` persistent volume UID; mounted at `/workspace` (see [section below](#targon-persistent-volume-targon_volume_uid)). Leave unset if you have Lium as your preferredm provider.  |
-| `CACHEON_VLLM_CACHE_DIR`   | No        | Targon: host path for vLLM `torch.compile` cache on `/workspace` (default `/workspace/vllm-cache` when auto-renting on Targon; set empty to disable). Leave unset for Lium/Shadeform. |
-| `CACHEON_MAX_HOURLY_PRICE` | No        | Maximum hourly price in cents (default `2000`)                                                                                                                                        |
-| `HF_TOKEN`                 | No        | Hugging Face token for model download on GPU pod                                                                                                                                      |
+| Env var                      | Required  | Description                                                                                                                                                                           |
+| ---------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CACHEON_AUTO_RENT`          | No        | Set to `1` to enable automatic GPU pod rental (default `0`)                                                                                                                           |
+| `CACHEON_PREFERRED_PROVIDER` | No        | Restrict auto-rent to `lium`, `targon`, or `shadeform`; empty searches all configured providers                                                                                       |
+| `CACHEON_PREFERRED_GPU`      | No        | Pin to `H200`, `H100`, `B200`, or `B300` (case-insensitive); empty uses tier A then tier B fallback. Invalid values are ignored.                                                      |
+| `LIUM_API_KEY`               | \*        | Lium API key (\* at least one provider key required)                                                                                                                                  |
+| `TARGON_API_KEY`             | \*        | Targon API key (\* at least one provider key required)                                                                                                                                |
+| `SHADEFORM_API_KEY`          | \*        | [Shadeform](https://docs.shadeform.ai/api-reference) API key (\* at least one provider key required)                                                                                  |
+| `TARGON_VOLUME_UID`          | If Targon | `vol-…` persistent volume UID; mounted at `/workspace` (see [section below](#targon-persistent-volume-targon_volume_uid)). Leave unset if you have Lium as your preferredm provider.  |
+| `CACHEON_VLLM_CACHE_DIR`     | No        | Targon: host path for vLLM `torch.compile` cache on `/workspace` (default `/workspace/vllm-cache` when auto-renting on Targon; set empty to disable). Leave unset for Lium/Shadeform. |
+| `CACHEON_MAX_HOURLY_PRICE`   | No        | Maximum hourly price in cents (default `2000`)                                                                                                                                        |
+| `HF_TOKEN`                   | No        | Hugging Face token for model download on GPU pod                                                                                                                                      |
 
 ### Targon persistent volume (`TARGON_VOLUME_UID`)
 
