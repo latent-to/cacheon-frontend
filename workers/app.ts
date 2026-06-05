@@ -1,3 +1,4 @@
+import { rewriteMarkdownRequest } from '~/lib/docs-markdown-rewrite'
 import { createRequestHandler } from 'react-router'
 
 declare module 'react-router' {
@@ -40,7 +41,8 @@ export default {
       return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
     }
 
-    return requestHandler(request, {
+    const markdownRequest = rewriteMarkdownRequest(request)
+    return requestHandler(markdownRequest ?? request, {
       cloudflare: { env, ctx },
     })
   },
