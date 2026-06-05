@@ -11,6 +11,8 @@ export default [
     route('logs', 'routes/dashboard.logs.tsx'),
     route('validator-logs', 'routes/dashboard.validator-logs.tsx'),
   ]),
+  route('llms.txt', 'routes/llms.ts'),
+  route('llms-full.txt', 'routes/llms-full.ts'),
   route('docs/*', 'routes/docs.tsx'),
   route('api/search', 'routes/api.search.ts'),
 ] satisfies RouteConfig
