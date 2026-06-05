@@ -8,6 +8,9 @@
 #   search=yes    — index for search results
 #   ai-input=yes  — use for live RAG / grounding (agentic economy)
 #   ai-train=no   — do not use for model training / fine-tuning
+#
+# LLM-readable docs index: https://cacheon.ai/llms.txt
+# Full docs dump for grounding: https://cacheon.ai/llms-full.txt
 
 # Allow all search engines and live retrieval agents
 User-agent: *
