@@ -1,16 +1,34 @@
 import type { Route } from './+types/docs'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
-import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/layouts/docs/page'
+import {
+  DocsBody,
+  DocsDescription,
+  DocsPage,
+  DocsTitle,
+  MarkdownCopyButton,
+  ViewOptionsPopover,
+} from 'fumadocs-ui/layouts/docs/page'
 import { useFumadocsLoader } from 'fumadocs-core/source/client'
 import browserCollections from 'collections/browser'
+import { slugsToMarkdownPath } from '~/lib/markdown-path'
 import { source } from '~/lib/source.server'
 import { baseOptions } from '~/lib/layout.shared'
 import { getMDXComponents } from '~/components/mdx'
 
+const DOCS_REPO = 'https://github.com/latent-to/cacheon-frontend/blob/main/content/docs'
+
 const clientLoader = browserCollections.docs.createClientLoader({
-  component({ toc, frontmatter, default: Mdx }) {
+  component(
+    { toc, frontmatter, default: Mdx },
+    props?: { markdownUrl?: string; githubUrl?: string },
+  ) {
+    const { markdownUrl = '', githubUrl } = props ?? {}
     return (
       <DocsPage toc={toc}>
+        <div className="flex flex-row items-center gap-2 border-b pt-2 pb-6">
+          <MarkdownCopyButton markdownUrl={markdownUrl} />
+          <ViewOptionsPopover markdownUrl={markdownUrl} githubUrl={githubUrl} />
+        </div>
         <DocsTitle>{frontmatter.title}</DocsTitle>
         {frontmatter.description ? (
           <DocsDescription>{frontmatter.description}</DocsDescription>
@@ -32,11 +50,16 @@ export async function loader({ params }: Route.LoaderArgs) {
 
   await clientLoader.preload(page.path)
 
+  const markdownUrl = slugsToMarkdownPath(slugs)
+  const githubUrl = `${DOCS_REPO}/${page.path}`
+
   return {
     tree: await source.serializePageTree(source.getPageTree()),
     path: page.path,
     title: page.data.title,
     description: page.data.description,
+    markdownUrl,
+    githubUrl,
   }
 }
 
@@ -52,7 +75,10 @@ export default function Page({ loaderData }: Route.ComponentProps) {
   const { tree } = useFumadocsLoader(loaderData)
   return (
     <DocsLayout {...baseOptions()} tree={tree}>
-      {clientLoader.useContent(loaderData.path)}
+      {clientLoader.useContent(loaderData.path, {
+        markdownUrl: loaderData.markdownUrl,
+        githubUrl: loaderData.githubUrl,
+      })}
     </DocsLayout>
   )
 }

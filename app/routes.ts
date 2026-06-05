@@ -13,6 +13,8 @@ export default [
   ]),
   route('llms.txt', 'routes/llms.ts'),
   route('llms-full.txt', 'routes/llms-full.ts'),
+  route('docs-markdown', 'routes/docs-markdown.ts', { id: 'docs-markdown-index' }),
+  route('docs-markdown/*', 'routes/docs-markdown.ts', { id: 'docs-markdown-page' }),
   route('docs/*', 'routes/docs.tsx'),
   route('api/search', 'routes/api.search.ts'),
 ] satisfies RouteConfig
