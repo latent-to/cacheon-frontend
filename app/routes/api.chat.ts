@@ -306,67 +306,7 @@ function createSearchTool(userMessage: string) {
       limit: z.number().int().min(1).max(20).default(5),
     }),
     async execute({ query, limit }) {
-      const queries = buildSearchQueries(query, userMessage)
-      // #region agent log
-      fetch('http://127.0.0.1:7361/ingest/23d70945-8e6f-4426-9da5-12aa9aaeaec4', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'eed662' },
-        body: JSON.stringify({
-          sessionId: 'eed662',
-          hypothesisId: 'H1',
-          location: 'api.chat.ts:search-start',
-          message: 'search execute start',
-          data: { query, limit, queries, whyIntent: hasWhyIntent(query, userMessage) },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {})
-      // #endregion
-      try {
-        const results = await withTimeout(
-          runDocsSearch(query, limit, userMessage),
-          SEARCH_TIMEOUT_MS,
-          'Docs search',
-        )
-        // #region agent log
-        fetch('http://127.0.0.1:7361/ingest/23d70945-8e6f-4426-9da5-12aa9aaeaec4', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'eed662' },
-          body: JSON.stringify({
-            sessionId: 'eed662',
-            hypothesisId: 'H2',
-            location: 'api.chat.ts:search-done',
-            message: 'search execute done',
-            data: {
-              query,
-              queries,
-              resultCount: results.length,
-              topUrls: results.slice(0, 3).map((r) => r.url),
-              hasVersions: results.some(
-                (r) => r.excerpt.includes('v0.22') && r.excerpt.includes('v0.9'),
-              ),
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
-        return results
-      } catch (err) {
-        // #region agent log
-        fetch('http://127.0.0.1:7361/ingest/23d70945-8e6f-4426-9da5-12aa9aaeaec4', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'eed662' },
-          body: JSON.stringify({
-            sessionId: 'eed662',
-            hypothesisId: 'H3',
-            location: 'api.chat.ts:search-error',
-            message: 'search execute failed',
-            data: { query, error: err instanceof Error ? err.message : String(err) },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
-        throw err
-      }
+      return withTimeout(runDocsSearch(query, limit, userMessage), SEARCH_TIMEOUT_MS, 'Docs search')
     },
   }) satisfies SearchTool
 }
