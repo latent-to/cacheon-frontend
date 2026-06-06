@@ -5,14 +5,14 @@ description: Package your inference server as a Docker image. Model weights are 
 
 ## Docker image requirements
 
-| Requirement         | Value                                      |
-| ------------------- | ------------------------------------------ |
-| **Max image size**  | 20 GB (weights are NOT in the image)       |
-| **Base image**      | Any (Ubuntu, Alpine, scratch, etc.)        |
-| **GPU runtime**     | Must work with NVIDIA Container Toolkit    |
-| **Exposed port**    | Your server must listen on port `8000`     |
-| **Health endpoint** | `GET /health` must return `200` when ready |
-| **Startup timeout** | 10 minutes from container start to healthy |
+| Requirement         | Value                                        |
+| ------------------- | -------------------------------------------- |
+| **Max image size**  | 20 GB (weights are NOT in the image)         |
+| **Base image**      | Any (Ubuntu, Alpine, scratch, etc.)          |
+| **GPU runtime**     | Must work with NVIDIA Container Toolkit      |
+| **Exposed port**    | Your server must listen on port `8000`       |
+| **Health endpoint** | `GET /health` must return `200` when ready   |
+| **Startup timeout** | 12.5 minutes from container start to healthy |
 
 ## Model weights: mounted, not baked
 

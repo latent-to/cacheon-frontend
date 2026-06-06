@@ -16,7 +16,7 @@ During evaluation, your container runs with:
 | Model weights      | Read-only volume mounted at `/models`                                                                       |
 | Network            | **Internal only** -- all outbound egress blocked                                                            |
 | Filesystem         | Model weights read-only at `/models`                                                                        |
-| Startup timeout    | 10 minutes                                                                                                  |
+| Startup timeout    | 12.5 minutes                                                                                                |
 | Per-prompt timeout | 120 seconds                                                                                                 |
 
 ## What is allowed
@@ -44,7 +44,7 @@ This section outlines operations and strategies that are permitted in V1:
 
 | Condition                                           | Result        |
 | --------------------------------------------------- | ------------- |
-| Startup timeout exceeded (10 min)                   | DQ            |
+| Startup timeout exceeded (12.5 min)                 | DQ            |
 | Per-prompt timeout exceeded (120s)                  | DQ            |
 | `/health` never returns 200                         | DQ            |
 | Correctness gate fails (logprob thresholds)         | DQ, score = 0 |
