@@ -106,6 +106,6 @@ After each evaluation (success or failure), the harness captures stdout/stderr v
 
 - Generation baseline: `baseline_{cache_key}.log`
 - Scoring baseline: `baseline_scoring_{block}_{timestamp}.log` (same `{timestamp}` as `gpu_eval_{timestamp}.log`)
-- Miner: `uid{N}_{hotkey_prefix}_{block}.log`
+- Miner: `uid{N}_{hotkey_prefix}_{block}.log` where `N` is the UID at evaluation time. UIDs can be recycled; use the hotkey to identify the miner across rounds.
 
 Logs are uploaded to S3 with the rest of the state directory.

@@ -1,8 +1,7 @@
 import type { Route } from './+types/api.search'
-import { createFromSource } from 'fumadocs-core/search/server'
-import { source } from '~/lib/source.server'
+import { docsSearch } from '~/lib/docs-search.server'
 
-const server = createFromSource(source)
+const server = docsSearch
 
 export async function loader({ request }: Route.LoaderArgs) {
   return server.GET(request)

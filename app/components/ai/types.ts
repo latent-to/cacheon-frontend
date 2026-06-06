@@ -9,4 +9,11 @@ export type ChatUIMessage = UIMessage<
   }
 >
 
-export type SearchTool = Tool<{ query: string; limit: number }>
+export type SearchResult = {
+  url: string
+  title: string
+  description: string
+  excerpt: string
+}
+
+export type SearchTool = Tool<{ query: string; limit: number }, SearchResult[]>
