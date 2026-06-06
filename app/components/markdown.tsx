@@ -105,11 +105,14 @@ export function Markdown({ text }: { text: string }) {
   )
 }
 
-const cache = new Map<string, Promise<ReactNode>>()
+let cachedText: string | null = null
+let cachedResult: Promise<ReactNode> | null = null
 
 function Renderer({ text }: { text: string }) {
-  const result = cache.get(text) ?? processor.process(text)
-  cache.set(text, result)
+  if (cachedText !== text) {
+    cachedText = text
+    cachedResult = processor.process(text)
+  }
 
-  return use(result)
+  return use(cachedResult!)
 }

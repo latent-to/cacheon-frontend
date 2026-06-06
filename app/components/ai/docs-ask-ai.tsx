@@ -440,7 +440,7 @@ function parseAssistantParts(parts: ChatUIMessage['parts']) {
 
 function CitationSources({ citations }: { citations: Citation[] }) {
   return (
-    <div className="border-border/25 mt-3 border-t pt-2.5 not-prose">
+    <div className="border-border/25 not-prose mt-3 border-t pt-2.5">
       <p className="text-secondary/45 mb-1.5 text-[10px] tracking-wider uppercase">Sources</p>
       <ul className="space-y-1.5">
         {citations.map((citation) => (
