@@ -41,6 +41,14 @@ export default {
       return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
     }
 
+    if (url.pathname === '/api/chat' && request.method === 'POST') {
+      const key = request.headers.get('CF-Connecting-IP') ?? 'anonymous'
+      const { success } = await env.CHAT_RATE_LIMITER.limit({ key })
+      if (!success) {
+        return new Response('Too Many Requests', { status: 429 })
+      }
+    }
+
     const markdownRequest = rewriteMarkdownRequest(request)
     return requestHandler(markdownRequest ?? request, {
       cloudflare: { env, ctx },

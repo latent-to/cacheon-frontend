@@ -1,5 +1,8 @@
 import type { Route } from './+types/docs'
+import { Sparkles } from 'lucide-react'
+import { AISearch, AISearchPanel, AISearchTrigger } from '~/components/ai/search'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
+import { buttonVariants } from 'fumadocs-ui/components/ui/button'
 import {
   DocsBody,
   DocsDescription,
@@ -74,11 +77,25 @@ export function meta({ data }: Route.MetaArgs) {
 export default function Page({ loaderData }: Route.ComponentProps) {
   const { tree } = useFumadocsLoader(loaderData)
   return (
-    <DocsLayout {...baseOptions()} tree={tree}>
-      {clientLoader.useContent(loaderData.path, {
-        markdownUrl: loaderData.markdownUrl,
-        githubUrl: loaderData.githubUrl,
-      })}
-    </DocsLayout>
+    <AISearch>
+      <AISearchPanel />
+      <DocsLayout {...baseOptions()} tree={tree}>
+        {clientLoader.useContent(loaderData.path, {
+          markdownUrl: loaderData.markdownUrl,
+          githubUrl: loaderData.githubUrl,
+        })}
+      </DocsLayout>
+      <AISearchTrigger
+        position="float"
+        aria-label="Ask AI"
+        className={buttonVariants({
+          color: 'primary',
+          className: 'gap-2 rounded-full px-4 py-2.5 shadow-lg',
+        })}
+      >
+        <Sparkles className="size-4" />
+        Ask AI
+      </AISearchTrigger>
+    </AISearch>
   )
 }

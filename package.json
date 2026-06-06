@@ -16,20 +16,31 @@
     "postinstall": "fumadocs-mdx && react-router typegen && wrangler types"
   },
   "dependencies": {
+    "@ai-sdk/react": "^3.0.199",
+    "@openrouter/ai-sdk-provider": "^2.9.0",
+    "@radix-ui/react-presence": "^1.1.6",
     "@radix-ui/react-tabs": "^1.1.13",
     "@react-router/node": "^7.14.0",
     "@types/mdx": "^2.0.13",
+    "ai": "^6.0.197",
     "clsx": "^2.1.1",
+    "flexsearch": "^0.8.212",
     "fumadocs-core": "^16.8.1",
     "fumadocs-mdx": "^14.3.1",
     "fumadocs-ui": "^16.8.1",
+    "hast-util-to-jsx-runtime": "^2.3.6",
     "isbot": "^5.1.17",
     "lucide-react": "^1.16.0",
     "ogl": "^1.0.11",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router": "^7.14.0",
-    "tailwind-merge": "^3.6.0"
+    "remark": "^15.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-rehype": "^11.1.2",
+    "tailwind-merge": "^3.6.0",
+    "unist-util-visit": "^5.1.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.32.3",

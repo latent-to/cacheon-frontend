@@ -6,5 +6,18 @@
   "observability": {
     "enabled": true
   },
-  "compatibility_flags": ["nodejs_compat"]
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "OPENROUTER_MODEL": "moonshotai/kimi-k2.6:free"
+  },
+  "ratelimits": [
+    {
+      "name": "CHAT_RATE_LIMITER",
+      "namespace_id": "1002",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
+    }
+  ]
 }

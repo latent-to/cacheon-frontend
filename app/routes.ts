@@ -17,4 +17,5 @@ export default [
   route('docs-markdown/*', 'routes/docs-markdown.ts', { id: 'docs-markdown-page' }),
   route('docs/*', 'routes/docs.tsx'),
   route('api/search', 'routes/api.search.ts'),
+  route('api/chat', 'routes/api.chat.ts'),
 ] satisfies RouteConfig
