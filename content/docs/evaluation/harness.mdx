@@ -20,11 +20,12 @@ Miner and scoring baseline **never share GPUs**. Teacher-forcing uses a single s
 
 ### Timeouts
 
-| Timeout                                   | Value       | What happens if exceeded           |
-| ----------------------------------------- | ----------- | ---------------------------------- |
-| **Startup (miner / generation baseline)** | 10 minutes  | Container terminated, DQ           |
-| **Startup (scoring baseline)**            | 10 minutes  | `baseline_scoring_unavailable`, DQ |
-| **Per-prompt**                            | 120 seconds | Request cancelled, DQ              |
+| Timeout                           | Value        | What happens if exceeded           |
+| --------------------------------- | ------------ | ---------------------------------- |
+| **Startup (miner)**               | 12.5 minutes | Container terminated, DQ           |
+| **Startup (generation baseline)** | 20 minutes   | Eval abort                         |
+| **Startup (scoring baseline)**    | 10 minutes   | `baseline_scoring_unavailable`, DQ |
+| **Per-prompt**                    | 120 seconds  | Request cancelled, DQ              |
 
 ### GPU state cleanup
 

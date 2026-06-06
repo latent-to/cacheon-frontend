@@ -7,7 +7,7 @@ description: This page covers the OpenAI-compatible HTTP API that your inference
 
 ### `GET /health`
 
-Returns `HTTP 200` when the server is ready to serve requests. The validator polls this endpoint after starting your container. If it does not return `200` within the 10-minute startup timeout window, the container is terminated and the submission is disqualified.
+Returns `HTTP 200` when the server is ready to serve requests. The validator polls this endpoint after starting your container. If it does not return `200` within the 12.5-minute startup timeout window, the container is terminated and the submission is disqualified.
 
 ```json
 { "status": "ok" }
