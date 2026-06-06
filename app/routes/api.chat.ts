@@ -2,11 +2,11 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { convertToModelMessages, stepCountIs, streamText, tool } from 'ai'
 import { Document, type DocumentData } from 'flexsearch'
 import { z } from 'zod'
-import type { ChatUIMessage, SearchTool } from '~/components/ai/search'
+import type { ChatUIMessage, SearchTool } from '~/components/ai/types'
 import { source } from '~/lib/source.server'
 import type { Route } from './+types/api.chat'
 
-const DEFAULT_MODEL = 'moonshotai/kimi-k2.6:free'
+const DEFAULT_MODEL = 'qwen/qwen3.6-flash'
 
 type ChatEnv = Env & { OPENROUTER_API_KEY?: string }
 
@@ -57,22 +57,63 @@ async function chunkedAll<O>(promises: Promise<O>[]): Promise<O[]> {
   return out
 }
 
+const SEARCH_EXCERPT_CHARS = 2500
+const SEARCH_TIMEOUT_MS = 15_000
+const CHAT_TIMEOUT_MS = 90_000
+
 const systemPrompt = [
   'You are an AI assistant for the Cacheon documentation site.',
-  'Use the `search` tool to retrieve relevant docs context before answering when needed.',
-  'The `search` tool returns raw JSON results from documentation. Use those results to ground your answer and cite sources as markdown links using the document `url` field when available.',
-  'If you cannot find the answer in search results, say you do not know and suggest a better search query.',
+  'Be concise. Do not narrate your plan. Call `search` when you need docs context, then answer immediately.',
+  'Search results include url, title, description, and excerpt. Cite sources as markdown links using url.',
+  'After every search, write a clear natural-language answer. Never end on a tool call alone.',
+  'If results are insufficient, say what is missing and suggest a better query.',
 ].join('\n')
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error: unknown) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
 
 const searchTool = tool({
   description: 'Search the docs content and return raw JSON results.',
   inputSchema: z.object({
     query: z.string(),
-    limit: z.number().int().min(1).max(100).default(10),
+    limit: z.number().int().min(1).max(20).default(5),
   }),
   async execute({ query, limit }) {
     const search = await searchServer
-    return await search.searchAsync(query, { limit, merge: true, enrich: true })
+    const raw = await withTimeout(
+      search.searchAsync(query, { limit, merge: true, enrich: true }),
+      SEARCH_TIMEOUT_MS,
+      'Docs search',
+    )
+    const hits = Array.isArray(raw) ? raw : []
+
+    return hits.flatMap((hit) => {
+      const doc = hit.doc
+      if (!doc) return []
+
+      return [
+        {
+          url: doc.url,
+          title: doc.title,
+          description: doc.description,
+          excerpt:
+            typeof doc.content === 'string' ? doc.content.slice(0, SEARCH_EXCERPT_CHARS) : '',
+        },
+      ]
+    })
   },
 }) satisfies SearchTool
 
@@ -94,7 +135,14 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   const result = streamText({
     model: openrouter.chat(model),
-    stopWhen: stepCountIs(5),
+    stopWhen: stepCountIs(4),
+    timeout: CHAT_TIMEOUT_MS,
+    maxRetries: 1,
+    providerOptions: {
+      openrouter: {
+        reasoning: { effort: 'low', exclude: true },
+      },
+    },
     tools: {
       search: searchTool,
     },

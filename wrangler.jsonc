@@ -8,7 +8,7 @@
   },
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "OPENROUTER_MODEL": "moonshotai/kimi-k2.6:free"
+    "OPENROUTER_MODEL": "qwen/qwen3.6-flash"
   },
   "ratelimits": [
     {
