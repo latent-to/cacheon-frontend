@@ -145,7 +145,7 @@ function RoundCard({
           <div className="space-y-2">
             {round.challengers.map((c) => (
               <ChallengerRow
-                key={`${c.hotkey}:${round.evaluation_block}`}
+                key={`${c.uid}:${round.evaluation_block}`}
                 challenger={c}
                 block={round.evaluation_block}
                 containerLabels={containerLabels}

@@ -140,7 +140,7 @@ export function EvaluationsSection() {
             <div className="divide-border/20 divide-y md:hidden">
               {list.map((ev) => (
                 <EvalCard
-                  key={`${ev.hotkey}:${ev.commit_block}`}
+                  key={`${ev.hotkey}:${ev.commit_block}:${ev.evaluation_block}`}
                   ev={ev}
                   onSelect={setSelectedUid}
                 />
@@ -192,7 +192,7 @@ export function EvaluationsSection() {
               <tbody>
                 {list.map((ev) => (
                   <EvalRow
-                    key={`${ev.hotkey}:${ev.commit_block}`}
+                    key={`${ev.hotkey}:${ev.commit_block}:${ev.evaluation_block}`}
                     ev={ev}
                     onSelect={setSelectedUid}
                   />
@@ -717,7 +717,7 @@ function EvalDetailDrawer({
                   <div className="space-y-2">
                     {data.slice(1).map((e) => (
                       <div
-                        key={`${e.hotkey}:${e.commit_block}`}
+                        key={`${e.hotkey}:${e.commit_block}:${e.evaluation_block}`}
                         className="border-border/30 grid grid-cols-1 gap-2 rounded-lg border bg-white/[0.01] px-3 py-2 font-mono text-xs sm:grid-cols-[1fr_auto_auto] sm:items-center"
                       >
                         <div className="flex min-w-0 flex-col gap-0.5">
