@@ -248,7 +248,7 @@ export function PulseSection() {
 
       <ScoreHistoryChart
         loading={leader.loading || leaderHistory.loading || rounds.loading}
-        error={!!leaderHistory.error && !!rounds.error}
+        error={!!leaderHistory.error || !!rounds.error}
         leader={leader.data?.leader}
         history={leaderHistory.data?.history}
         rounds={rounds.data?.rounds}
@@ -346,15 +346,14 @@ function ScoreHistoryChart({
   const hasEnough = points.length >= 2
   const [hovered, setHovered] = useState<RoundChartPoint | null>(null)
 
-  const currentLeaderScore = leader?.score ?? 0
-
   const layout = useMemo(() => {
     if (!hasEnough) return null
 
+    const leaderScore = leader?.score
     const scores = [
       ...points.map((p) => p.best?.score).filter((s): s is number => s != null && s > 0),
       ...(history ?? []).map((e) => e.new_leader_score).filter((s) => s > 0),
-      ...(currentLeaderScore > 0 ? [currentLeaderScore] : []),
+      ...(leaderScore != null && leaderScore > 0 ? [leaderScore] : []),
     ]
     if (scores.length === 0) return null
 
@@ -378,9 +377,8 @@ function ScoreHistoryChart({
       yTicks: chartTicks(yMin, yMax, 4),
       xTicks: roundXTicks(nRounds),
       stepPath: buildLeaderStepPath(points, history, xAt, yAt),
-      thresholdY: currentLeaderScore > 0 ? yAt(currentLeaderScore) : null,
     }
-  }, [points, history, hasEnough, currentLeaderScore])
+  }, [points, history, hasEnough, leader?.score])
 
   function handlePointer(svg: SVGSVGElement, clientX: number) {
     if (!layout || points.length === 0) return
@@ -421,21 +419,15 @@ function ScoreHistoryChart({
                 className="inline-block h-0.5 w-4 rounded-full"
                 style={{ background: CHART_LEADER_COLOR }}
               />
-              Leader at overtake
+              Leader overtakes
             </span>
             <span className="text-secondary/70 flex items-center gap-1.5">
               <span
                 className="inline-block size-2 rounded-full"
                 style={{ background: CHART_CHALLENGER_COLOR }}
               />
-              Best scored miner
+              Best this round
             </span>
-            {currentLeaderScore > 0 && (
-              <span className="text-secondary/70 flex items-center gap-1.5">
-                <span className="inline-block h-0 w-4 border-t border-dashed border-white/35" />
-                Current leader
-              </span>
-            )}
           </div>
 
           <div className="flex items-stretch gap-2 sm:gap-3">
@@ -503,18 +495,6 @@ function ScoreHistoryChart({
                     </text>
                   ))}
 
-                  {layout.thresholdY != null && (
-                    <line
-                      x1={CHART_MARGIN.left}
-                      x2={CHART_WIDTH - CHART_MARGIN.right}
-                      y1={layout.thresholdY}
-                      y2={layout.thresholdY}
-                      stroke="rgba(255,255,255,0.2)"
-                      strokeWidth={1}
-                      strokeDasharray="4 4"
-                    />
-                  )}
-
                   {layout.stepPath && (
                     <path
                       d={layout.stepPath}
@@ -558,9 +538,7 @@ function ScoreHistoryChart({
                 </svg>
               )}
 
-              {hovered && (
-                <RoundTooltip point={hovered} leader={hoveredLeader} leaderRecord={leader} />
-              )}
+              {hovered && <RoundTooltip point={hovered} leader={hoveredLeader} />}
             </div>
           </div>
         </>
@@ -644,16 +622,11 @@ function TooltipMinerBlock({
 function RoundTooltip({
   point,
   leader,
-  leaderRecord,
 }: {
   point: RoundChartPoint
   leader: LeaderHistoryEntry | null
-  leaderRecord: LeaderRecord | null | undefined
 }) {
-  const leaderScore =
-    leaderRecord && leaderRecord.uid === leader?.new_leader_uid
-      ? leaderRecord.score
-      : leader?.new_leader_score
+  const leaderScore = leader?.new_leader_score
 
   const plotTopPct = (CHART_MARGIN.top / CHART_HEIGHT) * 100
   const tooltipLeftPct = (TOOLTIP_LEFT_INSET / CHART_WIDTH) * 100
@@ -677,7 +650,7 @@ function RoundTooltip({
 
       {point.best && point.best.score != null && (
         <TooltipMinerBlock
-          label="Best scored"
+          label="Best this round"
           score={point.best.score}
           hotkey={point.best.hotkey}
           image={point.best.image}
@@ -687,7 +660,7 @@ function RoundTooltip({
       {leader && leaderScore != null && leaderScore > 0 && (
         <div className="border-border/20 mt-2 border-t pt-2">
           <TooltipMinerBlock
-            label="Leader then"
+            label="Reigning leader"
             score={leaderScore}
             hotkey={leader.new_leader_hotkey}
             image={leader.new_leader_image}
