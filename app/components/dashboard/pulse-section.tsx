@@ -115,18 +115,16 @@ function buildRoundChart(rounds: Round[] | undefined): RoundChartPoint[] {
 }
 
 function findRoundIndexForBlock(block: number, points: RoundChartPoint[]): number {
-  const exact = points.findIndex((p) => p.block === block)
-  if (exact >= 0) return points[exact].roundIndex
-  let nearest = points[0]?.roundIndex ?? 1
-  let nearestDist = Infinity
+  const exact = points.find((p) => p.block === block)
+  if (exact) return exact.roundIndex
+
+  let floor: RoundChartPoint | undefined
   for (const p of points) {
-    const dist = Math.abs(p.block - block)
-    if (dist < nearestDist) {
-      nearestDist = dist
-      nearest = p.roundIndex
+    if (p.block <= block && (!floor || p.block > floor.block)) {
+      floor = p
     }
   }
-  return nearest
+  return floor?.roundIndex ?? points[0]?.roundIndex ?? 1
 }
 
 function leaderAtBlock(
@@ -401,7 +399,7 @@ function ScoreHistoryChart({
 
   return (
     <div className="mt-6 overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.015] p-4 sm:p-6">
-      <div className="text-2xs tracking-caps text-secondary mb-4 font-mono font-semibold uppercase">
+      <div className="tracking-caps text-secondary mb-4 font-mono text-sm font-semibold uppercase">
         Score Progress
       </div>
 
