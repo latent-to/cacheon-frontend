@@ -1,5 +1,5 @@
 /** Speed pre-filter aggregate token-match DQ threshold (matches validator default). */
-export const PASS1_MATCH_DQ_THRESHOLD = 0.1
+export const PASS1_MATCH_DQ_THRESHOLD = 0.05
 
 export type PassStatus = 'pass' | 'fail' | 'skipped' | 'na'
 
@@ -27,7 +27,7 @@ export function summarizeEvalGates(ev: {
   const prefix = disqualifyPrefix(ev.disqualify_reason)
   const pass1MatchOk = ev.token_match_rate >= PASS1_MATCH_DQ_THRESHOLD
 
-  if (prefix === 'duplicate_of_leader') {
+  if (prefix === 'duplicate_submission' || prefix === 'duplicate_of_leader') {
     return {
       prefix,
       shortLabel: 'Skipped',

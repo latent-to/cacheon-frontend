@@ -49,7 +49,7 @@ This section outlines operations and strategies that are permitted in V1:
 | `/health` never returns 200                         | DQ            |
 | Correctness gate fails (logprob thresholds)         | DQ, score = 0 |
 | OOM or container crash during eval                  | DQ            |
-| Duplicate of leader's image digest                  | DQ            |
+| Duplicate submission (content fingerprint match)    | DQ            |
 | Non-compliant API (missing endpoints, wrong format) | DQ            |
 
 ## Threat model
