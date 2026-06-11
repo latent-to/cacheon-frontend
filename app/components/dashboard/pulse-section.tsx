@@ -45,7 +45,6 @@ import {
 import { CopyButton } from '~/components/ui/copy-button'
 import { LinkButton } from '~/components/ui/link-button'
 import { Badge } from '~/components/ui/badge'
-
 /** Splits "38 min ago" → { n: "38", unit: "min ago" } for two-line metric display. */
 function splitRelativeTime(s: string): { n: string; unit: string } | null {
   if (s === '-') return null
@@ -263,6 +262,18 @@ const TOOLTIP_LEFT_INSET = CHART_MARGIN.left + 40
 /** Min horizontal space per round when the chart scrolls on narrow screens. */
 const MOBILE_PX_PER_ROUND = 26
 
+function useMaxSm(): boolean {
+  const [maxSm, setMaxSm] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    const onChange = () => setMaxSm(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return maxSm
+}
+
 function chartTicks(min: number, max: number, count: number): number[] {
   if (min === max) return [min]
   const step = (max - min) / Math.max(count - 1, 1)
@@ -293,6 +304,7 @@ function ScoreHistoryChart({
   const points = useMemo(() => buildRoundChart(rounds), [rounds])
   const chartDots = useMemo(() => buildChartDots(points, rounds), [points, rounds])
   const hasEnough = points.length >= 1
+  const isNarrow = useMaxSm()
   const [hovered, setHovered] = useState<RoundChartPoint | null>(null)
 
   const layout = useMemo(() => {
@@ -334,19 +346,33 @@ function ScoreHistoryChart({
     const leaders = points.filter((p) => p.leader != null)
     if (leaders.length < 2) return null
 
-    return leaders
-      .map((p, i) => {
-        const x = layout.xAt(p.roundIndex)
-        const y = layout.yAt(p.leader!.score)
-        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`
-      })
-      .join(' ')
+    const parts: string[] = []
+    let prev: RoundChartPoint | null = null
+
+    for (const p of leaders) {
+      const x = layout.xAt(p.roundIndex)
+      const y = layout.yAt(p.leader!.score)
+      const adjacent = prev != null && p.roundIndex - prev.roundIndex === 1
+      parts.push(adjacent ? `L ${x} ${y}` : `M ${x} ${y}`)
+      prev = p
+    }
+
+    return parts.some((s) => s.startsWith('L')) ? parts.join(' ') : null
   }, [layout, points])
 
-  function selectRoundAt(svg: SVGSVGElement, clientX: number) {
+  function viewBoxXFromClient(svg: SVGSVGElement, clientX: number, clientY: number): number | null {
+    const ctm = svg.getScreenCTM()
+    if (!ctm) return null
+    const pt = svg.createSVGPoint()
+    pt.x = clientX
+    pt.y = clientY
+    return pt.matrixTransform(ctm.inverse()).x
+  }
+
+  function selectRoundAt(svg: SVGSVGElement, clientX: number, clientY: number) {
     if (!layout || points.length === 0) return
-    const rect = svg.getBoundingClientRect()
-    const x = ((clientX - rect.left) / rect.width) * CHART_WIDTH
+    const x = viewBoxXFromClient(svg, clientX, clientY)
+    if (x == null) return
 
     let nearest = points[0]
     let nearestDist = Infinity
@@ -359,6 +385,9 @@ function ScoreHistoryChart({
     }
     setHovered(nearest)
   }
+
+  const mobileScroll =
+    isNarrow && layout?.scrollMinWidth != null ? layout.scrollMinWidth : undefined
 
   return (
     <div className="mt-6 overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.015] p-3 sm:p-6">
@@ -377,16 +406,14 @@ function ScoreHistoryChart({
           <div
             className={cn(
               'min-w-0',
-              layout?.scrollMinWidth != null &&
-                '-mx-1 [touch-action:pan-x] overflow-x-auto overscroll-x-contain px-1 sm:mx-0 sm:overflow-visible sm:px-0',
+              mobileScroll != null &&
+                '-mx-1 [touch-action:pan-x] overflow-x-auto overscroll-x-contain px-1',
             )}
           >
             <div
               className="relative h-[220px] min-w-full sm:h-[300px]"
               style={
-                layout?.scrollMinWidth != null
-                  ? { minWidth: `max(100%, ${layout.scrollMinWidth}px)` }
-                  : undefined
+                mobileScroll != null ? { minWidth: `max(100%, ${mobileScroll}px)` } : undefined
               }
             >
               {layout && (
@@ -395,11 +422,11 @@ function ScoreHistoryChart({
                   width="100%"
                   height="100%"
                   className="block touch-manipulation"
-                  onMouseMove={(e) => selectRoundAt(e.currentTarget, e.clientX)}
+                  onMouseMove={(e) => selectRoundAt(e.currentTarget, e.clientX, e.clientY)}
                   onMouseLeave={() => setHovered(null)}
                   onTouchStart={(e) => {
                     const touch = e.changedTouches[0]
-                    if (touch) selectRoundAt(e.currentTarget, touch.clientX)
+                    if (touch) selectRoundAt(e.currentTarget, touch.clientX, touch.clientY)
                   }}
                 >
                   {layout.yTicks.map((tick) => {
