@@ -25,23 +25,19 @@ import {
   fetchStatus,
   fetchEvalProgress,
   fetchLeader,
-  fetchLeaderHistory,
   fetchRounds,
   type EvalProgressResponse,
   type EvalProgressChallenger,
   type EvalProgressIncumbent,
   type EvalProgressStep,
-  type LeaderHistoryEntry,
   type LeaderRecord,
   type Round,
-  type RoundChallenger,
 } from '~/lib/api.client'
 import {
   fmtScore,
   relativeTimeAgo,
   truncHotkey,
   truncImage,
-  ImageTag,
   MetricCard,
   Skeleton,
   StatusDot,
@@ -49,7 +45,6 @@ import {
 import { CopyButton } from '~/components/ui/copy-button'
 import { LinkButton } from '~/components/ui/link-button'
 import { Badge } from '~/components/ui/badge'
-
 /** Splits "38 min ago" → { n: "38", unit: "min ago" } for two-line metric display. */
 function splitRelativeTime(s: string): { n: string; unit: string } | null {
   if (s === '-') return null
@@ -82,90 +77,84 @@ function LastEvalValue({ ts }: { ts: number | null | undefined }) {
   )
 }
 
+type RoundLeader = {
+  uid: number
+  score: number
+}
+
 type RoundChartPoint = {
   roundIndex: number
   block: number
   evaluatedAt: number | null
-  best?: RoundChallenger
+  leader: RoundLeader | null
+  nChallengers: number
+  nScored: number
+  nDisqualified: number
 }
 
-type LeaderReign = {
+type ChartDot = {
+  point: RoundChartPoint
   uid: number
-  hotkey: string
-  image: string
   score: number
-  block: number
-  isCurrent: boolean
+  isRoundLeader: boolean
 }
 
-function bestScoredMiner(challengers: Round['challengers']): RoundChallenger | undefined {
-  const scored = challengers.filter((c) => !c.disqualified && c.score != null && c.score > 0)
-  if (scored.length === 0) return undefined
-  return scored.reduce((a, b) => (a.score! >= b.score! ? a : b))
+function roundLeader(challengers: Round['challengers']): RoundLeader | null {
+  const scored = challengers.filter((c) => !c.disqualified && c.score != null)
+  if (scored.length === 0) return null
+
+  const roundMax = Math.max(...scored.map((c) => c.score!))
+  if (roundMax <= 0) return null
+
+  const winner = scored.reduce((a, b) => (a.score! >= b.score! ? a : b))
+  return { uid: winner.uid, score: roundMax }
 }
 
 function buildRoundChart(rounds: Round[] | undefined): RoundChartPoint[] {
   const sorted = [...(rounds ?? [])].sort((a, b) => a.evaluation_block - b.evaluation_block)
-  return sorted.map((round, i) => ({
-    roundIndex: i + 1,
-    block: round.evaluation_block,
-    evaluatedAt: round.evaluated_at,
-    best: bestScoredMiner(round.challengers),
-  }))
+  return sorted.map((round, i) => {
+    const challengers = round.challengers
+    return {
+      roundIndex: i + 1,
+      block: round.evaluation_block,
+      evaluatedAt: round.evaluated_at,
+      leader: roundLeader(challengers),
+      nChallengers: round.n_challengers,
+      nScored: challengers.filter((c) => !c.disqualified && c.score != null).length,
+      nDisqualified: challengers.filter((c) => c.disqualified).length,
+    }
+  })
 }
 
-function findRoundIndexForBlock(block: number, points: RoundChartPoint[]): number {
-  const exact = points.find((p) => p.block === block)
-  if (exact) return exact.roundIndex
+function buildChartDots(points: RoundChartPoint[], rounds: Round[] | undefined): ChartDot[] {
+  const sorted = [...(rounds ?? [])].sort((a, b) => a.evaluation_block - b.evaluation_block)
+  const dots: ChartDot[] = []
 
-  let floor: RoundChartPoint | undefined
-  for (const p of points) {
-    if (p.block <= block && (!floor || p.block > floor.block)) {
-      floor = p
+  for (let i = 0; i < sorted.length; i++) {
+    const round = sorted[i]
+    const point = points[i]
+    if (!point) continue
+
+    const scored = round.challengers.filter((c) => !c.disqualified && c.score != null)
+    if (scored.length === 0) continue
+
+    for (const c of scored) {
+      dots.push({
+        point,
+        uid: c.uid,
+        score: c.score!,
+        isRoundLeader: point.leader != null && c.uid === point.leader.uid,
+      })
     }
   }
-  return floor?.roundIndex ?? points[0]?.roundIndex ?? 1
-}
 
-function leaderAtBlock(
-  block: number,
-  history: LeaderHistoryEntry[] | undefined,
-): LeaderHistoryEntry | null {
-  let leader: LeaderHistoryEntry | null = null
-  for (const entry of [...(history ?? [])].sort((a, b) => a.block - b.block)) {
-    if (entry.block <= block) leader = entry
-    else break
-  }
-  return leader
-}
-
-function buildReigns(
-  history: LeaderHistoryEntry[] | undefined,
-  currentUid: number | null | undefined,
-): LeaderReign[] {
-  const byUid = new Map<number, LeaderReign>()
-  for (const entry of [...(history ?? [])].sort((a, b) => a.block - b.block)) {
-    byUid.set(entry.new_leader_uid, {
-      uid: entry.new_leader_uid,
-      hotkey: entry.new_leader_hotkey,
-      image: entry.new_leader_image,
-      score: entry.new_leader_score,
-      block: entry.block,
-      isCurrent: false,
-    })
-  }
-  const reigns = [...byUid.values()]
-  const current =
-    currentUid != null ? reigns.find((r) => r.uid === currentUid) : reigns[reigns.length - 1]
-  if (current) current.isCurrent = true
-  return reigns
+  return dots
 }
 
 export function PulseSection() {
   const status = usePoll(fetchStatus, 30_000)
   const progress = usePoll(fetchEvalProgress, 10_000)
   const leader = usePoll(fetchLeader, 30_000)
-  const leaderHistory = usePoll(fetchLeaderHistory, 30_000)
   const rounds = usePoll(fetchRounds, 30_000)
   const [, setTick] = useState(0)
 
@@ -236,7 +225,7 @@ export function PulseSection() {
       </div>
 
       {s && (s.last_scan_block != null || s.last_weights_set_block != null) && (
-        <div className="text-secondary/70 mt-4 flex flex-wrap gap-4 font-mono text-sm">
+        <div className="text-secondary/70 mt-4 flex flex-wrap gap-x-4 gap-y-2 font-mono text-xs sm:text-sm">
           {s.last_scan_block != null && <span>Last scan: block #{s.last_scan_block}</span>}
           {s.last_weights_set_block != null && (
             <span>Weights set: block #{s.last_weights_set_block}</span>
@@ -247,10 +236,9 @@ export function PulseSection() {
       <EvalScheduleBanner />
 
       <ScoreHistoryChart
-        loading={leader.loading || leaderHistory.loading || rounds.loading}
-        error={!!leaderHistory.error || !!rounds.error}
+        loading={leader.loading || rounds.loading}
+        error={!!rounds.error}
         leader={leader.data?.leader}
-        history={leaderHistory.data?.history}
         rounds={rounds.data?.rounds}
       />
 
@@ -265,12 +253,26 @@ export function PulseSection() {
 // ── Score history chart ──────────────────────────────────
 
 const CHART_LEADER_COLOR = '#9EFFE3'
-const CHART_CHALLENGER_COLOR = 'rgba(255, 255, 255, 0.45)'
+const CHART_DOT_COLOR = 'rgba(255, 255, 255, 0.28)'
 const CHART_WIDTH = 1000
 const CHART_HEIGHT = 300
 const CHART_MARGIN = { top: 16, right: 12, bottom: 32, left: 48 }
 /** Extra inset so the tooltip clears y-axis tick labels (anchored end at margin.left - 8). */
 const TOOLTIP_LEFT_INSET = CHART_MARGIN.left + 40
+/** Min horizontal space per round when the chart scrolls on narrow screens. */
+const MOBILE_PX_PER_ROUND = 26
+
+function useMaxSm(): boolean {
+  const [maxSm, setMaxSm] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    const onChange = () => setMaxSm(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return maxSm
+}
 
 function chartTicks(min: number, max: number, count: number): number[] {
   if (min === max) return [min]
@@ -288,74 +290,31 @@ function roundXTicks(n: number, maxLabels = 6): number[] {
   return ticks
 }
 
-function buildLeaderStepPath(
-  points: RoundChartPoint[],
-  history: LeaderHistoryEntry[] | undefined,
-  xAt: (roundIndex: number) => number,
-  yAt: (score: number) => number,
-): string | null {
-  const changes = [...(history ?? [])]
-    .filter((e) => e.new_leader_score > 0)
-    .sort((a, b) => a.block - b.block)
-    .map((e) => ({
-      roundIndex: findRoundIndexForBlock(e.block, points),
-      score: e.new_leader_score,
-    }))
-
-  if (changes.length === 0) return null
-
-  const lastRound = points[points.length - 1]?.roundIndex ?? changes[changes.length - 1].roundIndex
-  const parts: string[] = []
-
-  for (let i = 0; i < changes.length; i++) {
-    const cur = changes[i]
-    const x = xAt(cur.roundIndex)
-    const y = yAt(cur.score)
-    if (i === 0) {
-      parts.push(`M ${x} ${y}`)
-    } else {
-      const prev = changes[i - 1]
-      parts.push(`L ${x} ${yAt(prev.score)}`)
-      parts.push(`L ${x} ${y}`)
-    }
-  }
-
-  const last = changes[changes.length - 1]
-  if (lastRound > last.roundIndex) {
-    parts.push(`L ${xAt(lastRound)} ${yAt(last.score)}`)
-  }
-
-  return parts.join(' ')
-}
-
 function ScoreHistoryChart({
   loading,
   error,
   leader,
-  history,
   rounds,
 }: {
   loading: boolean
   error: boolean
   leader: LeaderRecord | null | undefined
-  history: LeaderHistoryEntry[] | undefined
   rounds: Round[] | undefined
 }) {
   const points = useMemo(() => buildRoundChart(rounds), [rounds])
-  const reigns = useMemo(() => buildReigns(history, leader?.uid), [history, leader?.uid])
-  const hasEnough = points.length >= 2
+  const chartDots = useMemo(() => buildChartDots(points, rounds), [points, rounds])
+  const hasEnough = points.length >= 1
+  const isNarrow = useMaxSm()
   const [hovered, setHovered] = useState<RoundChartPoint | null>(null)
 
   const layout = useMemo(() => {
-    if (!hasEnough) return null
+    if (!hasEnough || chartDots.length === 0) return null
 
     const leaderScore = leader?.score
     const scores = [
-      ...points.map((p) => p.best?.score).filter((s): s is number => s != null && s > 0),
-      ...(history ?? []).map((e) => e.new_leader_score).filter((s) => s > 0),
+      ...chartDots.map((d) => d.score),
       ...(leaderScore != null && leaderScore > 0 ? [leaderScore] : []),
     ]
-    if (scores.length === 0) return null
 
     const yMin = 0
     const yMax = Math.max(...scores) * 1.1
@@ -368,6 +327,8 @@ function ScoreHistoryChart({
     const yAt = (score: number) =>
       CHART_MARGIN.top + plotH - (plotH * (score - yMin)) / Math.max(yMax - yMin, 1e-6)
 
+    const xLabelMax = nRounds > 18 ? 4 : nRounds > 10 ? 5 : 6
+
     return {
       nRounds,
       plotW,
@@ -375,15 +336,43 @@ function ScoreHistoryChart({
       xAt,
       yAt,
       yTicks: chartTicks(yMin, yMax, 4),
-      xTicks: roundXTicks(nRounds),
-      stepPath: buildLeaderStepPath(points, history, xAt, yAt),
+      xTicks: roundXTicks(nRounds, xLabelMax),
+      scrollMinWidth: nRounds > 12 ? nRounds * MOBILE_PX_PER_ROUND : undefined,
     }
-  }, [points, history, hasEnough, leader?.score])
+  }, [points, chartDots, hasEnough, leader?.score])
 
-  function handlePointer(svg: SVGSVGElement, clientX: number) {
+  const leaderLinePath = useMemo(() => {
+    if (!layout) return null
+    const leaders = points.filter((p) => p.leader != null)
+    if (leaders.length < 2) return null
+
+    const parts: string[] = []
+    let prev: RoundChartPoint | null = null
+
+    for (const p of leaders) {
+      const x = layout.xAt(p.roundIndex)
+      const y = layout.yAt(p.leader!.score)
+      const adjacent = prev != null && p.roundIndex - prev.roundIndex === 1
+      parts.push(adjacent ? `L ${x} ${y}` : `M ${x} ${y}`)
+      prev = p
+    }
+
+    return parts.some((s) => s.startsWith('L')) ? parts.join(' ') : null
+  }, [layout, points])
+
+  function viewBoxXFromClient(svg: SVGSVGElement, clientX: number, clientY: number): number | null {
+    const ctm = svg.getScreenCTM()
+    if (!ctm) return null
+    const pt = svg.createSVGPoint()
+    pt.x = clientX
+    pt.y = clientY
+    return pt.matrixTransform(ctm.inverse()).x
+  }
+
+  function selectRoundAt(svg: SVGSVGElement, clientX: number, clientY: number) {
     if (!layout || points.length === 0) return
-    const rect = svg.getBoundingClientRect()
-    const x = ((clientX - rect.left) / rect.width) * CHART_WIDTH
+    const x = viewBoxXFromClient(svg, clientX, clientY)
+    if (x == null) return
 
     let nearest = points[0]
     let nearestDist = Infinity
@@ -397,56 +386,48 @@ function ScoreHistoryChart({
     setHovered(nearest)
   }
 
-  const hoveredLeader = hovered ? leaderAtBlock(hovered.block, history) : null
+  const mobileScroll =
+    isNarrow && layout?.scrollMinWidth != null ? layout.scrollMinWidth : undefined
 
   return (
-    <div className="mt-6 overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.015] p-4 sm:p-6">
-      <div className="tracking-caps text-secondary mb-4 font-mono text-sm font-semibold uppercase">
+    <div className="mt-6 overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.015] p-3 sm:p-6">
+      <div className="tracking-caps text-secondary mb-3 font-mono text-xs font-semibold uppercase sm:mb-4 sm:text-sm">
         Score Progress
       </div>
 
       {loading ? (
-        <Skeleton className="h-[360px] w-full" />
+        <Skeleton className="h-[280px] w-full sm:h-[360px]" />
       ) : error ? (
         <p className="text-secondary/60 font-mono text-sm">Could not load score history</p>
-      ) : !hasEnough ? (
+      ) : !hasEnough || chartDots.length === 0 ? (
         <p className="text-secondary/60 font-mono text-sm">Not enough history yet</p>
       ) : (
         <>
-          <div className="mb-3 flex flex-wrap items-center gap-4 font-mono text-[11px]">
-            <span className="text-secondary/70 flex items-center gap-1.5">
-              <span
-                className="inline-block h-0.5 w-4 rounded-full"
-                style={{ background: CHART_LEADER_COLOR }}
-              />
-              Leader overtakes
-            </span>
-            <span className="text-secondary/70 flex items-center gap-1.5">
-              <span
-                className="inline-block size-2 rounded-full"
-                style={{ background: CHART_CHALLENGER_COLOR }}
-              />
-              Best this round
-            </span>
-          </div>
-
-          <div className="flex items-stretch gap-2 sm:gap-3">
-            {reigns.length > 0 && (
-              <div className="flex w-[8.75rem] shrink-0 flex-col justify-center gap-1 sm:w-[10.25rem]">
-                {reigns.map((reign) => (
-                  <ReignChip key={reign.uid} reign={reign} />
-                ))}
-              </div>
+          <div
+            className={cn(
+              'min-w-0',
+              mobileScroll != null &&
+                '-mx-1 [touch-action:pan-x] overflow-x-auto overscroll-x-contain px-1',
             )}
-
-            <div className="relative h-[300px] min-w-0 flex-1">
+          >
+            <div
+              className="relative h-[220px] min-w-full sm:h-[300px]"
+              style={
+                mobileScroll != null ? { minWidth: `max(100%, ${mobileScroll}px)` } : undefined
+              }
+            >
               {layout && (
                 <svg
                   viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
                   width="100%"
-                  height={CHART_HEIGHT}
-                  className="block"
-                  onMouseMove={(e) => handlePointer(e.currentTarget, e.clientX)}
+                  height="100%"
+                  className="block touch-manipulation"
+                  onMouseMove={(e) => selectRoundAt(e.currentTarget, e.clientX, e.clientY)}
+                  onMouseLeave={() => setHovered(null)}
+                  onTouchStart={(e) => {
+                    const touch = e.changedTouches[0]
+                    if (touch) selectRoundAt(e.currentTarget, touch.clientX, touch.clientY)
+                  }}
                 >
                   {layout.yTicks.map((tick) => {
                     const y = layout.yAt(tick)
@@ -495,179 +476,129 @@ function ScoreHistoryChart({
                     </text>
                   ))}
 
-                  {layout.stepPath && (
+                  {leaderLinePath && (
                     <path
-                      d={layout.stepPath}
+                      d={leaderLinePath}
                       fill="none"
                       stroke={CHART_LEADER_COLOR}
                       strokeWidth={1}
-                      strokeLinejoin="round"
+                      strokeDasharray="5 4"
+                      opacity={0.55}
                     />
                   )}
 
-                  {points.map((pt) => {
-                    if (!pt.best?.score) return null
+                  {chartDots.map(({ point: pt, uid, score, isRoundLeader }) => {
                     const active = hovered?.roundIndex === pt.roundIndex
                     return (
                       <circle
-                        key={`c-${pt.block}`}
+                        key={`c-${pt.block}-${uid}`}
                         cx={layout.xAt(pt.roundIndex)}
-                        cy={layout.yAt(pt.best.score)}
-                        r={active ? 5 : 3}
-                        fill={CHART_CHALLENGER_COLOR}
+                        cy={layout.yAt(score)}
+                        r={active ? 5 : isRoundLeader ? 4 : 3}
+                        fill={isRoundLeader ? CHART_LEADER_COLOR : CHART_DOT_COLOR}
                       />
                     )
                   })}
 
-                  {hovered && hoveredLeader && hoveredLeader.new_leader_score > 0 && (
-                    <circle
-                      cx={layout.xAt(hovered.roundIndex)}
-                      cy={layout.yAt(hoveredLeader.new_leader_score)}
-                      r={4}
-                      fill={CHART_LEADER_COLOR}
-                    />
-                  )}
-
-                  <rect
-                    x={CHART_MARGIN.left}
-                    y={CHART_MARGIN.top}
-                    width={layout.plotW}
-                    height={layout.plotH}
-                    fill="transparent"
-                  />
+                  {points.map((pt) => {
+                    const slotW = layout.plotW / Math.max(layout.nRounds, 1)
+                    const cx = layout.xAt(pt.roundIndex)
+                    return (
+                      <rect
+                        key={`hit-${pt.block}`}
+                        x={cx - slotW / 2}
+                        y={CHART_MARGIN.top}
+                        width={slotW}
+                        height={layout.plotH}
+                        fill="transparent"
+                        className="cursor-pointer sm:pointer-events-none"
+                        onTouchStart={(e) => {
+                          e.stopPropagation()
+                          setHovered(pt)
+                        }}
+                        onClick={() => setHovered(pt)}
+                      />
+                    )
+                  })}
                 </svg>
               )}
 
-              {hovered && <RoundTooltip point={hovered} leader={hoveredLeader} />}
+              {hovered && <RoundTooltip point={hovered} />}
             </div>
           </div>
+
+          {hovered && <RoundDetailBar point={hovered} className="sm:hidden" />}
         </>
       )}
     </div>
   )
 }
 
-function ReignChip({ reign }: { reign: LeaderReign }) {
+function roundDetailMeta(point: RoundChartPoint): string {
+  return [
+    `${point.nChallengers} challenger${point.nChallengers !== 1 ? 's' : ''}`,
+    point.nScored > 0 ? `${point.nScored} scored` : null,
+    point.nDisqualified > 0 ? `${point.nDisqualified} DQ` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function RoundDetailBar({ point, className }: { point: RoundChartPoint; className?: string }) {
+  const meta = roundDetailMeta(point)
+  const when =
+    point.evaluatedAt != null && point.evaluatedAt > 0 ? relativeTimeAgo(point.evaluatedAt) : null
+
   return (
     <div
       className={cn(
-        'flex w-full min-w-0 flex-col gap-1 rounded-lg border px-2 py-1.5 font-mono text-xs',
-        reign.isCurrent
-          ? 'border-accent/30 bg-accent/[0.06]'
-          : 'border-white/[0.06] bg-white/[0.02]',
+        'mt-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 font-mono',
+        className,
       )}
     >
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span
-            className={cn(
-              'inline-block size-1.5 shrink-0 rounded-full',
-              reign.isCurrent ? 'bg-accent' : 'bg-secondary/40',
-            )}
-          />
-          <ImageTag image={reign.image} className="min-w-0" />
-        </div>
-        <span
-          className={cn(
-            'shrink-0 font-semibold tabular-nums',
-            reign.isCurrent ? 'text-accent' : 'text-primary',
-          )}
-        >
-          {fmtScore(reign.score)}
-        </span>
+      <div className="text-secondary/60 text-[11px] leading-snug">
+        Round {point.roundIndex} · Block #{point.block}
+        {when != null && <span className="text-secondary/45"> · {when}</span>}
       </div>
-      <div className="flex min-w-0 items-center gap-1 pl-3">
-        <span className="text-secondary/45 min-w-0 truncate">{truncHotkey(reign.hotkey)}</span>
-        <CopyButton value={reign.hotkey} />
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        {point.leader != null && (
+          <span className="text-accent text-sm font-semibold tabular-nums">
+            Leader {fmtScore(point.leader.score)}
+          </span>
+        )}
+        {meta && <span className="text-secondary/50 text-[11px]">{meta}</span>}
       </div>
     </div>
   )
 }
 
-function TooltipMinerBlock({
-  label,
-  score,
-  hotkey,
-  image,
-  accent,
-}: {
-  label: string
-  score: number
-  hotkey: string
-  image: string
-  accent?: boolean
-}) {
-  return (
-    <div>
-      <div className="text-secondary/50 mb-1">{label}</div>
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <ImageTag image={image} className="min-w-0" />
-        <span
-          className={cn(
-            'shrink-0 font-semibold tabular-nums',
-            accent ? 'text-accent' : 'text-primary',
-          )}
-        >
-          {fmtScore(score)}
-        </span>
-      </div>
-      <div className="flex items-center gap-1">
-        <span className="text-secondary/45 min-w-0 truncate">{truncHotkey(hotkey)}</span>
-        <CopyButton value={hotkey} />
-      </div>
-    </div>
-  )
-}
-
-function RoundTooltip({
-  point,
-  leader,
-}: {
-  point: RoundChartPoint
-  leader: LeaderHistoryEntry | null
-}) {
-  const leaderScore = leader?.new_leader_score
-
+function RoundTooltip({ point }: { point: RoundChartPoint }) {
   const plotTopPct = (CHART_MARGIN.top / CHART_HEIGHT) * 100
   const tooltipLeftPct = (TOOLTIP_LEFT_INSET / CHART_WIDTH) * 100
   const plotWidthPct = ((CHART_WIDTH - TOOLTIP_LEFT_INSET - CHART_MARGIN.right) / CHART_WIDTH) * 100
+  const meta = roundDetailMeta(point)
 
   return (
     <div
-      className="pointer-events-auto absolute z-10 rounded-lg border border-white/10 bg-[#0a0a0a]/95 px-3 py-2 font-mono text-xs shadow-lg backdrop-blur-sm"
+      className="pointer-events-none absolute z-10 hidden rounded-lg border border-white/10 bg-[#0a0a0a]/95 px-3 py-2 font-mono text-xs shadow-lg backdrop-blur-sm sm:block"
       style={{
         left: `${tooltipLeftPct}%`,
         top: `${plotTopPct}%`,
         maxWidth: `min(${plotWidthPct}%, 18rem)`,
       }}
     >
-      <div className="text-secondary/60 mb-1.5">
+      <div className="text-secondary/60">
         Round {point.roundIndex} · Block #{point.block}
       </div>
       {point.evaluatedAt != null && point.evaluatedAt > 0 && (
-        <div className="text-secondary/45 mb-2">{relativeTimeAgo(point.evaluatedAt)}</div>
+        <div className="text-secondary/45 mt-1">{relativeTimeAgo(point.evaluatedAt)}</div>
       )}
-
-      {point.best && point.best.score != null && (
-        <TooltipMinerBlock
-          label="Best this round"
-          score={point.best.score}
-          hotkey={point.best.hotkey}
-          image={point.best.image}
-        />
-      )}
-
-      {leader && leaderScore != null && leaderScore > 0 && (
-        <div className="border-border/20 mt-2 border-t pt-2">
-          <TooltipMinerBlock
-            label="Reigning leader"
-            score={leaderScore}
-            hotkey={leader.new_leader_hotkey}
-            image={leader.new_leader_image}
-            accent
-          />
+      {point.leader != null && (
+        <div className="text-accent mt-1.5 font-semibold tabular-nums">
+          Leader {fmtScore(point.leader.score)}
         </div>
       )}
+      {meta && <div className="text-secondary/50 mt-1">{meta}</div>}
     </div>
   )
 }
