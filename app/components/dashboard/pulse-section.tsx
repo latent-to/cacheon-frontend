@@ -244,6 +244,8 @@ export function PulseSection() {
         </div>
       )}
 
+      <EvalScheduleBanner />
+
       <ScoreHistoryChart
         loading={leader.loading || leaderHistory.loading || rounds.loading}
         error={!!leaderHistory.error || !!rounds.error}
@@ -770,6 +772,19 @@ function ElapsedTime({ startedAt }: { startedAt: number }) {
     <span className="tabular-nums">
       {m}:{s.toString().padStart(2, '0')}
     </span>
+  )
+}
+
+// ── Eval schedule notice ─────────────────────────────────
+
+function EvalScheduleBanner() {
+  return (
+    <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5 sm:px-4">
+      <Clock size={14} strokeWidth={1.5} className="text-secondary/50 mt-0.5 shrink-0" />
+      <p className="text-secondary/70 font-mono text-xs leading-relaxed sm:text-sm">
+        Evaluations run daily between 09:00 and 21:00 UTC.
+      </p>
+    </div>
   )
 }
 
