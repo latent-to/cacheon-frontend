@@ -4,8 +4,9 @@ description: Advanced reference for running GPU eval manually on a rented pod, w
 ---
 
 <Callout type="warn">
-  This page is for manual operation only. When `CACHEON_AUTO_RENT=1` the validator handles GPU
-  rental, setup, eval, and teardown automatically. See [Validator setup](/docs/validators/setup).
+  For automatic eval on a pod you already provisioned, set `CACHEON_GPU_SSH` on the CPU validator
+  (see [Validator setup](/docs/validators/setup)). This page covers one-time pod setup and fully
+  manual `docker compose` runs without SSH orchestration.
 </Callout>
 
 ## Prerequisites
