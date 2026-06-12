@@ -9,8 +9,8 @@ description: Set up the Cacheon validator with a single VPS, Docker, and automat
 - Docker and Docker Compose installed
 - A Bittensor validator wallet registered on subnet 14 (mainnet) or 470 (testnet)
 - Hippius S3 bucket and credentials
-- Targon and Lium.io API keys for automatic GPU rental
-- Sufficient balance on Targon, Lium, and/or Shadeform: rentals fail if billing cannot cover hourly GPU charges
+- Targon, Lium, and/or Shadeform API keys for GPU rental (or a pre-provisioned GPU pod)
+- Sufficient balance on your GPU provider: rentals fail if billing cannot cover hourly GPU charges
 
 ## Configuration
 
@@ -63,35 +63,26 @@ The following environment variables are related to the S3 bucket:
 
 The following environment variables are related to setting up the GPU configuration:
 
-| Env var                      | Required  | Description                                                                                                                                                                           |
-| ---------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CACHEON_AUTO_RENT`          | No        | Set to `1` to enable automatic GPU pod rental (default `0`)                                                                                                                           |
-| `CACHEON_PREFERRED_PROVIDER` | No        | Restrict auto-rent to `lium`, `targon`, or `shadeform`; empty searches all configured providers                                                                                       |
-| `CACHEON_PREFERRED_GPU`      | No        | Pin to `H200`, `H100`, `B200`, or `B300` (case-insensitive); empty uses tier A then tier B fallback. Invalid values are ignored.                                                      |
-| `LIUM_API_KEY`               | \*        | Lium API key (\* at least one provider key required)                                                                                                                                  |
-| `TARGON_API_KEY`             | \*        | Targon API key (\* at least one provider key required)                                                                                                                                |
-| `SHADEFORM_API_KEY`          | \*        | [Shadeform](https://docs.shadeform.ai/api-reference) API key (\* at least one provider key required)                                                                                  |
-| `TARGON_VOLUME_UID`          | If Targon | `vol-…` persistent volume UID; mounted at `/workspace` (see [section below](#targon-persistent-volume-targon_volume_uid)). Leave unset if you have Lium as your preferredm provider.  |
-| `CACHEON_VLLM_CACHE_DIR`     | No        | Targon: host path for vLLM `torch.compile` cache on `/workspace` (default `/workspace/vllm-cache` when auto-renting on Targon; set empty to disable). Leave unset for Lium/Shadeform. |
-| `CACHEON_MAX_HOURLY_PRICE`   | No        | Maximum hourly price in cents (default `2000`)                                                                                                                                        |
-| `HF_TOKEN`                   | No        | Hugging Face token for model download on GPU pod                                                                                                                                      |
+| Env var                      | Required | Description                                                                                                                                                                                                 |
+| ---------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CACHEON_GPU_SSH`            | No       | `user@host[:port]` for a pre-provisioned GPU pod (`setup-gpu.sh` already run). When set, the validator SSHs in and runs eval; search, rent, and setup are skipped. Takes precedence over provider API keys. |
+| `CACHEON_GPU_POD_PROFILE`    | No       | Remote pod profile when using `CACHEON_GPU_SSH`: `targon` (default), `lium`, or `shadeform`. Controls DinD flags and docker/sudo behavior on the remote host.                                               |
+| `CACHEON_PREFERRED_PROVIDER` | No       | Restrict GPU rental to `lium`, `targon`, or `shadeform`; empty searches all configured providers. Ignored when `CACHEON_GPU_SSH` is set.                                                                    |
+| `CACHEON_PREFERRED_GPU`      | No       | Pin to `H200`, `H100`, `B200`, or `B300` (case-insensitive); empty uses tier A then tier B fallback. Invalid values are ignored. Ignored when `CACHEON_GPU_SSH` is set.                                     |
+| `LIUM_API_KEY`               | \*       | Lium API key (\* at least one provider key, unless `CACHEON_GPU_SSH` is set)                                                                                                                                |
+| `TARGON_API_KEY`             | \*       | Targon API key (\* at least one provider key, unless `CACHEON_GPU_SSH` is set)                                                                                                                              |
+| `SHADEFORM_API_KEY`          | \*       | [Shadeform](https://docs.shadeform.ai/api-reference) API key (\* at least one provider key, unless `CACHEON_GPU_SSH` is set)                                                                                |
+| `CACHEON_VLLM_CACHE_DIR`     | No       | Optional on persistent GPU pods (`CACHEON_GPU_SSH`): host path for vLLM `torch.compile` cache (for example `/workspace/vllm-cache`; set empty to disable).                                                  |
+| `CACHEON_MAX_HOURLY_PRICE`   | No       | Maximum hourly price in cents (default `2000`)                                                                                                                                                              |
+| `HF_TOKEN`                   | No       | Hugging Face token for model download on GPU pod                                                                                                                                                            |
 
-### Targon persistent volume (`TARGON_VOLUME_UID`)
-
-When the orchestrator rents on **Targon**, the API requires an existing persistent volume. The validator passes `TARGON_VOLUME_UID` into the create-workload call and mounts that volume at **`/workspace`** on the pod (weights, Docker layers, and eval scratch live there). The value must start with **`vol-`**, matching Targon’s volume id format; otherwise rental fails before deploy.
-
-Do this **before** `bash setup-cpu.sh`:
-
-1. In Targon, open **[Volumes](https://targon.com/volumes)** and create a persistent volume sized **over 500 GB** (headroom for the model, container images, and caches). For manual pods, see [Manual GPU setup](/docs/validators/gpu-pod-setup) for `/workspace` disk expectations.
-2. Copy the volume UID (for example `vol-abc123…`).
-3. Set `TARGON_VOLUME_UID=vol-…` in `validator/.env` (same file `setup-cpu.sh` loads).
-
-<Callout type="info" title="Set a Preferred Provider">
-  If Targon is never used (for example only **`LIUM_API_KEY`** is set, or
-  **`CACHEON_PREFERRED_PROVIDER=lium|shadeform`**), leave `TARGON_VOLUME_UID` unset. On **Lium**,
-  the client creates or reuses a volume named **`cacheon-sn14-volume`** when you rent. On
-  **Shadeform**, the provider creates a fresh 500 GB volume on each rental and deletes it after
-  teardown; no extra environment variables are required beyond the **`SHADEFORM_API_KEY`**.
+<Callout type="info" title="GPU pod lifetime">
+  When you configure a provider API key (and leave `CACHEON_GPU_SSH` unset), the validator rents one
+  GPU pod on the first eval round, runs `setup-gpu.sh` once, and reuses that pod for every later
+  eval until you stop the validator container (`docker compose down`). Workload and block storage
+  are deleted on shutdown. **Targon** provisions a **1 TiB** volume at `/workspace`; **Shadeform**
+  creates a **500 GB** volume per rental; **Lium** attaches a named volume. First eval after rent
+  runs a full cold start (model download, Docker pulls); later rounds reuse the same disk.
 </Callout>
 
 ## Start
@@ -116,7 +107,10 @@ INFO  validator.chain: Preflight OK: uid=0, stake=..., validator_permit=True
 INFO  validator.cpu_validator: Tick 1: block=... challengers=0 weights_set=no
 ```
 
-When `CACHEON_AUTO_RENT=1` and challengers are detected, the validator automatically searches for GPU pods, rents the cheapest match, runs setup and eval via SSH, and tears down the pod when done.
+When challengers are detected:
+
+- With `CACHEON_GPU_SSH` set, the validator SSHs into your pre-provisioned pod and runs eval.
+- With a provider API key configured, the validator searches for a GPU, rents once, runs setup and eval, and keeps the pod for subsequent rounds until the validator stops.
 
 ## Dry-run mode
 
