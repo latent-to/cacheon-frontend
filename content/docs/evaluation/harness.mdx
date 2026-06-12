@@ -12,7 +12,7 @@ The harness pulls miner containers, runs evaluation prompts (speed + correctness
 3. **Per miner** (leader, runner-up, then challengers):
    - Start miner container; run **12 eval prompts** (2 warmup discarded, 10 scored)
    - Tear down miner container; reset GPUs
-   - If token-match pre-filter passes, queue the 10 scored outputs for batched teacher-forcing
+   - If text-similarity pre-filter passes, queue the 10 scored outputs for batched teacher-forcing
 4. **Teacher-forcing batch**: start scoring vLLM once (`v0.9.2`, ~7k context cap, 600s startup timeout), teacher-force all queued outputs, tear down scoring container
 5. Persist evaluation records and rerank
 

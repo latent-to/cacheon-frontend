@@ -35,7 +35,7 @@ You build a Docker image, push it to a container registry, and commit the image 
 
 ## Common pitfalls
 
-- **Wrong model weights.** Your server must load the canonical `Qwen2.5-72B-Instruct` weights from the mounted volume at `/models`. Fine-tuned, distilled, or otherwise altered weights are likely to fail the token-match pre-filter or teacher-forcing gate.
+- **Wrong model weights.** Your server must load the canonical `Qwen2.5-72B-Instruct` weights from the mounted volume at `/models`. Fine-tuned, distilled, or otherwise altered weights are likely to fail the text-similarity pre-filter or teacher-forcing gate.
 - **Slow startup.** The validator gives your container 12.5 minutes to respond on `/health`. 72B model loading takes 3-7 minutes; compile-heavy cold starts can need more. Budget accordingly.
 - **Non-compliant API.** Your server must implement `/v1/chat/completions` with logprobs support. See [API contract](/docs/miners/api-contract).
 - **Tensor parallelism.** On-chain eval always runs on 8 GPUs (`TP=8`). Your startup script should still detect GPU count via `nvidia-smi` so local smoke tests on smaller machines work. See the example in [Submission format](/docs/miners/submission-format).

@@ -223,14 +223,16 @@ function ChallengerRow({
   return (
     <div
       className={cn(
-        'flex flex-col gap-2 rounded-lg px-3 py-3 font-mono text-xs sm:flex-row sm:items-center sm:gap-3',
+        'rounded-lg px-3 py-3 font-mono text-xs',
+        'max-sm:flex max-sm:flex-col max-sm:gap-2',
+        'sm:grid sm:[grid-template-columns:2.75rem_3.25rem_6.5rem_minmax(0,1fr)_4.5rem_3.5rem_3rem_2.25rem] sm:items-center sm:gap-x-3',
         c.disqualified && 'opacity-50',
       )}
     >
-      <div className="flex min-w-0 items-center justify-between gap-3 sm:contents">
+      <div className="flex items-center justify-between gap-3 sm:contents">
         <span
           className={cn(
-            'shrink-0 font-bold sm:w-10',
+            'font-bold tabular-nums',
             c.disqualified ? 'text-error/60' : 'text-primary',
           )}
         >
@@ -238,38 +240,36 @@ function ChallengerRow({
         </span>
         <StatusPill active={!c.disqualified} label={c.disqualified ? 'DQ' : 'OK'} />
       </div>
-      <span className="text-secondary/65 min-w-0 flex-1 truncate sm:order-none" title={c.hotkey}>
+      <span className="text-secondary/65 min-w-0 truncate" title={c.hotkey}>
         {truncHotkey(c.hotkey)}
       </span>
-      <ImageTag image={c.image} className="max-w-full sm:max-w-[20rem]" />
+      <ImageTag image={c.image} className="min-w-0" />
       <span
         className={cn(
-          'shrink-0 font-bold sm:w-16 sm:text-right',
+          'font-bold tabular-nums sm:text-right',
           c.disqualified ? 'text-error/60' : 'text-accent',
         )}
       >
         {fmtScore(c.score)}
       </span>
-      {c.speed_improvement != null && (
-        <span className="text-secondary/65 shrink-0 sm:w-14 sm:text-right">
-          {fmtImprovement(c.speed_improvement)}
-        </span>
-      )}
-      {c.token_match_rate != null && (
-        <span className="text-secondary/55 shrink-0 sm:w-12 sm:text-right">
-          {fmtPct(c.token_match_rate)}
-        </span>
-      )}
-      {logLabel && (
-        <a
-          href={containerLogHref(logLabel)}
-          title="Miner container log"
-          onClick={(e) => e.stopPropagation()}
-          className="text-secondary/50 hover:text-accent shrink-0 font-mono text-xs no-underline transition-colors"
-        >
-          log ↗
-        </a>
-      )}
+      <span className="text-secondary/65 tabular-nums sm:text-right">
+        {fmtImprovement(c.speed_improvement)}
+      </span>
+      <span className="text-secondary/55 tabular-nums sm:text-right">
+        {fmtPct(c.token_match_rate)}
+      </span>
+      <span className="inline-flex w-8 justify-end sm:justify-self-end">
+        {logLabel ? (
+          <a
+            href={containerLogHref(logLabel)}
+            title="Miner container log"
+            onClick={(e) => e.stopPropagation()}
+            className="text-secondary/50 hover:text-accent font-mono text-xs whitespace-nowrap no-underline transition-colors"
+          >
+            log ↗
+          </a>
+        ) : null}
+      </span>
     </div>
   )
 }

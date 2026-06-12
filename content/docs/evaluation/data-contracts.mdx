@@ -133,7 +133,7 @@ Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
 | ------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `score`             | float          | `speed_improvement`; 0.0 if DQ'd                                                                                                   |
 | `speed_improvement` | float          | Median end-to-end speedup vs baseline (`max(0, (baseline_e2e - miner_e2e) / baseline_e2e)`)                                        |
-| `token_match_rate`  | float          | Aggregate token match pre-filter (mean of per-prompt rates); hard DQ below 10% (`pass1_match_fail`)                                |
+| `token_match_rate`  | float          | Aggregate text similarity pre-filter (mean of per-prompt scores); hard DQ below 40% (`pass1_match_fail`)                           |
 | `disqualified`      | bool           | Whether the submission was DQ'd                                                                                                    |
 | `disqualify_reason` | string or null | Reason for DQ. See [Disqualification reason codes](/docs/evaluation/scoring#disqualification-reason-codes) for the full reference. |
 | `per_prompt`        | array or null  | Array of per-prompt speed breakdowns (TTFT, miner `e2e_s`, aligned baseline `baseline_e2e_s`, match rate, token count; 10 entries) |

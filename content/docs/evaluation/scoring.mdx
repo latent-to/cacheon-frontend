@@ -3,14 +3,14 @@ title: Scoring
 description: One-pass evaluation. Speed (end-to-end wall time) and correctness (teacher-forcing) use the same prompts and miner outputs. Final metrics use median aggregation across 10 scored prompts.
 ---
 
-Final score is **correctness-gated**: the same miner outputs that earn speed credit must pass teacher-forcing on the scoring vLLM. A cheap token-match pre-filter can filter out invalid submissions before scoring. Otherwise `score = 0.0` when either gate fails.
+Final score is **correctness-gated**: the same miner outputs that earn speed credit must pass teacher-forcing on the scoring vLLM. A text-similarity pre-filter on decoded output filters out invalid submissions before teacher-forcing. Otherwise `score = 0.0` when either gate fails.
 
 ## One-pass overview
 
-| Stage           | Prompts                | Context / output         | Container                                                     | Purpose                                             |
-| --------------- | ---------------------- | ------------------------ | ------------------------------------------------------------- | --------------------------------------------------- |
-| **Speed**       | 10 scored + 2 warmup   | ~**6k** in / **512** out | Miner + cached generation baseline (`vLLM v0.22.0`)           | End-to-end time vs baseline; token-match pre-filter |
-| **Correctness** | Same 10 scored outputs | Same text                | Separate scoring vLLM (`v0.9.2`) teacher-forces miner outputs | Correctness gate                                    |
+| Stage           | Prompts                | Context / output         | Container                                                     | Purpose                                                 |
+| --------------- | ---------------------- | ------------------------ | ------------------------------------------------------------- | ------------------------------------------------------- |
+| **Speed**       | 10 scored + 2 warmup   | ~**6k** in / **512** out | Miner + cached generation baseline (`vLLM v0.22.0`)           | End-to-end time vs baseline; text-similarity pre-filter |
+| **Correctness** | Same 10 scored outputs | Same text                | Separate scoring vLLM (`v0.9.2`) teacher-forces miner outputs | Correctness gate                                        |
 
 Baseline numbers are **pre-computed once per block hash** and cached. After all miners finish generation, one scoring container runs `prompt_logprobs` over the **same outputs** used for speed in a single batch.
 
@@ -33,7 +33,7 @@ else:
 <Callout title="Scoring axes" type="info">
 Gates and axes, in order of enforcement:
 
-1. **Token-match pre-filter (Speed gate):** if aggregate token match below 5%, return `pass1_match_fail`; skip teacher-forcing.
+1. **Text-similarity pre-filter (Speed gate):** if decoded output text similarity below 40%, return `pass1_match_fail`; skip teacher-forcing.
 2. **Correctness gate:** if teacher-forcing fails, return `correctness_fail` or `scoring_infra_fail`; speed zeroed.
 3. **End-to-end speed:** single axis, median relative speedup vs baseline wall time to the aligned token count (same 10 scored prompts).
 
@@ -41,7 +41,7 @@ Improvements are floored at zero. Slower-than-baseline miners score 0, not negat
 
 </Callout>
 
-## Speed: end-to-end wall time and token match
+## Speed: end-to-end wall time and text similarity
 
 ### Aggregation
 
@@ -69,13 +69,13 @@ Top-5 logprobs are collected and cached with the baseline but are **not** a DQ g
 
 Before sending the scored prompts, the validator sends **2 warmup prompts** that are discarded. Both baseline and miner receive the same warmup. The competition measures steady-state serving speed, not startup optimization.
 
-### Token-match pre-filter
+### Text-similarity pre-filter
 
-Aggregate match is the **mean of per-prompt token match rates** across the 10 scored prompts (not a single pooled token average).
+The validator compares baseline and miner decoded output as plain text (tokenizer-agnostic), so framework tokenization differences between engines do not lower the score. The aggregate similarity is the **mean of per-prompt text similarity scores** across the 10 scored prompts.
 
-If aggregate match is below `PASS1_MATCH_DQ_THRESHOLD` (default **5%**), the miner is disqualified with `pass1_match_fail` and teacher-forcing is skipped. Configurable via `CACHEON_PASS1_MATCH_DQ_THRESHOLD` in [validator config](https://github.com/latent-to/cacheon/blob/main/validator/config.py).
+If aggregate text similarity is below `PASS1_TEXT_SIM_DQ_THRESHOLD` (default **40%**), the miner is disqualified with `pass1_match_fail` and teacher-forcing is skipped. Configurable via `CACHEON_PASS1_TEXT_SIM_DQ_THRESHOLD` in [validator config](https://github.com/latent-to/cacheon/blob/main/validator/config.py).
 
-`token_match_rate` on the evaluation record stores this aggregate value for dashboards.
+`token_match_rate` on the evaluation record stores this aggregate similarity value for dashboards.
 
 ## Correctness (teacher-forcing)
 
@@ -132,7 +132,7 @@ When `disqualified` is true, the evaluation record's `disqualify_reason` field e
 
 | Code                           | When     | Likely miner issue? | What it means                                                                                                                                                                                                                         | Example                                                                                                                 |
 | ------------------------------ | -------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `pass1_match_fail`             | Pre-TF   | Usually yes         | Aggregate token match vs baseline below 5% pre-filter. Teacher-forcing skipped. Wrong model, severely divergent outputs, or broken inference.                                                                                         | `pass1_match_fail: aggregate match 0.0029 below threshold 0.05`                                                         |
+| `pass1_match_fail`             | Pre-TF   | Usually yes         | Aggregate text similarity vs baseline below 40% pre-filter. Teacher-forcing skipped. Wrong model, severely divergent outputs, or broken inference.                                                                                    | `pass1_match_fail: aggregate match 0.12 below threshold 0.40`                                                           |
 | `correctness_fail`             | TF       | Yes                 | Output text implausible under Qwen per teacher-forcing logprobs. See [Correctness detail codes](#correctness-detail-codes) below.                                                                                                     | `correctness_fail: prompt 0: mean_logprob -8.120 below threshold -4.0`                                                  |
 | `scoring_infra_fail`           | TF       | No                  | Scoring vLLM could not produce usable logprobs (OOM, HTTP error, incomplete extraction). Retry or check validator GPU logs (`baseline_scoring_{block}_{timestamp}.log`, `gpu_eval_{timestamp}.log`). Not a miner correctness verdict. | `scoring_infra_fail: prompt 0: scoring_infra_fail: extracted 10/50 scoring canonical tokens (below 50% coverage floor)` |
 | `baseline_scoring_unavailable` | TF       | No                  | Scoring container failed to start or become healthy within 600s before any prompt was scored (affects all queued miners in that batch).                                                                                               | `baseline_scoring_unavailable: Connection refused`                                                                      |
