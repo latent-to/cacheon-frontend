@@ -15,7 +15,7 @@ A single long-running process handles the full lifecycle:
 4. **Automated rental**: rents a GPU pod, SSHs in, runs `setup-gpu.sh`, configures the environment, and starts `docker compose -f gpu-compose.yml up`
 5. **Evaluation**: the GPU pod runs the vLLM baseline, evaluates each challenger, and uploads results to S3
 6. **Teardown**: the pod is terminated after the evaluation completes (or on failure/timeout)
-7. **Weight setting**: the validator downloads results from S3 and sets weights to the current leader and runner-up
+7. **Weight setting**: after GPU eval (or on idle ticks), sets weights to the current leader and runner-up
 
 <Callout type="idea" title="Why this design?">
 

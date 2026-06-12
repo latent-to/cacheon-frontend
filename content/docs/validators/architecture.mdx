@@ -21,21 +21,25 @@ while True:
     if leader_hotkey_deregistered():
         promote_runner_up_or_clear()
 
-    if new_eval_results() or weights_stale():
-        set_weights(leader, runner_up)
-
     challengers = select_unevaluated(commitments)
     if challengers:
         write_eval_job(challengers, block, block_hash)
         s3_upload(state_dir)
 
-        if auto_rent_enabled:
-            gpu = search_providers(targon, lium)
-            pod = rent(gpu)
-            ssh_exec(pod, setup-gpu.sh)
-            ssh_exec(pod, docker compose -f gpu-compose.yml up)
-            teardown(pod)
-            s3_download(state_dir)  # pick up eval results
+        if gpu_eval_configured():
+            gpu = search_providers(targon, lium, shadeform)
+            pod = rent_once(gpu)              # first challenger round
+            ssh_exec(pod, setup-gpu.sh)     # once per validator container
+            ssh_exec(pod, gpu-compose up)   # each eval round; same pod
+            teardown(pod)                   # validator container shutdown
+            s3_download(state_dir)
+
+    metagraph, block, _ = scan_chain()  # fresh read before weights
+    if leader_hotkey_deregistered():
+        promote_runner_up_or_clear()
+
+    if new_eval_results() or weights_stale():
+        set_weights(leader, runner_up)
 
     sleep(poll_interval)
 ```
@@ -71,7 +75,7 @@ The GPU reads `eval_job.json` (block context + incumbent and challenger list), r
 
 ## State and S3 handoff
 
-The validator and GPU pod share a single S3 prefix (`validator/sync.py`). Both sides download the full state directory before starting work and upload after completing it. The validator writes `eval_job.json` and `state.json` (after weight setting); the GPU writes `state.json` (eval results, leader changes), `baseline_cache/`, `container_logs/`, and `logs/`.
+The validator and GPU pod share a single S3 prefix (`validator/sync.py`). Both sides download the full state directory before starting work and upload after completing it. The validator writes `eval_job.json` before GPU eval and `state.json` after weight setting; the GPU writes `state.json` (eval results, leader changes), `baseline_cache/`, `container_logs/`, and `logs/`.
 
 `state.json` tracks the leader record, runner-up, evaluation history with per-prompt breakdowns, precheck failures (including unpaid submissions), and scan/weight-setting block numbers. Written atomically (temp file + rename).
 
