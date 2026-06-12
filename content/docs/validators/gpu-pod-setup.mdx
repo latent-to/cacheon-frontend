@@ -42,7 +42,7 @@ Using Lium or Targon requires running the validator inside a nested Docker / Doc
   </Tab>
 </Tabs>
 
-When `CACHEON_AUTO_RENT=1` or `CACHEON_GPU_SSH` is set, the orchestrator sets `CACHEON_NESTED_DIN` from the pod profile (`CACHEON_GPU_POD_PROFILE`, default `targon`) automatically.
+When a provider API key is configured or `CACHEON_GPU_SSH` is set, the orchestrator sets `CACHEON_NESTED_DIN` from the pod profile (`CACHEON_GPU_POD_PROFILE` for manual SSH, or the rented provider) automatically.
 
 The setup script provisions system packages, Docker, GPU configuration, dependencies, models, and verifies the environment for GPU validation.
 
@@ -76,7 +76,7 @@ set -a; . .env; set +a
 <Callout type="info">
 
 - The GPU pod needs these environment variables at minimum: `HIPPIUS_ACCESS_KEY`, `HIPPIUS_SECRET_KEY`, `CACHEON_S3_BUCKET`.
-- Setting `CACHEON_AUTO_RENT=1` provisions 8-GPU tier configs only; for manual operation, you must rent an 8-GPU pod (see [GPU requirements](/docs/validators/overview#gpu-requirements)).
+- For manual operation you must rent an 8-GPU pod (see [GPU requirements](/docs/validators/overview#gpu-requirements)). Provider-key orchestration selects 8-GPU tier configs automatically.
 - The baseline digest is automatically detected by the evaluation container.
 
 </Callout>
@@ -99,7 +99,7 @@ Once the evaluation completes, the container automatically exits. Each run perfo
 6. **Container logs**: full stdout/stderr saved to `state-mainnet/container_logs/` (scoring: `baseline_scoring_{block}_{timestamp}.log`)
 7. **S3 upload**: pushes updated `state.json`, logs, and baseline cache
 
-The validator detects new results on its next poll and sets weights automatically.
+The validator sets weights at the end of the same tick, after GPU eval finishes and state is synced from S3.
 
 ## Local GPU eval
 
