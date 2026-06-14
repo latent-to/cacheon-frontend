@@ -3,11 +3,12 @@ import { ArrowDown, ArrowUp } from 'lucide-react'
 
 import { cn } from '~/lib/cn'
 import {
-  PASS1_MATCH_DQ_THRESHOLD,
+  PASS1_TEXT_SIM_DQ_THRESHOLD,
   buildContainerLogLabel,
   containerLogHref,
   findContainerLogLabel,
   findEvalRunLogLabels,
+  parsePass1TextSimilarity,
   summarizeEvalGates,
   validatorLogHref,
   type PassStatus,
@@ -39,12 +40,23 @@ type EvalFilter = 'all' | 'active' | 'dq'
 type SortDir = 'desc' | 'asc'
 type SortKey = 'score' | 'speed_improvement' | 'token_match_rate'
 
-/** Treat as DQ if the API flagged it OR if token match is below config.PASS1_MATCH_DQ_THRESHOLD. */
 function isEffectiveDq(e: EvaluationRecord): boolean {
-  return e.disqualified || e.token_match_rate < PASS1_MATCH_DQ_THRESHOLD
+  return e.disqualified
 }
 
-const P1_MATCH_TITLE = 'Speed pre-filter: aggregate token match vs baseline (gate ≥10%)'
+const TOKEN_MATCH_TITLE =
+  'Stream token match vs baseline (telemetry only; speed gate uses decoded text similarity)'
+
+function formatPass1GateDetail(ev: EvaluationRecord, pass1: PassStatus): string | undefined {
+  if (pass1 === 'na') return undefined
+  const gate = fmtPct(PASS1_TEXT_SIM_DQ_THRESHOLD)
+  if (pass1 === 'fail') {
+    const sim = parsePass1TextSimilarity(ev.disqualify_reason)
+    if (sim != null) return `similarity ${fmtPct(sim)} (gate ${gate})`
+    return `below gate ${gate}`
+  }
+  return `passed (gate ${gate})`
+}
 
 export function EvaluationsSection() {
   const [filter, setFilter] = useState<EvalFilter>('all')
@@ -177,7 +189,7 @@ export function EvaluationsSection() {
                   />
                   <SortableHeader
                     label="Token match"
-                    title={P1_MATCH_TITLE}
+                    title={TOKEN_MATCH_TITLE}
                     sortKey="token_match_rate"
                     activeKey={sortKey}
                     dir={sortDir}
@@ -319,7 +331,7 @@ function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numbe
       </td>
       <td
         className="text-secondary px-3 py-3 text-right text-xs tabular-nums"
-        title={P1_MATCH_TITLE}
+        title={TOKEN_MATCH_TITLE}
       >
         {fmtPct(ev.token_match_rate)}
       </td>
@@ -367,7 +379,7 @@ function EvalCard({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numb
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <MiniStat label="Score" value={fmtScore(ev.score)} accent={!dq} />
         <MiniStat label="Speed" value={fmtImprovement(ev.speed_improvement)} />
-        <MiniStat label="Speed match" value={fmtPct(ev.token_match_rate)} />
+        <MiniStat label="Token match" value={fmtPct(ev.token_match_rate)} />
       </div>
     </button>
   )
@@ -431,11 +443,7 @@ function EvalOutcomeCard({
         <PassStatusLine
           label="Speed"
           status={gates.pass1}
-          detail={
-            gates.pass1 !== 'na'
-              ? `match ${fmtPct(ev.token_match_rate)} (gate ${fmtPct(PASS1_MATCH_DQ_THRESHOLD)})`
-              : undefined
-          }
+          detail={formatPass1GateDetail(ev, gates.pass1)}
         />
         <PassStatusLine
           label="Correctness"
@@ -445,8 +453,9 @@ function EvalOutcomeCard({
       </div>
 
       <p className="text-secondary/45 font-mono text-[0.65rem] leading-relaxed">
-        Speed and correctness use the same 10 scored prompts (~6k in, 512 out). Correctness
-        teacher-forcing runs on those same outputs after all miners finish.
+        Speed and correctness use the same 10 scored prompts (~6k in, 512 out). The speed gate
+        compares decoded output text (40% similarity floor). Token match in the table is telemetry
+        only. Correctness teacher-forcing runs on those same outputs after all miners finish.
       </p>
 
       {ev.disqualify_reason && (
@@ -631,7 +640,7 @@ function EvalDetailDrawer({
                     Speed ({ev.per_prompt.length} prompts)
                   </div>
                   <p className="text-secondary/40 mb-2 font-mono text-[0.65rem]">
-                    Aggregate match {fmtPct(ev.token_match_rate)} · Speed{' '}
+                    Token match {fmtPct(ev.token_match_rate)} (telemetry) · Speed{' '}
                     {fmtImprovement(ev.speed_improvement)}
                   </p>
                   <div className="border-border/40 overflow-x-auto rounded-lg border">
@@ -658,14 +667,13 @@ function EvalDetailDrawer({
                       </thead>
                       <tbody>
                         {ev.per_prompt.map((pp, i) => {
-                          const weakMatch = pp.token_match_rate < PASS1_MATCH_DQ_THRESHOLD
                           const zeroE2e = pp.e2e_s === 0
                           return (
                             <tr
                               key={i}
                               className={cn(
                                 'border-border/20 border-b',
-                                (weakMatch || zeroE2e) && 'bg-error/[0.03]',
+                                zeroE2e && 'bg-error/[0.03]',
                               )}
                             >
                               <td className="text-secondary/40 px-3 py-1.5">{i + 1}</td>
@@ -688,12 +696,7 @@ function EvalDetailDrawer({
                               <td className="text-secondary px-3 py-1.5 text-right">
                                 {pp.output_tokens}
                               </td>
-                              <td
-                                className={cn(
-                                  'px-3 py-1.5 text-right',
-                                  weakMatch ? 'text-error/70' : 'text-secondary',
-                                )}
-                              >
+                              <td className="text-secondary px-3 py-1.5 text-right">
                                 {fmtPct(pp.token_match_rate)}
                               </td>
                             </tr>
@@ -703,8 +706,8 @@ function EvalDetailDrawer({
                     </table>
                   </div>
                   <p className="text-secondary/35 mt-2 font-mono text-[0.6rem]">
-                    Highlighted rows: match below 10% or zero E2E (stream ended before tolerance
-                    band).
+                    Highlighted rows: zero E2E (stream ended before tolerance band). Per-prompt
+                    token match is telemetry; the speed gate uses decoded text similarity.
                   </p>
                 </div>
               )}

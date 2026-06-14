@@ -1,5 +1,5 @@
-/** Speed pre-filter aggregate token-match DQ threshold (matches validator default). */
-export const PASS1_MATCH_DQ_THRESHOLD = 0.05
+/** Pass 1 decoded text-similarity DQ threshold (matches validator default). */
+export const PASS1_TEXT_SIM_DQ_THRESHOLD = 0.4
 
 export type PassStatus = 'pass' | 'fail' | 'skipped' | 'na'
 
@@ -19,13 +19,18 @@ export function disqualifyPrefix(reason: string | null | undefined): string | nu
   return reason.slice(0, idx).trim().toLowerCase()
 }
 
+/** Parse aggregate text similarity from a pass1_match_fail disqualify reason. */
+export function parsePass1TextSimilarity(reason: string | null | undefined): number | null {
+  if (!reason) return null
+  const m = /text similarity ([\d.]+)/i.exec(reason)
+  return m ? parseFloat(m[1]) : null
+}
+
 export function summarizeEvalGates(ev: {
   disqualified: boolean
   disqualify_reason: string | null
-  token_match_rate: number
 }): EvalGateSummary {
   const prefix = disqualifyPrefix(ev.disqualify_reason)
-  const pass1MatchOk = ev.token_match_rate >= PASS1_MATCH_DQ_THRESHOLD
 
   if (prefix === 'duplicate_submission' || prefix === 'duplicate_of_leader') {
     return {
@@ -41,8 +46,8 @@ export function summarizeEvalGates(ev: {
     return {
       prefix: null,
       shortLabel: null,
-      pass1: pass1MatchOk ? 'pass' : 'fail',
-      pass2: pass1MatchOk ? 'pass' : 'skipped',
+      pass1: 'pass',
+      pass2: 'pass',
       isInfraFail: false,
     }
   }
@@ -50,7 +55,7 @@ export function summarizeEvalGates(ev: {
   if (prefix === 'pass1_match_fail') {
     return {
       prefix,
-      shortLabel: 'Match',
+      shortLabel: 'Text similarity',
       pass1: 'fail',
       pass2: 'skipped',
       isInfraFail: false,
@@ -81,8 +86,8 @@ export function summarizeEvalGates(ev: {
     return {
       prefix,
       shortLabel: 'Prompt error',
-      pass1: pass1MatchOk ? 'pass' : 'fail',
-      pass2: pass1MatchOk ? 'fail' : 'skipped',
+      pass1: 'pass',
+      pass2: 'fail',
       isInfraFail: false,
     }
   }
@@ -90,8 +95,8 @@ export function summarizeEvalGates(ev: {
   return {
     prefix,
     shortLabel: prefix ? prefix.replace(/_/g, ' ').slice(0, 20) : 'DQ',
-    pass1: pass1MatchOk ? 'pass' : 'fail',
-    pass2: pass1MatchOk ? 'fail' : 'skipped',
+    pass1: 'pass',
+    pass2: 'fail',
     isInfraFail: false,
   }
 }
