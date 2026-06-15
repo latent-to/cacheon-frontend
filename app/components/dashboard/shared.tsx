@@ -233,15 +233,15 @@ export function RankCard({
         </div>
       </div>
 
-      {loading ? (
+      {loading && !record ? (
         <div className="space-y-2">
           <Skeleton className="h-5 w-full max-w-[16rem]" />
           <Skeleton className="h-3 w-32" />
         </div>
-      ) : error ? (
-        <p className="text-secondary/60 font-mono text-xs">Could not load data</p>
       ) : !record ? (
-        <p className="text-secondary/60 font-mono text-xs">{emptyText}</p>
+        <p className="text-secondary/60 font-mono text-xs">
+          {error ? 'Could not load data' : emptyText}
+        </p>
       ) : (
         <>
           <div className="mb-2 flex min-w-0 items-center gap-1.5">
