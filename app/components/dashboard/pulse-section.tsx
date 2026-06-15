@@ -312,6 +312,7 @@ const CHART_MARGIN = { top: 16, right: 12, bottom: 32, left: 48 }
 const TOOLTIP_LEFT_INSET = CHART_MARGIN.left + 40
 /** Min horizontal space per round when the chart scrolls on narrow screens. */
 const MOBILE_PX_PER_ROUND = 26
+const MOBILE_CHART_HEIGHT = 220
 
 function useMaxSm(): boolean {
   const [maxSm, setMaxSm] = useState(false)
@@ -325,19 +326,31 @@ function useMaxSm(): boolean {
   return maxSm
 }
 
-function chartTicks(min: number, max: number, count: number): number[] {
-  if (min === max) return [min]
-  const step = (max - min) / Math.max(count - 1, 1)
-  return Array.from({ length: count }, (_, i) => min + step * i)
+const Y_TICK_STEP = 0.05
+
+function yTicksFixedStep(yMin: number, yMax: number, step = Y_TICK_STEP): number[] {
+  const max = Math.max(step, Math.ceil(yMax / step) * step)
+  const ticks: number[] = []
+  for (let v = yMin; v <= max + 1e-9; v += step) {
+    ticks.push(Number(v.toFixed(2)))
+  }
+  return ticks
 }
 
 function roundXTicks(n: number, maxLabels = 6): number[] {
   if (n <= 0) return []
   if (n <= maxLabels) return Array.from({ length: n }, (_, i) => i + 1)
-  const step = Math.max(1, Math.floor(n / (maxLabels - 1)))
+
+  const count = maxLabels
+  const seen = new Set<number>()
   const ticks: number[] = []
-  for (let i = 1; i <= n; i += step) ticks.push(i)
-  if (ticks[ticks.length - 1] !== n) ticks.push(n)
+  for (let i = 0; i < count; i++) {
+    const round = i === 0 ? 1 : i === count - 1 ? n : Math.round(1 + (i * (n - 1)) / (count - 1))
+    if (!seen.has(round)) {
+      seen.add(round)
+      ticks.push(round)
+    }
+  }
   return ticks
 }
 
@@ -368,9 +381,15 @@ function ScoreHistoryChart({
     ]
 
     const yMin = 0
-    const yMax = Math.max(...scores) * 1.1
+    const yMax = Math.max(
+      Y_TICK_STEP,
+      Math.ceil((Math.max(...scores) * 1.1) / Y_TICK_STEP) * Y_TICK_STEP,
+    )
     const nRounds = points.length
-    const plotW = CHART_WIDTH - CHART_MARGIN.left - CHART_MARGIN.right
+    const scrollMinWidth = isNarrow && nRounds > 12 ? nRounds * MOBILE_PX_PER_ROUND : undefined
+    const svgWidth =
+      scrollMinWidth != null ? scrollMinWidth * (CHART_HEIGHT / MOBILE_CHART_HEIGHT) : CHART_WIDTH
+    const plotW = svgWidth - CHART_MARGIN.left - CHART_MARGIN.right
     const plotH = CHART_HEIGHT - CHART_MARGIN.top - CHART_MARGIN.bottom
 
     const xAt = (roundIndex: number) =>
@@ -386,11 +405,12 @@ function ScoreHistoryChart({
       plotH,
       xAt,
       yAt,
-      yTicks: chartTicks(yMin, yMax, 4),
+      yTicks: yTicksFixedStep(yMin, yMax),
       xTicks: roundXTicks(nRounds, xLabelMax),
-      scrollMinWidth: nRounds > 12 ? nRounds * MOBILE_PX_PER_ROUND : undefined,
+      scrollMinWidth,
+      svgWidth,
     }
-  }, [points, chartDots, hasEnough, leader?.score])
+  }, [points, chartDots, hasEnough, leader?.score, isNarrow])
 
   const leaderLinePath = useMemo(() => {
     if (!layout) return null
@@ -464,14 +484,14 @@ function ScoreHistoryChart({
             <div
               className="relative h-[220px] min-w-full sm:h-[300px]"
               style={
-                mobileScroll != null ? { minWidth: `max(100%, ${mobileScroll}px)` } : undefined
+                mobileScroll != null ? { width: mobileScroll, minWidth: mobileScroll } : undefined
               }
             >
               {layout && (
                 <svg
-                  viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-                  width="100%"
-                  height="100%"
+                  viewBox={`0 0 ${layout.svgWidth} ${CHART_HEIGHT}`}
+                  width={mobileScroll ?? '100%'}
+                  height={mobileScroll != null ? MOBILE_CHART_HEIGHT : '100%'}
                   className="block touch-manipulation"
                   onMouseMove={(e) => selectRoundAt(e.currentTarget, e.clientX, e.clientY)}
                   onMouseLeave={() => setHovered(null)}
@@ -486,7 +506,7 @@ function ScoreHistoryChart({
                       <g key={tick}>
                         <line
                           x1={CHART_MARGIN.left}
-                          x2={CHART_WIDTH - CHART_MARGIN.right}
+                          x2={layout.svgWidth - CHART_MARGIN.right}
                           y1={y}
                           y2={y}
                           stroke="rgba(255,255,255,0.06)"
@@ -507,7 +527,7 @@ function ScoreHistoryChart({
 
                   <line
                     x1={CHART_MARGIN.left}
-                    x2={CHART_WIDTH - CHART_MARGIN.right}
+                    x2={layout.svgWidth - CHART_MARGIN.right}
                     y1={CHART_HEIGHT - CHART_MARGIN.bottom}
                     y2={CHART_HEIGHT - CHART_MARGIN.bottom}
                     stroke="rgba(255,255,255,0.08)"
