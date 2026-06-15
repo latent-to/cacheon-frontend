@@ -1,6 +1,6 @@
 ---
 title: Data contracts
-description: Wire formats for on-chain commitments, the CPU-to-GPU eval job handoff, evaluation results, and the shared state directory.
+description: Wire formats for on-chain commitments, Postgres structured state, evaluation results, and S3 log artifacts.
 ---
 
 ## On-chain commitment
@@ -37,9 +37,9 @@ Transient RPC errors defer verification to the next scan without marking the min
 
 Miners pay via `miner/commit.py`: coldkey signs `Utility.batch_all([Balances.transfer_keep_alive, System.remark])`, then the hotkey reveals the commitment with the returned hashes.
 
-## `eval_job.json` (CPU to GPU handoff)
+## Structured state (Postgres)
 
-The CPU validator writes this file to S3 when new challengers are detected. The GPU eval entrypoint reads it to know what to evaluate.
+The CPU validator, GPU eval entrypoint, and monitoring API read and write structured state through **Postgres** (`CACHEON_DATABASE_URL` is required). Tables include validator meta, evaluations, leader state, pending eval jobs, eval progress, content fingerprints, and leader history.
 
 ```json
 {
@@ -67,9 +67,9 @@ The CPU validator writes this file to S3 when new challengers are detected. The 
 
 The `block_hash` is critical: prompts are seeded from it, so all challengers evaluated from the same job see the same deterministic prompt set.
 
-## `state.json`
+### Validator state snapshot
 
-The shared state file, read and written by both CPU and GPU:
+Leader, runner-up, evaluations map, precheck failures, and scan/weight cursors are loaded as one validator state object:
 
 ```json
 {
@@ -97,7 +97,27 @@ The shared state file, read and written by both CPU and GPU:
 }
 ```
 
-The CPU reads `last_weights_set_block` to decide when to set weights. The GPU reads evaluations to skip already-evaluated challengers. Evaluations and precheck failures are keyed by `{hotkey}:{commit_block}`; a hotkey may have multiple entries across resubmissions.
+The CPU reads `last_weights_set_block` to decide when to set weights. Evaluations and precheck failures are keyed by `{hotkey}:{commit_block}`; a hotkey may have multiple entries across resubmissions.
+
+### Leader history
+
+Leader overtakes are appended to Postgres as audit rows (one record per overtake):
+
+```json
+{
+  "ts": 1778184243.5,
+  "block": 7066048,
+  "new_leader_uid": 3,
+  "new_leader_hotkey": "5F3sa8...",
+  "new_leader_score": 0.0312,
+  "new_leader_image": "docker.io/miner/server:v1",
+  "new_leader_digest": "sha256:a3b4c5d6...",
+  "overtake_threshold": 0.0,
+  "prev_leader_uid": 1,
+  "prev_leader_hotkey": "5Eab7c...",
+  "prev_leader_score": 0.028
+}
+```
 
 ## `EvaluationRecord`
 
@@ -140,28 +160,6 @@ Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
 
 The `per_prompt` array gives miners visibility into how their server performed on each individual prompt.
 
-## `leader-history.jsonl`
-
-Append-only audit trail of leader changes. One JSON line per overtake:
-
-```json
-{
-  "ts": 1778184243.5,
-  "block": 7066048,
-  "new_leader_uid": 3,
-  "new_leader_hotkey": "5F3sa8...",
-  "new_leader_score": 0.0312,
-  "new_leader_image": "docker.io/miner/server:v1",
-  "new_leader_digest": "sha256:a3b4c5d6...",
-  "overtake_threshold": 0.0,
-  "prev_leader_uid": 1,
-  "prev_leader_hotkey": "5Eab7c...",
-  "prev_leader_score": 0.028
-}
-```
-
 ## Schema versioning
 
-`state.json` includes a `schema_version` field (V1 starts at version 1). The validator rejects state files with a newer schema version than it supports, preventing silent data corruption from downgrades.
-
-Legacy state files may still use `winner` or `king` instead of `leader`, and `winner-history.jsonl` instead of `leader-history.jsonl`. The validator and monitoring API accept these aliases when reading.
+Validator state carries a `schema_version` field (V1 starts at version 1). Legacy archived JSON may still use `winner` or `king` instead of `leader`, and `winner-history.jsonl` instead of `leader-history.jsonl`. The monitoring API accepts these aliases when reading historical data.

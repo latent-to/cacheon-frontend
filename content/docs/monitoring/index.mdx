@@ -3,11 +3,13 @@ title: Monitoring API
 description: Read-only HTTP API for evaluation results, leader status, container logs, and round history.
 ---
 
-The monitoring API is a read-only HTTP surface that exposes the validator's on-disk state. Miners can check their evaluation results, see why they were disqualified, and pull raw container logs without needing SSH access to the validator.
+The monitoring API exposes validator state for miners and the dashboard. Structured data (status, leader, evaluations, rounds, eval progress) is read from **Postgres**. Container and validator logs are still read from the validator's local state mount (synced from Hippius S3).
 
 **Base URL:** `https://api.cacheon.ai`
 
 **Interactive docs (Swagger UI):** [`https://api.cacheon.ai/docs`](https://api.cacheon.ai/docs)
+
+`CACHEON_DATABASE_URL` is **required** on the monitor-api service. If it is missing or invalid, structured endpoints return **503** with a clear error. `/api/health` stays a liveness check and does not require Postgres.
 
 ## Endpoints
 
@@ -90,7 +92,7 @@ curl https://api.cacheon.ai/api/validator-log/gpu_eval_20260518_112858
 
 ## Data freshness
 
-The API reads from the validator's local state files, which are synced from S3 after each GPU eval round. Data updates after each eval completes (typically every few hours when challengers are queued).
+Structured endpoints read from Postgres. Eval progress is mirrored to Postgres on each phase update (CPU and GPU); it is not synced via S3. Log endpoints read from the validator's local `state-mainnet` mount, synced from S3 after each GPU eval round.
 
 ## Rate limits
 

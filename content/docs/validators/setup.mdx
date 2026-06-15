@@ -49,15 +49,23 @@ The following environment variables are related to the Bittensor chain and walle
   `/root/.bittensor` inside the container; set `BITTENSOR_DIR` in `.env` if yours is elsewhere.
 </Callout>
 
-### S3
+### S3 (logs only)
 
-The following environment variables are related to the S3 bucket:
+Structured state uses Postgres. S3 is for log artifacts (`logs/`, `container_logs/`) synced between the GPU pod and CPU validator.
 
 | Env var              | Required | Description                                  |
 | -------------------- | -------- | -------------------------------------------- |
-| `HIPPIUS_ACCESS_KEY` | Yes      | Hippius S3 access key                        |
+| `HIPPIUS_ACCESS_KEY` | Yes      | Hippius S3 access key (log upload/download)  |
 | `HIPPIUS_SECRET_KEY` | Yes      | Hippius S3 secret key                        |
 | `CACHEON_S3_BUCKET`  | No       | S3 bucket name (default `cacheon-validator`) |
+
+### Postgres and monitoring API
+
+| Env var                | Required | Description                |
+| ---------------------- | -------- | -------------------------- |
+| `CACHEON_DATABASE_URL` | Yes      | Postgres connection string |
+
+See [Monitoring API](/docs/monitoring) and [Architecture](/docs/validators/architecture#observability).
 
 ### GPU orchestration
 
@@ -123,4 +131,4 @@ python -m validator.sync download --state-dir /tmp/verify
 ls /tmp/verify/
 ```
 
-If `eval_job.json` appears, a previous eval job is on S3 and the validator will pick it up on its next tick.
+You should see `logs/` and/or `container_logs/` if prior eval runs uploaded artifacts. Structured state is not on S3.
