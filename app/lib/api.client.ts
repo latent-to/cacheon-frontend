@@ -115,6 +115,12 @@ export interface EvaluationsByUidResponse {
   total: number
 }
 
+export interface EvaluationsByHotkeyResponse {
+  hotkey: string
+  evaluations: EvaluationRecord[]
+  total: number
+}
+
 export interface RoundChallenger {
   uid: number
   hotkey: string
@@ -227,6 +233,8 @@ export const fetchEvaluations = (status?: 'active' | 'dq') =>
   get<EvaluationsResponse>(`/api/evaluations${status ? `?status=${status}` : ''}`)
 export const fetchEvaluationsByUid = (uid: number) =>
   get<EvaluationsByUidResponse>(`/api/evaluations/${uid}`)
+export const fetchEvaluationsByHotkey = (hotkey: string) =>
+  get<EvaluationsByHotkeyResponse>(`/api/evaluations/hotkey/${encodeURIComponent(hotkey)}`)
 export const fetchRounds = () => get<RoundsResponse>('/api/rounds')
 export const fetchEvalProgress = () => get<EvalProgressResponse>('/api/eval-progress')
 export const fetchContainerLogs = () => get<ContainerLogsResponse>('/api/container-logs')
