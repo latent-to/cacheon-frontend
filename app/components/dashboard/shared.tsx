@@ -1,5 +1,8 @@
+import type { ReactNode } from 'react'
 import { cn } from '~/lib/cn'
 import { LinkButton } from '~/components/ui/link-button'
+import { CopyButton } from '~/components/ui/copy-button'
+import type { LeaderRecord } from '~/lib/api.client'
 
 export const DASHBOARD_TABS = [
   { slug: 'pulse', label: 'Pulse' },
@@ -195,5 +198,87 @@ export function MiniStat({
         {value}
       </div>
     </div>
+  )
+}
+
+export function RankCard({
+  title,
+  icon,
+  iconGlow,
+  record,
+  loading,
+  error,
+  emptyText,
+  accent,
+}: {
+  title: string
+  icon: ReactNode
+  iconGlow?: boolean
+  record: LeaderRecord | null | undefined
+  loading: boolean
+  error: boolean
+  emptyText: string
+  accent?: boolean
+}) {
+  const image = truncImage(record?.image)
+
+  return (
+    <GlassCard className={cn('p-3 sm:p-4', accent && 'border-accent/25 shadow-accent-sm')}>
+      <div className="mb-2.5 flex items-center gap-2">
+        <span className={cn('shrink-0', iconGlow && 'drop-shadow-[0_0_6px_var(--accent-glow)]')}>
+          {icon}
+        </span>
+        <div className="text-secondary/75 font-mono text-[0.6rem] font-semibold tracking-[0.12em] uppercase sm:text-[0.65rem]">
+          {title}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-full max-w-[16rem]" />
+          <Skeleton className="h-3 w-32" />
+        </div>
+      ) : error ? (
+        <p className="text-secondary/60 font-mono text-xs">Could not load data</p>
+      ) : !record ? (
+        <p className="text-secondary/60 font-mono text-xs">{emptyText}</p>
+      ) : (
+        <>
+          <div className="mb-2 flex min-w-0 items-center gap-1.5">
+            <span
+              className={cn(
+                'min-w-0 truncate font-mono text-base leading-tight font-bold tracking-tight sm:text-lg',
+                accent ? 'text-accent' : 'text-primary',
+              )}
+              title={image || undefined}
+            >
+              {image || '-'}
+            </span>
+            {image && (
+              <LinkButton
+                href={`https://hub.docker.com/r/${image.replace(/:.*$/, '')}`}
+                className="shrink-0"
+              />
+            )}
+          </div>
+
+          <div className="text-secondary/65 space-y-0.5 font-mono text-[0.7rem] leading-snug sm:text-xs">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+              <span>UID {record.uid}</span>
+              <span className="text-secondary/35">·</span>
+              <span className="text-secondary/80 min-w-0 truncate">
+                {truncHotkey(record.hotkey)}
+              </span>
+              <CopyButton value={record.hotkey} className="shrink-0" />
+            </div>
+            <div className="text-secondary/50">
+              {relativeTimeAgo(record.evaluated_at)}
+              <span className="text-secondary/35"> · </span>
+              Block #{record.won_at_block}
+            </div>
+          </div>
+        </>
+      )}
+    </GlassCard>
   )
 }

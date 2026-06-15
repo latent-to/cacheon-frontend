@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Crown,
   Medal,
+  Trophy,
 } from 'lucide-react'
 import { cn } from '~/lib/cn'
 import { usePoll } from '~/lib/use-poll'
@@ -32,13 +33,14 @@ import {
   type EvalProgressStep,
   type LeaderRecord,
   type Round,
+  type StatusResponse,
 } from '~/lib/api.client'
 import {
   fmtScore,
   relativeTimeAgo,
   truncHotkey,
   truncImage,
-  MetricCard,
+  RankCard,
   Skeleton,
   StatusDot,
 } from './shared'
@@ -55,24 +57,86 @@ function splitRelativeTime(s: string): { n: string; unit: string } | null {
   return { n: m[1], unit: m[2] }
 }
 
-function LastEvalValue({ ts }: { ts: number | null | undefined }) {
-  const raw = relativeTimeAgo(ts)
-  const split = splitRelativeTime(raw)
-  if (!split)
-    return (
-      <span className="text-primary font-mono text-xl leading-none font-black tracking-tight sm:text-[1.9rem]">
-        —
-      </span>
-    )
+function CompactLastEval({ ts }: { ts: number | null | undefined }) {
+  const split = splitRelativeTime(relativeTimeAgo(ts))
+  if (!split) return <span className="text-primary/85">—</span>
   return (
-    <div className="flex flex-wrap items-baseline gap-x-1 gap-y-0">
-      <span className="text-primary font-mono text-xl leading-none font-black tracking-tight sm:text-[1.9rem]">
-        {split.n}{' '}
-      </span>
-      <span className="text-secondary/60 font-mono text-[0.65rem] font-semibold sm:text-xs">
-        {' '}
+    <span className="flex items-baseline gap-x-1">
+      <span className="text-primary/85">{split.n}</span>
+      <span className="text-secondary/55 text-[0.6rem] font-semibold sm:text-[0.65rem]">
         {split.unit}
       </span>
+    </span>
+  )
+}
+
+function SecondaryStat({
+  label,
+  value,
+  loading,
+}: {
+  label: string
+  value: ReactNode
+  loading: boolean
+}) {
+  return (
+    <div className="px-3 py-2.5 sm:px-4 sm:py-3">
+      <div className="text-secondary/60 mb-1 font-mono text-[0.6rem] font-semibold tracking-[0.12em] uppercase sm:text-[0.65rem]">
+        {label}
+      </div>
+      {loading ? (
+        <Skeleton className="h-4 w-10" />
+      ) : (
+        <div className="text-primary/85 font-mono text-base leading-none font-bold tabular-nums sm:text-lg">
+          {value}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Operational counts, intentionally quieter than the standings above
+ * (Law of Common Region: one grouped, lower-emphasis strip rather than a
+ * row of equal-weight hero cards).
+ */
+function NetworkStatsStrip({
+  status,
+  loading,
+}: {
+  status: StatusResponse | undefined
+  loading: boolean
+}) {
+  const hasBlocks =
+    status != null && (status.last_scan_block != null || status.last_weights_set_block != null)
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.015]">
+      <div className="grid grid-cols-2 sm:grid-cols-4">
+        <SecondaryStat label="Scored" value={status?.n_active ?? '-'} loading={loading} />
+        <SecondaryStat
+          label="Disqualified"
+          value={status?.n_disqualified ?? '-'}
+          loading={loading}
+        />
+        <SecondaryStat label="Evaluated" value={status?.n_evaluated ?? '-'} loading={loading} />
+        <SecondaryStat
+          label="Last eval"
+          value={<CompactLastEval ts={status?.last_eval_ts} />}
+          loading={loading}
+        />
+      </div>
+
+      {hasBlocks && (
+        <div className="text-secondary/55 flex flex-wrap gap-x-4 gap-y-1 border-t border-white/[0.06] px-3 py-2 font-mono text-[0.7rem] sm:px-4 sm:text-xs">
+          {status!.last_scan_block != null && (
+            <span>Last scan: block #{status!.last_scan_block}</span>
+          )}
+          {status!.last_weights_set_block != null && (
+            <span>Weights set: block #{status!.last_weights_set_block}</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -197,43 +261,28 @@ export function PulseSection() {
         </h3>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
-        <MetricCard
-          label="Leader UID"
-          value={s?.leader_uid ?? '-'}
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-[1.35fr_1fr]">
+        <RankCard
+          title="Current Leader"
+          icon={<Trophy size={18} strokeWidth={1.5} className="text-accent" />}
+          iconGlow
+          record={leader.data?.leader}
+          loading={leader.loading}
+          error={!!leader.error}
+          emptyText="No leader yet"
           accent
-          loading={status.loading}
         />
-        <MetricCard
-          label="Leader Score"
-          value={s ? fmtScore(s.leader_score) : '-'}
-          accent
-          loading={status.loading}
-        />
-        <MetricCard label="Scored" value={s?.n_active ?? '-'} loading={status.loading} />
-        <MetricCard
-          label="Disqualified"
-          value={s?.n_disqualified ?? '-'}
-          loading={status.loading}
-        />
-        <MetricCard label="Evaluated" value={s?.n_evaluated ?? '-'} loading={status.loading} />
-        <MetricCard
-          label="Last eval"
-          value={<LastEvalValue ts={s?.last_eval_ts} />}
-          loading={status.loading}
+        <RankCard
+          title="Runner-up"
+          icon={<Medal size={18} strokeWidth={1.5} className="text-secondary/60" />}
+          record={leader.data?.runner_up}
+          loading={leader.loading}
+          error={!!leader.error}
+          emptyText="No runner-up yet"
         />
       </div>
 
-      {s && (s.last_scan_block != null || s.last_weights_set_block != null) && (
-        <div className="text-secondary/70 mt-4 flex flex-wrap gap-x-4 gap-y-2 font-mono text-xs sm:text-sm">
-          {s.last_scan_block != null && <span>Last scan: block #{s.last_scan_block}</span>}
-          {s.last_weights_set_block != null && (
-            <span>Weights set: block #{s.last_weights_set_block}</span>
-          )}
-        </div>
-      )}
-
-      <EvalScheduleBanner />
+      <NetworkStatsStrip status={s} loading={status.loading} />
 
       <ScoreHistoryChart
         loading={leader.loading || rounds.loading}
@@ -241,6 +290,8 @@ export function PulseSection() {
         leader={leader.data?.leader}
         rounds={rounds.data?.rounds}
       />
+
+      <EvalScheduleBanner />
 
       {progress.data &&
         (progress.data.status === 'running' || progress.data.status === 'complete') && (
