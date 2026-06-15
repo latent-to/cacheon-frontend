@@ -98,7 +98,7 @@ Teacher-forcing on the scoring vLLM after all miners finish generation. See [Sco
 | `output_tokens`    | int   | Number of output tokens generated                           |
 | `token_match_rate` | float | Fraction of tokens matching baseline for this prompt        |
 
-These are available in `state.json` and uploaded to S3 for dashboards.
+These fields are stored in Postgres on each evaluation and exposed by the monitoring API.
 
 ## Container log capture
 
@@ -108,4 +108,4 @@ After each evaluation (success or failure), the harness captures stdout/stderr v
 - Scoring baseline: `baseline_scoring_{block}_{timestamp}.log` (same `{timestamp}` as `gpu_eval_{timestamp}.log`)
 - Miner: `uid{N}_{hotkey_prefix}_{block}.log`
 
-Logs are uploaded to S3 with the rest of the state directory.
+Logs are uploaded to S3 under `logs/` and `container_logs/` only.
