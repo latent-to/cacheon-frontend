@@ -19,17 +19,17 @@ One model, one hardware target, one mechanism. Prove that a containerized infere
 
 _Last updated: 2026-05-08._
 
-| Phase                          | What                                                                         | Status  |
-| ------------------------------ | ---------------------------------------------------------------------------- | ------- |
-| **1: API contract**            | `/v1/chat/completions` spec, health checks, streaming, logprobs              | ✅ Done |
-| **2: Container orchestration** | Docker lifecycle: pull, start, health poll, eval, teardown                   | ✅ Done |
-| **3: vLLM baseline**           | On-demand baseline container, caching per prompt set                         | ✅ Done |
-| **4: Scoring pipeline**        | Single-pass evaluation: end-to-end speed + correctness gate                  | ✅ Done |
-| **5: Security**                | Container isolation: internal network, resource limits, GPU cleanup          | ✅ Done |
-| **6A: Validator loop**         | Chain scan, challenger selection, Docker eval, state, `set_weights`          | ✅ Done |
-| **6B: GPU eval standalone**    | S3 sync, `eval_job.json` handoff, per-prompt metrics, container logs         | ✅ Done |
-| **6C: CPU always-on loop**     | CPU VPS loop: chain scan, challenger selection, S3 polling, `set_weights`    | ✅ Done |
-| **7:** Monitoring API          | Read-only status surface for miners and community ([docs](/docs/monitoring)) | ✅ Done |
+| Phase                          | What                                                                          | Status  |
+| ------------------------------ | ----------------------------------------------------------------------------- | ------- |
+| **1: API contract**            | `/v1/chat/completions` spec, health checks, streaming, logprobs               | ✅ Done |
+| **2: Container orchestration** | Docker lifecycle: pull, start, health poll, eval, teardown                    | ✅ Done |
+| **3: vLLM baseline**           | On-demand baseline container, caching per prompt set                          | ✅ Done |
+| **4: Scoring pipeline**        | Single-pass evaluation: end-to-end speed + correctness gate                   | ✅ Done |
+| **5: Security**                | Container isolation: internal network, resource limits, GPU cleanup           | ✅ Done |
+| **6A: Validator loop**         | Chain scan, challenger selection, Docker eval, state, `set_weights`           | ✅ Done |
+| **6B: GPU eval standalone**    | Evaluation progress mirroring on Postgres, per-prompt metrics, container logs | ✅ Done |
+| **6C: CPU always-on loop**     | CPU VPS loop: chain scan, challenger selection, S3 polling, `set_weights`     | ✅ Done |
+| **7:** Monitoring API          | Read-only status surface for miners and community ([docs](/docs/monitoring))  | ✅ Done |
 
 ## V1.5 - Automated eval pipeline
 

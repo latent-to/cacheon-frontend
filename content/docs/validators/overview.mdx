@@ -19,6 +19,7 @@ A single long-running process handles the full lifecycle:
 
 <Callout type="idea" title="Why this design?">
 
+{/* todo: mention of s3 handoff, is that still accurate? */}
 **Security:** The CPU host holds the wallets, while the GPU pod performs evaluation only and has no wallet access. S3 acts as the handoff layer between them.
 
 **Cost:** GPUs are rented only when challengers exist and hardware is available. A configurable price cap (`CACHEON_MAX_HOURLY_PRICE`) prevents runaway spend, and the pod timeout scales automatically with the number of challengers.
@@ -40,4 +41,4 @@ The CPU orchestrator uses an in-repo tier list (`validator.providers.TIERS`). Al
 
 - [Validator setup](/docs/validators/setup): VPS, wallet, Docker Compose, GPU provider credentials
 - [Manual GPU setup](/docs/validators/gpu-pod-setup): advanced reference for running GPU eval manually
-- [Architecture](/docs/validators/architecture): how the loop, S3 handoff, and state work
+- [Architecture](/docs/validators/architecture): how the loop, Postgres mirroring, and state work
