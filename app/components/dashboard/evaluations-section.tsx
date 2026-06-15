@@ -17,7 +17,7 @@ import { usePoll } from '~/lib/use-poll'
 import {
   fetchContainerLogs,
   fetchEvaluations,
-  fetchEvaluationsByUid,
+  fetchEvaluationsByHotkey,
   fetchValidatorLogs,
   type EvaluationRecord,
 } from '~/lib/api.client'
@@ -38,14 +38,11 @@ import { CloseButton } from '~/components/ui/close-button'
 
 type EvalFilter = 'all' | 'active' | 'dq'
 type SortDir = 'desc' | 'asc'
-type SortKey = 'score' | 'speed_improvement' | 'token_match_rate'
+type SortKey = 'score' | 'speed_improvement'
 
 function isEffectiveDq(e: EvaluationRecord): boolean {
   return e.disqualified
 }
-
-const TOKEN_MATCH_TITLE =
-  'Stream token match vs baseline (telemetry only; speed gate uses decoded text similarity)'
 
 function formatPass1GateDetail(ev: EvaluationRecord, pass1: PassStatus): string | undefined {
   if (pass1 === 'na') return undefined
@@ -55,14 +52,14 @@ function formatPass1GateDetail(ev: EvaluationRecord, pass1: PassStatus): string 
     if (sim != null) return `similarity ${fmtPct(sim)} (gate ${gate})`
     return `below gate ${gate}`
   }
-  return `passed (gate ${gate})`
+  return undefined
 }
 
 export function EvaluationsSection() {
   const [filter, setFilter] = useState<EvalFilter>('all')
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
-  const [selectedUid, setSelectedUid] = useState<number | null>(null)
+  const [selectedHotkey, setSelectedHotkey] = useState<string | null>(null)
 
   const evals = usePoll(fetchEvaluations, 30_000)
   const containerLogs = usePoll(fetchContainerLogs, 60_000)
@@ -154,7 +151,7 @@ export function EvaluationsSection() {
                 <EvalCard
                   key={`${ev.hotkey}:${ev.commit_block}:${ev.evaluation_block}`}
                   ev={ev}
-                  onSelect={setSelectedUid}
+                  onSelect={setSelectedHotkey}
                 />
               ))}
             </div>
@@ -162,9 +159,6 @@ export function EvaluationsSection() {
             <table className="hidden w-full font-mono md:table">
               <thead>
                 <tr className="border-border/30 border-b bg-white/[0.015]">
-                  <th className="text-2xs tracking-caps text-secondary/40 w-14 px-4 py-2.5 text-left font-semibold uppercase">
-                    UID
-                  </th>
                   <th className="text-2xs tracking-caps text-secondary/40 px-3 py-2.5 text-left font-semibold uppercase">
                     Hotkey
                   </th>
@@ -187,15 +181,6 @@ export function EvaluationsSection() {
                     onSort={handleSort}
                     className="w-20"
                   />
-                  <SortableHeader
-                    label="Token match"
-                    title={TOKEN_MATCH_TITLE}
-                    sortKey="token_match_rate"
-                    activeKey={sortKey}
-                    dir={sortDir}
-                    onSort={handleSort}
-                    className="w-20"
-                  />
                   <th className="text-2xs tracking-caps text-secondary/40 w-28 px-4 py-2.5 text-right font-semibold uppercase">
                     Status
                   </th>
@@ -206,7 +191,7 @@ export function EvaluationsSection() {
                   <EvalRow
                     key={`${ev.hotkey}:${ev.commit_block}:${ev.evaluation_block}`}
                     ev={ev}
-                    onSelect={setSelectedUid}
+                    onSelect={setSelectedHotkey}
                   />
                 ))}
               </tbody>
@@ -215,10 +200,10 @@ export function EvaluationsSection() {
         )}
       </GlassCard>
 
-      {selectedUid !== null && (
+      {selectedHotkey !== null && (
         <EvalDetailDrawer
-          uid={selectedUid}
-          onClose={() => setSelectedUid(null)}
+          hotkey={selectedHotkey}
+          onClose={() => setSelectedHotkey(null)}
           containerLabels={containerLabels}
           validatorLabels={validatorLabels}
         />
@@ -286,7 +271,7 @@ function DqHint({ ev }: { ev: EvaluationRecord }) {
   )
 }
 
-function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: number) => void }) {
+function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (hotkey: string) => void }) {
   const dq = isEffectiveDq(ev)
   return (
     <tr
@@ -294,19 +279,11 @@ function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numbe
         'border-border/20 cursor-pointer border-b transition-colors hover:bg-white/[0.02]',
         dq && 'opacity-60',
       )}
-      onClick={() => onSelect(ev.uid)}
-      onKeyDown={(e) => e.key === 'Enter' && onSelect(ev.uid)}
+      onClick={() => onSelect(ev.hotkey)}
+      onKeyDown={(e) => e.key === 'Enter' && onSelect(ev.hotkey)}
       role="button"
       tabIndex={0}
     >
-      <td
-        className={cn(
-          'px-4 py-3 text-sm font-bold tabular-nums',
-          dq ? 'text-error/60' : 'text-primary',
-        )}
-      >
-        {ev.uid}
-      </td>
       <td className="px-3 py-3">
         <div className="flex min-w-0 items-center gap-1">
           <span className="text-secondary/60 truncate text-xs" title={ev.hotkey}>
@@ -329,12 +306,6 @@ function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numbe
       <td className="text-secondary px-3 py-3 text-right text-xs tabular-nums">
         {fmtImprovement(ev.speed_improvement)}
       </td>
-      <td
-        className="text-secondary px-3 py-3 text-right text-xs tabular-nums"
-        title={TOKEN_MATCH_TITLE}
-      >
-        {fmtPct(ev.token_match_rate)}
-      </td>
       <td className="px-4 py-3 text-right">
         <StatusPill active={!dq} label={dq ? 'DQ' : 'SCORED'} />
         <DqHint ev={ev} />
@@ -343,12 +314,12 @@ function EvalRow({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numbe
   )
 }
 
-function EvalCard({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: number) => void }) {
+function EvalCard({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (hotkey: string) => void }) {
   const dq = isEffectiveDq(ev)
   return (
     <button
       type="button"
-      onClick={() => onSelect(ev.uid)}
+      onClick={() => onSelect(ev.hotkey)}
       className={cn(
         'w-full cursor-pointer border-none bg-transparent px-4 py-3.5 text-left transition-colors hover:bg-white/[0.02]',
         dq && 'opacity-60',
@@ -356,10 +327,7 @@ function EvalCard({ ev, onSelect }: { ev: EvaluationRecord; onSelect: (uid: numb
     >
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className={cn('font-mono text-sm font-bold', dq ? 'text-error/60' : 'text-primary')}>
-            UID {ev.uid}
-          </div>
-          <div className="mt-1 flex min-w-0 items-center gap-1">
+          <div className="flex min-w-0 items-center gap-1">
             <span className="text-secondary/60 truncate font-mono text-xs" title={ev.hotkey}>
               {truncHotkey(ev.hotkey)}
             </span>
@@ -539,12 +507,12 @@ function EvalOutcomeCard({
 }
 
 function EvalDetailDrawer({
-  uid,
+  hotkey,
   onClose,
   containerLabels,
   validatorLabels,
 }: {
-  uid: number
+  hotkey: string
   onClose: () => void
   containerLabels: string[]
   validatorLabels: string[]
@@ -556,7 +524,7 @@ function EvalDetailDrawer({
     let cancelled = false
     setData(null)
     setError(null)
-    fetchEvaluationsByUid(uid)
+    fetchEvaluationsByHotkey(hotkey)
       .then((r) => {
         if (!cancelled) setData(r.evaluations)
       })
@@ -566,7 +534,7 @@ function EvalDetailDrawer({
     return () => {
       cancelled = true
     }
-  }, [uid])
+  }, [hotkey])
 
   const ev = data?.[0]
 
@@ -574,8 +542,16 @@ function EvalDetailDrawer({
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="border-border/60 bg-bg relative z-10 flex h-full w-full max-w-2xl flex-col overflow-y-auto border-l">
-        <div className="border-border/40 flex items-center justify-between border-b px-4 py-4 sm:px-6">
-          <h3 className="text-primary font-mono text-sm font-bold">UID {uid}</h3>
+        <div className="border-border/40 flex items-center justify-between gap-3 border-b px-4 py-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h3
+              className="text-primary min-w-0 truncate font-mono text-sm font-bold"
+              title={hotkey}
+            >
+              {truncHotkey(hotkey)}
+            </h3>
+            <CopyButton value={hotkey} />
+          </div>
           <CloseButton onClick={onClose} size={20} />
         </div>
 
