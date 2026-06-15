@@ -104,7 +104,7 @@ function NetworkStatsStrip({
   status,
   loading,
 }: {
-  status: StatusResponse | undefined
+  status: StatusResponse | null | undefined
   loading: boolean
 }) {
   const hasBlocks =
