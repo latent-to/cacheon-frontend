@@ -1,52 +1,53 @@
 export interface RoadmapPhase {
   version: string
   label: string
-  status: 'active' | 'upcoming' | 'future'
+  status: 'complete' | 'active' | 'upcoming' | 'future'
   items: string[]
 }
 
 export const ROADMAP: RoadmapPhase[] = [
   {
-    version: 'V1',
+    version: 'Phase 1',
     label: 'Single-Model Inference Arena',
-    status: 'active',
+    status: 'complete',
     items: [
-      'Qwen2.5-72B-Instruct on a 8x H200/B200-equivalent',
-      'Miners submit Docker containers with full inference servers',
-      'Scored against a production vLLM tensor-parallel baseline',
-      'Correctness gate: teacher-forcing logprob verification on miner outputs',
-      'Any language, any framework, any optimization technique',
+      'Proved the mechanism: top miners outperforming vLLM baseline by 35%+',
+      'Qwen2.5-72B-Instruct on 8xH200/B200, scored against a pinned vLLM baseline',
+      'Miners submitted full Docker containers with any serving stack',
+      'Correctness gate + median end-to-end speedup scoring',
+      'Leader/runner-up emission split (80/20)',
     ],
   },
   {
-    version: 'V2',
-    label: 'Expanded Optimization Surface',
+    version: 'Phase 2',
+    label: 'Optimization Pipeline',
     status: 'upcoming',
     items: [
-      'Concurrency benchmarks: throughput under load',
-      'Batch throughput scoring with latency SLA',
-      'Stricter correctness (full logprob KL validation)',
+      'Redesigned incentives mechanism',
+      'Auditable code contributions (patches to vLLM) targeting specific bottlenecks',
+      'Expanded optimization surface: concurrency, multi-turn, throughput under SLA',
+      'Automated GPU provisioning closes the manual eval loop',
+      'Continuously improving optimization baseline, compounding across contributors',
     ],
   },
   {
-    version: 'V3',
+    version: 'Phase 3',
     label: 'Production Inference Provider',
     status: 'future',
     items: [
-      'Winning servers deployed as live endpoints for real traffic',
-      'Agent, RAG, and multi-turn workloads with P99 SLA targets',
-      'Teams route traffic because nobody else serves this model this fast',
-      'The PMF: default high-performance backend for a top OSS model',
+      'Winning configurations deployed as live endpoints serving real traffic',
+      'Agent, RAG, and multi-turn workloads with P99 latency targets',
+      'PMF: teams route traffic to Cacheon for the fastest production backend',
     ],
   },
   {
-    version: 'V4',
-    label: 'Multi-Model Expansion',
+    version: 'Phase 4',
+    label: 'Intelligence Layer',
     status: 'future',
     items: [
-      'Multiple arenas: one per important open-source model',
-      'OpenRouter integration for serving real traffic at scale',
-      'Revenue sharing between subnet and winning miners',
+      'Routing intelligence above inference providers',
+      'Given a workload, determine the optimal provider, model, hardware, and serving config',
+      'Optimization data compounds: each discovery narrows future search',
     ],
   },
 ]

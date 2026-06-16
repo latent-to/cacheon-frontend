@@ -1,69 +1,52 @@
 ---
 title: Roadmap
-description: V1 is live. V1.5 automates the eval pipeline. V2 opens the optimization surface. V3 serves real traffic. V4 expands to multi-model.
+description: Phase 1 proved the mechanism. Phase 2 scales it into a continuously improving optimization pipeline.
 ---
 
-## V1 - Single-model inference arena
+## Where we are
+
+Phase 1 is complete. Cacheon's top-performing miners are outperforming the vLLM baseline by 35%+. More importantly, we have shown that a market for inference optimization can discover real improvements against a strong baseline faster than any single team could.
+
+Competition is pausing on June 20 while we rebuild for Phase 2.
+
+## Phase 1 - Single-model inference arena
 
 **Status:** complete.
 
 One model, one hardware target, one mechanism. Prove that a containerized inference server can be evaluated on-chain and the best one wins emission.
 
-- Model: `Qwen2.5-72B-Instruct`, hardware: see [GPU table](/docs/validators/overview#gpu-requirements), baseline: pinned vLLM
-- Miners submit Docker containers; the harness evaluates against baseline on the same GPU
+- Model: `Qwen2.5-72B-Instruct`, hardware: 8xH200/B200, baseline: pinned vLLM
+- Miners submitted Docker containers; the harness evaluated against baseline on the same GPU
 - Scoring: median end-to-end speedup vs baseline (10 prompts, correctness gate required)
 - Competition with leader and runner-up emission split (80/20)
-- CPU/GPU split validator: always-on CPU VPS for chain interaction, ephemeral GPU pod for eval, state synced via Hippius S3
+- CPU/GPU split validator: always-on CPU VPS for chain interaction, ephemeral GPU pod for eval
 
-### V1 build phases
+What it proved: inference optimization is a search problem that a competitive network can solve faster than any single team.
 
-_Last updated: 2026-05-08._
+## Phase 2 - Optimization pipeline
 
-| Phase                          | What                                                                          | Status  |
-| ------------------------------ | ----------------------------------------------------------------------------- | ------- |
-| **1: API contract**            | `/v1/chat/completions` spec, health checks, streaming, logprobs               | ✅ Done |
-| **2: Container orchestration** | Docker lifecycle: pull, start, health poll, eval, teardown                    | ✅ Done |
-| **3: vLLM baseline**           | On-demand baseline container, caching per prompt set                          | ✅ Done |
-| **4: Scoring pipeline**        | Single-pass evaluation: end-to-end speed + correctness gate                   | ✅ Done |
-| **5: Security**                | Container isolation: internal network, resource limits, GPU cleanup           | ✅ Done |
-| **6A: Validator loop**         | Chain scan, challenger selection, Docker eval, state, `set_weights`           | ✅ Done |
-| **6B: GPU eval standalone**    | Evaluation progress mirroring on Postgres, per-prompt metrics, container logs | ✅ Done |
-| **6C: CPU always-on loop**     | CPU VPS loop: chain scan, challenger selection, S3 polling, `set_weights`     | ✅ Done |
-| **7:** Monitoring API          | Read-only status surface for miners and community ([docs](/docs/monitoring))  | ✅ Done |
+**Status:** in design. Rolling out from July 2026.
 
-## V1.5 - Automated eval pipeline
+Phase 1 was intentionally narrow to prove the mechanism. Phase 2 expands the optimization surface and redesigns the incentives mechanism to move closer to a continuously improving optimization baseline.
 
-**Status:** planned.
+What is changing:
 
-V1 evaluation is manually triggered: the operator checks GPU availability, provisions a pod, SSHs in, and runs the eval. V1.5 closes this loop.
+- **Incentives mechanism**: redesigned reward structure to better align contributors with long-term optimization discovery
+- **Miner contributions**: auditable code contributions (patches to vLLM) targeting specific bottlenecks, rather than full opaque containers
+- **Evaluation**: expanded surface covering concurrency, multi-turn workloads, and throughput under SLA; automated GPU provisioning removes the manual operator loop
+- **Optimization surface**: beyond single-request speed, into a full serving profile across workload types
 
-- **Automated GPU provisioning**: CPU host checks for challengers, queries `validator.providers.TIERS` (8-GPU tier configs only), provisions a pod via provider API when suitable hardware is available, and tears it down after eval completes
-- **CPU-to-GPU SSH dispatch**: CPU SSHs into the GPU pod to trigger eval instead of the operator doing it manually
+We will be rolling out continuous updates as things evolve. Follow on [X](https://x.com/cacheon_ai) or join [Discord](https://discord.gg/bittensor) for announcements.
 
-V1.5 makes the validator fully hands-off. An operator spins up the CPU host once and the system handles everything from challenger detection through eval and weight setting.
+## Phase 3 - Production inference provider
 
-## V2 - Expanded optimization surface
+Winning configurations deployed as live endpoints serving real traffic. The subnet stops being a competition and starts being a product.
 
-After V1.5 stabilizes, the competition expands beyond single-request speed:
+- Agent, RAG, and multi-turn workloads with P99 latency targets
+- PMF: teams route traffic to Cacheon because nothing else serves this model as efficiently
 
-- Concurrency benchmarks: multiple simultaneous requests, throughput under SLA
-- Stricter correctness: full logprob KL validation
-- Multi-turn and RAG-style workloads
+## Phase 4 - Intelligence layer
 
-## V3 - Production inference provider
+Routing intelligence above inference providers. Given a workload, determine the optimal provider, model, hardware, and serving configuration.
 
-The subnet stops being a competition and starts being a product:
-
-- Winning servers deployed as live endpoints serving real traffic
-- Agent, RAG, and multi-turn workloads with P99 latency SLA targets
-- PMF test: teams route traffic to Cacheon because it is the fastest production backend for this model
-
-## V4 - Multi-model expansion
-
-- Multiple arenas: one per important open-source model
-- OpenRouter integration for serving real traffic at scale
-- Buyback with revenue
-
-## End state
-
-Cacheon becomes the default high-performance inference provider for important open-source models, discovered through open competition and deployed into production infrastructure.
+The optimization network continuously generates the knowledge that powers this routing layer. See [Vision](/docs/vision) for the long-term thesis.

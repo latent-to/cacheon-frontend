@@ -160,6 +160,8 @@ Each completed evaluation, keyed by `{hotkey}:{commit_block}`:
 
 The `per_prompt` array gives miners visibility into how their server performed on each individual prompt.
 
+Postgres stores one row per `(hotkey, commit_block, evaluation_block)` so the same submission can appear in multiple rounds (for example when the leader or runner-up is re-evaluated). The in-memory validator state and evaluations API list still treat `{hotkey}:{commit_block}` as one logical submission, using the latest row by `evaluated_at`. Round views group all rows by `evaluation_block`.
+
 ## Schema versioning
 
 Validator state carries a `schema_version` field (V1 starts at version 1). Legacy archived JSON may still use `winner` or `king` instead of `leader`, and `winner-history.jsonl` instead of `leader-history.jsonl`. The monitoring API accepts these aliases when reading historical data.
