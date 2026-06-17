@@ -22,6 +22,7 @@ export default function Roadmap() {
 
 function PhaseCard({ phase, isLast }: { phase: RoadmapPhase; isLast: boolean }) {
   const isActive = phase.status === 'active'
+  const isComplete = phase.status === 'complete'
   const dimmed = phase.status === 'future'
 
   return (
@@ -55,6 +56,11 @@ function PhaseCard({ phase, isLast }: { phase: RoadmapPhase; isLast: boolean }) 
           {isActive && (
             <span className="border-accent/60 bg-accent/10 text-2xs tracking-caps text-accent rounded-full border px-2.5 py-0.5 font-mono font-bold uppercase">
               Live
+            </span>
+          )}
+          {isComplete && (
+            <span className="border-border text-2xs tracking-caps text-secondary rounded-full border px-2.5 py-0.5 font-mono font-bold uppercase">
+              Complete
             </span>
           )}
         </div>
