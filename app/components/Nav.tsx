@@ -11,7 +11,7 @@ const navLinks = [
   { to: '/', label: 'Home' },
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/docs', label: 'Docs' },
-  { href: 'https://discord.com/invite/bittensor', label: 'Discord', icon: <DiscordIcon /> },
+  { href: 'https://discord.com/invite/cacheon', label: 'Discord', icon: <DiscordIcon /> },
   { href: 'https://x.com/cacheon_ai', label: 'X', icon: <XIcon /> },
   { href: 'https://github.com/latent-to/cacheon', label: 'GitHub', icon: <GitHubIcon /> },
   {

@@ -180,13 +180,3 @@ The generation baseline is a pinned vLLM instance serving `Qwen2.5-72B-Instruct`
 ## Reproducibility
 
 Every scored run produces an `EvaluationRecord` with `score`, `speed_improvement`, `token_match_rate`, `disqualified`, and `disqualify_reason`. Combined with the block hash that seeded prompts and pinned Docker digests, anyone can replay the eval and verify the result.
-
-## Emission schedule
-
-Total emission allocated to the competition pool follows a mainnet block schedule. The ramp keeps competition active while evaluation and incentive mechanics mature, without paying the full miner allocation before winners are reliable and inference revenue can align with emissions.
-
-- **Before block 8,360,900 (~Jun 8, 2026):** 2% to the competition pool; the remainder goes to a burn UID
-- **Block 8,360,900 (~Jun 8, 2026) through 9,678,500 (~Dec 8, 2026):** linear ramp from 10% to 100% (~6 months at 12s/block)
-- **At and after block 9,678,500 (~Dec 8, 2026):** 100% to the competition pool
-
-Within the competition pool, the leader receives 80% and the runner-up receives 20%. When there is no runner-up, the leader receives the full pool.
