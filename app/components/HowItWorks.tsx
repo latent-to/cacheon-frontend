@@ -5,37 +5,39 @@ import { GlassCard } from './dashboard/shared'
 const STEPS = [
   {
     num: '01',
-    title: 'Build a server',
+    title: 'Write a kernel',
     desc: (
       <>
-        Containerize your inference server. Any language, any framework, any optimization. Serve{' '}
-        <code>Qwen2.5-72B-Instruct</code> via <code>/v1/chat/completions</code>.
+        Write a Triton or CuteDSL kernel for a typed <strong>slot</strong> (an op, a fused block, or
+        a collective) in the fixed model. Verify it locally against the reference with{' '}
+        <code>optima verify</code>.
       </>
     ),
   },
   {
     num: '02',
-    title: 'Validator evaluates',
+    title: 'Commit-reveal your bundle',
     desc: (
       <>
-        The validator pulls your image, starts the container on GPU, and runs a{' '}
+        Package the kernel source in a bundle and{' '}
         <a
           href="/docs/evaluation/harness"
           className="text-accent underline-offset-2 hover:underline"
         >
-          one-pass eval
+          commit-reveal
         </a>{' '}
-        that measures end-to-end speed and correctness.
+        it, so nobody can copy your submission before it is scored.
       </>
     ),
   },
   {
     num: '03',
-    title: 'Fastest server wins',
+    title: 'Validator scores it',
     desc: (
       <>
-        Beat the current leader's speed while passing the correctness gate and you take the top
-        spot. The leader and runner-up split the competition emission.
+        The validator swaps your kernel into a pinned <code>sglang</code> engine and runs two
+        launches, scoring throughput gated by fidelity. Beat the slot champion by a margin to take
+        the crown: per-slot king-of-the-hill.
       </>
     ),
   },
@@ -49,23 +51,19 @@ type MetricRow = {
 }
 
 const METRICS: MetricRow[] = [
-  // TODO? Seems misaligned with current scoring axes
   {
-    value: '50%',
-    label: 'TTFT weight',
-    desc: 'Time-to-first-token improvement vs. vLLM baseline. Measures prefill efficiency.',
+    value: 'throughput',
+    label: 'The score',
+    desc: 'Output tokens/sec vs. the pinned sglang baseline, measured across two launches on the same hardware.',
+    highlight: true,
   },
   {
-    value: '50%',
-    label: 'Throughput weight',
-    desc: 'Output tokens/sec improvement vs. vLLM baseline. Measures decode speed.',
-  },
-  {
-    value: 'pass / fail',
-    label: 'Correctness gate',
+    value: 'KL',
+    label: 'Fidelity gate',
     desc: (
       <>
-        First-mismatch logprob check.{' '}
+        Per-token KL divergence vs. a stock reference run must stay under the slot&apos;s calibrated
+        threshold.{' '}
         <a
           href="/docs/evaluation/scoring"
           className="text-accent underline-offset-2 hover:underline"
@@ -74,6 +72,11 @@ const METRICS: MetricRow[] = [
         </a>
       </>
     ),
+  },
+  {
+    value: 'accuracy',
+    label: 'Capability floor',
+    desc: 'Real-benchmark task accuracy (GSM8K + MMLU) must not regress vs. the baseline.',
   },
 ]
 
@@ -103,41 +106,38 @@ export default function HowItWorks() {
           </div>
           <pre className="text-sm2 text-primary sm:text-sm2 m-0 overflow-x-auto font-mono leading-[1.85]">
             <span className="text-secondary">if</span>
-            {' pass1_match_fail or not correctness_pass:'}
+            {' not kl_gate_pass or accuracy_regressed:'}
             {'\n    score = '}
-            <span className="text-secondary">0.0</span>
+            <span className="text-accent">0.0</span>
+            <span className="text-secondary"> # fidelity gate: fast-but-wrong is worthless</span>
             {'\n'}
             <span className="text-secondary">else</span> {'\n'}
             <span className="text-secondary">
               {'    '}
-              // Per prompt: wall time from request start to aligned k-th token
+              // Two launches, same model + seed; only the slot kernel differs
             </span>
-            {'\n    k = '}
-            <span className="text-accent">min</span>
-            {'(baseline_N, miner_N)'}
-            {'\n    require k >= '}
+            {'\n    baseline_tput = throughput(OPTIMA_ACTIVE='}
+            <span className="text-accent">0</span>
+            {')'}
+            <span className="text-secondary"> # stock sglang</span>
+            {'\n    cand_tput     = throughput(OPTIMA_ACTIVE='}
+            <span className="text-accent">1</span>
+            {')'}
+            <span className="text-secondary"> # your kernel</span>
+            {'\n    speedup = cand_tput / baseline_tput'}
+            <span className="text-secondary">
+              {'\n    # bracket the candidate with a baseline before AND after (B, C, B'}
+              &apos;{')'}
+            </span>
+            {'\n    require speedup >= '}
+            <span className="text-accent">1</span>
+            {' + '}
             <span className="text-accent">max</span>
             {'('}
-            <span className="text-accent">2</span>
-            {', ceil('}
-            <span className="text-accent">0.9</span>
-            {'* baseline_N))'}
-            <span className="text-secondary"> # tolerance band</span>
-            {'\n    miner_e2e = miner_ttft + miner_decode[k - '}
-            <span className="text-accent">1</span>
-            {']'}
-            {'\n    baseline_e2e = baseline_ttft + baseline_decode[k - '}
-            <span className="text-accent">1</span>
-            {']'}
-            {'\n    improvement = '}
-            <span className="text-accent">max</span>
-            {'('} <span className="text-accent">0</span>
-            {', (baseline_e2e - miner_e2e) / baseline_e2e)'}
-            {'\n    speed_improvement = '}
-            <span className="text-accent">median</span>
-            {'(improvement across'} <span className="text-accent">10</span>
-            {' scored prompts)'}
-            {'\n    score = speed_improvement'}
+            <span className="text-accent">0.02</span>
+            {', k * measured_noise)'}
+            {'\n    score = speedup'}
+            <span className="text-secondary"> # else NO-DECISION (never crowns)</span>
           </pre>
         </GlassCard>
 
@@ -163,8 +163,10 @@ export default function HowItWorks() {
         </div>
 
         <p className="border-border/40 text-base2 text-secondary mt-2 border-t pt-6 text-center font-sans leading-[1.65]">
-          Speed is measured in a streaming pass without logprobs. Correctness is measured separately
-          with logprobs enabled. Both relative to the same vLLM baseline on the same hardware.
+          Throughput comes from two launches of the same model, baseline (stock kernels) and
+          candidate (your kernel), so the delta is attributable to the one slot. Fidelity is scored
+          separately with KL and benchmark accuracy. Both relative to the same pinned sglang baseline
+          on the same hardware.
         </p>
       </div>
     </section>

@@ -13,7 +13,8 @@ const navLinks = [
   { to: '/docs', label: 'Docs' },
   { href: 'https://discord.com/invite/cacheon', label: 'Discord', icon: <DiscordIcon /> },
   { href: 'https://x.com/cacheon_ai', label: 'X', icon: <XIcon /> },
-  { href: 'https://github.com/latent-to/cacheon', label: 'GitHub', icon: <GitHubIcon /> },
+  // TODO: confirm final optima repo home (currently ShivanshuPurohit/optima)
+  { href: 'https://github.com/latent-to/optima', label: 'GitHub', icon: <GitHubIcon /> },
   {
     href: 'https://tao.app/subnets/14',
     label: 'tao.app',
@@ -75,7 +76,7 @@ export default function Nav() {
           className="text-primary flex items-center gap-2.5 text-xl font-semibold tracking-tight no-underline"
         >
           <img src="/icon-192.png" alt="" className="h-7 w-7" />
-          <span>Cacheon</span>
+          <span>Optima</span>
         </Link>
 
         <div className="hidden items-center gap-8 font-mono md:flex">{renderLinks()}</div>

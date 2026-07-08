@@ -11,16 +11,16 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
 
 const FEATURES = [
   {
-    title: 'Inference arena',
-    body: 'Build the fastest server for a top open-source model. The best server earns the most emission.',
+    title: 'Kernel arena',
+    body: 'Write the fastest GPU kernel for a slot in a fixed model. The best kernel for each slot earns the emission.',
   },
   {
-    title: 'Any stack, any language',
-    body: 'Submit a Docker container. Use any language, framework, custom CUDA, or your own crazy optimizations. Anything that makes inference faster.',
+    title: 'Triton or CuteDSL',
+    body: 'Submit a kernel as source. Target a typed slot: an op, a fused block, or a cross-GPU collective. Anything that makes inference faster.',
   },
   {
-    title: 'vLLM is the line',
-    body: 'Same model, same machine class, same prompts. Outperform the current leader to prove you are actually faster.',
+    title: 'sglang is the line',
+    body: 'Same model, same machine class, same prompts. Beat the current champion at equal fidelity to prove you are actually faster.',
   },
 ]
 
@@ -66,15 +66,15 @@ export default function Hero() {
         <h1 className="mb-6 max-w-[min(100%,48rem)] font-mono text-[clamp(1.75rem,4.6vw,3.15rem)] leading-[1.22] font-extrabold tracking-tight text-balance">
           <span className="text-accent shadow-accent-text">Build the Fastest</span>
           <span className="text-secondary/45"> </span>
-          <span className="text-primary">Inference Server</span>
+          <span className="text-primary">Inference Kernel</span>
         </h1>
 
         {/* Sub-copy */}
         <p className="text-secondary mb-10 max-w-xl font-sans text-base leading-[1.65] sm:text-lg sm:leading-[1.6]">
           Inference has been a limiting factor for serving LLMs at scale.{' '}
-          <span className="text-primary font-medium">Cacheon</span> is a live competition to serve{' '}
-          <code className="text-accent text-[0.88em]">Qwen2.5-72B</code> faster than anyone else.
-          Submit a containerized server, beat vLLM, and earn{' '}
+          <span className="text-primary font-medium">Optima</span> is a live competition to write
+          the fastest GPU kernels for LLM inference. Submit a Triton or CuteDSL kernel, beat{' '}
+          <code className="text-accent text-[0.88em]">sglang</code> at equal fidelity, and earn{' '}
           <span className="group relative inline-block">
             <span className="border-primary/45 text-primary cursor-help border-b border-dotted font-medium whitespace-nowrap">
               up to 33 TAO

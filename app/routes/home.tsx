@@ -10,17 +10,17 @@ import Footer from '~/components/Footer'
 
 export function meta(_: Route.MetaArgs) {
   return [
-    { title: 'Cacheon: Inference Optimization Arena' },
+    { title: 'Optima: Inference Optimization Arena' },
     {
       name: 'description',
       content:
-        'Compete on speed for a flagship OSS model. Fair benchmark, clear leader, real reason to route traffic.',
+        'Compete to write the fastest GPU kernels for LLM inference. Fair benchmark, clear champion, real reason to route traffic.',
     },
-    { property: 'og:title', content: 'Cacheon: Inference Optimization Arena' },
+    { property: 'og:title', content: 'Optima: Inference Optimization Arena' },
     {
       property: 'og:description',
       content:
-        'Compete on speed for a flagship OSS model. Fair benchmark, clear leader, real reason to route traffic.',
+        'Compete to write the fastest GPU kernels for LLM inference. Fair benchmark, clear champion, real reason to route traffic.',
     },
     { property: 'og:type', content: 'website' },
     { property: 'og:url', content: 'https://cacheon.ai' },

@@ -25,10 +25,11 @@ export default function Community() {
             <Icon id="icon-discord" />
             Discord
           </Button>
+          {/* TODO: confirm final optima repo home (currently ShivanshuPurohit/optima) */}
           <Button
             as="a"
             variant="secondary"
-            href="https://github.com/latent-to/cacheon"
+            href="https://github.com/latent-to/optima"
             target="_blank"
             rel="noopener noreferrer"
           >

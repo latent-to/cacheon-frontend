@@ -66,7 +66,7 @@ export async function loader({ params }: Route.LoaderArgs) {
 export function meta({ data }: Route.MetaArgs) {
   if (!data) return [{ title: 'Docs' }]
   return [
-    { title: `${data.title} — Cacheon Docs` },
+    { title: `${data.title} — Optima Docs` },
     ...(data.description ? [{ name: 'description', content: data.description }] : []),
   ]
 }

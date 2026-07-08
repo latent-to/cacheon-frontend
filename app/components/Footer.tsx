@@ -1,6 +1,7 @@
 export default function Footer() {
   const links = [
-    { label: 'GitHub', href: 'https://github.com/latent-to/cacheon' },
+    // TODO: confirm final optima repo home (currently ShivanshuPurohit/optima)
+    { label: 'GitHub', href: 'https://github.com/latent-to/optima' },
     { label: 'Discord', href: 'https://discord.gg/bittensor' },
     { label: 'TAO.app', href: 'https://tao.app/subnets/14' },
     { label: 'Bittensor', href: 'https://bittensor.com' },
@@ -10,7 +11,7 @@ export default function Footer() {
     <footer className="border-border/60 border-t px-4 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-4">
         <div className="text-base2 flex items-center gap-2 font-sans">
-          <img src="/icon-192.png" alt="Cacheon" className="h-5 w-5" />
+          <img src="/icon-192.png" alt="Optima" className="h-5 w-5" />
           <span className="text-sm2 text-secondary">· SN14 · MIT License</span>
         </div>
 
