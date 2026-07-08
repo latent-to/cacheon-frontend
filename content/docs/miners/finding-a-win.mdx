@@ -1,0 +1,44 @@
+---
+title: Finding a win
+description: Seven lessons from real profiling on real hardware about where speedups actually live, and why the realistic shape of a win is 1.1x to 1.4x, not 2x.
+---
+
+This is the hard part, and where most of your effort should go. No submitted kernel has beaten sglang yet: its built-in kernels are heavily tuned, and a faithful reimplementation is the default *losing* outcome. The seven lessons below are distilled from real profiling sessions on real hardware.
+
+## 1. Measure, don't reason. The GPU is the only judge.
+
+Every "this should be faster" intuition has roughly a 50% chance of being wrong on contact with hardware. Build the cheap measurement *before* you build the kernel. See [Local testing](/docs/miners/local-testing).
+
+## 2. Size the lever before you build it, on the *wall* fraction
+
+If your target op is X% of the decode **wall-clock** and you make it `S×` faster, the end-to-end gain is Amdahl: `1 / ((1 − X) + X/S)`. The common trap: "this kernel is 59% of *summed kernel time*" is **not** "59% of the wall." Overlap and gaps mean the wall fraction is often far smaller. Confirm the lever's wall share with an end-to-end measurement before committing to the build.
+
+## 3. Let the bound-type pick the tool
+
+Profile (for example with `ncu`) to see whether the kernel is memory-bound, compute-bound, or co-limited:
+
+- **memory-bound** → lower precision (FP8/FP4) halves the bytes and wins.
+- **compute-bound on a dense GEMM** → the vendor (cuBLAS/cutlass) is already near-optimal. Concede it; don't fight it.
+- **co-limited** → lowering precision speeds only the part it touches; the other limiter becomes the floor (for example a reduction the dot's precision can't shrink). Lower precision and bigger fusion help less than the byte count suggests.
+
+## 4. Concede what the vendor already fused
+
+sglang's MoE megakernel already fuses GEMM, activation, requant, and finalize; the all-reduce is already overlapped; dense GEMMs are cuBLAS. Re-fusing what is fused, or "overlapping" what is overlapped, is a dead end. The open ground is the kernels the vendor did **not** tune for your GPU, for example a model's own Triton kernels running un-optimized on a new architecture.
+
+## 5. State your regime: a win is (model, context length, concurrency)-scoped
+
+A kernel that helps at long context or high concurrency can be a no-op at short context or low concurrency, and the reverse. The decode-throughput regime under CUDA graphs is what is scored, so optimize there, and report the regime your win holds in.
+
+## 6. Distrust a surprising win until it survives an adversarial check
+
+Big speedups are usually artifacts: clock drift, a thin low-batch corner that doesn't generalize, an unfair baseline (comparing kernels doing different amounts of work), or a fidelity regression you haven't measured. Bracket your timing, match the work both sides do, and check the quality gates before you believe it.
+
+## 7. The realistic shape of a win is ~1.1x to 1.4x, not 2x
+
+Kernels are a slice of the $/token stack. The strategy is to **stack** several regime-specific wins, not to find one giant lever. A clean, faithful 1.1x that survives the gates is a real win.
+
+<Callout type="info" title="Where the ceiling is higher">
+  Op slots are a tuned wall. The block and collective slots have the higher ceiling: fusion across the
+  GEMM or comms boundary, format specialization, and the experts-to-all-reduce overlap in
+  `moe.fused_experts_reduce`. See [Slots](/docs/miners/slots).
+</Callout>

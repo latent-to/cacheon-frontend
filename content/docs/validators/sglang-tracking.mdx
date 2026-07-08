@@ -1,0 +1,82 @@
+---
+title: sglang tracking
+description: sglang is both the baseline and the runtime, so all validators must run one pinned version for Yuma consensus. How the pin works, why it protects miners, and the deliberate bump and re-baseline process with the optima compat canary.
+---
+
+sglang is special in Optima because it is **both** things at once:
+
+- the **baseline** a kernel must beat (a kernel is scored by its speedup versus sglang's own kernel for that op), and
+- the **runtime** the validator patches (the seam patches sglang internals: the `SiluAndMul` and `RMSNorm` op seams, the `RadixAttention.forward` and `FusedMoE.forward` block seams, and the `GroupCoordinator.all_reduce` collective seam).
+
+A stale baseline means miners optimize against an old frontier, and any upgrade can break the seam. Both problems point at one answer: a single pinned version, bumped deliberately.
+
+## The hard constraint: one pinned version for consensus
+
+You cannot have validators on different sglang versions. This is a protocol requirement, not a convenience.
+
+Multiple validators independently score the **same** miner and each submit a weight vector. Bittensor's **Yuma consensus** penalizes a validator whose weights diverge from the stake-weighted median. If validator A runs sglang X and validator B runs sglang Y, they measure **different throughput and different KL for the identical kernel**, so they submit different weights, so they diverge, lose trust and emission, and the subnet's scoring becomes incoherent.
+
+Identical measurement across validators is therefore mandatory, and that forces a single pinned version. "Let each miner pick their base," and even "let each validator pick," are both ruled out by this. It is not a fairness nicety; it is consensus.
+
+The single source of truth is `PINNED_SGLANG` in `optima/compat.py`. The sglang version is a coordinated, pinned subnet parameter, bumped per season, not "latest on each box."
+
+<Callout type="info" title="Pin status">
+  <code>PINNED_SGLANG</code> is <code>0.5.13.post1</code> (CUDA 13). Its static seam canary is green
+  (all chokepoints intact), but the GPU end-to-end re-validation and champion re-baseline are still
+  pending, so treat it as not-yet-authoritative for scoring until those run on a pod.
+  <code>0.5.12.post1</code> is the last fully H100-validated pin. Verify the current value against
+  <code>optima/compat.py</code> before relying on it.
+  {/* TODO: confirm 0.5.13.post1 GPU re-validation + re-baseline status before publishing a definitive pin */}
+</Callout>
+
+## What is actually coupled: the score, not the kernel
+
+The pin sounds like it locks miners to one engine version. It mostly does not, and the distinction governs what miners can and cannot do.
+
+A miner's submission is a **kernel**, Triton or CuteDSL math over raw tensors (for example `silu(x, out)`). It almost never touches sglang's internals, so the artifact is largely version-agnostic: the same kernel runs identically on 0.5.9 or 0.6.x because it operates on tensors, not on sglang APIs. What is pinned to the version is the **evaluation**: the baseline the kernel must beat, and the invocation context (the shapes, dtypes, and strides the op is called with, and whether the op is even reached, since fusion can route around it).
+
+So a version bump **re-measures** a kernel's score (its baseline moved, its rank may change) but usually does **not** invalidate the artifact. Only a kernel whose win depended on version-specific behavior, or whose op ABI actually changed, needs a rewrite. Miners code to Optima's slot ABI (`entry(x, out)`), not to `SiluAndMul.forward_cuda`; when sglang changes how it invokes an op, the Optima dispatcher and seam absorb the change, not the miner.
+
+<Callout type="info" title="The pin protects miners">
+  Without a pin, a carefully tuned kernel could silently go slower or break the moment a validator
+  auto-updated sglang mid-competition, a rug-pull through no fault of the miner. The pin is a stable
+  target and a stable baseline; because bumps are announced and re-baselined, version changes are
+  scheduled events, not surprises. Broken-in-the-pin is headroom, not a blocker: when the pinned
+  sglang has only a slow fallback for some op on some hardware, that is exactly where a miner can
+  win, measured entirely under the pin.
+</Callout>
+
+## Why bump, and how often
+
+The mission is to push the frontier, so the pin cannot sit still. A stale base means miners optimize things already fixed upstream, and the product falls behind what it claims to be. But bumping is not free, so each bump is a coordinated protocol event, structurally a hard-fork: pin for consensus, cut the whole validator set over to the new version at an agreed block, then re-baseline.
+
+Cadence is a dial with two failure modes. Too slow gives a stale base and wins that already exist upstream, and good miners leave. Too fast re-ranks champions constantly, miner ROI gets uncertain, and tuning is wasted. Rule of thumb: a champion should earn over a meaningful window before a bump can unseat it. Bump on a deliberate cadence (for example monthly, or per sglang minor) or on a trigger (a release that materially improves the product or opens an important surface), whichever comes first, never on every upstream commit.
+
+## The bump process
+
+1. **Watch releases.** Watch GitHub releases for sgl-project/sglang, or `git fetch origin --tags` on the local clone.
+2. **Static canary.** In a scratch venv, `uv pip install sglang==<new>`, then run `optima compat`. It introspects the installed sglang (imports and signatures, no GPU) and asserts every seam and API Optima depends on still exists.
+3. **Behavioral smoke (on the pod).** If the canary is green, confirm the seam still *fires*: a broken bundle must still FAIL the gate and a faithful bundle must behave. A green canary is necessary but not sufficient.
+4. **Coordinate and re-baseline.** If both pass, update `PINNED_SGLANG`, announce the bump at a block height so all validators upgrade together, and **re-baseline the champion**: re-score the reigning champion against the new sglang baseline. The baseline moved, so a champion's old speedup is not comparable to challengers scored on the new sglang.
+5. **If the canary is red,** write a small adapter in `optima/integrations/` plus its entry in `optima/seams.py` (the seams are deliberately tiny and isolated for this), then re-run from step 3.
+
+<Callout type="info" title="The compat canary re-runs on every bump">
+  <code>optima compat</code> is the static seam canary. Because the five seam adapters live in one
+  table (<code>optima/seams.py</code>), the bootstrap watch-list, <code>seam.activate()</code>, and
+  the canary all derive from that single source, so the canary checks exactly the chokepoints the
+  runtime patches. Run it on every candidate sglang version before any GPU work.
+</Callout>
+
+## What usually breaks, and where to fix it
+
+| sglang change | canary catches it as | fix in |
+|---|---|---|
+| seam class renamed or moved (`SiluAndMul`, `RMSNorm`) | `seam: ...` FAIL | the one seam table, `optima/seams.py` |
+| `forward_cuda` signature change (e.g. residual handling) | `seam: ...` detail shows new params | the dispatcher, `optima/dispatch.py` |
+| Engine or `ServerArgs` API change | `Engine.generate ...` / `ServerArgs ...` FAIL | `optima/eval/_launch.py`, `EvalConfig` |
+| compile/graph path imports the swapped kernel by name (0.5.12+ piecewise CUDA graph) | canary green; the candidate launch crashes `ModuleNotFoundError: optima_kernel_*` | `sandbox.load_entry` registers the kernel module in `sys.modules` before exec |
+| seam install races a partially-initialized sglang module | canary green; a caught install traceback on every `import sglang` | the `integrations/*` `install()` guards on the class attribute, not the raising import |
+
+## Who decides the pin
+
+Choosing the pinned version is a trust point: the operator could pin a version that favors a particular miner, or be slow to bump and let the base rot. Today (single operator) this is mitigated by transparency: the pinned version is public and committed on-chain as a subnet parameter, so anyone can audit what is being scored against. The mature state moves the pin under validator-voted governance (validators signal the next version; the pin bumps when a stake threshold agrees), so no single party controls the substrate the whole competition runs on. This belongs in the production roadmap, not today's harness.

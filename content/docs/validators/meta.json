@@ -1,4 +1,4 @@
 {
   "title": "Validators",
-  "pages": ["overview", "setup", "gpu-pod-setup", "architecture"]
+  "pages": ["overview", "architecture", "running-the-harness", "gpu-pods", "sglang-tracking"]
 }

@@ -1,0 +1,46 @@
+---
+title: Slots
+description: What a slot is, the three kinds (op, block, collective), the live table of the seven slots with their exact entry signatures, and the invariant that keeps them cheat-resistant.
+---
+
+## What a slot is
+
+A **slot** is one typed boundary the validator will swap your kernel into. The model is fixed and public; each slot is a single operation in it that you can replace. You target a slot by declaring it in your `manifest.toml`, and the validator injects your kernel at that boundary, runs the model, and scores it.
+
+Run `python -m optima.cli slots` for the live list. Today there are seven, across three kinds.
+
+## The three kinds
+
+- **op** — a single elementwise or reduction op. Small, and sglang's versions are very tight. Hard to beat; good for learning the pipeline.
+- **block** — a fused region behind one tensor boundary (attention, MoE experts). A bigger surface means a higher ceiling, because you can *fuse* work the stock path splits.
+- **collective** — spans GPUs. The validator hands you the process group, and the kernel is verified as a real *distributed* op (you cannot fake cross-rank comms). `moe.fused_experts_reduce` is the one slot that can express the experts-to-all-reduce *overlap*, roughly 75% of decode at scale.
+
+Op slots are a tuned wall. The block and collective slots are where real wins live: fusion across the GEMM or comms boundary, format specialization (FP8/FP4), and kernels the vendor never tuned for your GPU. See [Finding a win](/docs/miners/finding-a-win).
+
+## The seven slots
+
+| slot | kind | what it computes | entry signature |
+| --- | --- | --- | --- |
+| `activation.silu_and_mul` | op | `silu(x[...,:d]) * x[...,d:]` | `entry(x, out)` |
+| `norm.rmsnorm` | op | `x · rsqrt(mean(x²)+eps) · weight` | `entry(x, weight, out, eps)` |
+| `attention.sdpa` | block | `softmax(qkᵀ·scale + causal) v` (GQA/MQA) | `entry(q, k, v, out, sm_scale, causal)` |
+| `attention.decode` | block | decode attention over each request's cached K/V | `entry(q, k, v, seq_lens, sm_scale, out)` |
+| `moe.fused_experts` | block | fused MoE experts (SwiGLU-MLP), a **(prepare, forward)** pair | `prepare(w13, w2)` + `forward(x, topk_ids, topk_weights, prepared, out)` |
+| `collective.all_reduce` | collective | tensor-parallel all-reduce (sum across GPUs) | `entry(x, out, group)` |
+| `moe.fused_experts_reduce` | collective | MoE experts that **own their trailing all-reduce** (the compute-comm overlap lever) | `prepare(...)` + `forward(x, topk_ids, topk_weights, prepared, out, group)` |
+
+<Callout type="info" title="Specialize to win">
+  There is one champion per slot, and emission is split across slots that have a champion. You can win by
+  specializing in a single slot; you do not need to beat everyone everywhere. See
+  [Registration](/docs/miners/registration) for king-of-the-hill.
+</Callout>
+
+## The load-bearing invariant
+
+A slot stays **strictly upstream of the sampler.** Its output feeds the residual stream, then the downstream layers, then the sampler, all of it stock. You only ever *fill a tensor the validator allocated*; you never see or produce the final tokens.
+
+This is the invariant that kills the API-substitution cheat. If a kernel could reach the final output, a miner could run garbage in the kernel and fetch the real answer from an outside API. Because the slot sits above the logprobs and sampler, there is no final output to substitute. Concretely, your entry function writes into a pre-allocated `out` and returns `None`; it never allocates or returns the result the model consumes. See [Submission format](/docs/miners/submission-format) for the kernel contract, and [Rules](/docs/miners/rules) for the full set of four invariants.
+
+## (prepare, forward) slots
+
+The two MoE slots (`moe.fused_experts` and `moe.fused_experts_reduce`) are **(prepare, forward)** pairs, not a single entry. `prepare` runs once at load on the raw checkpoint weights (do your weight relayout or quantization-packing there; the validator caches the result). `forward` runs every step and receives that cached object as `prepared`. The collective variant additionally receives the process `group` and fills `out` with the *already-reduced* expert output, so the kernel can fuse or overlap the expert GEMM with the reduce. See [Submission format](/docs/miners/submission-format#prepare-forward-slots).

@@ -1,81 +1,55 @@
 ---
 title: Prompts
-description: Instruct prompts with PG19 context, seeded by block hash.
+description: Per-epoch prompt sampling from a corpus, and the real-benchmark scoring path. Fresh prompts each epoch, seeded from the chain block, defeat overfitting and memoization; GSM8K and MMLU drive both launches at realistic decode lengths.
 ---
 
-Prompts are **instruct-style requests** built from curated instruction templates filled with [**PG19** (Project Gutenberg)](https://www.tensorflow.org/datasets/catalog/pg19) passages. A **block-hash-derived seed** makes them deterministic: same block, same prompts, anywhere, any machine.
+Optima drives both launches (baseline and candidate) with the **same** prompts, sampled fresh each epoch. Two paths exist: a generic corpus for the cheap KL and calibration smoke, and the **real-benchmark** path (`optima bench`) that is the actual scoring workload.
 
-## Eval prompts
+## Per-epoch sampling
 
-One prompt set is used for both speed (vs baseline) and correctness (teacher-forcing on the same miner outputs).
+A kernel must not be able to special-case a fixed handful of prompts, so the validator samples a fresh subset every epoch from a larger corpus, keyed by an epoch seed:
 
-| Parameter              | Value                     |
-| ---------------------- | ------------------------- |
-| Scored prompts / round | 10 (+ 2 warmup discarded) |
-| Input context          | ~6,144 tokens             |
-| `max_tokens`           | 512                       |
+```python
+sample_prompts(n, seed)                 # deterministic subset for this epoch
+sample_prompts_for_block(block_hash, n) # seed derived from the chain block hash
+```
 
-Every challenger in the round is evaluated against the same workload.
+The seed is derived from the chain **block hash** (folded with `PROMPT_ENGINE_VERSION`). This gives two properties at once:
 
-## Why instruct format
+- **Cross-validator agreement.** Two validators scoring a submission at the same block derive the *same* seed, so they draw the identical prompt set. This is a hard requirement for consensus: they must agree on the weights they set for that submission.
+- **Unpredictability across blocks.** The seed rotates per block, so a kernel cannot pre-bake answers for a known prompt set. Sampling is without replacement when `n <= len(CORPUS)`, otherwise with replacement so callers can request large workloads for throughput measurement.
 
-The target model is `Qwen2.5-72B-Instruct`. Instruct-format prompts reflect real serving workloads rather than raw text continuation.
+The corpus today is a stand-in of technical instruction prompts (algorithms, systems, databases, ML) diverse enough to exercise varied shapes and stabilize the KL estimate. In production this corpus is drawn from the real serving distribution and rotated and expanded each epoch. `PROMPT_ENGINE_VERSION` is bumped when the corpus or sampling changes, so a change reshuffles prompts even at the same block and the version a score was produced under stays reproducible.
 
-## Prompt design
-
-Each prompt combines:
-
-1. **Instruction template**: one of 20 curated literary-analysis tasks
-2. **Context passage**: a slice of text sampled from a PG19 book
-
-Both are selected deterministically via the block-hash seed. Templates live in [`validator/prompts.py`](https://github.com/latent-to/cacheon/blob/main/validator/prompts.py).
-
-## Why PG19 for context
-
-Long, continuous sequences stress prefill, attention, and KV cache. Short documents produce trivially fast responses where optimization differences are lost in noise.
-
-| Dataset          | Typical doc length             | Why rejected or chosen                                  |
-| ---------------- | ------------------------------ | ------------------------------------------------------- |
-| FineWeb          | Median &lt;1K tokens           | Too short: prefill is trivial, no differentiation       |
-| MMLU / HellaSwag | ~100-500 tokens                | Evaluation benchmarks, not serving workloads            |
-| **PG19**         | **100K+ tokens (full novels)** | **Chosen**: long-form text forces real serving at scale |
-
-PG19 is pinned to Hugging Face revision `a0e01428956e39868fa36ccfa0ee236ff04e6a6b`.
-
-<Callout title="PG19 Setup Requirement" type="info">
-  **PG19 must be pre-downloaded** to the local HuggingFace cache before starting the validator. If
-  the dataset is missing, the validator raises an error at startup with a copy-paste download
-  command rather than attempting an 11 GB download mid-evaluation.
+<Callout title="Why fresh prompts" type="info">
+Overfitting the eval distribution (great on eval prompts, useless in production) never fully closes; it is a tuning discipline. Fresh per-epoch prompts, plus rotating the corpus toward the real serving distribution, are the defense. Memoize-and-replay is also defeated: activations differ per prompt and token, and the prompt set changes each epoch, so caching does not help at the op level.
 </Callout>
 
-## Passage quality filters
+## The real-benchmark scoring path (`optima bench`)
 
-| Filter                | Threshold   | Rejects                            |
-| --------------------- | ----------- | ---------------------------------- |
-| Minimum length        | 4,000 chars | Rows too short for the eval budget |
-| Alpha character ratio | ≥ 50%       | OCR noise, numeric tables          |
-| Whitespace ratio      | ≤ 35%       | Chapter headers, blank-heavy rows  |
+The generic corpus is fine as a cheap KL and calibration smoke, but it is a *toy* workload (short generations on filler prompts). The **scoring** workload is `optima bench`, which drives both launches with a few samples from **real benchmarks** at realistic generation lengths, so the throughput being scored reflects the decode-heavy work production actually does, not a 64-token toy task.
 
-The sampler retries up to 1,000 times before raising an error.
+Two benchmarks today, both prompted for chain-of-thought so they are *long-generation* workloads rather than a one-token logit rank:
 
-Passage length uses a conservative chars/token estimate plus overhead and safety margin. Before each request, the validator also calls the server `/tokenize` endpoint and trims user content if input plus `max_tokens` would exceed `max_model_len`.
+| Benchmark | Domain | Answer format | Decode budget (`max_new_tokens`) |
+| --- | --- | --- | --- |
+| **GSM8K** | grade-school math | numeric ("The answer is N.") | `256` |
+| **MMLU** | knowledge, multiple choice | option letter ("The answer is (X).") | `512` |
 
-## Parameter defaults
+Both are sampled per epoch by the same seeded interface (`load(n, seed)`), few-shot-prompted deterministically, and answers are extracted and checked (numeric equality for GSM8K, option-letter match for MMLU). The same `Benchmark` protocol takes SWE-bench, Tau-bench, and KernelBench later; only `check()` changes (run tests or tools in a sandbox instead of extracting an answer).
 
-| Parameter                | Value           | Notes                                           |
-| ------------------------ | --------------- | ----------------------------------------------- |
-| Scored prompts / round   | 10 (+ 2 warmup) | Warmup discarded before scoring                 |
-| `max_tokens`             | 512             |                                                 |
-| Context budget           | ~6,144 tokens   | Sized for teacher-forcing on v0.9.2             |
-| `EVAL_MIN_CONTEXT_CHARS` | 4,000           |                                                 |
-| `PROMPT_ENGINE_VERSION`  | 4               | In baseline cache key; bump on sampling changes |
-| `SCORING_MAX_MODEL_LEN`  | 7168            | Scoring container `--max-model-len`             |
-| dataset `revision`       | `a0e01428...`   | Pinned commit SHA                               |
+## Two gates on one realistic run
 
-## Correctness and prompts
+On that single realistic run the validator gates on **both** (see [Scoring](/docs/evaluation/scoring#gate-b--fidelity-the-load-bearing-anti-cheat)):
 
-Teacher-forcing via `prompt_logprobs` runs on the **same outputs** as speed scoring. The scoring vLLM uses a matching ~7k context cap. End-to-end speed is measured during generation; the final score requires both the text-similarity pre-filter and teacher-forcing to pass. Streamed top-5 logprobs are collected for diagnostics and baseline cache.
+- **Per-token KL** vs the baseline, on the same prompts: the dense, low-variance **primary** gate. A faithful kernel sits at the noise floor; a cheat blows up.
+- **Task accuracy**: no regression on any benchmark beyond a tolerance, a capability **floor**. It answers "did the model still solve real problems?"
 
-## V2 direction
+A faithful kernel preserves both. A kernel that secretly degrades the model drops accuracy and/or blows up KL and scores zero, even if it looked fast. On a validated run a broken silu dropped GSM8K 62.5% → 0% while being 26% *faster*, and scored 0.
 
-V2 adds multi-turn conversations, RAG-style workloads, and concurrent request batches. See [Roadmap](/docs/roadmap).
+<Callout title="Why KL is primary, accuracy is a floor" type="warn">
+Benchmark accuracy is noisy at small n: at n=12, GSM8K's ~12% standard deviation turns a two-problem flip into "−16.7%." So KL is the dense, low-variance primary gate; benchmark accuracy is a capability floor best read at ~100-200 samples. Fixing the workload *regime* (real tasks, decode-heavy lengths) does not change that a single small op (silu, rmsnorm) is a tiny fraction of end-to-end runtime, so its throughput contribution can sit below the measurement noise floor; that is a slot-size problem (bigger slots like attention and MoE), tracked separately from the gate.
+</Callout>
+
+{/* TODO: confirm final optima repo home (currently ShivanshuPurohit/optima) */}
+Source: [`optima/eval/prompts.py`](https://github.com/latent-to/optima/blob/main/optima/eval/prompts.py), [`optima/eval/benchmarks.py`](https://github.com/latent-to/optima/blob/main/optima/eval/benchmarks.py), and [`optima/eval/capability.py`](https://github.com/latent-to/optima/blob/main/optima/eval/capability.py) (`optima bench`).

@@ -1,67 +1,54 @@
 ---
 title: Rules
-description: What your container can and cannot do during evaluation. Network isolation, resource limits, and disqualification conditions.
+description: The sandbox (what your kernel may not write) and the four slot invariants that make the boundary cheat-resistant, and why each one exists.
 ---
 
-## Container environment
+There are two rule sets. The **sandbox** governs what code your kernel may contain. The **four slot invariants** govern the boundary the validator injects it at. Both are enforced by the harness, not by convention.
 
-During evaluation, your container runs with:
+## The sandbox
 
-| Resource           | Value                                                                                                       |
-| ------------------ | ----------------------------------------------------------------------------------------------------------- |
-| GPU                | See [GPU requirements](/docs/validators/overview#gpu-requirements), exclusive access, fixed NVLink topology |
-| RAM                | `--memory 200g` (200 GB cap)                                                                                |
-| CPU                | `--cpus 32`                                                                                                 |
-| PID limit          | `--pids-limit 4096`                                                                                         |
-| Model weights      | Read-only volume mounted at `/models`                                                                       |
-| Network            | **Internal only** -- all outbound egress blocked                                                            |
-| Filesystem         | Model weights read-only at `/models`                                                                        |
-| Startup timeout    | 12.5 minutes                                                                                                |
-| Per-prompt timeout | 120 seconds                                                                                                 |
+Submitted kernels are statically scanned before they are loaded (`python -m optima.cli scan`). The scan runs no code; it rejects a bundle whose kernel source contains a banned construct.
 
-## What is allowed
+| may NOT write | examples | why |
+| --- | --- | --- |
+| network | `socket`, `urllib`, `requests` | a kernel must not exfiltrate or fetch anything; the eval box is isolated |
+| process / filesystem escape | `subprocess`, `multiprocessing`, `os.system`, `ctypes`, `shutil`, `tempfile` | a kernel is math on tensors, not a shell; escaping the process is out of scope |
+| dynamic code | `eval`, `exec`, `compile`, `__import__`, `open`, `globals` | code that builds code at runtime defeats static inspection |
+| deserializers | `pickle.loads`, `torch.load`, `marshal` | deserializing untrusted bytes is arbitrary code execution |
+| introspection escapes | `__globals__`, `__subclasses__`, `__class__` | these reach out of the sandboxed namespace |
+| dynamic `getattr` / `setattr` | with a non-literal attribute name | a computed attribute name hides what is being touched |
 
-This section outlines operations and strategies that are permitted in V1:
+**Allowed:** `torch`, `triton`, `triton.language`, normal Python, `math`, and `from sglang... import ...` (you may reuse sglang's own helpers).
 
-- Any programming language (Rust, C++, Python, Go, etc.)
-- Any inference framework or custom implementation
-- Custom CUDA kernels, Triton kernels, custom attention implementations
-- KV cache optimization (layout, paging, compression, offloading)
-- Custom memory allocators and memory management
-- Tensor parallel communication optimization
-- Any serving architecture (single process, multi-process, etc.)
-- Chunked prefill, continuous batching, fused operations
+<Callout type="warn" title="Isolation is not fully built yet">
+  The sandbox scan narrows the attack surface, but full host isolation for untrusted miners is not built.
+  The VM is the trust boundary today, and the harness still runs kernel launch code in-process. Untrusted
+  miners are not yet supported. Do not treat the scan as a complete security boundary.
+</Callout>
 
-## What is not allowed
+## The four slot invariants
 
-- **Network access:** Your container runs on an internal Docker network with no outbound access. All dependencies must be baked into the image. Model weights are provided via volume mount.
-- **Modified model weights:** You must serve the canonical `Qwen2.5-72B-Instruct` weights from `/models`. Fine-tuned or distilled weights are likely to fail the text-similarity pre-filter or teacher-forcing gate.
-- **Fabricated outputs:** Returning cached or pre-computed responses instead of running actual inference. The validator uses block-hash-seeded prompts that are unpredictable.
-- **Container escape attempts:** The container runs without `--privileged`. Attempting to escape the sandbox results in permanent DQ.
-- **Excessive resource usage:** If your container OOMs or exceeds resource limits, it is terminated and DQ'd.
+Every slot the validator injects your kernel into preserves these four invariants. They are the narrow waist that keeps the subnet cheat-resistant.
 
-## Disqualification conditions
+### 1. The validator owns the boundary
 
-| Condition                                           | Result        |
-| --------------------------------------------------- | ------------- |
-| Startup timeout exceeded (12.5 min)                 | DQ            |
-| Per-prompt timeout exceeded (120s)                  | DQ            |
-| `/health` never returns 200                         | DQ            |
-| Correctness gate fails (logprob thresholds)         | DQ, score = 0 |
-| OOM or container crash during eval                  | DQ            |
-| Duplicate submission (content fingerprint match)    | DQ            |
-| Non-compliant API (missing endpoints, wrong format) | DQ            |
+The validator allocates every output tensor (shape, dtype, device, stride) and owns the call site. Your kernel only *fills* a validator-allocated output; it never allocates or returns the result the model consumes. **Why:** if the miner owned the output buffer, the miner could return anything. Because the validator owns it, the kernel is confined to filling in the values.
 
-## Threat model
+### 2. Strictly upstream of the sampler
 
-The harness runs your container on an internal Docker network (`cacheon-internal`, no outbound egress). The orchestrator may use a separate network for chain and registry access; your image never sees that path. Evaluations are sequential with GPU reset between runs.
+A slot sits above the logprobs and sampler. Its output feeds the residual stream, then the downstream layers, then the sampler, all stock. **Why:** there is no final output to substitute, which defeats the "run gibberish, fetch the real answer from an API" attack. This is the single rule that most shapes how you write a kernel: see [Slots](/docs/miners/slots#the-load-bearing-invariant).
 
-| Threat                     | Mitigation                                               |
-| -------------------------- | -------------------------------------------------------- |
-| Network exfiltration       | Internal-only network for the miner container            |
-| Host escape                | No `--privileged`; normal Docker namespace isolation     |
-| GPU snooping across miners | One container at a time; GPU state cleared between evals |
-| Prompt prediction          | Block-hash-seeded prompts; deterministic order per round |
-| Resource exhaustion        | Memory/CPU/PID limits and timeouts; OOM = DQ             |
+### 3. Gated against high-precision ground truth, not the stock kernel
 
-Weights are public on Hugging Face. There is nothing secret to steal from the mount.
+Correctness is measured against an fp32 or dequantized reference, **never** against the stock kernel. **Why:** a faster, slightly-different kernel can legitimately pass, while a wrong one cannot. Gating against the stock kernel would forbid every genuine improvement. The metric may vary per slot (`allclose`, `matched_ratio`, `cosine`); the reference is always high-precision ground truth.
+
+### 4. No trust in miner-reported numbers
+
+The score never trusts a value the miner's code could have produced. Throughput is timed out-of-process (the driver never imports miner code); fidelity is judged by the validator from emitted tokens and the high-precision comparison, not from an engine's self-reported logprobs when the engine itself was patched. **Why:** any number the miner could influence is a number the miner could forge.
+
+<Callout type="info" title="Graph-safety is part of the contract">
+  Scoring runs with CUDA graphs ON. A block or collective kernel must declare `graph_safe: true` in its
+  metadata to run inside the graph; otherwise the seam falls back to the trusted baseline under capture,
+  and a kernel outside the graph cannot win. See
+  [Submission format](/docs/miners/submission-format#metadatajson).
+</Callout>

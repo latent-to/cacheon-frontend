@@ -1,119 +1,112 @@
 ---
 title: Architecture
-description: CPU validator loop, GPU eval entrypoint, Postgres state, challenger detection, leader comparison, weight setting, and observability.
+description: The submission pipeline from commit-reveal to weights, and the production target architecture, a fleet of services around a DB, which today is one CLI plus a local JSON ledger.
 ---
 
-## Validator main loop
+There are two things to understand: the **submission pipeline** the harness runs today, and the **production target architecture** it is meant to grow into. The pipeline is built and validated on real GPUs. The service fleet is a target, not yet built.
 
-The CPU validator loop lives in `validator/cpu_validator.py`. Operators usually run it through Docker Compose `validator/docker-compose.yml`, using the image built from `validator/Dockerfile.cpu`. Alternatively you can also run it directly on the host with `python -m validator.cpu_validator` while using the same environment variables and mounts.
+## The submission pipeline
 
-Between ticks, the process sleeps for `poll_interval`, configured through `CACHEON_POLL_INTERVAL_S` or `--poll-interval`. The bundled Compose setup defaults to `600` seconds when that variable is unset.
-
-```py
-while True:
-    reload_state_from_postgres()
-    sync_logs_from_s3()  # logs/ and container_logs/ only
-
-    metagraph, block, block_hash = scan_chain()
-    commitments = parse_commitments(metagraph)
-    commitments = gate_unpaid_commitments(state, commitments)  # verify payment_tx on-chain
-
-    if leader_hotkey_deregistered():
-        promote_runner_up_or_clear()
-
-    challengers = select_unevaluated(commitments)
-    if challengers:
-        mirror_eval_job_to_postgres(challengers, block, block_hash)
-
-        if gpu_eval_configured():
-            gpu = search_providers(targon, lium, shadeform)
-            pod = rent_once(gpu)              # first challenger round
-            ssh_exec(pod, setup-gpu.sh)     # once per validator container
-            ssh_exec(pod, gpu-compose up)   # each eval round; same pod
-            teardown(pod)                   # validator container shutdown
-            reload_state_from_postgres()
-            sync_logs_from_s3()
-
-    metagraph, block, _ = scan_chain()  # fresh read before weights
-    if leader_hotkey_deregistered():
-        promote_runner_up_or_clear()
-
-    if new_eval_results() or weights_stale():
-        set_weights(leader, runner_up)
-
-    sleep(poll_interval)
-```
-
-Weight setting triggers in three situations:
-
-- **New eval results**: GPU completed evaluations (detected by comparing `evaluation_block` against `last_weights_set_block`)
-- **First weight set**: a leader exists but weights have never been set
-- **Staleness refresh**: weights are older than one tempo (~360 blocks, ~72 min) to stay active in consensus
-
-## GPU eval entrypoint
-
-The GPU host runs `validator/gpu_eval.py` as a one-shot job, usually from the image built by `validator/Dockerfile.gpu` and started with `validator/gpu-compose.yml`. Docker Compose mounts the host Docker socket so the runner can start baseline and miner containers for each challenger (`evaluate_in_docker` in the pseudocode below). This component has no Bittensor dependency.
-
-```py
-state = load_state_from_postgres()
-eval_job = load_pending_eval_job()
-prompts = sample_prompts(block_hash)
-baseline = run_baseline_if_needed(prompts)
-
-# Leader and runner-up are re-evaluated first, then challengers.
-# All scores in a round are fresh; no cached score carries forward.
-for entry in eval_job.incumbents + eval_job.challengers:
-    result = evaluate_in_docker(entry, prompts, baseline)
-    state.record_evaluation(result)  # mirrors each eval to Postgres
-
-state.rerank_round()   # pick leader and runner-up from this round's scores
-mirror_validator_state_to_postgres()
-upload_eval_logs_to_s3()
-exit
-```
-
-The GPU loads the pending eval job and validator state from Postgres, runs evaluations, mirrors each result and progress update to Postgres, and uploads log artifacts to S3 on completion.
-
-## State: Postgres + log artifacts
-
-Structured state (evaluations, leader, eval jobs, eval progress, fingerprints, leader history) lives in **Postgres** only.
-
-**S3** (`validator/sync.py`) syncs log artifacts only: `logs/` and `container_logs/` between the GPU pod and CPU validator mount.
-
-Typical layout under `state-mainnet/`:
+Each submission moves through eight steps. Each maps to a file and a CLI verb in the Optima harness.
 
 ```
-state-mainnet/
-  container_logs/
-    baseline_{hash}.log
-    uid{N}_{hotkey}_{block}.log
-  logs/
-    gpu_eval_{timestamp}.log
+   MINER                              VALIDATOR
+   -----                              ---------
+1  commit  H(bundle,hotkey,salt) ───► record commitment      commit_reveal.Ledger.commit
+                                      (no bundle seen yet)
+                ... commit window closes ...
+2  reveal  bundle + salt        ───► verify vs commitment     commit_reveal.Ledger.reveal
+                                      detect copies            (earliest commit = original)
+3                                     parse manifest           manifest.load_manifest
+4                                     static policy scan        sandbox.scan_source
+5                                     load kernel isolated      sandbox.load_entry
+6                                     op-correctness vs ref     verify.verify_entry
+7                                     two-launch evaluate       eval.throughput_kl.evaluate
+                                        baseline (kernel off)
+                                        candidate (kernel on)
+                                        -> throughput + KL
+8                                     settle king-of-the-hill   commit_reveal.Ledger.settle
+                                      -> weights to the chain
 ```
 
-Field-level shapes for Postgres tables and legacy JSON backfill: [Data contracts](/docs/evaluation/data-contracts).
+1. **Commit** (`commit_reveal.Ledger.commit`). The miner posts `H(content_hash, hotkey, salt)`, a hash that binds them to an exact bundle without revealing it. CLI: `optima commit`.
+2. **Reveal** (`Ledger.reveal`). After the commit window, the miner posts the bundle plus salt. The validator recomputes the hash and checks it matches a commitment *that hotkey* made earlier. A copier who only sees a rival's bundle at reveal time has no matching prior commitment, so they cannot reveal it. CLI: `optima reveal`.
+3. **Parse manifest** (`manifest.load_manifest`). Validates schema, ABI version, and path-safety: source paths must be relative, inside the bundle, no `..` escape, no absolute paths, no symlink escape. The manifest is data, not code; nothing runs yet.
+4. **Static policy scan** (`sandbox.scan_source`). An AST pass over the kernel source that rejects obvious egress and code-execution patterns (`socket`, `subprocess`, `pickle.loads`, `torch.load`, `os.system`, `eval`, `__import__`) before anything is imported. It is careful not to false-positive on Triton's `tl.load` / `tl.store`. This is a tripwire, not the isolation boundary. CLI: `optima scan`.
+5. **Load the kernel** (`sandbox.load_entry`). Imports the miner module and pulls out the `entry` callable. This runs miner code, so `optima verify` loads and runs it **out-of-process** and in production it must happen inside the isolated worker (see [Security model](#isolation-the-frontier-gap)).
+6. **Op-correctness** (`verify.verify_entry`). Generates deterministic inputs for the slot's standard shapes, runs the miner kernel and the slot's high-precision reference, and compares with tolerance. This is the cheap gate: an outright-wrong kernel is rejected here before the expensive end-to-end run. The per-op verify **jitters count dims** per run so a kernel cannot hard-code the verify shapes. Collective slots are verified distributed by `optima.verify_collective`. CLI: `optima verify`.
+7. **Two-launch evaluate** (`eval.throughput_kl.evaluate`, and the real-task scoring path `eval.capability.evaluate_capability` behind `optima bench`). Baseline (kernel off) then candidate (kernel on), producing throughput plus KL plus benchmark accuracy. This is the heart of scoring; see [Overview](/docs/validators/overview#two-launches) and [Scoring](/docs/evaluation/scoring). CLI: `optima evaluate` / `optima bench`.
+8. **Settle** (`Ledger.settle`). Applies **king-of-the-hill**: a challenger becomes champion only if it beats the current best by a margin; copies and non-improvers earn nothing. `optima settle --per-slot` runs a champion per slot and splits emission, so a specialist who owns one slot is paid. Emits weights for the chain. CLI: `optima settle`.
 
-## Observability
+<Callout type="info" title="Anti-copy is cumulative across rounds">
+  Copy detection (`optima/copy_fingerprint.py`) fires on the exact content hash **or** a
+  reformat-invariant, AST-normalized fingerprint, computed per slot over each op's transitive
+  bundle-local import closure. A reflowed, recommented, or renamed copy with a fresh hash is still
+  demoted; the earliest committer wins. A structural skeleton fingerprint additionally flags
+  rename-plus-constant-tweak near-copies as an advisory at reveal (surfaced for review, never
+  auto-demoted).
+</Callout>
 
-Each GPU eval run captures:
+## The seam: getting a kernel into a running model
 
-- **Per-prompt metrics**: TTFT (telemetry), end-to-end time (`e2e_s`), token match rate, output token count for every scored prompt
-- **Container logs**: full stdout/stderr from baseline and miner containers, saved to `container_logs/`
-- **Timestamped validator logs**: one log file per GPU eval session under `logs/`
+Step 7 hides the hardest piece of engineering. `sglang.Engine` forces `mp.set_start_method("spawn")` and runs the model in a **separate scheduler process**, a brand-new Python interpreter that re-imports sglang from scratch. Patching a class in the parent never reaches the child, so naive monkeypatching silently does nothing.
 
-Log artifacts are uploaded to S3. Structured fields mirror to **Postgres** on each write. The monitoring API reads Postgres for status, leader, evaluations, rounds, and eval progress; log blobs come from the local state mount (synced from S3).
+The fix is a `.pth` file plus a post-import hook. A line in a `.pth` file under site-packages that begins with `import` runs at interpreter startup, in the parent **and** in every spawned child:
 
-```mermaid
-flowchart LR
-  validator[CPU/GPU validator]
-  pg[(Postgres)]
-  s3[S3 logs only]
-  api[monitor-api]
-  logs[Log mount]
-
-  validator --> pg
-  validator --> s3
-  api --> pg
-  api --> logs
-  s3 --> logs
+```bash
+echo 'import optima.bootstrap' > $SITE_PACKAGES/optima.pth
 ```
+
+`optima.bootstrap` registers a meta-path finder that watches for the import of the seam-target modules and, the moment one finishes loading, runs `seam.activate()` against it. `activate()` installs the dispatcher into the target class (for example `SiluAndMul.forward_cuda`), then decides whether to load the miner kernel from env: `OPTIMA_ACTIVE=1` plus `OPTIMA_BUNDLE_PATH=<dir>` loads and registers the kernel (candidate), otherwise the registry stays empty and the dispatcher falls back to stock (baseline). The same process code serves both launches; the validator picks baseline versus candidate by setting env before each launch.
+
+The dispatcher (`optima/dispatch.py`) is the one place a miner kernel is called during inference. The validator owns the output allocation, the eligibility check, and the fallback; the miner's `entry` only ever sees pre-allocated tensors and, on any exception, the dispatcher falls back to the stock kernel.
+
+**Tamper-resistant timing.** The `.pth` runs in every process, including the validator's driver process that holds the clock. To keep a malicious kernel away from the timer, the driver calls `seam.mark_driver()` *before* importing sglang; `activate()` sees that flag and installs a pass-through seam in the driver that never imports the miner module. The kernel loads only in the spawned scheduler child. The two are different OS processes communicating over IPC, so the kernel cannot reach the timer. This is what "out-of-process timing" means.
+
+The five seam adapters live in one table (`optima/seams.py`): the bootstrap watch-list, `seam.activate()`, and the `optima compat` canary all derive from it. Chokepoints today: `SiluAndMul` and `RMSNorm` (ops), `RadixAttention.forward` and `FusedMoE.forward` (blocks), and `GroupCoordinator.all_reduce` (collective).
+
+## State today: a local JSON ledger
+
+The harness is **one CLI plus a local JSON ledger**. `commit_reveal.Ledger` persists commitments, scores, the champion, and copy verdicts to a JSON file. This is deliberately a stand-in so the whole mechanism is testable without a chain or a GPU (the commit-reveal ledger has its own unit tests). It is the toy version of what production splits into a database and a chain layer.
+
+## Production target architecture
+
+<Callout type="warn" title="Target, not built">
+  Everything in this section is the **target** architecture, distilled from a study of a live
+  Bittensor subnet (Affine). None of it is deployed. Today Optima is one CLI and a local JSON
+  ledger. There is no always-on service, no database, and no public monitoring API. Do not treat the
+  services below as existing infrastructure.
+</Callout>
+
+A production subnet is a **fleet of cooperating services around a database**, with the chain used only as the trust anchor (it holds miner commitments and weights; everything else lives in the DB). The service decomposition:
+
+| Service | Job | Touches chain? |
+|---|---|---|
+| **validator** | the only thing that sets weights on chain; reads computed weights from the DB and emits them every ~180 blocks | yes, writes weights |
+| **monitor** | syncs the metagraph, reads on-chain miner commitments, seeds the challenger queue | yes, reads |
+| **scheduler** | the king-of-the-hill engine: a block-tick loop that picks a challenger, runs the battle, decides, updates the champion | no |
+| **executor** | runs the actual evaluations (the two-launch throughput + KL run), writes results to the DB | no |
+| **anticopy** | builds fingerprints and computes copy verdicts | no |
+| **api** | read-only leaderboard / dashboard backend | no |
+
+```
+   Bittensor chain
+     │   ▲
+     │ commitments        weights │
+     ▼   │
+  monitor ──► ┌───────────────┐ ◄── validator ──► (sets weights on chain)
+              │   DB: state   │
+  scheduler ◄─┤ (single       ├──► api (leaderboard)
+     │        │  writer)      │
+     ▼        └───────────────┘
+  executor ──► GPU box: sglang + miner kernel
+  (two-launch eval)
+```
+
+A key principle borrowed from Affine: **no message brokers**. Everything coordinates through the DB, and state is implicit, so the system is restart-safe (re-derive from what rows are missing, do not replay). Exactly one service writes the scores and weights tables (single-writer), which prevents races.
+
+Today's harness maps cleanly onto this target: `commit_reveal.Ledger` is the DB plus the king-of-the-hill part of the scheduler; `eval.throughput_kl.evaluate` is the executor; `cli.py` is the seam of all of them. What is new in production is the chain plumbing (monitor + validator), a real database (Postgres to start, with `miners`, `scores`, `snapshots`, and `system_config` tables), and the service split. Bittensor's native commit-reveal replaces the custom transport, so the on-chain half is commit + fetch and `commit_reveal.py` keeps only the off-chain scoring half.
+
+### Isolation, the frontier gap
+
+The largest not-yet-built piece is **isolation for untrusted miner kernels**. The kernel is Python that runs in the scheduler process; the static scan is a tripwire, not a boundary. The target pattern (also from Affine): chain and cloud secrets live only on a CPU control box, the GPU box runs only sglang and holds no secrets, the GPU box has no network egress and is wiped between evals, and each eval gets a per-eval CUDA context plus a watchdog for GPU DoS and out-of-bounds writes. Until that is built, the VM is the trust boundary and untrusted miners are not supported. `--framework-mode` and `--isolate` fail closed if the candidate process cannot prove no-egress network isolation; `--allow-unsafe-no-isolation` is for local debugging only.

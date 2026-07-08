@@ -1,44 +1,78 @@
 ---
 title: Overview
-description: How the Cacheon validator works, what you need to run one, and the day-to-day operator workflow.
+description: The Optima validator is the referee. It owns the model, the prompts, the timing, and the reference; the miner contributes one op. Two launches, scored on throughput gated by fidelity.
 ---
 
-The validator scans the Bittensor chain for miner submissions, evaluates them against a vLLM baseline on GPU hardware, and sets weights to the current leader and runner-up.
+The validator is the **referee**. It owns the model weights, the model graph, the tokenizer, the sampler, the benchmark prompts, the timing, and the reference run. The only thing a miner contributes is the implementation of **one operation** deep inside the forward pass. Everything around that op is trusted validator code.
 
-## How it works
+The validator swaps each miner kernel into a model **it** controls, runs the model, and measures two things: did the kernel make the model faster (**throughput**), and did the model's output stay correct (**fidelity**, measured as KL divergence against a trusted reference plus task accuracy on real benchmarks). It turns those into a score and tells the chain how to pay miners.
 
-A single long-running process handles the full lifecycle:
+## The validator owns everything except one op
 
-1. **Chain scan**: polls the Bittensor chain for new miner commitments (Docker image + digest)
-2. **Challenger detection**: filters for commitments not yet evaluated or rejected
-3. **GPU search**: queries Targon and Lium for the cheapest available pod that meets [GPU requirements](#gpu-requirements)
-4. **Automated rental**: rents a GPU pod, SSHs in, runs `setup-gpu.sh`, configures the environment, and starts `docker compose -f gpu-compose.yml up`
-5. **Evaluation**: the GPU pod runs the vLLM baseline, evaluates each challenger, and uploads results to S3
-6. **Teardown**: the pod is terminated after the evaluation completes (or on failure/timeout)
-7. **Weight setting**: after GPU eval (or on idle ticks), sets weights to the current leader and runner-up
+This is the single most important design decision, and it is what makes the referee hard to cheat.
 
-<Callout type="idea" title="Why this design?">
+Because the miner only produces one op's output and never the final tokens or the logprobs, the classic "route to an API and return the right answer" attack does not apply. There is nothing to substitute: the validator produces the tokens and logprobs from the rest of the trusted model. The miner controls one cheap op (for example the SiLU activation in the MLP); the validator allocates the output tensor, checks eligibility, calls the kernel, and owns the fallback. See [Architecture](/docs/validators/architecture) for the full submission pipeline.
 
-{/* todo: mention of s3 handoff, is that still accurate? */}
-**Security:** The CPU host holds the wallets, while the GPU pod performs evaluation only and has no wallet access. S3 acts as the handoff layer between them.
-
-**Cost:** GPUs are rented only when challengers exist and hardware is available. A configurable price cap (`CACHEON_MAX_HOURLY_PRICE`) prevents runaway spend, and the pod timeout scales automatically with the number of challengers.
-
+<Callout type="info" title="Why a kernel-slot and not a whole model">
+  If a miner controlled the entire forward pass, they could gut the model (drop layers, 1-bit
+  quantize) and then make the output look correct by fetching real answers from an API. With a
+  kernel-slot, there is no final output to substitute, and faking a cheap op through a network call
+  is slower and pointless. The design structurally removes that attack class.
 </Callout>
 
-## GPU requirements
+## The gold standard is a local reference, not a production API
 
-Evaluation runs `Qwen2.5-72B-Instruct` with tensor parallelism. Use 8-GPU NVLink/SXM-class hardware where the workload is bottlenecked on cross-GPU bandwidth, and attach enough persistent disk for weights, images, and caches (see [Validator setup](/docs/validators/setup)).
+The reference the candidate is compared against is the **same model on the same box with the stock kernels**. It is not a production API and not a remote endpoint. What the gold standard is matters enormously, and an API reference breaks the subnet in three ways:
 
-The CPU orchestrator uses an in-repo tier list (`validator.providers.TIERS`). All evaluations run on 8-GPU NVLink/SXM-class nodes with tensor parallelism set to 8 (`TP=8`). Matching uses GPU type, GPU count, and minimum VRAM per GPU (B300 `>=` 288 GB, B200 `>=` 180 GB, H200 `>=` 141 GB, H100 `>=` 80 GB). Within a tier, the cheapest hourly price wins; Tier B is only used when no Tier A config is available.
+- **It is non-reproducible.** At temperature above 0 it is random; even at temperature 0 the served version drifts (different quantization, system prompt, sampler).
+- **It is sparse.** APIs return only top-k logprobs or none, so you cannot compute a true distribution distance, only a gameable approximation.
+- **It breaks consensus.** Two validators hitting the API get different samples, so they compute different scores and Bittensor's Yuma consensus falls apart. Identical measurement across validators is a protocol requirement (see [sglang tracking](/docs/validators/sglang-tracking)).
 
-| Tier              | Configs (cheapest within tier wins) | When used                                                |
-| ----------------- | ----------------------------------- | -------------------------------------------------------- |
-| **A** (preferred) | 8x H200 SXM, 8x B200, 8x B300       | Default.                                                 |
-| **B** (fallback)  | 8x H100 SXM                         | Only when Tier A has zero availability across providers. |
+A local stock-kernel reference is exact, free, deterministic, and adversary-independent. ("Another trusted GPU pod running the same model" is the same idea with the reference on separate hardware; it is compatible, just more plumbing.)
 
-## Setup
+## Two launches
 
-- [Validator setup](/docs/validators/setup): VPS, wallet, Docker Compose, GPU provider credentials
-- [Manual GPU setup](/docs/validators/gpu-pod-setup): advanced reference for running GPU eval manually
-- [Architecture](/docs/validators/architecture): how the loop, Postgres mirroring, and state work
+The validator runs the model **twice** with identical weights, seed, sampler, and prompts. The only difference is the one op:
+
+- **baseline** — kernel off, stock kernels. This is the reference (the gold standard).
+- **candidate** — kernel on, the miner's kernel swapped in.
+
+Because only the one op differs, any delta in throughput or fidelity is attributable to the kernel. This is the `evaluate()` two-launch run in `optima/eval/throughput_kl.py`; the real scoring path (`optima bench`, `optima/eval/capability.py`) drives the same two launches on real benchmark prompts at realistic generation lengths.
+
+Each launch runs in its **own fresh process**. sglang plus deterministic mode set process-global CUDA and torch state; in a shared driver the baseline's state corrupted the candidate on large MoE models (observed on gpt-oss-120b: a no-op kernel "regressed" to 0%). Isolated processes make the two launches independent and free all GPU memory between them.
+
+## Scoring: throughput gated by fidelity
+
+Throughput is the objective; fidelity is a gate, not a score component.
+
+- **Fail fidelity → score 0**, no matter how fast. You cannot trade correctness for speed. A kernel that skips its work to look fast scores zero because the model can no longer do the task.
+- **Pass fidelity but below the speedup margin → no improvement.** It cannot take the title, but it is not punished.
+- **Pass both → score is the speedup.**
+
+Fidelity is gated two ways on the same candidate run: per-token **KL divergence** against the baseline (the dense, low-variance primary gate) and **task accuracy** on real benchmarks (GSM8K + MMLU today, a capability floor). A faithful kernel preserves both; a kernel that secretly degrades the model drops accuracy and/or blows up KL and scores zero even if it looked fast.
+
+See [Scoring](/docs/evaluation/scoring) for the gates, thresholds, and noise-robust speedup verdict.
+
+## Honest current state
+
+Optima runs today as a **command-line harness** (`python -m optima.cli`), not a deployed always-on service.
+
+- **The mechanism is validated on real GPUs** (H100, sglang 0.5.12.post1 / CUDA 13), on models up to **gpt-oss-120b on a single 80 GB H100**. The seam fires on real models including a 120B MoE, the anti-cheat gate rejects broken kernels hard (fast-but-dumb scores zero), and end-to-end KL catches subtle drift that per-op correctness misses.
+- **No submitted kernel has beaten sglang.** Every example kernel is a correctness demo. The faithful ones reproduce the model but are slower than sglang's own tuned kernels; the broken ones are caught by the gate. This validates the *referee*, not any optimization.
+- **Host isolation for untrusted miners is not built.** Today the VM is the trust boundary, which is fine for a controlled run but not for adversaries. Chain integration is a local JSON ledger, not on-chain weights. A production always-on validator service is a target, not shipped.
+
+<Callout type="warn" title="What is proven vs what is not">
+  Proven: the referee can tell a real kernel from a cheat and time it tamper-resistantly, on models
+  up to gpt-oss-120b. Not proven: that any submission moves throughput. Not built: isolation for
+  untrusted kernels, chain integration, and the production service fleet. See
+  [Architecture](/docs/validators/architecture#production-target-architecture) for the target and
+  [what is not done](https://github.com/latent-to/optima).
+  {/* TODO: confirm final optima repo home (currently ShivanshuPurohit/optima) */}
+</Callout>
+
+## Next
+
+- [Architecture](/docs/validators/architecture): the submission pipeline and the production target architecture.
+- [Running the harness](/docs/validators/running-the-harness): install the seam, CPU dry-run, GPU eval recipe.
+- [GPU pods](/docs/validators/gpu-pods): renting GPUs, the toolchain, arch flags.
+- [sglang tracking](/docs/validators/sglang-tracking): why sglang is pinned and how bumps work.

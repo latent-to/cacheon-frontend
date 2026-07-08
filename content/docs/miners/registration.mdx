@@ -1,94 +1,50 @@
 ---
-title: Miner Quickstart
-description: How to commit your Docker image reference on-chain as a Cacheon miner.
+title: Registration
+description: The commit-reveal submission flow. Commit a hash of your bundle, then reveal it. A reveal matching an earlier commit by a different hotkey is flagged a copy and earns 0.
 ---
 
-## Overview
+## Everything before commit needs no chain
 
-Registration is three steps:
+You can write, scan, verify, GPU-evaluate, and bench a bundle without a wallet and without touching any chain. See [Local testing](/docs/miners/local-testing). The chain matters only when you submit. To submit and be paid you need a Bittensor **hotkey**, which is standard Bittensor wallet tooling on netuid 14 (mainnet) or 470 (testnet).
 
-1. Push your Docker image to a public registry
-2. Run `miner/commit.py` (pays the submission fee and commits in one flow)
-3. The validator verifies payment on-chain and schedules evaluation
+## Commit-reveal
 
-The validator scans for new commitments approximately every 10 minutes. When it finds yours, it pulls your image and evaluates it.
-
-## Prerequisites
-
-- [Install the Bittensor SDK](https://docs.learnbittensor.org/getting-started/installation). This is required in the environment used to run the [Cacheon miner commit script](#step-2-commit-on-chain).
-- A Bittensor wallet registered on Bittensor mainnet subnet 14. For more information, see [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets) and [Miner registration](https://docs.learnbittensor.org/miners#miner-registration).
-- Enough TAO on your **coldkey** to cover the submission fee (default `0.1` TAO on mainnet when validators enable the gate).
-
-## Step 1: Push your image
-
-Tag and push your image to a public registry:
+Submission uses **commit-reveal** so nobody can copy your bundle off-chain and front-run you. You post a hash of your bundle first (the commit), then reveal the bundle later. Revealing proves you committed that exact content first.
 
 ```bash
-docker tag my-server:latest docker.io/myuser/cacheon-miner:v1
-docker push docker.io/myuser/cacheon-miner:v1
+# 1) commit a hash of your bundle (during the commit window)
+optima commit my_bundle --hotkey <YOUR_HOTKEY> --salt <random> --round N
+
+# 2) reveal it (during the reveal window) — proves you committed it first
+optima reveal my_bundle --hotkey <YOUR_HOTKEY> --salt <random> --round N
 ```
 
-Note the image digest (the `sha256:...` printed after push). You will need this.
+Keep your `--salt` and your bundle. You need both to reveal, and the salt is what binds the hash to you.
 
-To get the digest after pushing:
-
-```bash
-docker inspect --format='{{index .RepoDigests 0}}' docker.io/myuser/cacheon-miner:v1
-```
-
-## Step 2: Commit on-chain (payment + reveal)
-
-Use the Cacheon commit script in the [Cacheon GitHub repository](https://github.com/latent-to/cacheon/blob/main/miner/commit.py). It runs **two steps in one command**:
-
-1. **Pays the submission fee.** Your coldkey signs `Utility.batch_all([transfer, remark])`:
-   - `Balances.transfer_keep_alive` sends the fee to the subnet treasury address
-   - `System.remark` carries `cacheon:<hotkey>:<digest>` so the payment is tied to this image
-2. **Reveals the commitment.** Your hotkey posts JSON with the image, digest, and payment proof.
-
-```bash
-python miner/commit.py \
-  --wallet-name <your-wallet> \
-  --wallet-hotkey <your-hotkey> \
-  --image "docker.io/myuser/cacheon-miner:v1" \
-  --digest "sha256:abc123..." \
-  --fee 0.1 \
-  --network finney \
-  --netuid 14
-```
-
-On-chain commitment JSON (written by the script):
-
-```json
-{
-  "image": "docker.io/myuser/cacheon-miner:v1",
-  "digest": "sha256:abc123...",
-  "payment_tx": "0xabc123...",
-  "payment_block": "0xdef456..."
-}
-```
-
-| Field           | Description                                           |
-| --------------- | ----------------------------------------------------- |
-| `image`         | Full Docker image reference (registry/repo:tag)       |
-| `digest`        | Image manifest digest (`sha256:...`)                  |
-| `payment_tx`    | Extrinsic hash of the fee batch (`0x` + 64 hex chars) |
-| `payment_block` | Block hash where that extrinsic was included          |
-
-Validators look up `payment_tx` with `substrate.retrieve_extrinsic_by_hash`, confirm the coldkey signer, an executed `Balances.Transfer` to the treasury, and the remark in the batch. One RPC lookup per submission; no separate payment database.
-
-<Callout type="info" title="Resubmitting on the same hotkey">
-  You can commit again on the same hotkey. Each new commitment needs a fresh fee payment and new
-  `payment_tx` / `payment_block` fields. The validator uses the latest revealed commitment per
-  hotkey; each commit block is tracked separately. For more information, see [Resubmitting on the
-  same hotkey](/docs/concepts/competition-model#resubmitting-on-the-same-hotkey).
+<Callout type="warn" title="A matched earlier commit earns 0">
+  A reveal whose content matches an *earlier* commit by a **different** hotkey is flagged a **copy** and
+  earns 0. The match is not just an exact hash: a reformat-invariant fingerprint catches a bundle that
+  was re-whitespaced or had its symbols renamed, and a per-slot, per-file check catches a stolen kernel
+  body that was relocated into an imported module or hidden by padding the bundle with an extra op. Copy
+  detection is cumulative across rounds.
 </Callout>
 
-<Callout type="warn" title="Register before you pay">
-  The commit script checks that your hotkey is registered on the target netuid before submitting the
-  fee. If payment succeeded but the commitment step failed, rerun with the printed `--payment-tx`
-  and `--payment-block` flags to retry without paying twice.
+## Settlement
+
+Settlement is run by the validator. It scores every **original, passing** reveal and applies **king-of-the-hill**: the best kernel for a slot is the **champion**, and to take the title a challenger must beat it by the margin (`your_score ≥ champion_score × (1 + 2%)`). A bit-identical copy ties, never clears the margin, and earns 0.
+
+```bash
+# per-slot championships: one champion per slot, emission split across slots
+optima settle --per-slot --round N
+
+# inspect ledger state (champion, counts)
+optima ledger
+```
+
+There is one champion per slot and emission is split across slots that have a champion, so you can win by **specializing** in a single slot. You do not need to beat everyone everywhere.
+
+<Callout type="info" title="The chain is a local JSON ledger today">
+  Commit, reveal, and settle currently operate on a local JSON ledger (`optima_ledger.json`), not a live
+  chain. Full chain integration is on the roadmap. The hotkey identity and copy-detection logic are real;
+  the on-chain plumbing is not wired up yet.
 </Callout>
-
-## What happens after
-
-The validator pulls your image and runs the [evaluation harness](/docs/evaluation/harness). If your score beats the current leader, you take the top spot.

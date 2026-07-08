@@ -1,48 +1,79 @@
 ---
 title: Overview
-description: Mining with your inference servers - requirements, workflow, evaluation, acceptance
+description: You write a kernel, not a container. What you build, what you need, the flow from local verify to commit-reveal, and an honest read on how hard winning is.
 ---
 
 ## What you're building
 
-A containerized inference server that serves `Qwen2.5-72B-Instruct` via an OpenAI-compatible chat completions API. The validator pulls your Docker image, starts it with GPU access, sends instruct-style prompts, and measures how fast your server responds compared to a vLLM baseline.
+You write a **GPU kernel**: a small piece of code for one operation inside a fixed, public model that the validator runs on its GPUs. Not a container, not an inference server, not a fine-tune. The validator swaps your kernel into a pinned sglang engine, runs the model, and scores two things:
 
-You build a Docker image, push it to a container registry, and commit the image reference on-chain. That's it.
+1. **Throughput** — tokens/second, versus the model running stock (unmodified sglang).
+2. **Fidelity** — does the model still produce the *same* outputs? Measured by per-token KL divergence against the stock run, plus real-benchmark accuracy (GSM8K / MMLU).
 
-## Prerequisites
+You earn if and only if your kernel is **both faster and faithful**. A kernel that is 30% faster but changes the model's answers scores zero. A kernel that is perfectly faithful but slower than stock also scores zero. The whole game is a genuine speedup at equal quality.
 
-| Requirement                           | Details                                                                                                                                                           |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Bittensor wallet**                  | Registered on subnet 14 (mainnet) or 470 (testnet). See [Wallets in Bittensor](https://docs.bittensor.com/getting-started/wallets).                               |
-| **Container registry**                | Your Docker image must be publicly pullable. You can use Docker Hub, GitHub Container Registry, or any public registry.                                           |
-| **GPU (for local testing)**           | 8-GPU NVLink/SXM pod (e.g. 8x H200 or 8x B200). On-chain eval always runs on 8 GPUs (`TP=8`). See [GPU requirements](/docs/validators/overview#gpu-requirements). |
-| **Model weights (for local testing)** | `Qwen2.5-72B-Instruct`. On the real validator, weights are provided as a read-only volume mount.                                                                  |
+Your submission unit is a **bundle**: a directory holding a `manifest.toml`, your `kernels/*.py`, and optional `metadata/*.json`. See [Submission format](/docs/miners/submission-format).
 
-<Callout type="info" title="You don't need your own GPU to register">
-  Registration on mainnet is just an on-chain commitment that points to your Docker image. The
-  validator machine runs your container with model weights mounted. You only need a GPU for local
-  testing before submission.
+<Callout type="info" title="Cacheon to Optima, Phase 2">
+  This is the successor mechanism to Cacheon. Cacheon paid for a Docker container that served a whole
+  model; Optima pays for a single kernel swapped into a model the validator controls. The subnet is
+  netuid 14 on mainnet, 470 on testnet.
 </Callout>
 
-## High-level flow
+## What you need
 
-1. Understand the API contract. See [API contract](/docs/miners/api-contract)
-2. Build your inference server and Dockerfile. See [Submission format](/docs/miners/submission-format)
-3. Test locally before submitting. See [Local testing](/docs/miners/local-testing)
-4. Push your Docker image to a public registry
-5. Run `miner/commit.py` to pay the submission fee and commit on-chain. See [Registration](/docs/miners/registration)
-6. Validator verifies payment, pulls your image, evaluates, scores
+| Requirement | Details |
+| --- | --- |
+| **Ability to write a GPU kernel** | PyTorch, Triton, or CuteDSL. This is a performance-engineering competition, not a config exercise. |
+| **A machine to develop on** | Everything up to submission runs on CPU. You can write, statically scan, and op-verify a kernel with no GPU at all. |
+| **A GPU (yours or rented) for real scoring** | Throughput and fidelity are only meaningful on a GPU. See [Local testing](/docs/miners/local-testing) for the toolchain and pod recipe. |
+| **A Bittensor hotkey** | Needed only to submit and to be paid. Everything before commit needs no chain and no wallet. See [Registration](/docs/miners/registration). |
 
-## Common pitfalls
+## The high-level flow
 
-- **Wrong model weights.** Your server must load the canonical `Qwen2.5-72B-Instruct` weights from the mounted volume at `/models`. Fine-tuned, distilled, or otherwise altered weights are likely to fail the text-similarity pre-filter or teacher-forcing gate.
-- **Slow startup.** The validator gives your container 12.5 minutes to respond on `/health`. 72B model loading takes 3-7 minutes; compile-heavy cold starts can need more. Budget accordingly.
-- **Non-compliant API.** Your server must implement `/v1/chat/completions` with logprobs support. See [API contract](/docs/miners/api-contract).
-- **Tensor parallelism.** On-chain eval always runs on 8 GPUs (`TP=8`). Your startup script should still detect GPU count via `nvidia-smi` so local smoke tests on smaller machines work. See the example in [Submission format](/docs/miners/submission-format).
-- **Don't copy the leader.** The validator computes a digest of your Docker image. Byte-identical copies of the current leader's image are rejected.
+1. **Write** a kernel for one [slot](/docs/miners/slots). Copy an example bundle and edit it.
+2. **Verify locally** on CPU: `python -m optima.cli scan` then `verify`. No GPU, no cost.
+3. **GPU-evaluate**: `verify --device cuda`, then `evaluate` (throughput + KL) and `bench` (real-task accuracy). See [Local testing](/docs/miners/local-testing).
+4. **Commit-reveal**: commit a hash of your bundle, then reveal it. This defeats off-chain copying. See [Registration](/docs/miners/registration).
+5. **Settle**: the validator scores every original, passing reveal and applies king-of-the-hill per slot.
+
+## The honest reality check
+
+As of this writing, **no submitted kernel has beaten sglang.** sglang's built-in kernels are already heavily tuned. Most faithful kernels you write will be *slower* than the baseline, and that is the expected default outcome, not a bug.
+
+Winning is real work. A realistic win is roughly **1.1x to 1.4x on one slot in one regime**, not a 2x blowout, and the strategy is to stack several regime-specific wins rather than find one giant lever. [Finding a win](/docs/miners/finding-a-win) is about where the actual openings are. This is not a faucet; it is a performance-engineering competition against a tuned opponent.
 
 ## Learn more
 
-See [Scoring](/docs/evaluation/scoring) for the full evaluation and weighting system.
-
-See [Rules](/docs/miners/rules) for container constraints and disqualification conditions. See the [Roadmap](/docs/roadmap) for what comes next.
+<Cards>
+  <Card
+    title="Slots"
+    href="/docs/miners/slots"
+    description="The seven typed boundaries you can target, their entry signatures, and the invariant that keeps them cheat-resistant."
+  />
+  <Card
+    title="Submission format"
+    href="/docs/miners/submission-format"
+    description="The bundle anatomy: manifest.toml, the kernel contract, metadata, and the sandbox."
+  />
+  <Card
+    title="Local testing"
+    href="/docs/miners/local-testing"
+    description="The inner loop: CPU verify, then GPU evaluate and bench against the real gates."
+  />
+  <Card
+    title="Finding a win"
+    href="/docs/miners/finding-a-win"
+    description="Seven lessons from real profiling on real hardware about where speedups actually live."
+  />
+  <Card
+    title="Registration"
+    href="/docs/miners/registration"
+    description="The commit-reveal submission flow and how copy detection works."
+  />
+  <Card
+    title="Rules"
+    href="/docs/miners/rules"
+    description="The sandbox rules and the four slot invariants, and why each exists."
+  />
+</Cards>

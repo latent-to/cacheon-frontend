@@ -1,65 +1,73 @@
 ---
 title: Key decisions
-description: A single-page log of the major design decisions for Cacheon V1, why they were made, and what was rejected.
+description: A single-page log of the major design decisions for Optima, why they were made, and what was rejected.
 ---
 
-This page exists so contributors and miners can answer "why does it work this way?" without rereading the validators and evaluation sections. Decisions are listed roughly in order of how load-bearing they are.
+This page exists so contributors and miners can answer "why does it work this way?" without rereading the validator and evaluation sections. Decisions are listed roughly in order of how load-bearing they are.
 
-## Model: Qwen2.5-72B-Instruct
+## Submission unit: a kernel for one slot, not a whole container
 
-**Decision:** Start with 72B on multi-GPU from V1.
+**Decision:** A miner implements **one operation** (a typed slot) inside a fixed model the validator controls. The validator owns the weights, the graph, the tokenizer, the sampler, the prompts, the timing, and the reference. The miner only fills an output tensor the validator allocated, strictly upstream of the sampler.
 
-**Reasoning:** 72B on 8-GPU TP=8 (H200/B200/B300) is a genuinely hard infrastructure challenge. It requires tensor parallelism, NVLink communication optimization, and distributed KV cache management. This is the "tip of the spear" positioning: the competition is inherently difficult, which makes winning meaningful. 14B on a single GPU is too easy and doesn't produce differentiation worth competing for. The mechanism is kept simple (one model, one endpoint) to offset the model-size complexity.
+**Reasoning:** This is the single most important design decision, and it is what makes the referee cheat-resistant. Because the miner never produces the final tokens or the logprobs, the "run gibberish and fetch the real answer from an API" attack has **no output to substitute**. The validator produces the tokens from the rest of the trusted model.
 
-**Rejected:** Starting with 14B. Too easy to serve fast; insufficient optimization surface. Starting with 7B. Trivial.
+**Rejected:** Whole-model or whole-container submission (the Phase 1 approach). If the miner controls the entire forward pass, they can gut the model (drop layers, aggressively quantize) and then make the output look correct by fetching real answers from an API. The kernel-slot design structurally removes that attack class.
 
-## Endpoint: `/v1/chat/completions` only
+## Fidelity reference: a local stock-kernel run, not a production API
 
-**Decision:** Require only the chat completions endpoint. Do not require `/v1/completions`.
+**Decision:** The fidelity "gold standard" is the **same model on the same box with the stock kernels**. The validator does two launches, kernel off (baseline reference) and kernel on (candidate), and diffs them.
 
-**Reasoning:** The target model is an instruct model (Qwen2.5-72B-Instruct) and the long-term positioning is "fastest backend for agentic workflows." Chat completions is the standard endpoint for instruct models. Requiring both endpoints doubles the API surface miners must implement. Raw completions (no chat template) is less aligned with production serving patterns.
+**Reasoning:** The reference is local, exact, free, deterministic, and adversary-independent. Only one op differs between the two runs, so any output difference is attributable to the miner's kernel.
 
-**Rejected:** Requiring both `/v1/completions` and `/v1/chat/completions`. Unnecessary surface area.
+**Rejected:** A production API (for example a hosted model endpoint) as the per-round reference. It is non-reproducible (samples drift even at temperature 0 due to quantization and sampler differences), sparse (APIs return only top-k logprobs, so a true distribution distance is not computable), a network dependency inside the trusted loop, and consensus-breaking (two validators hitting the API get different samples and compute different scores, which breaks Bittensor consensus). Referencing a second trusted GPU pod is compatible but is just the same idea with more plumbing.
 
-## Baseline: vLLM, not HuggingFace Transformers
+## Fidelity metric: per-token KL plus benchmark accuracy
 
-**Decision:** The baseline is a pinned vLLM instance serving the same model on the same hardware with tensor parallelism.
+**Decision:** Fidelity is judged by **per-token KL divergence** against the stock reference run (the dense, low-variance primary gate), backed by **task accuracy** on real benchmarks (GSM8K, MMLU) as a capability floor. The KL gate also caps the argmax-disagreement rate and a coverage or tail-mass guard, so a sparse cheat that keeps mean KL low by flipping a few tokens is still caught.
 
-**Reasoning:** vLLM is the de facto standard for production LLM serving. It implements PagedAttention, continuous batching, FlashAttention, and other optimizations. Beating it requires genuine innovation. A HuggingFace Transformers baseline would be too easy to beat and would not produce a useful signal about production readiness.
+**Reasoning:** Because the validator owns an exact local reference run, it can compare the full per-token output distribution directly rather than only checking that outputs are plausible. KL is dense and low-variance, so it makes a good primary gate; benchmark accuracy is noisier and needs large sample counts, so it serves as a capability floor rather than the primary signal. The KL threshold is per-slot and calibrated to the model's own nondeterminism noise floor, because attention's flash-style softmax reorders arithmetic and sits at a higher floor than elementwise ops.
 
-**Rejected:** Hugging Face Transformers as the baseline. It is significantly slower than modern inference engines, and outperforming vanilla Transformers is not a meaningful benchmark. Cacheon uses vLLM because beating vLLM demonstrates a genuine inference improvement.
+**Rejected:** A teacher-forcing plausibility gate (the Phase 1 approach), which checks that an output is plausible under the model's logprobs but does not measure exact distribution match. Optima's two-launch design provides an exact reference, so it can measure the distribution difference directly.
 
-## Correctness: token match pre-filter + teacher-forcing
+## Engine: a pinned sglang version
 
-**Decision:** One prompt set (10 scored + 2 warmup). Speed and correctness use the same miner outputs. A text-similarity pre-filter disqualifies submissions with aggregate decoded output similarity below 40% (mean of per-prompt scores) before teacher-forcing runs. Teacher-forcing on a separate scoring vLLM (`v0.9.2`, `prompt_logprobs`) checks that output text is plausible under Qwen. To pass, mean logprob must be at least `-4.0`, min logprob per token must stay above `-12.0`, and all 10 scored prompts must pass.
+**Decision:** All validators run the **same pinned sglang version** (`PINNED_SGLANG`), asserted by an `optima compat` canary. The seam patches this unmodified, pinned engine at runtime; sglang is never forked or reconfigured.
 
-**Reasoning:** Global token match alone produced false disqualifications when greedy decoding diverged early and cascaded across long outputs. A 10% aggregate pre-filter filters obvious failures (wrong model, broken inference) while allowing reasonable variance on long eval prompts. Teacher-forcing validates plausibility under canonical weights via the scoring vLLM's tokenizer, without requiring byte-identical stream tokens or baseline alignment. Cross-engine token-count comparison was removed after false disqualifications. Eval prompts stay at ~6k context so `prompt_logprobs` stays stable on the pinned scoring image.
+**Reasoning:** Bittensor consensus (Yuma) requires every validator to measure the same submission and get the same number. That requires pinning the engine version for the measurement environment. Runtime patching (rather than an engine config flag) also lets a miner introduce a genuinely novel kernel while every validator still runs the same pinned package. The pin binds the **validator**, not the miner: a submission targets a frozen slot contract, never a specific sglang version, so miners are decoupled from the pin and ride a version bump without resubmitting.
 
-## Aggregation: median across prompts
+**Rejected:** Letting each validator or miner pick their own engine version. Two validators on different runtimes get different throughput and different numerics, which breaks Yuma consensus.
 
-**Decision:** Per-prompt end-to-end speed improvements are aggregated using the median across the 10 scored eval prompts.
+## Anti-copy: commit-reveal
 
-**Reasoning:** Median aggregation prevents isolated events like GC pauses, memory allocation spikes or thermal throttling from distorting the final score. Using the mean would allow one bad prompt disproportionately affect the result. Trimmed mean is an alternative but more complex for no clear V1 benefit.
+**Decision:** A round is `commit → reveal → evaluate → settle`. Each miner first commits `H(content_hash, hotkey, salt)`, then later reveals `(content_hash, salt)`; a reveal is accepted only if it matches a commitment that same hotkey posted earlier.
 
-## Warmup: discard first 2 prompts
+**Reasoning:** Submissions are evaluated in the open, so a copier could otherwise resubmit the current champion's bundle. A copier who only sees a rival's bundle at reveal time has no matching prior commitment for it and cannot reveal it. Copy detection additionally fires cumulatively across rounds on either the exact content hash or a reformat-invariant AST fingerprint.
 
-**Decision:** Before scored prompts, the harness sends 2 warmup prompts that are discarded.
+**Rejected:** Evaluating in the open with no commitment (trivially copyable), and byte-hash-only deduplication (a reformatted or renamed copy dodges a plain hash).
 
-**Reasoning:** First inference after model load is slower on every framework (CUDA graph compilation, KV cache pre-allocation, JIT warmup, GPU clock ramping). Including startup costs in the score would reward miners who optimize for fast warmup rather than fast steady-state serving. The competition should measure steady-state performance.
+## Emissions: per-slot king-of-the-hill
 
-## Memory: constraint, not score axis
+**Decision:** Each slot has one **champion**. A challenger takes a slot's title only if `challenger_score ≥ champion_score × (1 + margin)`, with the margin defaulting to 2%. `optima settle --per-slot` splits emission across the slots that have a champion.
 
-**Decision:** Memory efficiency is not scored directly. The requirement is simply that the model must run successfully on the allocated GPUs. If the server runs out of memory, your evaluation fails.
+**Reasoning:** A per-slot champion rewards specialists: a miner who owns one slot is paid, rather than everything going to the single best end-to-end bundle. The margin (not a plain `>`) prevents rankings from flipping on timing noise, and it means a copy that merely ties the champion never clears the bar and earns nothing.
 
-**Reasoning:** External memory measurement of a containerized process is unreliable and gameable. Memory efficiency shows up indirectly through speed: better memory layout enables faster access patterns and the ability to handle longer contexts. Docker resource limits enforce the hard constraint.
+**Rejected:** Winner-take-all across all slots (does not reward specialization) and a strict `>` comparison (would let noise or a copy flip the title).
 
-## Prompts: hybrid instruct format
+## Scoring regime: CUDA graphs on
 
-**Decision:** Instruct-style prompts built from curated templates filled with PG19 context passages.
+**Decision:** Throughput is scored with **CUDA graphs on**. Op seams are graph-captured directly; a block or collective kernel must declare `graph_safe: true` in its metadata to run inside the graph, otherwise it falls back to the trusted baseline under capture.
 
-**Reasoning:** The target model is an instruct model and the long-term story is "fastest backend for agent workflows." Raw PG19 text continuation does not reflect real serving workloads. Hybrid prompts test realistic request shapes (summarization, QA, agent traces) while preserving the deterministic, long-context properties of PG19 that differentiate servers on prefill.
+**Reasoning:** Graphs-off cripples the baseline roughly 4.5 to 6.5 times, so a graphs-off "win" is meaningless. Beating sglang, vLLM, or TensorRT with graphs on is the entire point, so scoring only ever happens in that regime. An undeclared kernel that cannot be captured falls back rather than being allowed to wedge the graph.
 
-**Rejected:** Raw PG19 continuation only. Not aligned with instruct model or production workloads.
+**Rejected:** Graphs-off scoring, which would inflate apparent speedups against a crippled baseline and reward kernels that cannot run in the regime that matters in production.
+
+## Submission language: Triton and CuteDSL source, not raw CUDA
+
+**Decision:** Miners submit **Triton or CuteDSL source**, not raw CUDA extensions or prebuilt binaries.
+
+**Reasoning:** Source kernels keep submissions inspectable and narrow the attack surface (the host launch code still runs in-process, so isolation is still required, but there is no opaque compiled artifact). Inspectable source is also what makes an accepted win portable IP that can fold into the `optima-kernels` library.
+
+**Rejected:** Raw CUDA extensions or prebuilt binaries. They are opaque, present a larger attack surface, cannot be read or composed into a portable library, and are harder to prove correct.
 
 ---
 

@@ -1,111 +1,103 @@
 ---
 title: Harness
-description: How the harness orchestrates one-pass containerized evaluation, including baseline caching, miner generation, batched teacher-forcing, warmup requests, and median aggregation.
+description: The seam and the two-launch mechanic. How Optima injects an untrusted kernel into sglang's spawned scheduler process via a .pth post-import hook, why the dispatcher is the one place a miner kernel is called, and how out-of-process timing keeps the clock tamper-proof.
 ---
 
-The harness pulls miner containers, runs evaluation prompts (speed + correctness on the same outputs), and compares speed against a cached vLLM generation baseline.
+The harness is the referee. For each submission it runs the fixed model **twice** in pinned sglang under CUDA graphs (a stock **baseline** and a **candidate** with the miner kernel swapped in) and diffs them. This page is the mechanism: how a kernel that the validator does not trust gets *into* a running model, and how the timing is kept out of the kernel's reach.
 
-## Round lifecycle
+## Two launches, everything else equal
 
-1. **Sample prompts** from `block_hash`: 12 evaluation prompts (10 scored + 2 warmup), ~6k input / 512 output each
-2. **Baseline once**: start `vllm/vllm-openai:v0.22.0`, run evaluation prompts, cache results, tear down
-3. **Per miner** (leader, runner-up, then challengers):
-   - Start miner container; run **12 eval prompts** (2 warmup discarded, 10 scored)
-   - Tear down miner container; reset GPUs
-   - If text-similarity pre-filter passes, queue the 10 scored outputs for batched teacher-forcing
-4. **Teacher-forcing batch**: start scoring vLLM once (`v0.9.2`, ~7k context cap, 600s startup timeout), teacher-force all queued outputs, tear down scoring container
-5. Persist evaluation records and rerank
-
-Miner and scoring baseline **never share GPUs**. Teacher-forcing uses a single scoring container boot per round (no pause/resume between miners).
-
-### Timeouts
-
-| Timeout                           | Value        | What happens if exceeded           |
-| --------------------------------- | ------------ | ---------------------------------- |
-| **Startup (miner)**               | 12.5 minutes | Container terminated, DQ           |
-| **Startup (generation baseline)** | 20 minutes   | Eval abort                         |
-| **Startup (scoring baseline)**    | 10 minutes   | `baseline_scoring_unavailable`, DQ |
-| **Per-prompt**                    | 120 seconds  | Request cancelled, DQ              |
-
-### GPU state cleanup
-
-Between evaluations, the harness resets GPU state across all GPUs:
-
-- CUDA contexts are destroyed
-- GPU clocks are reset to default
-- Memory allocator caches are cleared
-
-Each miner starts from a clean GPU state, identical to what the generation baseline saw.
-
-## vLLM images
-
-| Role                                                 | Default image              | Context                                                                                           |
-| ---------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
-| **Generation baseline** (speed reference)            | `vllm/vllm-openai:v0.22.0` | 32k on mainnet (`--max-model-len` from mounted model config; capped at `max_position_embeddings`) |
-| **Scoring baseline** (correctness / teacher-forcing) | `vllm/vllm-openai:v0.9.2`  | 7168 tokens (`6144` input + overhead + `512` output budget; not the 32k generation cap)           |
-
-Override via `CACHEON_BASELINE_IMAGE` / `CACHEON_SCORING_IMAGE` in [validator config](https://github.com/latent-to/cacheon/blob/main/validator/config.py).
-
-## Prompt delivery
-
-Evaluation prompts (generation in miner container):
-
-```json
-{
-  "model": "Qwen2.5-72B-Instruct",
-  "messages": [{ "role": "user", "content": "<instruction with ~6k passage>" }],
-  "max_tokens": 512,
-  "temperature": 0,
-  "stream": true,
-  "logprobs": true,
-  "top_logprobs": 5
-}
+```python
+baseline  = _run_launch(cfg, prompts, bundle_path="",          active=False)  # stock kernels
+candidate = _run_launch(cfg, prompts, bundle_path=bundle_path, active=True)   # miner kernel
 ```
 
-Prompt order is **deterministic** from the block-hash seed (same order for every miner in the round).
+Same weights, same seed, same sampler, same prompts. The **only** difference is the one op the miner replaced, so any delta in throughput or output distribution is attributable to that kernel. The baseline *is* the gold standard: the same model on the same box with the stock kernels, which is local, exact, free, deterministic, and adversary-independent (unlike a production API, which is non-reproducible, sparse, and breaks consensus).
 
-Correctness scoring uses a non-streaming request with `prompt_logprobs=1` on the separate scoring container over the **same outputs**. See [Scoring](/docs/evaluation/scoring#correctness-teacher-forcing).
+**Each launch runs in its own fresh process.** sglang plus deterministic mode set process-global CUDA and torch state (deterministic algorithms, the cuBLAS workspace, the sampling backend); in a shared driver, the baseline's state corrupted the candidate on large MoE models (on gpt-oss-120b a no-op kernel appeared to "regress" to 0%). Isolated processes make the two launches independent and free all GPU memory between them.
 
-## Measurement
+## The obstacle: sglang runs the model in a separate process
 
-### End-to-end speed
+`sglang.Engine` does `mp.set_start_method("spawn")` and launches the model in a separate **scheduler** process. With *spawn*, that child is a brand-new Python interpreter that re-imports sglang from scratch, so patching a class in the parent process does nothing: the model runs in the child, and the patch is in the parent. Naive monkeypatching silently no-ops.
 
-Wall time from HTTP request send to the aligned k-th output token:
+## The seam: a `.pth` + a post-import hook
 
+Optima needs code to run **inside every interpreter in the venv**, including the spawned child, regardless of sglang version. Python offers exactly one such hook: **`.pth` files**. A line in a `.pth` file under site-packages that starts with `import` is executed at interpreter startup, in the parent *and* in every spawned child. The install writes one line:
+
+```bash
+echo 'import optima.bootstrap' > $SITE_PACKAGES/optima.pth
 ```
-miner_e2e = ttft + decode[k - 1]
-baseline_e2e = baseline_ttft + baseline_decode[k - 1]
+
+`optima.bootstrap` does not import sglang at startup (too heavy). Instead it registers a **meta-path finder** that watches for the seam-target modules (activation, layernorm, radix attention, the fused-MoE layer, and the distributed parallel-state) and, the moment one finishes loading, runs `seam.activate()` against it. This is the post-import hook pattern:
+
+```python
+class _SeamFinder(MetaPathFinder):
+    def find_spec(self, fullname, ...):
+        if fullname not in _TARGETS:            # the seam chokepoint modules
+            return None
+        spec = <real spec from the other finders>
+        spec.loader = _wrap_loader(spec.loader)  # run seam.activate() after exec
+        return spec
 ```
 
-`k = min(baseline_N, miner_N)`. The miner must emit at least `ceil(0.9 * baseline_N)` tokens (minimum 2) or that prompt gets 0 speed credit.
+The pinned sglang does also ship a hook/plugin framework, so an entry-point hook is available; the `.pth` path stays primary because it is version-independent and known spawn-safe. Migrating to the sanctioned hook is tracked as future work.
 
-### Aggregation
+### What `seam.activate()` does
 
-End-to-end speed improvement uses the **median** across the **10 scored prompts**.
+1. **Installs the dispatcher** into the target class (for example `SiluAndMul.forward_cuda`), keeping the original for fallback. Patching at the *class* before the model is built means every instance binds the dispatcher when it is constructed.
+2. **Decides whether to load the miner kernel**, from env:
+   - `OPTIMA_ACTIVE=1` and `OPTIMA_BUNDLE_PATH=<dir>` → re-scan, load, and register the kernel, and enable the registry. This is the **candidate** run.
+   - otherwise → the registry stays empty, the dispatcher always falls back to stock. This is the **baseline** run.
 
-### Correctness
+The *same* process code serves both launches; the validator picks baseline versus candidate by setting env before each launch. Block and collective seams are opt-in per slot (`OPTIMA_ATTENTION_SEAM`, `OPTIMA_MOE_SEAM`, `OPTIMA_COLLECTIVE_SEAM`).
 
-Teacher-forcing on the scoring vLLM after all miners finish generation. See [Scoring](/docs/evaluation/scoring#correctness-teacher-forcing).
+## The dispatcher: the one place a miner kernel is called
 
-## Per-prompt metrics
+```python
+def dispatched(self, x):
+    impl = REGISTRY.lookup("activation.silu_and_mul",
+                           dtype_name=..., last_dim=x.shape[-1], arch=...)
+    if impl is None:
+        return baseline_forward(self, x)         # not eligible / not active
+    out = torch.empty(<validator-chosen shape>, dtype=x.dtype, device=x.device)
+    try:
+        impl.entry(x, out)                        # the ONLY miner call
+    except Exception:
+        return baseline_forward(self, x)          # crash -> fall back
+    return out
+```
 
-`per_prompt` on an `EvaluationRecord` covers the **10 scored evaluation prompts**:
+The validator owns the **output allocation**, the **eligibility check** (dtype / arch / size, else fall back), and the **fallback**. The miner's `entry` only ever sees pre-allocated tensors and only fills the output; it never allocates output, never returns tensors, and never sees the final tokens or logprobs. This is the anti-cheat boundary: because the kernel is strictly upstream of the sampler, there is no final output to substitute, so the "run gibberish, fetch the real answer from an API" attack has nothing to attack.
 
-| Field              | Type  | Description                                                 |
-| ------------------ | ----- | ----------------------------------------------------------- |
-| `ttft_s`           | float | Time to first token for this prompt (telemetry)             |
-| `e2e_s`            | float | End-to-end wall time to aligned token count for this prompt |
-| `output_tokens`    | int   | Number of output tokens generated                           |
-| `token_match_rate` | float | Fraction of tokens matching baseline for this prompt        |
+## Tamper-resistant, out-of-process timing (`mark_driver`)
 
-These fields are stored in Postgres on each evaluation and exposed by the monitoring API.
+The `.pth` runs in **every** process, including the validator's *driver* (the one that calls `engine.generate()` and holds `time.perf_counter`). If the driver also imported the miner module, a malicious kernel's module-level code could monkeypatch the driver's clock.
 
-## Container log capture
+The fix: the driver calls `seam.mark_driver()` **before importing sglang**. `activate()` checks that flag and, in the driver, installs a pass-through seam but **never imports the miner module**. The miner kernel is loaded only in the spawned scheduler child (a fresh process where the flag is not set). So:
 
-After each evaluation (success or failure), the harness captures stdout/stderr via `docker logs` into `state-mainnet/container_logs/`:
+- **scheduler child** — runs the miner kernel (this is where it executes).
+- **driver process** — holds the timer, never touches miner code.
 
-- Generation baseline: `baseline_{cache_key}.log`
-- Scoring baseline: `baseline_scoring_{block}_{timestamp}.log` (same `{timestamp}` as `gpu_eval_{timestamp}.log`)
-- Miner: `uid{N}_{hotkey_prefix}_{block}.log`
+The two are different OS processes communicating over IPC, so the kernel cannot reach the timer. This is what "out-of-process timing" means, and it is why a broken kernel still fails the gate (proving the kernel really runs in the child) while the timer stays clean.
 
-Logs are uploaded to S3 under `logs/` and `container_logs/` only.
+<Callout title="Honest scope" type="info">
+Out-of-process timing makes the wall-clock **denominator** genuinely tamper-proof. Everything the scheduler *sends* the driver (token count, logprobs, text) is only as trustworthy as process isolation, which is the largest not-yet-built piece for genuinely untrusted miners. Today the VM is the trust boundary; that is fine for a controlled bootstrap, and the token budget is fixed a priori (`ignore_eos` + set `max_new_tokens`) so the throughput numerator does not depend on a scheduler-reported count.
+</Callout>
+
+## One candidate forward pass, end to end
+
+1. Driver: `seam.mark_driver()`; set `OPTIMA_ACTIVE=1`, `OPTIMA_BUNDLE_PATH=...`; `import sglang`; `Engine(...)`.
+2. Engine spawns the scheduler child. Child boots → `.pth` runs `import optima.bootstrap` → meta-path finder installed.
+3. Child imports the target module → finder fires → `seam.activate()` patches the class, loads and registers the miner kernel, enables the registry.
+4. Child builds the model; each target instance binds the dispatcher.
+5. Driver: `engine.generate(prompts, return_logprob=True, top_logprobs_num=k)`.
+6. Child runs the forward pass; at the seam, the dispatcher calls the miner `entry(x, out)`. The rest of the model (attention, norms, sampler) is stock sglang.
+7. Child returns tokens plus per-position top-k logprobs over IPC to the driver.
+8. Driver stamps wall-clock around the call and reads the logprobs. **Neither the timer nor the logprob computation ran any miner code.**
+
+## Graphs-ON is the only regime that counts
+
+Scoring runs with CUDA graphs ON because graphs-off cripples the baseline (~4.5-6.5x), and beating sglang graphs-on is the whole point. Op seams capture directly inside the graph; a block or collective kernel must declare `graph_safe: true` in its metadata (no host syncs, no data-dependent shapes inside the capture) or it falls back to the baseline in-graph and cannot win. See [Data contracts](/docs/evaluation/data-contracts) for the metadata schema.
+
+{/* TODO: confirm final optima repo home (currently ShivanshuPurohit/optima) */}
+Source: [`optima/bootstrap.py`](https://github.com/latent-to/optima/blob/main/optima/bootstrap.py), [`optima/seam.py`](https://github.com/latent-to/optima/blob/main/optima/seam.py), [`optima/dispatch.py`](https://github.com/latent-to/optima/blob/main/optima/dispatch.py), [`optima/seams.py`](https://github.com/latent-to/optima/blob/main/optima/seams.py), and [`optima/eval/throughput_kl.py`](https://github.com/latent-to/optima/blob/main/optima/eval/throughput_kl.py).

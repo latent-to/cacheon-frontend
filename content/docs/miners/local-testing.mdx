@@ -1,190 +1,93 @@
 ---
 title: Local testing
-description: "Verify your Docker image works correctly before submitting on-chain. Two paths: a quick no-GPU check to catch startup bugs, and a full GPU dry-run against real weights."
+description: The inner loop. Scan and verify on CPU with no GPU, then evaluate and bench on a GPU against the real throughput, KL, and accuracy gates.
 ---
 
-You have built and tagged your image. Before committing it on-chain, run through any of these checks. They are ordered by cost:
+The loop has two halves. The **CPU half** costs nothing and catches most mistakes: a static policy scan and op-correctness against a reference. The **GPU half** is where throughput and fidelity become real. Start on CPU, and only move to a GPU once `verify` passes.
 
-- the no-GPU check takes seconds and catches most submission mistakes
-- the GPU dry-run takes 10-20 minutes and confirms the full eval flow
+## CPU: scan and verify (no GPU)
 
-## Path 1: No-GPU smoke test
-
-**What it catches:** broken entrypoints, bad argument parsing, attempts to reach the internet at startup, completely wrong base images. Runs on any machine with Docker installed and does not require a GPU or model weights.
-
-**What it does not catch:** model loading errors, CUDA issues, tensor parallel mismatches, correctness problems. Catching those errors requires a [full GPU dry run](#path-2-full-gpu-dry-run).
-
-### Run it
+Install the CLI, then run the two local gates against an example bundle.
 
 ```bash
-docker run --rm -it \
-  -v /dev/null:/models:ro \
-  -p 8000:8000 \
-  <your-image>
+git clone https://github.com/latent-to/optima && cd optima
+pip install -e .            # installs the `optima` CLI + test deps
+pytest tests/               # sanity: should be all green
 ```
 
-`/dev/null` is mounted at `/models` so the container does not return an error on a missing directory. The server will start, attempt to load a model, and then fail. This behavior is expected. Focus on what happens before the model loads.
+{/* TODO: confirm final optima repo home (currently ShivanshuPurohit/optima) */}
 
-<Callout type="info" title="What you are looking for">
-**Pass:** container prints startup logs, vLLM or your server begins initializing, then complains about missing weights or CUDA.
+```bash
+# static policy scan (no code execution) — the sandbox check
+python -m optima.cli scan   examples/miner_silu_torch
 
-**Fail:** container exits in under a second. Common patterns:
+# op-correctness vs the high-precision reference, on CPU
+python -m optima.cli verify examples/miner_silu_torch --device cpu --dtype float32
+```
 
-- `error: unrecognized arguments: python -m vllm.entrypoints.openai.api_server` means your ENTRYPOINT and CMD are conflicting. See [Submission format](/docs/miners/submission-format#example-dockerfile).
+`scan` is the sandbox gate from [Submission format](/docs/miners/submission-format#the-sandbox): it flags banned constructs without running your code. `verify` feeds your kernel deterministic inputs and compares the output to a high-precision reference. This is a sanity check ("is this even the right function?"), not the load-bearing anti-cheat.
 
-- `exec: python: not found` means your script calls `python` but the base image only provides `python3`. Use `exec python3 -m vllm.entrypoints.openai.api_server ...` in your startup script.
+Now make it yours: copy the bundle, edit the kernel, re-verify.
 
-Any immediate exit with no output usually means your ENTRYPOINT path is wrong or the script is not executable.
+```bash
+cp -r examples/miner_silu_torch my_silu && $EDITOR my_silu/kernels/silu_and_mul.py
+python -m optima.cli verify my_silu --device cpu --dtype float32
+```
 
+Compare against the broken examples to see what a *failing* kernel looks like. They exist on purpose.
+
+```bash
+python -m optima.cli verify examples/miner_silu_broken --device cpu --dtype float32   # fails op-correctness
+```
+
+That is the whole inner loop: edit, `verify`, repeat. No GPU, no cost.
+
+<Callout type="info" title="Collective slots verify differently">
+  A collective kernel cannot be checked on one GPU. `verify` refuses `kind="collective"`; the validator
+  uses a distributed verifier that spawns `world_size` ranks and compares each rank's output to a
+  reference cross-rank reduce of the fp32 partials. Op and block slots verify with the command above.
 </Callout>
 
-<Callout type="warn" title="Image size on Docker Desktop">
-  If you are building from `vllm/vllm-openai:latest`, the base image is ~9 GB. On Docker Desktop (Mac/Windows) you may need to increase disk space under Settings > Resources > Disk image size. A Linux machine with native Docker is easier for this.
+## GPU: evaluate and bench (the real scoring)
+
+When local `verify` passes, measure on a GPU (your own or rented). Read [DEV_ENVIRONMENT.md in the repo](https://github.com/latent-to/optima/blob/main/docs/DEV_ENVIRONMENT.md) for the pod recipe. {/* TODO: confirm final optima repo home (currently ShivanshuPurohit/optima) */}
+
+```bash
+# 1) op-correctness on real shapes/dtypes
+python -m optima.cli verify my_bundle --device cuda --dtype bfloat16
+
+# 2) end-to-end throughput + KL smoke (the real gate), on a small model first
+python -m optima.cli evaluate my_bundle --model Qwen/Qwen2.5-1.5B-Instruct \
+    --num-prompts 64 --max-new-tokens 64
+
+# 3) capability floor on a real task (throughput + KL + accuracy)
+python -m optima.cli bench my_bundle --model Qwen/Qwen2.5-1.5B-Instruct \
+    --benchmarks gsm8k --samples 128
+```
+
+`evaluate` gives you the **two-launch throughput** and a **KL smoke** in one run: it brackets your candidate between baseline runs and reports a speedup against the noise-derived bar. `bench` runs a real task (GSM8K / MMLU) and reports throughput, KL, and **accuracy**, which is the capability floor.
+
+Read the `evaluate` output the way the validator does: a **speedup at or above the noise-derived bar**, **KL under the per-slot threshold**, and **no accuracy regression**. If the two bracketing baselines disagree a lot, the box is too noisy; fix that before trusting any number (lock clocks if you can, warm up, or run two replicas on disjoint GPUs so drift cancels).
+
+## Environment notes
+
+<Callout type="warn" title="Always launch via python -m optima.cli">
+  sglang spawns its scheduler with `mp spawn`, and the `__main__` guard matters. Run the GPU commands
+  through `python -m optima.cli ...`, not by importing the harness yourself.
 </Callout>
 
----
+- **`TORCH_CUDA_ARCH_LIST`** — set it to your GPU arch: `9.0` = H100, `10.0` = B200.
+- **Triton JIT** — sglang JIT-compiles CUDA at runtime, so the box needs `nvcc` and `ninja` on `PATH` (`export CUDA_HOME=/usr/local/cuda`).
+- **The seam** — the harness installs the kernel-injection seam into the venv via a `.pth`, because sglang runs the model in a spawned child. Run everything inside the same venv where you `pip install -e .`.
 
-## Path 2: Full GPU dry-run
+## Why a kernel fails
 
-**What it catches:** everything above, plus model loading errors, tensor parallel mismatches, `/health` not coming up, logprobs not being returned, model name mismatches, startup timeout.
-
-**Prerequisites**
-
-- a GPU machine (any Tier A or B hardware; see [GPU requirements](/docs/validators/overview#gpu-requirements)) with Docker
-- NVIDIA Container Toolkit, and the model weights installed.
-
-### Step 1: Provision the machine
-
-On a fresh Ubuntu 22.04/24.04 GPU machine, run the [validator GPU setup script](https://github.com/latent-to/cacheon/blob/main/validator/setup-gpu.sh). This installs Docker, NVIDIA Container Toolkit, downloads `Qwen2.5-72B-Instruct` weights to `/workspace/models/Qwen2.5-72B-Instruct`, and verifies the GPU is accessible from inside containers.
-
-```bash
-export HF_TOKEN=...  # optional, speeds up the model download
-sudo apt-get install -y curl vim git
-sudo -E DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a bash -c 'curl -fsSL "https://raw.githubusercontent.com/latent-to/cacheon/main/validator/setup-gpu.sh" | bash'
-```
-
-If Docker and NVIDIA Container Toolkit are already installed and you only need the weights, you can skip the script and download the model weights directly:
-
-```bash
-pip install huggingface_hub
-hf download Qwen/Qwen2.5-72B-Instruct \
-  --local-dir /workspace/models/Qwen2.5-72B-Instruct
-```
-
-### Step 2: Create an air-gapped test network
-
-The on-chain validator runs your container on an internal Docker network with no outbound internet. You must replicate the same constraint in your local tests.
-
-To do this, run the following command:
-
-```bash
-docker network create --internal cacheon-test-internal
-```
-
-### Step 3: Start your container
-
-Start the Docker container using the following command. If your weights are at a different path, replace `/workspace/models/Qwen2.5-72B-Instruct` accordingly.
-
-```bash
-docker run -d \
-  --name cacheon-local-test \
-  --gpus all \
-  --network cacheon-test-internal \
-  -v /workspace/models/Qwen2.5-72B-Instruct:/models:ro \
-  --shm-size 16g \
-  --memory 200g \
-  --cpus 32 \
-  --pids-limit 4096 \
-  <YOUR-IMAGE>
-```
-
-<Callout type="info" title="Match the validator's resource caps">
-  The on-chain validator runs your container with `--memory 200g`, `--cpus 32`, and `--pids-limit
-  4096`. Without these flags locally, your test environment is more forgiving than production -- a
-  miner whose image works locally might still OOM or hit pid limits during the real eval.
-</Callout>
-
-<Callout type="warn" title="Do not use the --rm flag">
-  If the container crashes on startup, the `--rm` flag removes the container before you can read
-  logs. Omit it so you can always run `docker logs cacheon-local-test` to see what went wrong.
-</Callout>
-
-### Step 4: Watch startup logs
-
-```bash
-docker logs -f cacheon-local-test
-```
-
-Wait until your server prints that it is ready (e.g. `Uvicorn running on http://0.0.0.0:8000`). On an 8x H200 or 8x B200 pod this typically takes 3-7 minutes.
-
-### Step 5: Test `/health`
-
-Get the container IP (it is on an internal network, not reachable via `localhost`):
-
-```bash
-CONTAINER_IP=$(docker inspect -f \
-  '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
-  cacheon-local-test)
-echo "Container IP: $CONTAINER_IP"
-```
-
-Ping `/health` from another terminal on the same network:
-
-```bash
-docker run --rm --network cacheon-test-internal curlimages/curl:latest \
-  curl -sf http://$CONTAINER_IP:8000/health
-```
-
-Expected result: `HTTP 200` from `docker logs -f cacheon-local-test`.
-
-### Step 6: Test completions with logprobs
-
-```bash
-docker run --rm --network cacheon-test-internal curlimages/curl:latest \
-  curl -s http://$CONTAINER_IP:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "Qwen2.5-72B-Instruct",
-    "messages": [{"role": "user", "content": "What is 1 + 1?"}],
-    "max_tokens": 32,
-    "temperature": 0,
-    "stream": true,
-    "logprobs": true,
-    "top_logprobs": 5
-  }'
-```
-
-Check the response:
-
-- You get `data: {...}` SSE chunks
-- Each chunk has `logprobs.content[].top_logprobs` with 5 entries
-- The stream ends with `data: [DONE]`
-- The model field in the request (`Qwen2.5-72B-Instruct`) is not rejected
-
-If the model name is rejected, register it in your container startup. For vLLM, pass `--served-model-name Qwen2.5-72B-Instruct` alongside your other flags in the `start.sh` snippet under [Example Dockerfile](/docs/miners/submission-format) on the Submission format page (same block as `--model /models`, `--dtype`, and `--tensor-parallel-size`).
-
-### Step 7: Clean up
-
-Finally, clean up the state of your Docker container:
-
-```bash
-docker stop cacheon-local-test
-docker network rm cacheon-test-internal
-```
-
----
-
-## Pre-submission checklist
-
-Before pushing your image and committing on-chain:
-
-| Check                                      | How to verify                                                                                                                                        |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Container does not exit immediately        | Path 1 passes with your startup logs visible                                                                                                         |
-| No internet access during startup          | No HuggingFace download attempts in logs when on `--internal` network                                                                                |
-| `/health` returns 200                      | Step 5 above                                                                                                                                         |
-| `/v1/chat/completions` streams SSE         | Step 6 above -- `data:` chunks present                                                                                                               |
-| Logprobs returned                          | Each chunk has `logprobs.content[].top_logprobs`                                                                                                     |
-| Model name `Qwen2.5-72B-Instruct` accepted | Step 6 request not rejected                                                                                                                          |
-| Startup completes within 12.5 minutes      | Container healthy before timeout                                                                                                                     |
-| `--tensor-parallel-size` not hardcoded     | Startup script uses `nvidia-smi` to detect GPU count at runtime (on-chain evaluation always uses 8 GPUs, but detection keeps local testing flexible) |
+| symptom | likely cause | fix |
+| --- | --- | --- |
+| `scan` reports a banned construct | network / file / dynamic-code call in your kernel | remove it; reuse sglang helpers via `import`, not `open()`/`exec()` |
+| `verify` op-correctness fails | wrong math, dtype handling, or shape vs the slot contract | check the exact signature in `optima slots`; compare to the matching example bundle |
+| `evaluate` runs but the kernel never fires | dtype/arch eligibility excludes the run, or a block kernel is not `graph_safe` so it fell back | widen `metadata`, declare `graph_safe` |
+| KL gate fails on a *faithful* kernel | you did not measure the stock-vs-stock noise floor; the "drift" may be the model's own nondeterminism | measure the floor first; for big MoE use deterministic mode and let the accuracy gate carry quality |
+| speedup gate fails | your kernel is simply slower than sglang's (the common case) | profile; see [Finding a win](/docs/miners/finding-a-win) |
+| score is 0 despite a speedup | a fidelity gate failed (fast but dumb), or it tied the champion and did not clear the margin | check the quality line in the report |
+| NO-DECISION | the box was too noisy (baselines disagreed) | quieten the box; re-run |

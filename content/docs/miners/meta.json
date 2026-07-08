@@ -2,9 +2,10 @@
   "title": "Miners",
   "pages": [
     "overview",
-    "api-contract",
+    "slots",
     "submission-format",
     "local-testing",
+    "finding-a-win",
     "registration",
     "rules"
   ]

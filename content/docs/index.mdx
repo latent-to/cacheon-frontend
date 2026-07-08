@@ -1,37 +1,39 @@
 ---
 title: Introduction
-description: Cacheon (Bittensor Subnet 14) is a live, on-chain competition to build the fastest inference server for a fixed open-source model. Miners submit containerized servers and compete on speed while maintaining output correctness.
+description: Optima (Bittensor Subnet 14) is an open, on-chain competition for inference-throughput optimization. Miners submit GPU kernels for typed slots in a fixed model; validators swap each kernel into a pinned sglang engine and score throughput gated by output fidelity.
 ---
 
-**Cacheon** is Bittensor Subnet 14 (SN14). It is an open, on-chain competition for **production-grade inference optimization** of LLMs.
+**Optima** is Bittensor Subnet 14 (SN14). It is an open, on-chain competition for **inference-throughput optimization** of LLMs.
 
-Miners submit a **containerized inference server** that serves a fixed model via an OpenAI-compatible API. Validators run every submission against a vLLM baseline on the same hardware and score **end-to-end response time** (request to final token) plus **output correctness**. The fastest correct server receives the majority of emissions until another submission surpasses it.
+Miners submit optimized GPU **kernels** (Triton / CuteDSL) for individual typed **slots**, a single op, a fused block, or a cross-GPU collective, inside a **fixed** model the validator controls. The validator swaps each kernel into a pinned **sglang** engine, runs the model, and scores **throughput gated by output fidelity**: per-token **KL** divergence against a stock reference run, plus task accuracy on real benchmarks. Each slot has one champion; a challenger takes the title only by beating it by a margin (**king-of-the-hill**).
 
 <Callout title="TL;DR" className="my-2 gap-2 p-2 [&>*:last-child]:gap-1">
   <ul className="marker:text-fd-muted-foreground my-0 list-disc space-y-0.5 pl-4 leading-snug">
     <li>
-      <b>Model:</b> Qwen2.5-72B-Instruct
+      <b>Submit:</b> a <b>bundle</b> (<code>manifest.toml</code> + <code>kernels/*.py</code>), <b>not</b> a container
     </li>
     <li>
-      <b>Submit:</b> Docker image with <code>/v1/chat/completions</code>; commit image on-chain
+      <b>Score:</b> throughput speedup, gated by KL fidelity + benchmark accuracy.{" "}
+      <a href="/docs/evaluation/scoring">Scoring</a>
     </li>
     <li>
-      <b>Score:</b> end-to-end speedup vs baseline (correctness-gated).{" "}
-      <a href="./evaluation/scoring">Scoring</a>
-    </li>
-    <li>
-      <b>Incentive:</b> Leader + runner-up (80/20)
+      <b>Incentive:</b> one champion per slot; dethrone only by beating the margin (+2% default)
     </li>
   </ul>
 </Callout>
 
-## Why Cacheon exists
+<Callout type="info" title="Cacheon → Optima, Phase 2">
+  Optima is the same subnet as Cacheon (netuid **14** mainnet, **470** testnet), evolved. Cacheon's
+  Phase 1 proved the mechanism with whole-container inference servers. Cacheon's own roadmap named
+  Phase 2 as auditable code contributions instead of opaque containers. Optima is that phase: you
+  submit an inspectable kernel for one op, not a Docker image serving a whole model.
+</Callout>
 
-Inference has been the bottleneck for serving LLMs at scale. Latency, memory, and cost determine whether a model is usable in production. Existing optimization techniques, including _FlashAttention_, _PagedAttention_, _speculative decoding_, _KV cache quantization_, and _custom kernels_, are currently benchmarked in isolation, making objective performance comparisons impossible.
+## Why Optima exists
 
-Cacheon turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring. Miners are free to use any technique, any language, any runtime. The only thing that matters is serving the model faster while keeping outputs correct.
+Inference is the bottleneck for serving LLMs at scale. Latency, memory, and cost decide whether a model is usable in production. Optimization techniques such as _FlashAttention_, fused kernels, MoE kernels, and tensor-parallel collectives are usually benchmarked in isolation, so objective performance comparisons are impossible.
 
-The product-market fit is straightforward: if Cacheon can consistently produce the fastest and most cost-efficient way to serve a high-value open-source model, then developers will route inference through us because better performance directly improves their product margins and UX. Over time, that creates a clear business model: Cacheon becomes both the optimization layer where better inference systems are discovered and the serving layer that monetizes demand for production-grade inference. It can serve agentic workflows, developer APIs, and other inference-heavy products that depend on fast, reliable long-context generation.
+Optima turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring. Miners write real GPU kernels for well-defined boundaries inside the model. The only thing that matters is making the model faster while keeping its outputs correct.
 
 See [Why it matters](/docs/concepts/why-it-matters) for the full problem statement.
 
@@ -41,33 +43,42 @@ See [Why it matters](/docs/concepts/why-it-matters) for the full problem stateme
   <Card
     title="I want to mine"
     href="/docs/miners/overview"
-    description="What you need, the API contract your server must implement, and how to register."
+    description="The slots you can target, the bundle format, the scoring gates, and how to test locally then on a GPU."
   />
   <Card
     title="I want to understand the system"
     href="/docs/validators/overview"
-    description="CPU and GPU validator roles, Postgres mirroring, tiers, and running the stack."
+    description="What the validator owns, the seam that swaps a kernel into a spawned sglang process, and the two-launch measurement."
   />
   <Card
     title="I want to know what's measured"
     href="/docs/evaluation/scoring"
-    description="End-to-end speed, correctness gate, and median aggregation."
+    description="Throughput, the KL fidelity gate, benchmark accuracy, and noise-robust scoring."
   />
   <Card
     title="I want to see the roadmap"
     href="/docs/roadmap"
-    description="V1 72B single-model arena, V2 expanded optimization surface, V3 production inference provider, V4 multi-model expansion."
+    description="Phase 1 container arena (done), Phase 2 kernel competition (active), then production serving and the intelligence layer."
   />
 </Cards>
 
-## What the subnet is not
+## What Optima is not
 
-- **Not a training subnet.** Weights are fixed at `Qwen2.5-72B-Instruct`. You do not finetune.
-- **Not a generic hosting platform.** You serve one specific model. The competition is about serving it faster than everyone else.
-- **Not a free trial service.** Miners pay a submission fee for all submissions. Test and validate locally before you register.
+- **Not a training subnet.** The model is fixed and validator-controlled. You do not finetune weights.
+- **Not a container or BYO-stack.** You do not ship a Docker image serving a whole model. You submit a kernel for one typed slot, and the validator owns everything around it.
+- **Not a whole-model submission.** You implement one op (an activation, a norm, an attention or MoE block, a collective) upstream of the sampler. You never produce the final tokens, which is what makes the competition cheat-resistant.
+
+<Callout type="warn" title="Honest status">
+  The mechanism is validated end-to-end on real GPUs (H100, up to gpt-oss-120b), but **no submitted
+  kernel has beaten sglang yet**: the referee is proven, the optimization side is not. Host isolation
+  for untrusted miners is not built (the VM is the trust boundary today), chain integration is a
+  local JSON ledger, and a public leaderboard is roadmap. See the [Roadmap](/docs/roadmap).
+</Callout>
 
 ## Useful links
 
-- [GitHub](https://github.com/latent-to/cacheon)
-- [Discord (Bittensor)](https://discord.gg/bittensor)
+- [GitHub](https://github.com/latent-to/optima)
+  {/* TODO: confirm final optima repo home (currently ShivanshuPurohit/optima) */}
+- [Discord](https://discord.com/invite/cacheon)
+- [X](https://x.com/cacheon_ai)
 - [TAO.app subnet page](https://tao.app/subnets/14)
