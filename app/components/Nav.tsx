@@ -13,7 +13,6 @@ const navLinks = [
   { to: '/docs', label: 'Docs' },
   { href: 'https://discord.com/invite/cacheon', label: 'Discord', icon: <DiscordIcon /> },
   { href: 'https://x.com/cacheon_ai', label: 'X', icon: <XIcon /> },
-  // TODO: confirm final optima repo home (currently ShivanshuPurohit/optima)
   { href: 'https://github.com/latent-to/optima', label: 'GitHub', icon: <GitHubIcon /> },
   {
     href: 'https://tao.app/subnets/14',

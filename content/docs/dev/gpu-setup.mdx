@@ -1,6 +1,5 @@
 ---
 title: GPU setup — provider-agnostic checklist
-description: How to turn any rented or owned CUDA box into a machine that can run Optima's GPU gates — verify, evaluate, bench, and the validator loop.
 ---
 
 How to turn any rented (or owned) CUDA box into a machine that can run Optima's
@@ -35,8 +34,6 @@ uv pip install -e .          # no [cpu] extra here — torch came with sglang
 SP=$(python -c 'import site;print(site.getsitepackages()[0])')
 echo 'import optima.bootstrap' > "$SP/optima.pth"
 ```
-
-{/* TODO: confirm canonical optima repo URL (latent-to/optima vs ShivanshuPurohit/optima) before publish */}
 
 <Callout type="info">
   for a CPU-only dry run (manifest → scan → load → op-correctness, no

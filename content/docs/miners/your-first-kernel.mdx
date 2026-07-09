@@ -1,6 +1,5 @@
 ---
 title: Your first kernel (20 minutes)
-description: A complete CPU-only walkthrough — run a real bundle through scan and verify, see a passing and a failing kernel, then take it to a GPU.
 ---
 
 A complete, CPU-only walkthrough. By the end you'll have run a real bundle
@@ -15,7 +14,6 @@ pip install -e '.[cpu,dev]'   # the `optima` CLI + torch (CPU build) + pytest
 pytest tests/                 # sanity: all green (a few skips are normal)
 ```
 
-{/* TODO: confirm canonical optima repo URL (latent-to/optima vs ShivanshuPurohit/optima) before publish */}
 The `[cpu]` extra pulls a CPU build of torch — the core deliberately leaves
 torch unpinned, because a GPU box takes its torch from the sglang install
 instead (see [GPU setup](/docs/dev/gpu-setup), or the repo's

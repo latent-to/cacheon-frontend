@@ -25,7 +25,6 @@ export default function Community() {
             <Icon id="icon-discord" />
             Discord
           </Button>
-          {/* TODO: confirm final optima repo home (currently ShivanshuPurohit/optima) */}
           <Button
             as="a"
             variant="secondary"

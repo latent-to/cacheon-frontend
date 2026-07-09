@@ -26,7 +26,6 @@ export function baseOptions(): BaseLayoutProps {
         external: true,
       },
     ],
-    // TODO: confirm final optima repo home (currently ShivanshuPurohit/optima)
     githubUrl: 'https://github.com/latent-to/optima',
     themeSwitch: { enabled: false },
   }
