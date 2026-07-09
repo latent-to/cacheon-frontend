@@ -11,7 +11,7 @@ A round is `commit → reveal → evaluate → settle`.
 
 1. **Commit.** Each miner posts `H(content_hash, hotkey, salt)`. This hides the bundle (nobody can tell what you committed to) but binds you to it.
 2. **Reveal.** The miner posts `(content_hash, salt)`. A reveal is accepted only if `H(content_hash, hotkey, salt)` matches a commitment **that same hotkey** posted earlier.
-3. **Evaluate.** The validator swaps the revealed kernel into the fixed model and scores it: a two-launch throughput measurement gated by fidelity (KL divergence plus benchmark accuracy). See [Scoring](/docs/evaluation/scoring).
+3. **Evaluate.** The validator swaps the revealed kernel into the fixed model and scores it: a two-launch throughput measurement gated by fidelity (KL divergence plus benchmark accuracy). See [Scoring](/docs/validators/scoring).
 4. **Settle.** `optima settle` takes the round's passing, original scores and applies the king-of-the-hill rule per slot.
 
 ## King-of-the-hill
@@ -26,7 +26,7 @@ The margin defaults to **2%**. The champion holds the emission weight for that s
 
 Why a margin, not a strict comparison:
 
-- Running the same kernel twice produces small score variance from GPU clock drift, scheduling jitter, and measurement noise. Without a margin, rankings could flip on noise. The scoring path also derives its bar from the *measured* baseline noise, so a genuine but tiny edge on a noisy box does not crown. See [Scoring](/docs/evaluation/scoring).
+- Running the same kernel twice produces small score variance from GPU clock drift, scheduling jitter, and measurement noise. Without a margin, rankings could flip on noise. The scoring path also derives its bar from the *measured* baseline noise, so a genuine but tiny edge on a noisy box does not crown. See [Scoring](/docs/validators/scoring).
 
 ## Per-slot emission
 

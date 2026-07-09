@@ -1,0 +1,179 @@
+---
+title: How it evolved
+description: A PR-by-PR reconstruction of Optima's development, organized into phases — build the referee, prove the gate fires both ways on real GPUs, then surpass the pinned sglang baseline.
+---
+
+{/* TODO: confirm canonical optima repo URL (latent-to/optima vs ShivanshuPurohit/optima) before publish */}
+<Callout type="info">
+  **Maintenance policy:** this page is updated per merged PR, by whoever merges it.
+  Entries are summaries written at merge time, not a live feed — the committed
+  [README](https://github.com/latent-to/optima/blob/main/README.md) remains the
+  state of record. If this page lags behind a recent merge, trust the README.
+</Callout>
+
+A PR-by-PR reconstruction of Optima's development, organized into phases. Dates are
+merge-commit dates (IST). The arc: build the referee, prove the gate fires both
+ways on real GPUs, then show that a submitted kernel can surpass the pinned sglang
+baseline under that referee.
+
+This page is intentionally historical: entries describe what each PR changed or
+claimed at merge time. When a historical note disagrees with an operator page, use
+the operator page as the current state of record.
+
+## Phase 0 — Genesis (2026-05-31)
+
+**`d066d45` — Optima validator harness: slots, seam, KL+benchmark eval, commit-reveal, docs.**
+
+The whole incentive core in one commit: the slot ABI, the `.pth` post-import seam
+(`bootstrap.py` + `seam.py`), the two-launch throughput+KL eval, commit-reveal +
+king-of-the-hill, and the docs. The seam patches `SiluAndMul.forward_cuda` and
+`RMSNorm.forward_cuda`; the dispatcher owns output allocation and fallback. This is
+the kernel-slot design that structurally removes the API-substitution attack
+([threat-model.md](/docs/security/threat-model) §1). Also shipped: the sglang compat
+canary + `PINNED_SGLANG` (`52458c9`, `16886e2`).
+
+## Phase 1 — Realistic eval (#1–3, 2026-06-01)
+
+| PR | Commit | What & why |
+|---|---|---|
+| #1 | `e8314f2` | **Score on real benchmark prompts.** Replaced the toy 64-token filler-prompt workload with GSM8K + MMLU at realistic decode lengths, unified throughput+KL+accuracy into one path, and added TP knobs. The toy workload was too easy to game and measured the wrong regime. |
+| #2 | `826c441` | Restore the agent-onboarding infra (`AGENTS.md`, `CLAUDE.md`) that an automation had deleted (`5dea39d`, `89ad487`). |
+| #3 | `efd5150` | **Harden the KL gate.** Mean-only KL is blind to a sparse cheat (bit-exact 99.9% of the time, wrong on a rare pattern). Added **p99 KL** and the **argmax-disagree rate** (magnitude-independent), added the sparse-cheat fixture, regraded threat #7. |
+
+## Phase 2 — Block slots + attention seam (#4, 2026-06-01)
+
+**`cab283d` — Block slots + attention seam; sglang 0.5.12/cu13 compat; strong-baseline eval defaults.**
+
+Generalized the ABI to `kind = op|block` and added the `attention.sdpa` / `attention.decode` block slots plus the decode seam: intercept `RadixAttention.forward`, gather the paged KV, run the miner kernel. Brought up sglang 0.5.12 + CUDA 13 (`PINNED_SGLANG 0.5.9 → 0.5.12.post1`): `load_entry` now registers the kernel in `sys.modules` before exec (0.5.12's piecewise CUDA graph imports it by name), seam installers guard on the class attribute. Default scoring config became **CUDA graphs ON + auto attention backend** (graphs-off cripples the baseline ~6.5×, so a graphs-off speedup is not a valid Optima result). Found per-slot KL thresholds are needed (attention's intrinsic floor ~6e-3 vs 5e-3 for silu).
+
+## Phase 3 — prepare/forward slots + MoE + framework mode (#5–7, 2026-06-01)
+
+| PR | Commit | What & why |
+|---|---|---|
+| #5 | `fb1d826` | **(prepare, forward) slot pairs + `moe.fused_experts`.** A quantized kernel carries its weight layout once at load via `prepare`; `forward(x, topk_ids, topk_weights, prepared, out)` runs per step. Unlocked the MoE block — the big surface — with the validator owning routing and output allocation. |
+| #6 | `7c3cd08` | **Framework mode — `setup()` + the token-match gate + no-egress isolation.** When the miner can patch the engine, its self-reported logprobs aren't trustworthy; compare **emitted tokens** instead, under `os.unshare(CLONE_NEWNET)` no-egress so the candidate can't fetch the reference. |
+| #7 | `1d4c53f` | An MXFP4 framework-mode slot example (later retracted — see Phase 11). |
+
+## Phase 4 — Isolation fail-closed (#8, 2026-06-01)
+
+**`c17004a` — Fail closed when candidate isolation is unavailable.**
+
+`prepare_candidate_environment` now raises `IsolationError` when requested isolation can't be proven (e.g. lium pods lack `CAP_SYS_ADMIN`, so `unshare` fails with `EPERM`), rather than silently continuing with egress possible. `--allow-unsafe-no-isolation` is the dev-only override. This is the boundary that makes the framework-mode token-match gate cheat-proof. See [isolation.md](/docs/security/isolation).
+
+## Phase 5 — MoE block seam + quant + free-dense (#9–10, 2026-06-01)
+
+| PR | Commit | What & why |
+|---|---|---|
+| #9 | `f813fc7` | **FusedMoE block-slot seam + runtime prepare/strict wiring.** Patches `FusedMoE.forward_impl` (the waist all MoE paths converge on; `.forward` is bypassed under piecewise capture). Added the `cosine` correctness mode for low-bit kernels where element-wise tolerance is meaningless, and `prepare_from_layer` for quant-layout slots. |
+| #10 | `715781d` | **Reclaim dense weights after prepare** (`OPTIMA_MOE_FREE_DENSE`). Once the miner holds its packed/quantized copies, the dequantized bf16 originals are dead weight (~4× the size); freeing them lets the engine run a higher mem_fraction. Opt-in, eager-only (a fallback after freeing would hit empty weights). |
+
+## Phase 6 — Slot contract + rebuild fence (#11, 2026-06-01)
+
+**`0937896` — Pin the slot contract (the waist) + fence the rebuild escape hatch.**
+
+Wrote down the **four invariants** (`docs/SLOT_CONTRACT.md`): validator owns the boundary; strictly upstream of the sampler; gated vs high-precision ground truth; no trust in miner-reported numbers. Fenced the rebuild tier: `rebuild.json` may run **only validator-shipped, reviewed patchers** (`repo_python`); miner `bundle_python` is rejected. Exotic submissions (backend swaps, source recompiles) stage in the escape hatch first, get promoted to a core slot only when they can satisfy all four invariants. This is the narrow-waist design that keeps the subnet cheat-resistant as slots proliferate.
+
+## Phase 7 — Collective all-reduce (#12–13, 2026-06-02)
+
+| PR | Commit | What & why |
+|---|---|---|
+| #12 | `78521a4` | **All-reduce A/B harness** — the collective ceiling benchmark, motivated by the H200 profiling finding (decode is comm-bound: TP all-reduce 32–39% of decode time). |
+| #13 | `c04b540` | **TP all-reduce collective seam + distributed verify.** Patches `GroupCoordinator.all_reduce`. A collective can't be checked on one GPU, so `verify_entry` *refuses* `kind="collective"`; `verify_collective` spawns `world_size` ranks and compares to a `torch.distributed` reduce of fp32 partials. |
+
+## Phase 8 — Subnet plumbing + chain (#14–16, 2026-06-07)
+
+| PR | Commit | What & why |
+|---|---|---|
+| #14 | `1bf885a` | **Durable ledger + typed eval records + block-hash prompt seeding + chain-SDK canary.** Atomic JSON writes (`os.replace`), schema-versioned tolerant load, `EvalRecord` keyed by `(hotkey, bundle_hash)` so an already-scored submission is never re-run, and block-hash prompt reseeding for cross-validator reproducibility. |
+| #15 | `a1cf208` | **Chain I/O — on-chain commitment read + king-of-the-hill weight setting.** Connects subtensor, reads commitments, sets weights. (A follow-up `6825b53` fixed the capitalized `bt.Subtensor`/`bt.Wallet` classes — live-testnet caught it.) |
+| #16 | `11081d6` | **Trim speculative ledger/chain code** (lean-then-grow). Cut unused complexity before it calcified. |
+
+## Phase 9 — Scorable graphs-on waist + noise-robust scoring (#17, 2026-06-10)
+
+**`454dd93` — Scorable graphs-on waist + noise-robust scoring: close the code-review findings.**
+
+Graph-safety became part of the contract: scoring runs **CUDA graphs ON** (graphs-off cripples the baseline), so a block/collective kernel must declare `graph_safe: true` or fall back under capture. Noise-robust scoring (`optima/eval/scoring.py`): the candidate is bracketed `B, C, B'`, speedup is `candidate / mean(bracketing baselines)`, the bar is `1 + max(min_margin, k·noise)` from the **measured** baseline spread, and disagreeing bracketing baselines yield **NO-DECISION** so noise can never mint a champion. Also: per-slot championships (split emission across slots, the fix for winner-take-all starving specialists — report misalignment M4), per-slot KL thresholds, count-dim jitter in verify (anti shape-branching), and out-of-process verify so the CLI never imports miner code. **The waist moved down**: from per-op toward block/collective, the surfaces big enough to move tok/s.
+
+## Phase 10 — NVFP4 MoE + M3 + profiler (#18–19, 2026-06-21 → 06-24)
+
+| PR | Commit | What & why |
+|---|---|---|
+| #18 | `516e6b7` | **Admit quantized (NVFP4/FP8) MoE layers, paired by format.** The dispatcher pairs a layer's quant format to a kernel's declared `Eligibility.quant` — a dense layer never runs a quant kernel and vice versa. Unlocked MiniMax-M3-NVFP4. |
+| #19 | `e079c52` | **MiniMax-M3 swigluoai/NVFP4 MoE via per-model slot profiles.** Folded the validated M3 swigluoai/NVFP4 MoE behavior into slot machinery (fused CuTe-DSL experts with the clamped swigluoai epilogue). Added `Activation` (silu vs swigluoai), `SlotProfile`/`MODEL_PROFILES`, and the `attention.msa_block_score` block slot. The op-gate gates on `cosine` so it rejects SiLU-on-swigluoai (~0.45) while passing a faithful NVFP4 kernel (~0.996). (Profiler work — Nemotron/MiniMax-M3 MSA kernel ingest, generalized beyond torch-trace — ran in parallel under `35072ae`, `1f3a044`.) |
+
+## Phase 11 — sglang canary + pin bump (#20, 2026-06-24)
+
+**`298ccaa` — Bump pin → 0.5.13.post1 + canary fails only on real seam breakage.**
+
+The **canary split**: a broken seam (a chokepoint moved) is a HARD CI FAIL (code-actionable); a newer sglang release is a WARNING only (a human bump+re-baseline decision, not a code fix — else the canary goes red on every release = alert fatigue). `scripts/check_sglang.py` + `.github/workflows/sglang-canary.yml` (weekly, Mondays). Bumped `PINNED_SGLANG 0.5.12.post1 → 0.5.13.post1` (static canary GREEN, GPU re-baseline PENDING).
+
+## Phase 12 — Docs (#21–22, 2026-06-24 → 06-26)
+
+#21 (`e1cdf55`) the miner guide; #22 (`92aa6d2`) the submission model docs. Also the M1c load-time override-composition work (`0964d89`).
+
+## Phase 13 — Security hardening (#23–24, 2026-07-02 → 07-07)
+
+| PR | Commit | What & why |
+|---|---|---|
+| #23 | `07410f8` | **Fix 18 verified review findings** — the big adversarial re-verification. Anti-copy: per-slot fingerprints over each op's transitive import closure + per-FILE containment compare (a stolen body relocated into `kernels/_impl.py`, or a slot padded with an extra op, still auto-demotes; two miners vendoring the same utility never match). Dispatcher conservatism (wrong-silently → fall back): attention rejects unexpected kwargs (gpt-oss sinks, MLA k_rope were silently dropped), `moe.fused_experts_reduce` skips TP layers with `reduce_results=False`. Eval/verify gate holes: capability warmup, collective jitter, LongMath answer extraction, the vacuous `msa_block_score` shape. `scan_tree` fails closed on symlinks. See [anti-copy.md](/docs/security/anti-copy). |
+| #24 | `fb02169` | **Fix the symlink-following bug in `bundle_hash`** (and more review findings). `content_hash` followed symlinks before this — a symlinked dir of `.py` was invisible to the hash and the scan yet importable at runtime, so a kernel body hidden behind a symlink never entered copy-detection. The fix skips symlinks outright in both `bundle_hash` and `scan_tree`. |
+
+## Phase 14 — FE bundle ingest + deep fused-epilogue + dep_patches (#25, `3759ca2`, 2026-07-07)
+
+**`6d78470` / `3759ca2` — dep_patches tier + deep fused-epilogue seam: two new collective slots.**
+
+Slot catalog 8 → 10:
+
+- **`collective.ar_residual_rmsnorm`** — the fused AR+residual+RMSNorm epilogue behind sglang's `--enable-flashinfer-allreduce-fusion` (the `sglang_arfusion` module-level function rebind).
+- **`collective.moe_finalize_ar_rmsnorm`** — the DEEP fused epilogue: MoE finalize + all-reduce + residual + RMSNorm as one kernel.
+
+The deep tier introduced **dep_patches**: a bundle declares a unified diff against the pinned flashinfer csrc (`dep_policy.py` allowlist gates what a diff may touch); the reviewed patcher applies it to an OVERLAY copy (the install is never mutated); `flashinfer_overlay.py` routes the engine's import there. `moe_export.py` is the export/consume state machine — ptr-keyed pends, forward scoping, zero-copy consume views, and the invariant that every consume exit performs the finalize (orphans reconstruct via trusted fp32 math — never corrupt, only slower). This is the compute-comm overlap lever the H200 profile identified, and it lifted the structural ceiling the plain `moe.fused_experts` slot couldn't express.
+
+## Phase 15 — Fidelity redesign audit (`4eef097`, 2026-07-07)
+
+**`4eef097` — The in-engine audit replaces rollout-KL where KL can't gate.**
+
+The measured failure: on the M3-NVFP4 arena, two IDENTICAL engine launches are NOT logit-identical (bit-stock candidate scored mean_kl 0.81–0.96; deterministic mode refuses fa4). Rollout-KL there measures "did timing change" — exactly what miners are paid to change — so it fails every candidate, honest or not, including stock itself. The replacement is `optima/audit.py`: an extra UNTIMED eager candidate launch samples dispatcher calls, re-runs the captured stock baseline on pre-call clones, and compares under the slot's own verify tolerances. Fail-closed (zero violations + minimum coverage); KL demoted to advisory; rank-identical sampling seed for collective slots. Calibrated with a control-bundle margin (`_MATCHED_RATIO_AUDIT_MARGIN = 0.005`) — audit compares vs STOCK (both sides round) while verify compares vs FP32. Full post-mortem and adversarial matrix in `docs/FIDELITY.md`.
+
+## Phase 16 — Chain native timelock + testnet (#26, `e866acf`, `22e1ab9`, 2026-07-08)
+
+PR **#26** (`feat/chain-integration`) — **merged to main** (`698191d`).
+
+| Commit | What & why |
+|---|---|
+| `e866acf` | **Native timelock commit-reveal submissions + the validator loop**, live-validated on testnet netuid 307. The full miner→chain→validator loop: `payload.py` (on-chain submission ref), `fetch.py` (tar transport, hostile-archive extraction, re-hash to committed content_hash), `submit.py` (drand-encrypted timelock commit — the anti-copy priority timestamp), `validator_loop.py` (reveals in chain order → fetch → fingerprint → out-of-process eval → settle per slot → weights). `Ledger.current_weights()` becomes the single emission-policy seam. |
+| `22e1ab9` | **Testnet runbook + state-of-record** for the chain layer. |
+
+The design explicitly **rejected the central-relay model** used by some subnets (the validator fetches a platform-computed weight vector over HTTPS and just signs it). Optima's thesis is *local, independent evaluation*, so the validator runs its own GPU referee and the chain is the trust anchor only. Live proof on netuid 307: the deep fused-epilogue bundle was committed by a miner hotkey and the loop scored it at **SCORE 1.0717 (1.072× vs bar 1.026; audit 12,824/0)** — the third independent reproduction. Weights stayed dry-run because subnet 307 (owned by someone else, never start-called) rejects stake, so the validator hotkey never got a permit.
+
+## Corrections
+
+Two corrections are load-bearing — they are part of why the state-of-record is trustworthy:
+
+- **The sm120/MXFP4 throughput claim was retracted (`c83c5a9`, 2026-06-07).**
+  Earlier docs described the sm120/MXFP4 MoE experiment as a submitted throughput
+  improvement. That claim was removed because it had not passed Optima's scored
+  end-to-end gate against sglang. The fix dropped the `moe.fused_experts_mxfp4`
+  slot + example (catalog 7 → 6), removed the sm120/MXFP4/tok-s claims, and kept
+  the useful generic pieces: `moe.fused_experts` and the `cosine` correctness mode.
+- **The canary split (#20).** Originally the weekly canary would fail on any newer sglang release; that turned it red on every release = alert fatigue. Split so only a broken seam fails CI; a newer release is a warning.
+
+## First validated submitted optimization (2026-07-07)
+
+The first submitted kernel to surpass the pinned sglang baseline through Optima's
+own scorer at equal fidelity was the `miner_m3_fused_epilogue` bundle (the July-2
+M3 validation kernel for fused AR+residual+RMSNorm,
+`collective.ar_residual_rmsnorm`, `graph_safe`) on the MiniMax-M3-NVFP4 / 4×B300
+arena: **speedup 1.044× vs the noise-derived bar 1.038 → PASS, SCORE 1.044**,
+with the audit green. The deeper `moe_finalize_ar_rmsnorm` fusion then measured
+1.074× / 1.071× in the same arena. See the MiniMax-M3 case study for the exact
+commands and reproduction record.
+
+## Cross-cutting themes
+
+Four threads run through every phase:
+
+1. **The four invariants are defended throughout.** Every PR that added a slot, a gate, or a seam is checked against: validator owns the boundary; strictly upstream of the sampler; gated vs high-precision ground truth; no trust in miner-reported numbers. The sm120 correction and the audit redesign are both cases of refusing to count a result the invariants cannot support.
+2. **"Make the gate measure the right thing" is the arc.** Mean-KL → p99 + argmax-rate (Phase 1); toy prompts → real benchmarks (Phase 1); graphs-off → graphs-on (Phase 2); winner-take-all → per-slot (Phase 9); rollout-KL → in-engine audit (Phase 15). Each step closed a specific cheat or false-fail the previous gate permitted.
+3. **The waist moved down twice.** From per-op (silu/rmsnorm — too small to move tok/s) to block (attention/MoE — Phase 2/5), then to collective (all-reduce, the fused epilogue — Phase 7/14), because profiling showed decode was comm-bound. Each move exposed a larger optimization surface.
+4. **First validated result: 2026-07-07.** Months of mechanism work came before any submitted kernel surpassed sglang through the scorer. The measured improvement came from the fused-epilogue collective slots, exactly where the H200 profile pointed.

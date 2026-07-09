@@ -1,0 +1,276 @@
+---
+title: MiniMax-M3 case study
+description: The first arena where a submitted Optima kernel surpassed the pinned sglang baseline through the full scorer — the record regime, the eval-bridge, and the last-layer veto fix.
+---
+
+<Callout type="info">
+  This page documents the first arena where a submitted Optima kernel surpassed
+  the pinned sglang baseline through the full scorer. It records the exact
+  multi-GPU regime, the eval-bridge architecture, and the engineering issue that
+  had to be fixed before the deep fusion path was valid.
+</Callout>
+
+Optima is arena-agnostic; this page documents **the first arena validated
+end-to-end** — MiniMax-M3-NVFP4 on 4×B300. The mechanics (the eval-bridge, the
+bracketed scoring, the fidelity audit) are general and carry over to any arena;
+the exact flags, numbers, and the last-layer veto below are specific to this
+instance. When a second arena (Nemotron-3-Ultra, GLM-5.2, DeepSeek-V4, …) is
+validated, it should get a section alongside this one. See
+[Arenas](/docs/reference/arenas).
+
+The source material is the 2026-07-07 session: PR #25 (the fused-epilogue
+submissions) and PR #26 (the chain loop that drove the same result through a live
+testnet commit-reveal). The record numbers below were re-grounded against the raw
+transcript, the command ledger, and the chain ledger — not just re-quoted.
+
+## The arena that counts
+
+
+|                   |                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Model**         | MiniMax-M3-NVFP4 (`/models/MiniMax-M3-NVFP4`)                                                               |
+| **Hardware**      | 4×B300 (Blackwell, sm_103), tensor-parallel 4                                                               |
+| **Regime**        | decode, **CUDA graphs ON**                                                                                  |
+| **Backend stack** | attention `fa4`, MoE `flashinfer_cutlass`, quant `modelopt_fp4`, `enable_flashinfer_allreduce_fusion=true`  |
+| **Fidelity**      | `--fidelity-mode audit` (KL is advisory — see [fidelity.md](/docs/validators/fidelity))                                   |
+| **Record shape**  | `NP=256` prompts, `MNT=256` tokens, `TI=3` timed iters, `WU=4` warmup iters                                 |
+| **Slots**         | `collective.ar_residual_rmsnorm` (shallow) + `collective.moe_finalize_ar_rmsnorm` (deep, via `dep_patches`) |
+
+
+Graphs-on is non-negotiable: graphs-off cripples the baseline ~6.5×, so a
+graphs-off speedup is not a valid Optima result. The NVFP4 / eager-fa4 stack is launch-nondeterministic
+(two identical launches score mean_kl 0.81–0.96), which is *why* the audit mode
+exists — rollout-KL there gates "did timing change," exactly what miners are paid
+to change.
+
+## The exact eval command
+
+This is the record-regime command mirrored by the validation harness
+(`harness/fe_pod_validate_phase2.sh`). The later chain helper used the same shape
+but a lighter default heat-soak (`WU=2`) unless overridden:
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
+CUDA_DEVICE_MAX_CONNECTIONS=1 \
+SGLANG_FLASHINFER_AUTOTUNE_CACHE=0 \
+OPTIMA_ARFUSION_SEAM=1 \
+python -m optima.cli evaluate <bundle> \
+    --model /models/MiniMax-M3-NVFP4 --tp-size 4 \
+    --attention-backend fa4 --moe-runner-backend flashinfer_cutlass \
+    --mem-fraction 0.90 \
+    --engine-kwargs-json '{"quantization":"modelopt_fp4","page_size":128,"context_length":16384,"chunked_prefill_size":4096,"enable_flashinfer_allreduce_fusion":true,"trust_remote_code":true}' \
+    --num-prompts 256 --max-new-tokens 256 --timed-iters 3 --warmup-iters 4 \
+    --prompt-seed 0 \
+    --fidelity-mode audit --audit-rate 0.05 --no-deterministic \
+    --ledger /optima/chain_eval/<hash>.ledger.json --hotkey chain --round 0
+```
+
+The environment variables matter:
+
+- `OPTIMA_ARFUSION_SEAM=1` arms the AR-fusion seam the
+`collective.ar_residual_rmsnorm` slot replaces. (The wider seams are opt-in by
+default: `OPTIMA_MOE_SEAM=1`, `OPTIMA_COLLECTIVE_SEAM=1`,
+`OPTIMA_ARFUSION_SEAM=1`.)
+- `CUDA_DEVICE_MAX_CONNECTIONS=1` forces a single stream family — the measured
+configuration for this arena.
+- `SGLANG_FLASHINFER_AUTOTUNE_CACHE=0` because the autotune cache is invalid
+across module swaps.
+
+
+
+## The record numbers
+
+Two bundles, each double-proven (record + independent prompt seed), then a third
+reproduction through the live chain loop:
+
+
+| Bundle                                     | Slot(s)                     | Run        | tok/s (B / C / B′)                                       | speedup     | bar   | audit      |
+| ------------------------------------------ | --------------------------- | ---------- | -------------------------------------------------------- | ----------- | ----- | ---------- |
+| `miner_m3_fused_epilogue` (shallow)        | `ar_residual_rmsnorm`       | record     | 10531 / 10894 / bookend not logged in the ledger excerpt | **1.044×**  | 1.038 | 12,456 / 0 |
+|                                            |                             | seed repro | —                                                        | **1.049×**  | 1.005 | 12,648 / 0 |
+| `miner_m3_fused_epilogue_deep`             | + `moe_finalize_ar_rmsnorm` | record     | 10521 / 11325 / 10572                                    | **1.074×**  | 1.010 | 12,480 / 0 |
+|                                            |                             | seed repro | 10573 / 11220 / 10381                                    | **1.071×**  | 1.037 | 12,636 / 0 |
+| `miner_m3_fused_epilogue_deep` (via chain) | same                        | netuid 307 | —                                                        | **1.0717×** | 1.026 | 12,824 / 0 |
+
+
+The deep number reconciles: deep ≈ shallow × 1.025, i.e. the additional
+MoE-finalize fusion contributed roughly +2.5% on top of the shallower
+AR+residual+RMSNorm fusion. The important point is that the measured effect was
+converted through the referee, not asserted from a standalone microbenchmark. The
+chain reproduction is the third independent reproduction (1.074 / 1.071 / 1.072)
+and the headline of PR #26.
+
+GSM8K held flat on the deep bundle (92.2% → 92.2%, +0.0%) — but only *after* the
+graph-capture bug below was fixed.
+
+## The eval-bridge architecture (control box ↔ GPU box)
+
+Production splits the validator across two machines joined by SSH. The chain
+loop's `--eval-cmd` is the seam: the CPU control box shells out, the GPU box runs
+the detached referee, the result travels back as a JSON report.
+
+```
+   ┌──────── CPU control box ──────────┐
+   │ chain keys (hotkey only)          │
+   │ Ledger / validator_loop.run_pass   │
+   │ --eval-cmd 'bash pod_eval.sh {} {}'│
+   └───────────────┬───────────────────┘
+                   │ ssh (pod_exec.sh)
+   ┌───────────────▼───────────────────┐
+   │ GPU box (no keys, no egress)      │
+   │ chain_eval_helper.py launch →     │
+   │   detached: optima evaluate ...   │
+   │   --ledger <hash>.ledger.json     │
+   │ poll → DONE <rc> → report JSON    │
+   └───────────────────────────────────┘
+```
+
+The reference bridge lives in `experiments/chain/`:
+
+- `pod_eval_m3.sh` — the `--eval-cmd` template. Takes `<bundle_dir>` and
+`<report_json_path>`. Uploads the helper, locates/streams the bundle
+(content-addressed), launches the detached eval, polls until `DONE`, writes the
+JSON report. Has a 3.5-hour ceiling (`MAX_POLLS=210 × 60s`).
+- `chain_eval_helper.py` — the pod-side state machine: `find` (locate a dir
+that re-hashes to the committed hash), `receive` (stream a tar, safe-extract,
+re-hash), `launch` (detach the referee at the record regime), `poll`
+(`RUNNING`/`DONE <rc>`), `report` (JSON `{rc, score, kl_mean, passed, slot}`).
+
+The JSON report contract is what the validator loop consumes:
+
+```json
+{"rc": 0, "score": 1.071668415213848, "kl_mean": 0.810635013265112, "passed": true, "slot": "collective.ar_residual_rmsnorm"}
+```
+
+Exit 0 = passed the gate chain; the `score` is the throughput speedup from
+`optima evaluate`. See [the chain loop](/docs/validators/chain-loop) for how this plugs into
+`validator_loop.run_pass`.
+
+The deep bundle in that report contains both the shallow and deep slots. The
+current report schema has a single `slot` field, so the chain bridge credited the
+bundle score to the first manifest slot (`collective.ar_residual_rmsnorm`). The
+underlying `evaluate` run exercised the deep path; the report attribution is the
+current bridge limitation.
+
+<Callout type="warn">
+  **The bridge scripts reference specific (now-torn-down) pods.** Before
+  reuse, repoint `pod_exec.sh` / `pod_eval_m3.sh` at the next box. The pattern is
+  the reusable part; the endpoints are not.
+</Callout>
+
+
+
+## The hard bug: the last-layer veto
+
+The deep bundle **crashed CUDA-graph capture** the first time:
+
+```
+RuntimeError: optima deep seam: moe output buffer 0x8cd6200000 reused before its
+export was consumed within one forward (exports=57 consumed=56 ...)
+Exception: Capture cuda graph failed
+```
+
+**Root cause (upstream sglang):** `minimax_m3` builds its `LayerCommunicator`
+*without* passing `is_last_layer`. So sglang lets the **final** transformer layer
+defer its all-reduce every forward. In stock that's harmless (the in-op finalize
+already ran). But with skip-finalize armed (the deep `dep_patches` tier makes the
+launcher skip its in-op finalize and export pre-finalize pointers), the last
+layer's exported buffer has **no next layer to consume it** → the pointer-keyed
+consume never matches → the buffer gets reused → capture crashes. (Fail-closed,
+by design — the alternative is silent corruption.)
+
+**The fix** (`optima/moe_export.py`, the **last-layer veto**):
+
+1. Read the model's *true* layer count from its `config.json` (`num_hidden_layers`
+  = 60 for M3). Never learned from observed forwards — an aborted forward would
+   poison a learned count.
+2. Refuse `pp_size ≠ 1` and speculative decoding.
+3. If a layer is the last of a forward pass (its ordinal is a multiple of the
+  layer count), count a `last_layer_veto` and **pass through** — do not arm the
+   skip-finalize there. The final layer's all-reduce runs the stock path.
+
+Confirmation run after the fix:
+
+```
+optima: deep seam layer count = 60 (last-layer veto active)
+optima: deep epilogue consume path LIVE (T_export=512 K=5)
+debug launch PASS
+veto_tp0=158  drops=0  exports_tp0=7224  consume_misses_tp0=0
+```
+
+That's the session's most important engineering repair: it turned the deep bundle
+from "policy-tested but graph-broken" into a graph-safe engine path with evidence
+the deep consume path actually fired (7,224 exports / 0 consume misses / 0
+drops). After that, GSM8K held flat (92.2% → 92.2%).
+
+This is also a good illustration of why **upstream bugs surface under the seam**:
+the unwired `is_last_layer` is invisible in stock serving but fatal the moment a
+slot asks the launcher to defer. The lesson is filed as an open upstream item
+(report minimax_m3's unwired `is_last_layer`; the stock last-layer AR realization
+is unclear — probe before filing).
+
+## Operational lessons (the ones that actually bit)
+
+These are not theoretical — each affected the validation run:
+
+1. **Stale GPU processes starve the run.** An earlier smaller `evaluate` (PID
+  1. was still holding the GPU when the chain-driven run launched. It
+   silently degraded until killed. **Always `nvidia-smi` + verify all GPUs are
+   ~4 MiB idle before launching.**
+2. **Score-state must be keyed by content hash, not bundle basename.** The
+  eval-bridge initially polled by bundle *name*; a re-named bundle made the poll
+   spin blind (burned real time). The fix: every pod-side state file
+   (`<hash>.log`, `<hash>.rc`, `<hash>.ledger.json`) is keyed by the **committed
+   content hash**. Content-addressing is the invariant.
+3. **Parallel lanes produce invalid numbers.** During validation, parallel
+  GPU lanes reported spurious 0.298× / 1.41× speedups (GPU contention between
+   concurrent evals). The record was always isolated, bracketed `B,C,B'`, on a
+   quiet box. **Don't trust a number from a shared box.**
+4. `--warmup-iters` **is a heat-soak.** With `WU=2` (the default), the ±17–32%
+  thermal ramp landed inside the bookends as "baseline noise" and inflated the
+   bar. `WU=4` was needed on B300 for the bookends to agree.
+5. **The autotune cache is invalid across module swaps.**
+  `SGLANG_FLASHINFER_AUTOTUNE_CACHE=0` when the kernel module changes —
+   sglang's startup autotune only profiles its configured backend, never the
+   injected call.
+6. **Deterministic mode refuses** `fa4`**.** On this arena you **cannot** use
+  `--deterministic` with the `fa4` backend. The audit doesn't need determinism
+   anyway (it compares candidate vs a re-run stock baseline, not two rollouts),
+   so `--no-deterministic` is correct here.
+
+
+
+## What's proven vs not
+
+**Proven (end to end, with receipts):**
+
+- Optima ingests and scores the fused-epilogue bundles as real miner submissions.
+- The deep path is graph-safe after the last-layer veto fix.
+- The deep speedup reproduced three times: 1.074 / 1.071 / 1.072.
+- The chain loop discovers a revealed commitment, fetches the archive, verifies
+its content hash, runs a pluggable evaluator, updates the ledger, and computes
+weights — idempotently.
+
+**Not proven on netuid 307 (structural to that subnet):**
+
+- A real on-chain `set_weights`. The validator hotkey had `permit=False` the whole
+  session (zero stake — subnet 307's alpha pool was never start-called by its
+  owner, so `add_stake` failed with `SubtokenDisabled`). Weights stayed dry-run.
+A real `set_weights` rehearsal needs a subnet where the validator has a permit,
+preferably one you own.
+- Production isolation against hostile miner code. Eval is subprocess-only, not
+full network/filesystem/container isolation. See [Isolation](/docs/security/isolation).
+- A durable bundle hosting path (the proof used `file://` URLs and local
+artifacts). Production needs HTTPS hosting or a content-addressed store.
+- A production DB/scheduler (the ledger is durable JSON today).
+
+
+
+## Where to go next
+
+- **The scoring math behind those bars:** [How scoring works](/docs/validators/scoring).
+- **Why audit, not KL:** [Fidelity: audit vs KL](/docs/validators/fidelity).
+- **The on-chain loop that drove the third reproduction:** [The chain loop](/docs/validators/chain-loop)
+  - [Running on testnet](/docs/validators/testnet).
+- **The bundles themselves:** `experiments/minimax_m3/bundle/` (local-only) and
+`experiments/chain/hosted/` for the packaged tarballs.

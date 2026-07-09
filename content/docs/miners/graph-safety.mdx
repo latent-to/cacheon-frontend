@@ -1,0 +1,87 @@
+---
+title: Graph-safe kernels
+description: Why scoring runs with CUDA graphs on, what graph_safe requires, how to declare it, and what happens if you don't declare it or lie.
+---
+
+Scoring runs with **CUDA graphs ON**. This is not a configuration choice — it's
+the only regime that counts. Graphs-off cripples the baseline ~4.5–6.5×, so a
+graphs-off speedup is not a valid Optima result, and surpassing
+sglang/vLLM/TensorRT graphs-on is the entire point of Optima.
+
+That has one big consequence for block/collective kernels: **you must declare
+`graph_safe: true` if you want to be scored under graphs.** Op slots do not
+consult this metadata flag, but they are captured directly; an op kernel that
+host-syncs or changes shape under capture is still broken.
+
+## What graph_safe means
+
+A CUDA graph **captures** a sequence of kernel launches into a replayable graph.
+Once captured, the host Python does not re-execute on replay — only the recorded
+GPU work does. So a kernel that runs inside a captured graph must:
+
+1. **Static shapes.** The input/output shapes at capture time are the shapes at
+   replay time. No dynamic sizing.
+2. **No host syncs.** You cannot read a value back to the host inside the graph
+   (`.item()`, `.cpu()` that transfers, `print` of a tensor value). The host
+   isn't running.
+3. **No data-dependent Python control flow.** An `if tensor > 0:` branch can't
+   work — the condition isn't evaluated at replay.
+4. **Write only the validator-allocated buffer.** Don't write to ad-hoc scratch
+   that wasn't accounted for at capture.
+
+If your kernel satisfies all four, declare it. If it can't (e.g. it does a
+variable-shape gather), it's structurally eager — it can't be scored under
+graphs in its current form.
+
+## How to declare it
+
+In your metadata JSON:
+
+```json
+// metadata/my_kernel.json
+{"graph_safe": true}
+```
+
+Reference it from the manifest (`metadata = "metadata/my_kernel.json"`).
+
+## What happens if you don't declare it (or lie)
+
+The dispatcher checks `_in_cuda_graph() and not impl.eligibility.graph_safe`
+before calling your kernel. If you're under capture and not graph-safe, **the
+trusted baseline runs instead** — your kernel is bypassed in-graph. So an
+undeclared kernel can't wedge the graph, but it also can't be scored under the
+graphs-on regime.
+
+If you declare `graph_safe: true` and your kernel *isn't* actually capturable,
+it'll either error at capture (→ fallback) or, if it produces wrong results,
+get caught by the fidelity gate. Lying doesn't pay.
+
+## The one structurally-eager slot
+
+`attention.decode`'s gather MVP does a per-step `max_len` host-sync (it reads
+`seq_lens` back to decide what to gather). That's fundamentally not
+graph-capturable. The current decode seam is eager-only. Its graph-safe form is
+a **paged-direct contract** (the next rung on the ladder) — not yet realized. So
+if you're targeting decode attention, know that the slot is real and verified,
+but the graph-safe path is future work.
+
+## Examples from the repo
+
+- **`miner_silu_triton` / `miner_rmsnorm_triton`** (op slots): graph-captured
+  directly — op seams don't need the metadata declaration, but the kernels still
+  have to be capturable.
+- **`miner_m3_swigluoai_override`** (block, override point): ships
+  `"graph_safe": true` because the fused NVFP4 megakernel epilogue is static and
+  capturable.
+- **`miner_moe_fused_experts_reduce_torch`** (collective demo): ships
+  `"graph_safe": false` because its Python loop is eager-only — it's a
+  correctness demo, not a scored winner.
+- **`miner_attention_decode_torch`**: the manifest comment explicitly notes the
+  paged gather is variable-shape → eager-only.
+
+## Where to go next
+
+- **The contract:** [The slot contract → Graph-safety](/docs/architecture/slot-contract).
+- **How the dispatcher enforces it:** [The seam](/docs/architecture/seam).
+- **The override-point path (always graph-safe by construction):**
+  [Override points](/docs/miners/override-points).

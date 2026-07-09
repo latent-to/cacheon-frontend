@@ -1,0 +1,172 @@
+---
+title: Threat model
+description: Optima's adversary model, organized by what a miner is trying to fake — each attack class with a verdict, its catching gate, and the honest residual.
+---
+
+This is Optima's adversary model, organized by **what a miner is trying to fake**,
+not by the layer that catches it. Each entry has a verdict and is honest about the
+residual. Verdicts mean:
+
+- **Structurally defeated** — the design makes the attack impossible, not merely
+  detected.
+- **Mitigated** — closed by a gate that is built, tested, and (where the gate is
+  numeric) pod-validated.
+- **Partial** — the gate narrows but does not eliminate the surface; a named
+  residual remains.
+- **Needs isolation** — requires the host sandbox layer (see
+  [isolation.md](/docs/security/isolation)) that is specified but not the default today.
+- **Needs consensus** — requires multiple validators + reproducible scoring
+  (Bittensor's Yuma consensus).
+
+The same five buckets are used in `docs/FIDELITY.md` and the HOW_OPTIMA_WORKS Part 8
+matrix; this page is the canonical cross-reference. Read it alongside
+[isolation.md](/docs/security/isolation) and [anti-copy.md](/docs/security/anti-copy).
+
+The reference for the four invariants every gate defends is
+[`docs/SLOT_CONTRACT.md`](/docs/architecture/slot-contract): validator owns the
+boundary; strictly upstream of the sampler; gated vs high-precision ground truth; no
+trust in miner-reported numbers. Every verdict below is a consequence of those four.
+
+## 1. Substitute the output (the "API call" attack)
+
+> *The miner runs gibberish kernels and returns the real answers fetched from a
+> production API, so the fidelity diff looks correct.*
+
+**Verdict: structurally defeated — for the output. The in-process variant is the real
+residual and relocates to attack class 4.**
+
+The miner only implements **one slot** — an op, block, or collective
+(`activation.silu_and_mul`, `norm.rmsnorm`, `attention.decode`,
+`moe.fused_experts`, `collective.all_reduce`, …). They never produce the final tokens or
+the logprobs. sglang produces those downstream, from the full forward pass, in code
+the miner never touches (`docs/HOW_OPTIMA_WORKS.md:631-644`). Every slot sits
+**strictly upstream of the sampler** (SLOT_CONTRACT invariant 2), so the KL / audit
+/ benchmark comparison is computed by the validator from sglang's own emitted
+distribution (`optima/eval/kl.py:212`, `optima/audit.py`), not from anything the
+miner's kernel returns as a "final answer."
+
+There is therefore **no final output to substitute**, and faking a cheap op (silu)
+via a network round-trip is slower than computing it. The attack as stated assumes
+whole-model submission, which the slot contract forbids
+(`docs/SLOT_CONTRACT.md:23-41`). This is why "let miners submit a whole model" was
+rejected up front (`docs/HOW_OPTIMA_WORKS.md:196-211`).
+
+**The honest residual.** The op-slot contract ("just fill `out` from `x`") is
+enforced by convention, not by the language. A malicious kernel's code runs in the
+**scheduler process** and could in principle reach beyond its op: monkeypatch the
+sampler, hook the model output, patch sglang's logprob path, or exfiltrate weights.
+The attack does not vanish — it **relocates** from "fake the output" to "escape the
+op-slot abstraction via in-process code." That is attack class 4 below, and it is the
+biggest not-yet-default piece. The static scan (`optima/sandbox.py:111`) is a
+tripwire for the lazy version of this, not a guarantee (see
+[`isolation.md`](/docs/security/isolation)).
+
+## 2. Fake the result — pass fidelity without doing the real work
+
+This is the class the [fidelity redesign](/docs/validators/fidelity) is built
+around. The gates, top to bottom:
+
+`verify` (offline, fp32 ground truth, jittered) → **in-engine audit** or
+rollout-KL (depending on arena) → **paired benchmark no-regression** when the
+production wrapper requires it → **timed bracket** (throughput only). See
+`docs/FIDELITY.md:60-66`.
+
+| # | Attack | Verdict | Catching gate |
+|---|--------|---------|---------------|
+| 2.1 | Wrong math — return a cheap wrong `out` | **Mitigated** | `verify` against fp32 GT; the in-engine audit; and the benchmark gate. Demonstrated: broken silu → KL ~14 → score 0 (`docs/HOW_OPTIMA_WORKS.md:659`). Three layers, any one sufficient. |
+| 2.2 | Sparse cheat — corrupt a few positions, keep `mean_kl` low | **Mitigated** | `kl_gate_ok` also caps the **argmax-disagree rate** and (opt-in) **p99 KL** and **coverage deviation** (`optima/eval/kl.py:108-145`). The flip-rate is magnitude-independent: a bit-exact-almost-everywhere kernel that corrupts a rare pattern still trips it. CPU regression test exists for a 3%-flip cheat at `mean_kl=1e-3` (`docs/HOW_OPTIMA_WORKS.md:660`). |
+| 2.3 | Stale / memoized / replayed op outputs across calls | **Mitigated** | Activations differ per prompt/token; prompts are reseeded per epoch (`sample_prompts(seed)`). The **in-engine audit** re-runs the captured stock baseline on **pre-call clones** (`optima/dispatch.py:67`), so a kernel that returns a stale tensor diverges from the live baseline on the audited call. |
+| 2.4 | Behave when measured for correctness, garbage otherwise ("watched vs unwatched") | **Mitigated** | The audit's per-call sampling decision is drawn from a **validator-private RNG** (`OPTIMA_SLOT_AUDIT_SEED`, `optima/audit.py:91`) — a kernel cannot know ex-ante whether a given call is audited. Quality and speed are not separate modes; the audit runs in the same scored engine. Residual for in-process adversaries only (see #9). |
+| 2.5 | Shape-branching — be correct on the verify shapes, wrong elsewhere | **Partial** | `verify_entry` **jitters count-like dims** per run (`optima/verify.py:128`, `jitter_seed`); the audit samples the **real engine call distribution**, not the verify shapes; and production wrappers can add shape-diverse benchmark corpora (GSM8K, MMLU, long CoT). Residual: a kernel can still branch on shape to be fast-where-measured (see #9 / #11). |
+| 2.6 | Mutate inputs so the stock baseline agrees with garbage | **Mitigated** | The audit clones inputs **before** calling the kernel (`optima/dispatch.py:67`, `a_x = x.clone() if aud`), so a kernel that scribbles on `x` cannot steer the expected value. |
+| 2.7 | Approximate inside tolerance (internal fp8 etc.) | **Closed by definition** | That is the freedom miners are paid to use; the tolerance is the contract (`docs/FIDELITY.md:121`). The benchmark gate backstops task quality. |
+| 2.8 | Honest kernel, different rounding (the false-fail rollout-KL created) | **Fixed** | The audit's tolerance absorbs ULP-class drift where rollout-KL failed it. Pod-validated: the v6 kernel audited at worst_frac 0.9901 (PASS) while advisory KL read 0.89 (`docs/FIDELITY.md:130`). |
+
+**Open fidelity residuals** (named in `docs/FIDELITY.md:113-127`):
+- **#9 in-process tampering** — a kernel sharing the scheduler process could
+  monkeypatch `optima.audit` / the baseline fn, forge/suppress receipts, or
+  introspect the RNG. **OPEN — the known isolation gap.** Closure = process/namespace
+  isolation + receipts over an authenticated channel. Today: scan + human review of
+  host code is the control.
+- **#10 launch fingerprinting** — behave when `OPTIMA_SLOT_AUDIT` is set (or
+  eager-vs-graphs), cheat otherwise. Production wrappers must include benchmark or
+  repeated-audit coverage if they rely on this closure; `optima evaluate` alone
+  does not enforce a benchmark gate.
+- **#12 attention audit not wired** — re-running the attention baseline re-drives the
+  stateful KV-cache write path, so the audit is skipped there; attention rides
+  `verify` (matched_ratio vs fp32) + the benchmark gate only. Documented at
+  `optima/dispatch.py:172-177`. Attention slots are eager-only MVP anyway.
+
+## 3. Fake the speed — inflate throughput
+
+Throughput is `tokens / wall_clock`. Both halves have a threat surface; the
+denominator is the tamper-proof half, the numerator is the weaker half.
+
+| # | Attack | Verdict | How |
+|---|--------|---------|-----|
+| 3.1 | Monkeypatch the timer | **Mitigated** | `seam.mark_driver()` marks the driver process **before** sglang imports; `activate()` then installs a pass-through seam and **never imports the miner module** in the driver (`docs/HOW_OPTIMA_WORKS.md:382-401`, `optima/eval/_launch.py:227`). The timer and the miner kernel live in different OS processes. |
+| 3.2 | Fabricate the token count (numerator) | **Mitigated** | `completion_tokens` comes from the scheduler process where the miner also runs, so it is only as trustworthy as isolation. The scoring default hardens this **without isolation**: `ignore_eos=True` + a fixed `max_new_tokens` makes the numerator **driver-known a priori** — `len(prompts) * max_new_tokens` (`optima/eval/throughput_kl.py:228-230`) — so the scheduler's reported count is never trusted. `--no-ignore-eos` falls back to the reported count and is not the scoring path. |
+| 3.3 | Offload work to an untimed stream / return early | **Mitigated** | `torch.cuda.synchronize()` brackets the timer on both sides (`optima/eval/throughput_kl.py:209-214`); async work is fully counted. |
+| 3.4 | Shape-specialization — fast only on the measured shapes | **Partial** | The scoring corpus is **real benchmarks** at realistic decode lengths, reseeded per epoch, far more shape-diverse than the old toy set; a kernel that corrupts only some shapes trips the argmax-rate gate (#2.2). Residual: a kernel can still branch on shape to be fast-where-measured; closure is rotating/expanding toward the serving distribution and randomizing sequence lengths. |
+| 3.5 | Manipulate GPU clocks | **Needs host op** | Lock clocks (`nvidia-smi -lgc`) at the validator host; not enforced in code. Noise-robust scoring (below) is the in-code partial answer. |
+| 3.6 | Win on a drifting/noisy box where noise mints a champion | **Mitigated** | The candidate is bracketed `B, C, B'` and the speedup is `candidate / mean(bracketing baselines)`; the bar is `1 + max(min_margin, k·noise)` where `noise` is the **measured** baseline spread; if the bracketing baselines disagree by more than `max_noise` the verdict is **NO-DECISION** (`optima/eval/scoring.py:81-118`). Noise can never mint a champion. |
+| 3.7 | Timed-workload fingerprinting — detect the timed launch (short fixed-budget repeated batches) and run fast-garbage only there ("phantom speed") | **Partial** | Numerator is driver-known a priori (can't be inflated, #3.2), prompts can be reseeded per eval, and operators control the eval command. Automatic champion re-runs are not implemented today: known submissions are skipped once scored. The timed launch's **outputs are no longer graded** in audit mode (quality runs in a separate untimed launch), so this is economic-grade, not correctness-grade. **Roadmap closure:** draw timed workloads from the serving distribution and randomize regimes so "timed" has no stable fingerprint (`docs/FIDELITY.md:125`). |
+
+## 4. Escape the abstraction — arbitrary code execution
+
+**The biggest residual, and the reason isolation exists as its own page.** The
+kernel is Python that runs in the scheduler process. Triton/CuteDSL kernels have a
+`@triton.jit` device body **plus host-side launch code that executes on the CPU**;
+there is no artifact we can statically prove safe (`optima/sandbox.py:1-17`). Every
+row below is **needs isolation** unless noted.
+
+| # | Attack | Verdict | Required control |
+|---|--------|---------|------------------|
+| 4.1 | Patch other model components / the sampler / measurement from inside the kernel | **Needs isolation** | The seam only *invites* the kernel; it does not sandbox it. Run the scheduler in a locked-down process/namespace. |
+| 4.2 | Exfiltrate weights / IP over the network | **Needs isolation** (network boundary) | Network namespace with **no egress**. `isolate_network()` does `os.unshare(CLONE_NEWNET)`, brings up loopback for sglang IPC, and self-checks egress is gone (`optima/eval/_launch.py:36-77`). Static scan blocks the obvious imports but is not a boundary. |
+| 4.3 | Attack the validator host / persist / hit other evals | **Needs isolation** | Ephemeral per-eval process + PID/mount/user namespaces + seccomp + no shared FS (`docs/SUBNET_BLUEPRINT.md:242-244`). |
+| 4.4 | Hang the GPU (infinite-loop kernel) — DoS | **Needs watchdog** | Per-eval CUDA **context** + a watchdog that kills the whole context on timeout. CUDA cannot cleanly preempt a running kernel. |
+| 4.5 | Out-of-bounds device writes corrupt other tensors / leak across requests | **Needs isolation** | Device code is not memory-safe within a context. One CUDA context per eval (MPS/MIG or one process per eval). |
+| 4.6 | Supply-chain — malicious source runs at import/compile (global ctor) | **Partial** | Static scan (`scan_tree`, fail-closed on binary/symlink) + subprocess/model-process loading + source-only bundles + offline build (`optima/sandbox.py:208`). |
+| 4.7 | Chain artifact fetch — hostile tarball / SSRF / availability before candidate isolation | **Partial** | `fetch_bundle` size-caps downloads, extracts regular files only, rejects path escapes/symlinks/hardlinks, and re-hashes the extracted tree against the committed hash. Today payloads may use `https`, `http`, or `file` URLs; `file://` and `http://` are dev/testnet conveniences. Production should restrict to HTTPS/content-addressed storage or a fetch proxy with SSRF and availability controls. |
+
+**The standing residual is #4.1 and #4.4/#4.5 taken together**: today "the VM is
+the sandbox" — fine for a controlled demo, not for adversaries. See
+[`isolation.md`](/docs/security/isolation) for exactly what is built (AST scan, recursive
+`scan_tree`, `probe_in_subprocess`, `isolate_network`, framework-mode fail-closed)
+and what is TODO (per-eval process + namespaces + seccomp + per-eval CUDA context +
+watchdog). The static scan is a **tripwire that raises the bar for the lazy version
+of every row in this table**, not a guarantee against a determined one.
+
+## 5. Mechanism / economic attacks
+
+| # | Attack | Verdict | How |
+|---|--------|---------|-----|
+| 5.1 | Copy the champion's bundle | **Mitigated** | Commit-reveal + copy fingerprints + king-of-the-hill (`docs/HOW_OPTIMA_WORKS.md:577-606`). See [anti-copy.md](/docs/security/anti-copy) for the four fingerprints and the import-closure + per-file containment compare. |
+| 5.2 | Front-run a rival's reveal | **Mitigated** | You cannot reveal a bundle you have no prior commitment for (`Ledger.reveal` binds `H(content_hash, hotkey, salt)`). |
+| 5.3 | Sybil (many identities split reward) | **Mitigated-ish** | Only improvement-over-best earns; copies earn 0; chain registration has a cost. Winner-take-all per slot (`optima settle --per-slot`). |
+| 5.4 | Overfit the eval distribution (great on eval prompts, useless in production) | **Ongoing risk** | Fresh per-epoch prompts from a corpus; rotate/expand toward the real serving distribution. This never fully closes — it is a tuning discipline, not a gate. |
+| 5.5 | Self-dealing validator (operator favors a miner) | **Needs consensus** | Multiple validators + reproducible scoring so Yuma consensus catches an outlier. The pinned sglang (see [sglang-tracking.md](/docs/dev/sglang-tracking)) is the prerequisite: validators must measure identically or they diverge and lose emission. |
+
+## 6. Reference / measurement validity
+
+| # | Issue | Verdict | How |
+|---|-------|---------|-----|
+| 6.1 | Reference itself wrong/drifting (if pinned to a production API) | **Avoided** | The reference is a **local stock-kernel run on the same box**, never an API. Local, exact, free, deterministic, adversary-independent (`docs/HOW_OPTIMA_WORKS.md:82-118`). |
+| 6.2 | Per-op tolerance ≠ end-to-end quality | **Mitigated** | The layered gate: cheap per-op `verify` pre-filter → in-engine audit → end-to-end benchmark/KL. A kernel that passed per-op correctness but drifted sat at KL ~9.2e-3 vs a 3.9e-4 floor and was correctly flagged (`docs/HOW_OPTIMA_WORKS.md:546-560`). |
+| 6.3 | HP ground truth is not the stock kernel | **Mitigated** | Correctness is measured against an **fp32 / dequant reference**, never the stock kernel (SLOT_CONTRACT invariant 3). A faster, slightly-different kernel can pass; a wrong one cannot. |
+| 6.4 | Cross-validator score divergence (noise, HW, clocks) | **Partial** | Median-of-K, noise-derived bar, B/C/B' bracketing, locked clocks + determinism + pinned HW still needed for full consensus. Deterministic mode floors the KL noise at ~0 where available. |
+| 6.5 | Numerical nondeterminism fails a faithful kernel | **Mitigated** | Tolerance in `verify`; `enable_deterministic_inference` where the backend supports it; greedy decoding for alignment. On stacks where two launches are provably NOT logit-identical (M3 / fa4 / NVFP4), rollout-KL is demoted to advisory and the audit is the primary gate (`docs/FIDELITY.md:26-57`). |
+
+## Bottom line
+
+The **scoring** attacks (class 2 and 3) are largely defeated by the current design
+and pod-validated: the audit closes every output-correctness cheat an out-of-process
+adversary can mount, and turns "watched vs unwatched" into a losing game. The
+**isolation** attacks (class 4) are the ones that still require the sandbox layer
+before opening the door to genuinely untrusted miners. The two structural residuals
+to name honestly are **in-process tampering (2/#9)** and **timed-workload
+fingerprinting (3.7)** — both predate the fidelity redesign, both have named
+closures on the roadmap, and neither has a working exploit that survives scan plus
+a properly configured production evaluator today, but they are where a motivated
+adversary would dig (`docs/FIDELITY.md:131-138`).

@@ -1,0 +1,294 @@
+---
+title: The chain loop
+description: The autonomous referee cycle — read reveals, fetch hostile-safe, re-hash, demote copies, evaluate out-of-process, settle per slot, push weights — and how to operate the daemon.
+---
+
+This page documents `optima/chain/validator_loop.py`, `optima/chain/fetch.py`,
+`optima/commit_reveal.py`, and `optima/chain/__init__.py`. For the operator
+runbook, see [testnet.md](/docs/validators/testnet).
+
+## The design principle: chain is trust anchor ONLY
+
+The chain holds exactly two things: **commitments** (miner → bundle reference) and
+**weights**. Everything else — fetching, hash verification, copy detection, the
+gate chain, settlement, the champion state — lives off-chain on the validator,
+recorded in the JSON `Ledger` (`optima/commit_reveal.py`). This is the
+"chain-as-trust-anchor-only" pattern from `docs/SUBNET_BLUEPRINT.md` §2-§4 and the
+affine-cortex reference.
+
+A miner's whole on-chain footprint is one timelock commitment carrying
+`{"v":1,"h":"<content_hash>","u":"<url>"}` (`optima/chain/payload.py`), posted via
+the chain's native commit-reveal (`set_reveal_commitment`, `optima/chain/__init__.py`):
+
+- The payload is drand-encrypted until the reveal round — nobody, validators
+  included, can read the bundle URL before the reveal, so there is no
+  pre-evaluation copy window.
+- The reveal block is the consensus anti-copy priority timestamp.
+- Chain-side caps: 1024 bytes per timelock payload, ~3100 payload-bytes per hotkey
+  per epoch (`optima/chain/payload.py`, `optima/chain/__init__.py`).
+
+Weight policy is intentionally narrow. `Ledger.current_weights()` is the local
+helper used by `optima set-weights`; the chain loop currently pushes the weight
+vector returned by `settle_per_slot(...)` directly after settling. Keep these
+paths aligned when changing emission policy. Today the policy is per-slot
+king-of-the-hill; it is NOT frozen winner-take-all.
+
+## The loop, step by step
+
+`run_pass` (`optima/chain/validator_loop.py:157`) is one full referee cycle. The
+trust boundaries, in order:
+
+1. **Read latest reveals, sorted by chain order.** `chain.read_revealed_commitments`
+   reads each hotkey's latest revealed commitment (`optima/chain/__init__.py`).
+   Each is decoded with the fail-quiet `decode_payload` (garbage on chain from
+   arbitrary hotkeys must never crash the loop). The decoded `SubmissionRef`s are
+   sorted by `(reveal_block, hotkey)`. Earlier same-hotkey reveals can be skipped
+   by a pass that sees only the latest; exact earliest-copy priority across all
+   history needs either full reveal replay or one active submission per
+   hotkey/window.
+2. **Fetch hostile-safe.** `fetch_bundle` (`optima/chain/fetch.py`) downloads the
+   archive under size caps (`MAX_ARCHIVE_BYTES = 64 MiB`, `FETCH_TIMEOUT_S = 60`),
+   extracts treating the archive as **hostile** (only regular files/dirs; no
+   symlinks/hardlinks/devices; member paths must stay inside the destination;
+   archive/extracted/member-count budgets), and **re-hashes the extracted tree** —
+   the content hash must match `h`. A mismatch (a miner committing X, hosting Y) is
+   a rejected submission, recorded so it's not retried every pass.
+3. **Re-hash.** (Part of step 2; called out because it's the load-bearing identity
+   check.) Identity is `optima.bundle_hash.content_hash` over the extracted
+   *directory*, so the same bundle hashes the same however it was shipped.
+4. **Fingerprint / demote copies.** The bundle's exact hash, reformat-invariant
+   fingerprint, structural skeleton, per-slot fingerprints, and per-slot file-set
+   fingerprints are computed (`optima/copy_fingerprint.py`) and recorded via
+   `Ledger.reveal`. Auto-demotion is based on exact/reformat/per-slot/file-set
+   containment checks. The structural skeleton is advisory metadata for review,
+   not an auto-demotion authority. Copies are **demoted, not evaluated** — they
+   earn 0 and are recorded with `dq_reason="copy"`.
+5. **Evaluate out-of-process.** Original submissions go through the `Evaluator`
+   (`validator_loop.py:60`). The loop never imports miner code — same discipline as
+   `cmd_verify`. The result is an `EvalOutcome` carrying `passed`, `score`,
+   `kl_mean`, `slot`.
+6. **Record + settle per slot.** `Ledger.record_score` + `record_eval` (the audit
+   row / dedup key), then `Ledger.settle_per_slot` applies king-of-the-hill per slot
+   and returns `weights` (see [scoring.md](/docs/validators/scoring)).
+7. **Push weights.** Weights are pushed when they changed, or on the refresh
+   cadence (`DEFAULT_WEIGHTS_REFRESH_BLOCKS = 360`) to stay "active" — the subnet's
+   activity cutoff prunes quiet validators. The SDK routes through the drand
+   commit-reveal weight path automatically when the subnet enables it.
+
+Per-submission failures are recorded and contained (`FetchError`,
+unfingerprintable bundle, eval timeout) — one bad submission never kills the pass.
+An exception out of `run_pass` is a **validator-side** fault (RPC, disk).
+
+## Idempotence
+
+Every processed submission is recorded in the ledger as an `EvalRecord` keyed by
+`(hotkey, bundle_hash)` (`commit_reveal.py:371-378`). A second pass skips anything
+already known (`validator_loop.py:192`), so restarts re-derive state from the ledger
+file instead of replaying work — the "re-derive, don't replay" pattern
+(`docs/SUBNET_BLUEPRINT.md` §2). Dead URLs are not refetched; rejected submissions
+are not retried. Validated on netuid 307: a second pass did zero new work
+(`docs/TESTNET.md`).
+
+## The Ledger
+
+`commit_reveal.Ledger` is a durable JSON store. It holds:
+
+- `commitments`, `reveals` — the anti-copy record (commit-reveal + fingerprints).
+- `scores` — king-of-the-hill atoms (`Score`: hotkey, content_hash, round, score,
+  kl_mean, passed, sglang_version, slot).
+- `evals` — `EvalRecord`s, the audit trail + dedup key. Adding a field when a
+  producer needs it is safe (`schema_version` + tolerant load via `_only_fields`).
+- `champions` — the per-slot champion map.
+- An atomic write (`_atomic_write_json`: serialize to a sibling temp, then
+  `os.replace`) so a crash mid-write leaves the previous file intact, never a
+  truncated half-file. An unreadable ledger is quarantined to `<name>.corrupt.N`,
+  not destroyed.
+
+`Ledger.current_weights()` is the local emission-policy helper for `optima
+set-weights`; `chain-validate` currently uses the weights returned by
+`settle_per_slot(...)` in the same pass. Treat those as one policy surface in
+practice: if emissions move to relative-improvement + time-decay, update both
+paths or centralize the chain loop back through `current_weights()`.
+
+## Evaluator pluggability: the `--eval-cmd` contract
+
+Two evaluators ship:
+
+- **`verify_evaluator`** (default when `--eval-cmd` is absent) — plumbing only. It
+  runs `optima verify` on CPU and scores pass/fail as `1.0`/`0.0`. A 1.0 never
+  clears a positive dethrone margin, so plumbing runs use `--margin 0`. **Never use
+  this for real emissions.**
+- **`command_evaluator`** (`--eval-cmd '<template>'`) — any shell command with
+  `{bundle}` and `{report}` placeholders. Contract: **exit 0 = passed the gate
+  chain**; the command SHOULD write JSON `{"score":float,"kl_mean":float,"slot":str}`
+  to `{report}` (missing report on success defaults to score 1.0, which is useful
+  for plumbing but unsafe for real emissions). This is how the GPU box runs an
+  arena wrapper under this loop:
+
+  ```bash
+  --eval-cmd 'ssh gpubox optima-eval.sh {bundle} {report}'
+  ```
+
+  A bad report or a nonzero exit is a failed outcome. A missing report with exit 0
+  is accepted as the legacy plumbing default; production wrappers should always
+  write the report.
+
+### A generic `--eval-cmd` wrapper (template)
+
+The contract is narrow on purpose: `command_evaluator` only cares about the
+exit code and the `{report}` JSON. Below is a template that satisfies it —
+this is a pattern to adapt, not a shipped script; the maintainers' own
+eval-bridge wrapper is a local, provider-specific script and is **not
+committed to this repo**.
+
+```bash
+#!/usr/bin/env bash
+# optima-eval.sh {bundle} {report} — same-box template.
+set -euo pipefail
+bundle="$1"; report="$2"
+
+# 1) op-correctness first (cheap; fails fast on a broken kernel)
+python -m optima.cli verify "$bundle" --device cuda || exit 1
+
+# 2) the real gate chain: throughput + fidelity
+python -m optima.cli evaluate "$bundle" \
+    --model Qwen/Qwen2.5-1.5B-Instruct --fidelity-mode audit \
+    --no-deterministic > /tmp/eval.log 2>&1 || { cat /tmp/eval.log; exit 1; }
+
+# 3) pull SCORE/kl_mean/slot out of the report and write the report JSON.
+#    (A real wrapper parses evaluate's structured report — see running-evals.md
+#    — or, more simply, has evaluate write `--ledger` and reads that JSON back.)
+# NOTE: -oP needs GNU grep (fine on the Linux box this page assumes);
+# on macOS/BSD swap for: sed -n 's/.*SCORE *\([0-9.]*\).*/\1/p'
+score=$(grep -oP 'SCORE\s+\K[0-9.]+' /tmp/eval.log)
+slot=$(python -c "import tomllib,sys; print(tomllib.load(open('$bundle/manifest.toml','rb'))['ops'][0]['slot'])")
+printf '{"score": %s, "kl_mean": 0.0, "slot": "%s"}\n' "$score" "$slot" > "$report"
+exit 0
+```
+
+For a remote GPU box, wrap the same script over SSH — the placeholders are
+still substituted by the control-box process before the shell runs, so
+`{bundle}` must resolve to a path the remote side can read (rsync it over, or
+mount a shared volume):
+
+```bash
+--eval-cmd 'rsync -a {bundle}/ gpubox:/tmp/eval/$(basename {bundle})/ && \
+    ssh gpubox /opt/optima/bin/optima-eval.sh /tmp/eval/$(basename {bundle}) /tmp/report.json && \
+    scp gpubox:/tmp/report.json {report}'
+```
+
+## Crash-only discipline
+
+`run_validator` (`validator_loop.py:271`) is the daemon: it runs passes forever (or
+`--once`). A failing pass is logged and retried with linear backoff
+(`interval_s * (1 + min(failures, 5))`). After `max_consecutive_failures` (default
+10) in a row it exits nonzero so a supervisor restarts it with fresh connections —
+the "crash-only" discipline: don't paper over a wedged client, let the supervisor
+rebuild state. Connection-level resilience comes from the SDK's retrying substrate
+client (`connect(..., retry_forever=True)` for the daemon).
+
+## Operating the daemon
+
+### Where state lives
+
+Everything the loop needs to resume is on disk, keyed for content-addressing,
+never in memory only:
+
+- **`--ledger <path>`** — the JSON `Ledger` (commitments, reveals, scores,
+  evals, champions). Written atomically (temp file + `os.replace`); a crash
+  mid-write leaves the previous version intact, and an unreadable file is
+  quarantined to `<name>.corrupt.N` rather than deleted.
+- **`--bundles-dir <path>`** — a content-addressed fetch cache. Each fetched
+  submission lands at `<bundles-dir>/<content_hash>`; `fetch_bundle` re-verifies
+  and reuses an existing directory for the same hash instead of re-fetching
+  (`optima/chain/fetch.py:fetch_bundle`).
+- **`<ledger-path>.weights_state.json`** — a small sidecar (`{"block":...,
+  "weights":...}`) recording the last pushed weight vector, used only to decide
+  whether the next pass needs to re-push (changed weights, or the
+  `weights_refresh_blocks` activity-cutoff cadence).
+
+None of these three need backing up more urgently than any other operational
+state — the design goal is that losing `--bundles-dir` just costs re-fetches,
+and losing the weights-state sidecar just costs one redundant push. The
+`--ledger` is the one file with real history in it (scores, champions); treat
+it like you'd treat any append-mostly database.
+
+### A minimal systemd unit
+
+```ini
+[Unit]
+Description=Optima chain-validate daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/optima
+Environment=PATH=/opt/optima/.venv/bin:/usr/bin:/bin
+ExecStart=/opt/optima/.venv/bin/optima chain-validate \
+    --netuid 307 --network wss://test.chain.opentensor.ai:443 \
+    --wallet default --hotkey default \
+    --ledger /opt/optima/chain_ledger.json \
+    --bundles-dir /opt/optima/chain_bundles \
+    --eval-cmd 'ssh gpubox /opt/optima/bin/optima-eval.sh {bundle} {report}' \
+    --margin 0.02
+Restart=always
+RestartSec=30
+User=optima
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Save that as `/etc/systemd/system/optima-chain-validate.service` (the name the
+checklist below assumes for `journalctl -u`).
+
+`chain-validate` (no `--once`) is already the forever-loop with its own
+internal backoff and `max_consecutive_failures`-triggered exit — `Restart=always`
+is the outer safety net for the case the process actually dies (OOM, an
+unhandled fault below the loop's own exception boundary), not the normal retry
+path. No `EnvironmentFile` for keys here on purpose: the wallet is opened by
+name (`--wallet`/`--hotkey`) from the local `btcli` wallet store, not from an
+env var — keep it that way rather than exporting a password into the unit file.
+
+### When it dies at 3am
+
+1. **Read the last log lines first.** `journalctl -u optima-chain-validate -n
+   200`. A failed pass logs a full traceback
+   (`logger.exception("validator pass failed (%d consecutive)", failures)`)
+   before the linear backoff kicks in — the traceback tells you whether this is
+   an RPC hiccup (retry-worthy) or a real fault.
+2. **Check chain connectivity by hand.** `optima chain-status --netuid <N>
+   --network <NET>` (same `--network` as the unit). If this hangs or errors
+   the same way, it's the endpoint, not your loop — public endpoints rate-limit
+   to roughly 1 req/s/IP.
+3. **Check disk.** A full `--bundles-dir` or `--ledger` filesystem fails writes
+   in ways that look like a wedged process. Fetch sizes are capped
+   (`MAX_ARCHIVE_BYTES` / `MAX_EXTRACTED_BYTES` in `optima/chain/fetch.py`),
+   but the disk can still fill from other tenants on the box.
+4. **Check for a hung GPU eval.** `command_evaluator` and `verify_evaluator`
+   both run under a subprocess timeout (`EVAL_TIMEOUT_S`, default 3600s), so a
+   single submission can't wedge the pass forever — but a stale GPU process
+   from a previous manual run can starve the real one into looking hung.
+   `nvidia-smi` on the GPU box; kill anything holding memory that isn't this
+   pass (the same operational lesson as running evals by hand — see
+   [Running evals](/docs/validators/running-evals)).
+5. **Restart is always safe; it is not always free.** Completed passes are
+   idempotent — a submission with an `EvalRecord` already in the ledger
+   (`(hotkey, bundle_hash)`) is skipped on the next pass, and a known reveal is
+   not re-fetched (`fetch_bundle` re-verifies an existing cache directory for
+   that hash rather than re-downloading). But `led.save(ledger_path)` is called
+   **once, after the whole pass's `for ref in refs` loop finishes** — reveals,
+   scores, and evals recorded mid-pass live only in memory until that final
+   save. A crash partway through a pass loses that pass's progress from the
+   ledger's point of view, so restarting re-evaluates every submission that
+   pass had already gotten to (fetches are still cache-hits; GPU evals are
+   not). Correct and safe, just potentially an expensive redo — not a reason to
+   avoid restarting, but a reason `--eval-cmd` timeouts should be tight enough
+   that one pass doesn't run for hours. The ledger file itself is never left
+   corrupt by a crash (atomic write: temp file + `os.replace`); the one thing
+   to avoid is hand-editing it while the daemon might still be running — stop
+   the unit first.
+
+For the end-to-end runbook — wallet roles, the exact commands, the netuid-307
+record — see [testnet.md](/docs/validators/testnet).

@@ -1,0 +1,357 @@
+---
+title: Slot catalog
+description: The per-slot reference for every replaceable region of the fixed model graph — the ten slots a miner may target, their entry signatures, correctness modes, and per-model profiles.
+---
+
+A **slot** is a replaceable, narrowly-typed region of the fixed model graph.
+The validator owns this catalog; a miner may only target a slot that exists
+here, and provides the small `entry` callable described by the slot's contract.
+Everything around the slot (tensor allocation, the call site, the rest of the
+model) stays validator-owned.
+
+The catalog lives in `optima/slots.py` (~1,060 lines). The `SLOTS` dict is the
+authoritative list. For the contract invariants every slot satisfies, see the
+committed `docs/SLOT_CONTRACT.md`; this page is the per-slot reference.
+
+## Catalog
+
+Ten slots, three kinds:
+
+- **op** — a single fused op. Small; sglang's versions are very tight.
+- **block** — a fused region behind one tensor-in/tensor-out contract. Bigger
+  surface = higher ceiling.
+- **collective** — spans GPUs; the validator hands the miner the process group.
+  Verified distributed (cannot be checked on one GPU).
+
+| slot id | kind | entry signature | replaces | correctness | threshold | `kl_threshold` |
+|---|---|---|---|---|---|---|
+| [`activation.silu_and_mul`](#activationsilu_and_mul) | op | `entry(x, out)` | `silu(x[...,:d]) * x[...,d:]` | `allclose` | — | — |
+| [`norm.rmsnorm`](#normrmsnorm) | op | `entry(x, weight, out, eps)` | `x · rsqrt(mean(x²)+eps) · weight` | `allclose` | — | — |
+| [`attention.sdpa`](#attentionsdpa) | block | `entry(q, k, v, out, sm_scale, causal)` | `softmax(qkᵀ·scale + causal) v` (GQA/MQA) | `matched_ratio` | `min_ratio=0.99` | `3e-2` |
+| [`attention.decode`](#attentiondecode) | block | `entry(q, k, v, seq_lens, sm_scale, out)` | paged decode attention | `matched_ratio` | `min_ratio=0.99` | `3e-2` |
+| [`attention.msa_block_score`](#attentionmsa_block_score) | block | `entry(q, index_k, seq_lens, block_size, out)` | MSA block-score indexer | `topk_overlap` | `top_k=8`, `min_overlap=0.875` | `3e-2` |
+| [`moe.fused_experts`](#moefused_experts) | block | `prepare(w13, w2)` + `entry(x, topk_ids, topk_weights, prepared, out)` | fused MoE experts (SwiGLU-MLP) | `matched_ratio` | `min_ratio=0.97` | — |
+| [`moe.fused_experts_reduce`](#moefused_experts_reduce) | collective | `prepare(w13, w2)` + `entry(x, topk_ids, topk_weights, prepared, out, group)` | experts that own their trailing all-reduce | `matched_ratio` | `min_ratio=0.97` | — |
+| [`collective.all_reduce`](#collectiveall_reduce) | collective | `entry(x, out, group)` | TP all-reduce (sum across ranks) | `matched_ratio` | `min_ratio=0.99` | — |
+| [`collective.ar_residual_rmsnorm`](#collectivear_residual_rmsnorm) | collective | `entry(x, residual, weight, eps, out_norm, out_residual, group)` | fused all-reduce + residual-add + RMSNorm | `matched_ratio` | `min_ratio=0.99` | — |
+| [`collective.moe_finalize_ar_rmsnorm`](#collectivemoe_finalize_ar_rmsnorm) | collective | `entry(gemm_out, row_map, scales, residual, weight, eps, out_norm, out_residual, group)` | deep fused MoE finalize + AR + add + norm | `matched_ratio` | `min_ratio=0.99` | — |
+
+<Callout type="info">
+  **Graph-safety is part of the contract.** Scoring runs with CUDA graphs
+  ON. The op seams are captured directly. A block/collective kernel must
+  declare `graph_safe: true` in its metadata to run inside the graph; otherwise
+  the seam falls back to the trusted baseline under capture. `graph_safe` means
+  static shapes, no host syncs, no data-dependent Python control flow, writes
+  only the validator-allocated buffer. The one structural exception is
+  `attention.decode` (see below).
+</Callout>
+
+### Correctness modes
+
+Defined in the `Correctness` dataclass in `optima/slots.py`. The op-gate is a
+cheap **sanity** check ("is this even the slot's function?"), explicitly
+necessary-but-not-sufficient — the load-bearing fidelity authority is the
+model-level gate (`kl` where stock-vs-stock KL is clean, `audit` where rollout
+KL is confounded). The reference is always high-precision ground truth, never
+the stock kernel.
+
+| mode | gate | right for |
+|---|---|---|
+| `allclose` | every element within `atol + rtol*\|e\|` | numerically-equivalent ops (a faster silu) |
+| `matched_ratio` | ≥ `min_ratio` of elements within that bound | kernels that legitimately differ at ULP level (flash softmax, fp8, weight absorption) |
+| `cosine` | cosine similarity ≥ `min_cosine` vs HP ref (+ optional `max_rel_norm_err`) | low-bit (FP4/FP8) kernels where element-wise tolerance is meaningless |
+| `topk_overlap` | mean per-row `\|topk(actual) ∩ topk(expected)\| / top_k` ≥ `min_overlap` | selection outputs (an MSA block-score indexer) |
+
+Per-dtype tolerances default to `Tolerance(2e-2, 2e-2)` for bf16, `(1e-2, 1e-2)`
+for fp16, `(1e-5, 1e-5)` for fp32 (`_BF16_TOL`, `optima/slots.py:180`).
+
+---
+
+## Per-slot detail
+
+### `activation.silu_and_mul`
+
+The Qwen/Llama-class gated-MLP activation. `x:(...,2d)` → `out:(...,d)` via
+`silu(x[...,:d]) * x[...,d:]`. Contract: `entry(x, out)` — the miner fills the
+validator-allocated `out` and returns nothing.
+
+Standard shapes: 1, 8, 128, 4096 tokens × d=1024/4096, plus a 333×2880
+off-round case. Correctness is `allclose` (a faster silu is meant to be
+numerically equivalent). The HP reference (`_silu_reference`,
+`optima/slots.py:194`) computes in fp32.
+
+**When to target it:** a small op slot — good for learning the pipeline, hard
+to actually beat (sglang's is very tight). Example bundles:
+`examples/miner_silu_torch` (CPU dry-run), `examples/miner_silu_triton`.
+
+### `norm.rmsnorm`
+
+Universal — every transformer layer, including GPT-OSS (whose activation is
+fused into the MoE kernel, so it does not go through `silu_and_mul`). Contract:
+`entry(x, weight, out, eps)`. The validator owns the residual add; the miner
+only computes `out = x · rsqrt(mean(x²,-1)+eps) · weight`.
+
+Correctness `allclose`. Standard shapes span hidden=2880/4096/1536. The seam
+patches `RMSNorm.forward_cuda` (see `optima/integrations/sglang_norm.py`).
+
+**When to target it:** the slot that fires on every layer of every model; a
+fused norm (e.g. norm folded into a preceding op) is the lever. Example:
+`examples/miner_rmsnorm_triton`, `examples/miner_rmsnorm_broken` (failing).
+
+### `attention.sdpa`
+
+Scaled-dot-product attention, GQA/MQA-capable. The first *block* slot — it
+subsumes QK^T + softmax + (·)V behind one typed boundary. Contract:
+`entry(q, k, v, out, sm_scale, causal)` with `q:(T,Hq,D)`,
+`k,v:(S,Hkv,D)` → `o:(T,Hq,D)`. GQA/MQA via `Hq % Hkv == 0`.
+
+A real attention kernel reorders the softmax reduction (flash / online softmax)
+and may run in fp8, so it is NOT bit-exact: gate is `matched_ratio` at
+`min_ratio=0.99`. `kl_threshold=3e-2` because attention's intrinsic end-to-end
+KL floor (~6e-3 vs flash) sits above the generic `5e-3` gate. The HP reference
+(`_sdpa_reference`, `optima/slots.py:284`) handles the cached-prefix causal
+offset.
+
+**When to target it:** a fused attention backend swap. Today this is primarily
+the offline/verify contract for prefill-style attention work; the runtime
+`RadixAttention.forward` seam dispatches the decode path through
+`attention.decode` and falls back for prefill/SDPA unless a model-specific seam
+is added. Example: `examples/miner_attention_torch`.
+
+### `attention.decode`
+
+Paged-decode attention — the **runtime-wired** attention slot. Each request's
+single query attends to its first `seq_lens[i]` cached k/v. Contract:
+`entry(q, k, v, seq_lens, sm_scale, out)` with `q:(B,Hq,D)`,
+`k,v:(B,S,Hkv,D)`, `seq_lens:(B,)` → `o:(B,Hq,D)`. The validator gathers each
+request's paged KV out of `forward_batch` into the padded `(B,S,Hkv,D)` view;
+the miner fills `out`.
+
+Same `matched_ratio=0.99` / `kl_threshold=3e-2` as `attention.sdpa`. One shape
+guarantees a full-length request (`seq_lens[0] = ctx`) to exercise the whole
+window and the mask.
+
+<Callout type="info">
+  **Structurally eager.** The decode gather-MVP seam does a per-step
+  `max_len` host-sync, so it cannot be CUDA-graph-captured in this form. Its
+  graph-safe form is a paged-direct contract (the next rung). This is the one
+  slot where the current seam is eager by construction — see
+  the graph-safety section of the committed `docs/SLOT_CONTRACT.md`.
+</Callout>
+
+**When to target it:** decode-time attention (the dominant cost at long
+context). Example: `examples/miner_attention_decode_torch`.
+
+### `attention.msa_block_score`
+
+The MSA / sparse-attention indexer — the finer-than-`attention.decode` seam for
+a **selection** optimization (the fp8 MSA indexer on MiniMax-M3). The kernel computes
+per-128-token-block scores (block-max-pool of the index QK); the validator owns
+the irreducible downstream step (top-k block selection + the bf16 attend). So
+the kernel stays strictly upstream of the sampler. Contract:
+`entry(q, index_k, seq_lens, block_size, out)` with `q:(B,Hq,D)`,
+`index_k:(B,S,1,D)`, `seq_lens:(B,)` → `block_scores:(B, S//block_size)`.
+
+The output is a **selection**, not a tensor value: gate is `topk_overlap` with
+`top_k=8`, `min_overlap=0.875` (7/8 tolerates a thin selection drift). Element
+cosine/KL are the wrong metric — an fp8 index-K may perturb every score yet
+pick the same blocks. Every shape keeps `n_blocks > top_k` so the gate is not
+vacuous.
+
+**When to target it:** an MSA model's sparse-attention indexer (fp8 index-K).
+The live seam is GPU/M3-specific (`optima/integrations/sglang_msa.py`, a stub —
+not in the generic `SEAM_ADAPTERS` table because the chokepoint only exists on
+MSA models).
+
+<Callout type="info">
+  This slot is a live contract in `optima slots`, not a generic runtime
+  seam. A validator can evaluate it only in an arena that installs the matching
+  model-specific MSA chokepoint.
+</Callout>
+
+### `moe.fused_experts`
+
+Fused MoE experts — a **(prepare, forward) pair**. `prepare(w13, w2) → prepared`
+runs ONCE at load on the raw checkpoint weights (repack / quant-packing); the
+validator caches the result. `forward(x, topk_ids, topk_weights, prepared, out)`
+runs every step. `x:(M,H)`, `w13:(E,2I,H)[gate;up]`, `w2:(E,H,I)`,
+`topk_ids/weights:(M,K)` → `out:(M,H)`. SwiGLU-MLP experts.
+
+The (prepare, forward) split is what lets a quantized / layout-sensitive expert
+kernel fit one slot: the weight repack / FP4 block-scale interleave is
+`prepare`, the fused GEMM is `forward`. `prepare_from_layer`
+(`_moe_prepare_args_from_layer`, `optima/slots.py:462`) maps a live sglang
+`FusedMoE` layer to the miner's `prepare()` call shape — a dense layer gets
+`(w13_weight.data, w2_weight.data)`, a quantized (NVFP4 uint8) layer gets
+`("nvfp4_layer", layer)` so the miner can reuse the runtime's own prepared
+state. `kl_threshold` unset → generic `5e-3`.
+
+Gate `matched_ratio=0.97` (a real fused-MoE kernel runs in fp8/fp4 with
+reordered reductions). Example: `examples/miner_moe_fused_experts_torch`.
+
+**When to target it:** format specialization (FP8/FP4), a fused expert kernel,
+or the override-point pattern (see [manifest schema](/docs/reference/manifest-schema)).
+
+### `moe.fused_experts_reduce`
+
+Fused MoE experts that **own their trailing TP all-reduce** — the
+compute-comm overlap lever (~75% of decode at TP/EP scale). This is the fix for
+the structural ceiling: a plain `moe.fused_experts` slot can't express the
+overlap because the validator replays a separate stock all-reduce after the
+kernel — the two ops are severed. Here ONE kernel owns BOTH the experts and the
+reduce (it is handed the process group), so it can fuse/overlap them. The
+validator does NOT replay the reduce. Contract: `prepare(w13, w2)` +
+`entry(x, topk_ids, topk_weights, prepared, out, group)`.
+
+`kind="collective"` → verified distributed vs the fp32 cross-rank sum of the
+per-rank expert outputs (`collective_partial`, `optima/slots.py:842`). Tokens +
+routing are replicated across ranks; expert weights are sharded, so each rank
+computes a different partial and the cross-rank reduce does real work. Gate
+`matched_ratio=0.97`. Example: `examples/miner_moe_fused_experts_reduce_torch`.
+
+**When to target it:** the biggest decode lever — overlap the expert GEMM with
+the trailing reduce. Still inside the four invariants: validator owns `out` +
+the group + the call site; the reduced output feeds the residual stream
+upstream of the sampler.
+
+### `collective.all_reduce`
+
+The TP comms waist. `x:(M,H)` per rank → `out:(M,H) = sum over ranks`. Contract:
+`entry(x, out, group)` — the miner owns the reduce algorithm + transport
+(one-shot/NVLS/tree vs ring); the validator owns `out`, the process group, and
+the call site.
+
+Decode is comms-bound (~32–43% of GPU time at TP/EP scale, the largest single
+category), and it is latency-bound, so the lever is a lower-latency reduce or
+compute-comm overlap. `kind="collective"` → verified distributed vs the fp32
+cross-rank sum. Each rank gets a different partial (seeded by rank). Gate
+`matched_ratio=0.99`. Example: `examples/miner_allreduce_torch`.
+
+### `collective.ar_residual_rmsnorm`
+
+The decode-epilogue waist behind sglang's `--enable-flashinfer-allreduce-fusion`.
+The kernel owns the whole fused epilogue:
+
+```
+new_residual = sum_over_ranks(x) + residual
+norm_out     = rmsnorm(new_residual, weight, eps)
+```
+
+Contract: `entry(x, residual, weight, eps, out_norm, out_residual, group)`.
+`x:(M,H)` is the per-rank local partial (e.g. the un-reduced MoE/MLP output);
+`residual:(M,H)` and `weight:(H,)` are replicated (identical on every rank).
+Two validator-allocated outputs: `[norm_out, new_residual]` — the stock
+chokepoint returns exactly this pair.
+
+This is sglang's OWN fusion waist: with the arena flag, layer epilogues funnel
+through ONE module-level function
+(`sglang.srt.layers.flashinfer_comm_fusion.flashinfer_allreduce_residual_rmsnorm`,
+resolved per-call via a function-local import), so the seam is a module-attribute
+rebind of a real single call site. Verified distributed: the reference is the
+fp32 cross-rank sum of `collective_partial`, then trusted local add+norm via
+`collective_finish` (`_ar_norm_reference_from_sum`, `optima/slots.py:638`).
+Gate `matched_ratio=0.99`. Shape set deliberately includes small decode-T at the
+arena hidden (`num_tokens=8, hidden=6144`) to exercise the one-shot CUDA path —
+a hole there shipped an engine-garbage kernel past verify on 2026-07-07
+(see the comment at `optima/slots.py:678`).
+
+**When to target it:** the fused AR+add+norm epilogue (the measured lever on
+B300 — two-shot Lamport beat flashinfer's own fused kernel at decode T). The
+first-party kernel lives in `optima_kernels/collective/fused_ar_rmsnorm.py`.
+
+### `collective.moe_finalize_ar_rmsnorm`
+
+The **deep fused-epilogue** waist: MoE finalize (gather permuted gemm2 rows,
+scale, sum over experts-per-token) + all-reduce + residual-add + RMSNorm in ONE
+kernel. This is the `fe_export` deep seam's kernel contract: a producer
+`dep_patches` entry exports flashinfer's pre-finalize pointers
+(`gemm_output` / `row_map` / `scales`) instead of launching the standalone
+finalize kernel, and the deferred-AR call site consumes them — killing a
+~17us/layer latency-bound kernel + a full `[T,H]` round-trip at decode.
+
+Contract: `entry(gemm_out, row_map, scales, residual, weight, eps, out_norm,
+out_residual, group)`. ABI (matches `fe_export.h`):
+
+- `gemm_out [T_exp*K, H]` — per-rank partial (unfused gemm2 output, permuted rows)
+- `row_map [T_exp*K]` i32 — **replicated**, K-major: slot `(t,k)` lives at `t + k*T_exp`
+- `scales [T_exp, K]` f32 — **replicated**, T-major
+- `residual [T,H]`, `weight [H]` — replicated; `T <= T_exp` (CUDA-graph batch
+  padding: the consume call may head-trim — same `data_ptr`, offset-0 slice)
+
+<Callout type="info">
+  **Verifiable without flashinfer.** The validator seeds synthetic
+  pre-finalize tensors per rank, and finalize is linear, so
+  finalize-then-AR == AR-then-finalize: `collective_partial` =
+  `_moe_fin_local_finalize` (trusted fp32 local finalize per rank,
+  `optima/slots.py:739`), verify sums across ranks, `collective_finish` = the
+  same trusted add+norm as the shallow slot. Shape `topk=5` = M3 (top-4 + fused
+  shared expert); head-trim (`T < T_exp`) exercised in the 1st/3rd shapes.
+</Callout>
+
+Gate `matched_ratio=0.99`. The engine-side state machine that arms the
+skip-finalize + export is in `optima/moe_export.py`; the seam pair is
+`sglang_defer_gate` + `sglang_moe_export` in `optima/seams.py`.
+
+**When to target it:** the deepest decode-epilogue fusion — the whole
+finalize+AR+add+norm chain in one launch, gated by the per-layer defer decision.
+
+---
+
+## Per-model profiles
+
+A slot's default (above) is the generic case (SiLU experts, `matched_ratio`).
+But the **activation**, **quant format**, and the **correctness floor** for a
+given (model, slot) are MODEL/VALIDATOR facts, never miner choices. The
+validator controls the model it serves, reads `swiglu_alpha`/`swiglu_limit`
+from its config, and calibrates the floor to the measured noise. A miner only
+NAMES which model it targets; the numbers below are the validator's.
+
+`MODEL_PROFILES` (`optima/slots.py:1029`) maps a model key to a `{slot:
+SlotProfile}`. `SlotProfile` (`optima/slots.py:984`) carries an `Activation`
+(retargets the HP reference to the model's real activation) and an optional
+`Correctness` (swaps the op-sanity metric, e.g. cosine for a low-bit kernel).
+
+| model key | slot | activation | correctness | basis |
+|---|---|---|---|---|
+| `MiniMax-M3` (and `MiniMax-M3-NVFP4`) | `moe.fused_experts` | `swigluoai` (α=1.702, limit=7.0) | `cosine`, `min_cosine=0.985` | NVFP4 representational floor 0.9958 (m3_swigluoai_gate.py) with margin; plain SiLU scores 0.45 → rejected |
+| `MiniMax-M3` (and `MiniMax-M3-NVFP4`) | `moe.fused_experts_reduce` | `swigluoai` | `cosine`, `min_cosine=0.985` | same — both expert slots run the same swigluoai experts on M3 |
+
+The swigluoai form (GPT-OSS / MiniMax-M3) is
+`g=min(gate,limit); u=clamp(up,-limit,limit); g·sigmoid(α·g)·(u+1)` — clamped,
+distinct from plain `silu(gate)·up`. Using SiLU as the reference for a
+swigluoai model is the ratio-0.0 false-fail `_gated_activation`
+(`optima/slots.py:432`) exists to prevent.
+
+`specialize_slot` (`optima/slots.py:996`) returns a copy of the slot retargeted
+by a profile — it only rebinds the activation-bearing references (`invoke_reference`
+and, for the reduce block, `collective_partial`) and the correctness policy.
+The module-level slot singletons are never mutated, so `get_slot` stays generic.
+
+### Lookup
+
+- `model_profile(model_key, slot_name)` — returns the `SlotProfile` for a
+  `(model, slot)`, or `None`. `None` model key → always `None` (generic slot).
+- `slot_for_model(slot_name, model_key=None)` — `get_slot` + specialization.
+  With no model key (or no registered profile) this is exactly `get_slot`, so
+  existing callers and bundles are unchanged.
+
+```python
+from optima.slots import slot_for_model, model_profile
+slot = slot_for_model("moe.fused_experts", "MiniMax-M3")  # swigluoai + cosine
+slot = slot_for_model("moe.fused_experts")                # generic SiLU + matched_ratio
+```
+
+<Callout type="info">
+  This is the precursor to a full per-model arena registry. When that
+  lands, these profiles move onto `Arena`; today it is the one validator-owned
+  table that makes the MoE slot verifiable on a swigluoai/NVFP4 model (e.g.
+  MiniMax-M3) without weakening the generic slot or letting a submission set its
+  own gate.
+</Callout>
+
+---
+
+Cross-links: the [CLI reference](/docs/reference/cli) for `slots`/`verify`; the
+[manifest schema](/docs/reference/manifest-schema) for how a bundle declares which slot it
+targets; the [codebase map](/docs/reference/codebase-map) for where the seam adapters and
+verify machinery live.

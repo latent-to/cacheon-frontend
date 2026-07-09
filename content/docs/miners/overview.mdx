@@ -1,79 +1,116 @@
 ---
-title: Overview
-description: You write a kernel, not a container. What you build, what you need, the flow from local verify to commit-reveal, and an honest read on how hard winning is.
+title: Start here (miners)
+description: The plain-language on-ramp for miners — what Optima is, how you earn, the honest state of play, and the five-minute mental model for writing a kernel.
 ---
 
-## What you're building
+This page is the plain-language on-ramp. No prior subnet knowledge assumed. If
+you can write a Triton kernel, you can compete here.
 
-You write a **GPU kernel**: a small piece of code for one operation inside a fixed, public model that the validator runs on its GPUs. Not a container, not an inference server, not a fine-tune. The validator swaps your kernel into a pinned sglang engine, runs the model, and scores two things:
+## What Optima is, in one paragraph
 
-1. **Throughput** — tokens/second, versus the model running stock (unmodified sglang).
-2. **Fidelity** — does the model still produce the *same* outputs? Measured by per-token KL divergence against the stock run, plus real-benchmark accuracy (GSM8K / MMLU).
+Optima is a competition where you earn by making LLM inference faster. You pick
+**one slot** in a fixed model — an activation, a normalization, an attention
+block, a fused-experts MoE, a cross-GPU collective — and you write a kernel for
+it. A validator swaps your kernel into the model it controls, runs it, and scores
+you on **throughput** — but only if your kernel passes the **fidelity** gate and,
+in production scoring, the arena's task-accuracy gate. If your kernel is
+genuinely faster than what the engine ships, at equal quality, you earn.
 
-You earn if and only if your kernel is **both faster and faithful**. A kernel that is 30% faster but changes the model's answers scores zero. A kernel that is perfectly faithful but slower than stock also scores zero. The whole game is a genuine speedup at equal quality.
+## How you earn
 
-Your submission unit is a **bundle**: a directory holding a `manifest.toml`, your `kernels/*.py`, and optional `metadata/*.json`. See [Submission format](/docs/miners/submission-format).
+You submit a kernel as a **bundle** (a directory with a `manifest.toml` and your
+kernel source). You commit it on-chain via a timelock commit-reveal (so nobody
+can copy you and claim priority). The validator evaluates it out-of-process and
+records a score. **King-of-the-hill per slot** (the current best kernel per slot
+holds the title; a challenger takes it only by beating it by a margin). Emission
+is split across slots, so a specialist who owns one slot earns — not just the
+single best end-to-end bundle.
 
-<Callout type="info" title="Cacheon to Optima, Phase 2">
-  This is the successor mechanism to Cacheon. Cacheon paid for a Docker container that served a whole
-  model; Optima pays for a single kernel swapped into a model the validator controls. The subnet is
-  netuid 14 on mainnet, 470 on testnet.
-</Callout>
+Your score is your throughput speedup vs the stock baseline, **but only if every
+gate passed**. If any gate failed, your score is `0.0`.
 
-## What you need
+## The honest state of play
 
-| Requirement | Details |
-| --- | --- |
-| **Ability to write a GPU kernel** | PyTorch, Triton, or CuteDSL. This is a performance-engineering competition, not a config exercise. |
-| **A machine to develop on** | Everything up to submission runs on CPU. You can write, statically scan, and op-verify a kernel with no GPU at all. |
-| **A GPU (yours or rented) for real scoring** | Throughput and fidelity are only meaningful on a GPU. See [Local testing](/docs/miners/local-testing) for the toolchain and pod recipe. |
-| **A Bittensor hotkey** | Needed only to submit and to be paid. Everything before commit needs no chain and no wallet. See [Registration](/docs/miners/registration). |
+- **The mechanism is proven.** Real kernels have been evaluated end-to-end on
+  real GPUs, the gates demonstrably catch cheats (a broken silu scores 0; a
+  faithful one passes), and commit-reveal + copy detection work.
+- **A submitted optimization has surpassed sglang through the referee.** On
+  2026-07-07, fused epilogue kernels for MiniMax-M3-NVFP4/4×B300 measured 1.044×
+  and 1.074× vs the pinned sglang baseline at equal audited fidelity, reproduced
+  across independent prompt seeds and once through the on-chain loop.
+- **Every *other* example bundle in the repo is a correctness demo** — faithful
+  but slower than sglang's tuned kernels. That's expected: the vendor already
+  tuned the obvious kernels. A real throughput improvement is narrow and
+  model-specific, often a few percent end-to-end rather than 2× across the board.
 
-## The high-level flow
+The realistic shape of an improvement: you fuse two ops the vendor shipped
+separately, overlap a collective with its producer GEMM, or write a better
+epilogue for one quantized MoE variant. You measure before you reason, size the
+lever by its WALL-time fraction (not kernel-time sum), and accept that a
+faithful-but-slower kernel is the default outcome.
 
-1. **Write** a kernel for one [slot](/docs/miners/slots). Copy an example bundle and edit it.
-2. **Verify locally** on CPU: `python -m optima.cli scan` then `verify`. No GPU, no cost.
-3. **GPU-evaluate**: `verify --device cuda`, then `evaluate` (throughput + KL) and `bench` (real-task accuracy). See [Local testing](/docs/miners/local-testing).
-4. **Commit-reveal**: commit a hash of your bundle, then reveal it. This defeats off-chain copying. See [Registration](/docs/miners/registration).
-5. **Settle**: the validator scores every original, passing reveal and applies king-of-the-hill per slot.
+## The five-minute mental model
 
-## The honest reality check
+1. **Pick a slot.** Look at [the slot catalog](/docs/reference/slots-table). You
+   target exactly one (or a small related set). The slot is a typed input/output
+   contract — e.g. `activation.silu_and_mul` is `entry(x, out)`.
+2. **Write the kernel.** Your function **fills `out`** — a tensor the validator
+   allocated — and returns nothing. You never return tensors, never allocate the
+   output, and never touch the sampler. See [The kernel ABI](/docs/miners/kernel-abi).
+3. **Test locally, cheaply.** `optima scan` (static check) and `optima verify`
+   (correctness vs an fp32 reference) run on CPU in seconds. Loop here.
+4. **Test on a GPU.** `python -m optima.cli evaluate` (throughput + fidelity,
+   graphs-on) and `python -m optima.cli bench` when the arena uses a benchmark
+   floor. This is where you find out if you're actually faster.
+5. **Commit.** Package the bundle with `chain-package`, host the archive, then
+   post hash+URL on-chain with `chain-submit` via the timelock commit-reveal.
 
-As of this writing, **no submitted kernel has beaten sglang.** sglang's built-in kernels are already heavily tuned. Most faithful kernels you write will be *slower* than the baseline, and that is the expected default outcome, not a bug.
+## The gates, in order
 
-Winning is real work. A realistic win is roughly **1.1x to 1.4x on one slot in one regime**, not a 2x blowout, and the strategy is to stack several regime-specific wins rather than find one giant lever. [Finding a win](/docs/miners/finding-a-win) is about where the actual openings are. This is not a faucet; it is a performance-engineering competition against a tuned opponent.
+| Gate | What it checks | Cost |
+|---|---|---|
+| **scan** | static policy scan of your source (banned imports/calls) | seconds, CPU |
+| **verify** | op-correctness vs an **fp32 reference** under the slot's tolerance | seconds, CPU/GPU |
+| **fidelity** | the output distribution is still correct (in-engine **audit**, or rollout-KL on quiet arenas) | a GPU launch |
+| **benchmark** | configured task accuracy, e.g. GSM8K/MMLU/long_math, doesn't regress | a GPU launch |
+| **throughput** | `B,C,B'` bookended speedup vs a noise-derived bar | three+ GPU launches |
+| **settle** | king-of-the-hill: beat the champion by a margin | off-chain |
 
-## Learn more
+`scan` + `verify` are cheap sanity checks. The **load-bearing** anti-cheat is
+fidelity + benchmark, on the real model. A faster-but-wrong kernel scores zero
+there even if it sailed through `verify`. See
+[Why did my kernel fail?](/docs/miners/diagnostics).
 
-<Cards>
-  <Card
-    title="Slots"
-    href="/docs/miners/slots"
-    description="The seven typed boundaries you can target, their entry signatures, and the invariant that keeps them cheat-resistant."
-  />
-  <Card
-    title="Submission format"
-    href="/docs/miners/submission-format"
-    description="The bundle anatomy: manifest.toml, the kernel contract, metadata, and the sandbox."
-  />
-  <Card
-    title="Local testing"
-    href="/docs/miners/local-testing"
-    description="The inner loop: CPU verify, then GPU evaluate and bench against the real gates."
-  />
-  <Card
-    title="Finding a win"
-    href="/docs/miners/finding-a-win"
-    description="Seven lessons from real profiling on real hardware about where speedups actually live."
-  />
-  <Card
-    title="Registration"
-    href="/docs/miners/registration"
-    description="The commit-reveal submission flow and how copy detection works."
-  />
-  <Card
-    title="Rules"
-    href="/docs/miners/rules"
-    description="The sandbox rules and the four slot invariants, and why each exists."
-  />
-</Cards>
+## What you give up by competing here
+
+The slot is **upstream of the sampler**. You never produce the final tokens and
+you never see them. This is not a limitation you work around — it's the whole
+reason the competition can't be cheated (no "run gibberish, fetch the answer from
+an API" attack is possible). Your kernel fills one tensor; sglang does the rest.
+
+This also means: you can't earn by changing decoding strategy, batching, or
+scheduling. You earn by making one validator-owned tensor-fill faster. That's a
+narrow lever, but it is the lever the referee can measure without trusting miner
+code.
+
+## The advanced path (read these later, not first)
+
+[Override points](/docs/miners/override-points) and [Dependency patches](/docs/miners/dep-patches)
+are for two specific quantized-MoE / deep-fusion slots, not the default way to
+submit. Get one plain bundle through `scan` + `verify` + `evaluate` first (see
+[Your first kernel](/docs/miners/your-first-kernel)); when something fails, start at
+[Why did my kernel fail?](/docs/miners/diagnostics) rather than assuming you need the
+advanced path. Both pages carry their own scope warning up top — they're worth
+opening only once a normal `entry(..., out)` kernel is not what your slot needs.
+
+## Where to go next
+
+- **See the slots:** [The slots you can target](/docs/miners/slots).
+- **Understand the contract:** [The kernel ABI](/docs/miners/kernel-abi).
+- **See the bundle shape:** [The bundle format](/docs/miners/bundle-format).
+- **Just build one:** [Your first kernel (20 min)](/docs/miners/your-first-kernel).
+- **Ready to go on-chain:** [Submitting on-chain](/docs/miners/submitting).
+{/* TODO: confirm canonical optima repo URL (latent-to/optima vs ShivanshuPurohit/optima) before publish */}
+- **For the deeper reference:** the committed
+  [`docs/MINER_GUIDE.md`](https://github.com/latent-to/optima/blob/main/docs/MINER_GUIDE.md)
+  in the repo.

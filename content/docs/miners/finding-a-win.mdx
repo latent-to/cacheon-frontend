@@ -1,44 +1,146 @@
 ---
-title: Finding a win
-description: Seven lessons from real profiling on real hardware about where speedups actually live, and why the realistic shape of a win is 1.1x to 1.4x, not 2x.
+title: Finding a throughput improvement
+description: The practical guide to finding a throughput win, grounded in the MiniMax-M3 case study where submitted kernels first beat the pinned sglang baseline.
 ---
 
-This is the hard part, and where most of your effort should go. No submitted kernel has beaten sglang yet: its built-in kernels are heavily tuned, and a faithful reimplementation is the default *losing* outcome. The seven lessons below are distilled from real profiling sessions on real hardware.
+This is the hard part. Writing a *correct* kernel is mechanical; writing one
+that's *faster than the vendor's tuned kernel* is a research problem. This page
+is the practical guide, grounded in the MiniMax-M3 case study where submitted
+kernels first surpassed the pinned sglang baseline through Optima's scorer.
 
-## 1. Measure, don't reason. The GPU is the only judge.
+## The one rule
 
-Every "this should be faster" intuition has roughly a 50% chance of being wrong on contact with hardware. Build the cheap measurement *before* you build the kernel. See [Local testing](/docs/miners/local-testing).
+> **Measure, don't reason.**
 
-## 2. Size the lever before you build it, on the *wall* fraction
+Your intuition about "this should be faster" is not reliable against a vendor
+kernel that's already autotuned. Profile the real decode, find where the wall time
+actually goes, size the lever, and only then write code.
 
-If your target op is X% of the decode **wall-clock** and you make it `S×` faster, the end-to-end gain is Amdahl: `1 / ((1 − X) + X/S)`. The common trap: "this kernel is 59% of *summed kernel time*" is **not** "59% of the wall." Overlap and gaps mean the wall fraction is often far smaller. Confirm the lever's wall share with an end-to-end measurement before committing to the build.
+## Step 1 — profile the decode breakdown
 
-## 3. Let the bound-type pick the tool
+Don't guess. Run an nsys trace on the target arena and break the decode into
+categories. On the MiniMax-M3 / 4×B300 arena, the breakdown looked like:
 
-Profile (for example with `ncu`) to see whether the kernel is memory-bound, compute-bound, or co-limited:
+| Category | Share of decode GPU time |
+|---|---|
+| cross-GPU comm (TP all-reduce / all-to-all) | **32–43%** |
+| MoE GEMM | 32–44% |
+| attention / indexer cluster | &lt;10% |
+| norm / quant / glue | the rest |
 
-- **memory-bound** → lower precision (FP8/FP4) halves the bytes and wins.
-- **compute-bound on a dense GEMM** → the vendor (cuBLAS/cutlass) is already near-optimal. Concede it; don't fight it.
-- **co-limited** → lowering precision speeds only the part it touches; the other limiter becomes the floor (for example a reduction the dot's precision can't shrink). Lower precision and bigger fusion help less than the byte count suggests.
+That immediately tells you: **the attention indexer is not the bottleneck on this
+arena** (despite being a "fancy" op), and **the comms + the MoE finalize epilogue
+are**. That is why the successful M3 submissions targeted the fused
+AR+residual+RMSNorm epilogue and the deeper MoE-finalize fusion.
 
-## 4. Concede what the vendor already fused
+Tools: `nsys profile -t cuda,nvtx,cublas python3 -m sglang.bench_one_batch ...`
+(see [Dev environment](/docs/dev/environment) for the full profiling workflow).
+The repo's profiler tooling (under `experiments/`) ingests nsys + ncu into a
+findings table that joins kernel-time share × bound-type → per-category
+winnability → an Amdahl ceiling.
 
-sglang's MoE megakernel already fuses GEMM, activation, requant, and finalize; the all-reduce is already overlapped; dense GEMMs are cuBLAS. Re-fusing what is fused, or "overlapping" what is overlapped, is a dead end. The open ground is the kernels the vendor did **not** tune for your GPU, for example a model's own Triton kernels running un-optimized on a new architecture.
+## Step 2 — size the lever (wall fraction, not kernel-time sum)
 
-## 5. State your regime: a win is (model, context length, concurrency)-scoped
+A kernel that's 2× faster on an op that's **1% of wall time** is only a **1%
+end-to-end improvement**.
+Size by the op's *wall-time fraction*, not by how impressive the kernel speedup
+is in isolation.
 
-A kernel that helps at long context or high concurrency can be a no-op at short context or low concurrency, and the reverse. The decode-throughput regime under CUDA graphs is what is scored, so optimize there, and report the regime your win holds in.
+```
+speedup_overall = 1 / ((1 - f) + f/k)
+```
 
-## 6. Distrust a surprising win until it survives an adversarial check
+where `f` is the wall fraction of the op you're optimizing and `k` is your
+kernel's speedup on that op. With `f = 0.40` (comms) and `k = 1.5`, that's a
+~1.14× overall speedup. With `f = 0.01` and `k = 2`, that's ~1.01× — usually
+too small to resolve on a noisy box.
 
-Big speedups are usually artifacts: clock drift, a thin low-batch corner that doesn't generalize, an unfair baseline (comparing kernels doing different amounts of work), or a fidelity regression you haven't measured. Bracket your timing, match the work both sides do, and check the quality gates before you believe it.
+This is why the collective slots exist: comms is the biggest wall fraction at
+TP/EP scale, so an overlap optimization there moves the overall number the most.
 
-## 7. The realistic shape of a win is ~1.1x to 1.4x, not 2x
+## Step 3 — concede what the vendor already did
 
-Kernels are a slice of the $/token stack. The strategy is to **stack** several regime-specific wins, not to find one giant lever. A clean, faithful 1.1x that survives the gates is a real win.
+sglang's silu, rmsnorm, and basic attention are already optimal. **You will not
+beat them on an op slot.** The example bundles for those slots are correctness
+demos — faithful but slower. That's not a bug; it's the expected result.
 
-<Callout type="info" title="Where the ceiling is higher">
-  Op slots are a tuned wall. The block and collective slots have the higher ceiling: fusion across the
-  GEMM or comms boundary, format specialization, and the experts-to-all-reduce overlap in
-  `moe.fused_experts_reduce`. See [Slots](/docs/miners/slots).
-</Callout>
+The remaining opportunity is in the things the vendor *couldn't* fully tune because they're
+model-specific or fusion-specific:
+
+- **Fusion** — two ops the engine ships separately (the AR + residual + RMSNorm
+  epilogue).
+- **Overlap** — hiding a collective behind its producer GEMM
+  (`moe.fused_experts_reduce`).
+- **Model-specific epilogues** — the swigluoai activation on M3's MoE.
+- **Deep fusion** — MoE finalize + AR + add + norm as one kernel
+  (`collective.moe_finalize_ar_rmsnorm`).
+
+## Step 4 — expect incremental end-to-end gains
+
+An Optima-relevant improvement is narrow. The first validated submitted kernels
+measured **1.044× and 1.074×** on MiniMax-M3, which mattered because they exceeded
+the pinned sglang baseline through the referee at equal audited fidelity. These
+effects stack: a 1.05× change in one epilogue composed with a 1.04× change in a
+related finalize path compounds.
+
+The `B,C,B'` bookended scoring and the noise-derived bar exist precisely because
+validated deltas are this small — on a noisy rented pod, the bar scales with the
+measured noise, and a sub-1% improvement within noise is a NO-DECISION (the
+round is discarded because the bracketing baselines disagreed — too noisy to
+score), not a scored result.
+
+## Step 5 — check fidelity constantly
+
+A faster kernel that's unfaithful scores **zero**. The fidelity gate (in-engine
+audit on noisy arenas, rollout-KL on quiet ones) is not a formality — it's the
+load-bearing anti-cheat, and it catches subtle drift that op-correctness misses.
+
+Loop tightly: every time you change the kernel, re-run `evaluate` and check the
+audit verdict AND the throughput. A common failure mode is a kernel that's faster
+because it's doing *less work* (dropped a reduction, used a lower-precision
+intermediate) — that trips fidelity.
+
+## The autotune gotcha
+
+sglang's startup autotune only profiles its **configured** backend, never an
+injected call. So if your kernel has its own autotune, it won't be profiled at
+engine startup — you need to handle that yourself (warm it up explicitly, or
+accept the cold-start cost in your measurement).
+
+## MiniMax-M3 result summary
+
+These are the measured improvements on the first arena validated end-to-end
+(MiniMax-M3-NVFP4 / 4×B300). They are included because concrete measurements are
+more useful than an abstract template, not because this is the only arena Optima
+can support. The same slot/scoring/audit machinery applies to any arena; when a
+second one is validated, its results should get a table alongside this one. See
+[Arenas](/docs/reference/arenas).
+
+| Bundle | Slot | Arena | Score | Bar | Audit |
+|---|---|---|---|---|---|
+| `miner_m3_fused_epilogue` (v6 Lamport fused AR+residual+RMSNorm) | `collective.ar_residual_rmsnorm` | MiniMax-M3-NVFP4 / 4×B300 | **1.044×** | 1.038 | 12,456 calls / 0 violations |
+| reproduced, independent seed | same | same | **1.049×** | 1.005 | 12,648 / 0 |
+| `miner_m3_fused_epilogue_deep` (MoE finalize + AR + add + norm in one kernel) | + `collective.moe_finalize_ar_rmsnorm` | same | **1.074×** | 1.010 | 12,480 / 0 |
+| reproduced, independent seed | same | same | **1.071×** | 1.037 | 12,636 / 0 |
+| on-chain (netuid 307) | same | same | **1.0717×** | 1.026 | 12,824 / 0 |
+
+The deep result is the shallow result × the deep increment (1.049 × 1.025 ≈
+1.074). The engineering point is that the incremental fusion effect survived the
+full referee: graph capture, distributed verify, audit coverage, and the
+noise-derived throughput bar.
+
+> For the full operational detail — the exact eval command, the eval-bridge
+> architecture that connects a CPU control box to a detached GPU run, the record
+> regime (`NP=256 MNT=256 TI=3 WU=4`), and the last-layer veto bug that had to be
+> fixed before the deep bundle could be scored — see
+> [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study). That page is
+> written for validators but is the most concrete record of a submitted
+> optimization passing through the full referee.
+
+## Where to go next
+
+- **The slots that capture these optimizations:** [The slots you can target](/docs/miners/slots).
+- **The override-point path:** [Override points](/docs/miners/override-points).
+- **The deep MoE-finalize path:** [Dependency patches](/docs/miners/dep-patches).
+- **The operational record:** [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study).
+- **When it fails:** [Why did my kernel fail?](/docs/miners/diagnostics).

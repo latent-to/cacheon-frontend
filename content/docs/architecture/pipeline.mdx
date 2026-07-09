@@ -1,0 +1,211 @@
+---
+title: Submission lifecycle
+description: One submission traced from a miner's laptop to an on-chain weight, with the full gate stack — scan, verify, fidelity, benchmark, timed bracket, and settle.
+---
+
+This page traces one submission from a miner's laptop to an on-chain weight, with
+the full gate stack. It's the end-to-end pipeline that the
+[miner guide](/docs/miners/overview) and
+[validator guide](/docs/validators/overview) drill into from each side.
+
+## The gate stack
+
+From cheap-and-local to expensive-and-authoritative, a submission must clear:
+
+```
+scan ─▶ verify ─▶ [audit / KL] ─▶ benchmark ─▶ timed bracket ─▶ settle
+```
+
+| Gate | What it checks | Where | Cost |
+|---|---|---|---|
+| **scan** | static policy scan — AST scan of every `.py` for banned imports/calls; binary suffixes fail closed | `optima sandbox.scan_tree` | seconds, CPU, no execution |
+| **verify** | op-level correctness vs **fp32/dequant ground truth** under the slot's `Correctness` policy | `optima verify` / `verify_collective` | seconds, CPU or one GPU |
+| **audit** (or **KL**) | the **fidelity** gate: in-engine audit (re-run stock baseline on clones, compare under slot tolerances) **or** legacy rollout-KL | `optima evaluate --fidelity-mode {audit,kl}` | a GPU launch |
+| **benchmark** | task-accuracy no-regression on configured benchmarks such as **GSM8K**, **MMLU**, or **long_math** | `optima bench` | a GPU launch |
+| **timed bracket** | throughput: `B, C, B'` bookended measurement vs a noise-derived bar | inside `optima evaluate` | three+ GPU launches |
+| **settle** | king-of-the-hill per slot: beat the champion by a margin | `optima settle --per-slot` | trivial, off-chain |
+
+The early gates are *necessary-but-not-sufficient*: `scan` + `verify` are cheap
+sanity checks ("is this even the right function?"). The **load-bearing**
+anti-cheat is the fidelity gate (audit or KL) and the benchmark gate, measured on
+the **real model**. A faster-but-unfaithful kernel scores zero at the fidelity or
+benchmark gate even if it sailed through `verify`.
+
+## Stage 1 — local: write, scan, verify
+
+The miner writes a kernel and packages it as a **bundle** (a directory: see
+[The bundle format](/docs/miners/bundle-format)).
+
+```bash
+# the cheap local gates (no GPU needed)
+python -m optima.cli scan   my_bundle      # static policy scan
+python -m optima.cli verify my_bundle --device cpu --dtype float32   # op-correctness
+```
+
+`scan` parses the manifest, recursively walks the bundle tree, and AST-scans
+every `.py` against a banned-import / banned-call policy (`socket`, `ssl`,
+`subprocess`, `pickle`, `ctypes`, `eval`, `exec`, `__subclasses__`, …). Binary
+suffixes (`.so`, `.pyc`) fail closed. This is a **tripwire for the lazy version**
+of an escape attempt, not a security boundary (see
+[Isolation](/docs/security/isolation)).
+
+`verify` generates deterministic inputs over the slot's standard shapes, runs the
+miner kernel into validator-allocated outputs, and compares to the slot's
+**high-precision reference** under its `Correctness` policy
+(`allclose`/`matched_ratio`/`cosine`/`topk_overlap`). Shapes are **jittered** per
+run from the seed, so a kernel can't hard-code the exact verify shapes. For
+collective slots, `verify_collective` spawns `world_size` ranks and compares
+against a `torch.distributed` reduce of fp32 partials.
+
+The miner loops here cheaply: edit → `verify` → repeat. No GPU, no cost. See
+[Your first kernel](/docs/miners/your-first-kernel).
+
+## Stage 2 — GPU: evaluate + bench
+
+On a GPU, the miner runs the expensive gates:
+
+```bash
+# throughput + fidelity (graphs-on)
+python -m optima.cli evaluate my_bundle --model Qwen/Qwen2.5-1.5B-Instruct \
+    --num-prompts 64 --max-new-tokens 64
+
+# capability floor on a real task
+python -m optima.cli bench my_bundle --model Qwen/Qwen2.5-1.5B-Instruct \
+    --benchmarks gsm8k --samples 128
+```
+
+The details of how `evaluate` measures throughput and fidelity are at
+[How scoring works](/docs/validators/scoring) and
+[Fidelity](/docs/validators/fidelity). The short version:
+
+- **Throughput** is measured as `B, C, B'` — baseline, candidate, baseline —
+  each in a fresh spawned process, so a monotonic clock ramp across the run
+  partly cancels instead of biasing one side. The candidate is **paired against
+  the mean** of the bracketing baselines. The pass bar is `1 + max(margin,
+  k·noise)` where `noise` is the *measured* relative spread of the baselines —
+  the bar scales with the box's actual noise, not a constant. If the brackets
+  disagree by more than `max_noise`, the round is **NO-DECISION** (do not score,
+  re-queue).
+- **Fidelity** has two modes. `audit` (chosen by the arena for noisy stacks): an
+  extra **untimed eager candidate launch** samples dispatcher calls, clones
+  inputs before the kernel runs, re-runs the stock baseline on the clones, and
+  compares under the slot's own verify tolerances. Pass requires **zero
+  violations AND minimum coverage**. `kl` (the CLI default): rollout-KL of top-k
+  logprobs vs the stock baseline, valid as a hard gate only on arenas where a
+  stock-vs-stock control measures ~0.
+
+A kernel that's faster but unfaithful scores `0.0`. A kernel that's faithful but
+not faster reports its raw speedup but does not change weights. A kernel that's
+both faster and faithful, and beats the champion by the margin, becomes the slot
+champion.
+
+## Stage 3 — commit on-chain
+
+When the miner is confident, they commit:
+
+```bash
+# package -> tarball + content hash
+python -m optima.cli chain-package my_bundle --out hosted/bundle.tar.gz
+
+# host the tarball anywhere fetchable, then commit hash+URL via timelock
+python -m optima.cli chain-submit my_bundle --url https://example.com/bundle.tar.gz \
+    --netuid 307 --network "$NET" --wallet default --hotkey miner
+```
+
+The on-chain payload is tiny — `{"v":1,"h":<sha256 content hash>,"u":<url>}`,
+≤1024 bytes. It's posted via the chain's **native timelock commit-reveal**
+(`set_reveal_commitment`):
+
+- The payload is **drand-encrypted until the reveal block** — nobody (validators
+  included) can read the bundle URL before reveal, so there is **no
+  pre-evaluation copy window**.
+- The **reveal block is the consensus anti-copy priority timestamp**. The
+  current loop processes each hotkey's latest reveal, sorted by reveal block;
+  production exact-priority replay should either retain full reveal history or
+  enforce one active submission per hotkey/window.
+- It's **hotkey-signed** — the recurring loop never touches the coldkey.
+
+See [The chain loop](/docs/validators/chain-loop) and
+[Running on testnet](/docs/validators/testnet).
+
+## Stage 4 — the validator loop
+
+The validator runs `chain-validate` (a daemon, or `--once` for a single pass):
+
+```
+read latest reveals → fetch → re-hash → fingerprint → evaluate → settle → weights
+```
+
+1. **Read latest reveals, sorted by chain order.** `read_revealed_commitments`
+   returns each hotkey's latest revealed payload; the loop decodes each payload
+   (fail-quiet on garbage — chain data is untrusted) and sorts refs by
+   `(block, hotkey)`. The reveal block is the priority signal for the refs the
+   pass sees.
+2. **Idempotence.** For each reveal, skip if `(hotkey, content_hash)` is already
+   in the ledger. Restarts re-derive, don't replay; dead URLs are not refetched.
+3. **Fetch (hostile-archive-safe, size-capped).** `fetch_bundle` streams the
+   tarball (≤64 MiB), extracts it treating the archive as **hostile** (regular
+   files/dirs only — no symlinks/hardlinks/path escapes; ≤4096 members; ≤256 MiB
+   extracted), then **re-hashes the extracted tree and refuses a mismatch** with
+   the committed hash. A miner lying about the hash is rejected and recorded.
+4. **Fingerprint + demote copies.** Four fingerprints are computed
+   (`optima/copy_fingerprint.py`): an exact hash, a reformat-invariant
+   whole-bundle fold, a per-slot reformat-invariant fold, and a per-slot
+   path-independent file-set. The ledger's `reveal` demotes a submission as a
+   **copy** if a different hotkey has an earlier reveal matching on any of these
+   (with per-FILE containment comparison so relocating a stolen body into an
+   imported module doesn't evade auto-demote). Copies are recorded with
+   `dq_reason="copy"` and **never evaluated**.
+5. **Evaluate originals out-of-process.** The loop never imports miner code.
+   Evaluation runs through a pluggable `--eval-cmd` (default: CPU verify-mode
+   plumbing). A production command should run the arena's full gate chain:
+   `evaluate` for throughput/fidelity and `bench` when task accuracy is part of
+   the security policy. Exit 0 = passed the wrapper's gates; a JSON report
+   carries the real score. The result is a typed `EvalRecord`.
+6. **Settle per slot.** `Ledger.settle_per_slot` selects one champion per slot;
+   emission is split equally across slots (a specialist who owns one slot earns,
+   not just the single best end-to-end bundle). A champion on a different
+   `PINNED_SGLANG` is flagged **stale** — its frozen ratio isn't comparable to
+   the current pin's baseline, so the threshold reverts to the floor and a fresh
+   improvement over current stock re-establishes the title.
+7. **Push weights when changed or stale.** The loop caches the last-pushed
+   weight vector and only calls `set_weights` when it changed or has gone stale
+   (re-asserting periodically to avoid the activity cutoff). The SDK auto-routes
+   through drand commit-reveal weights when the subnet enables it.
+
+## The ledger
+
+The off-chain scoring half is the `Ledger` (`optima/commit_reveal.py`) — durable
+JSON with atomic writes (temp + `os.replace`), forward/back-compatible loading
+(unknown keys dropped, missing fields defaulted), and corruption quarantine (a
+damaged file is moved aside, never fatal). It stores commitments, reveals,
+scores, typed `EvalRecord`s, and the per-slot champion map.
+
+Emission policy is intentionally narrow. `Ledger.current_weights()` is the local
+helper used by `optima set-weights`; the chain loop currently pushes the weight
+vector returned by `settle_per_slot(...)` directly after settling. Keep those
+paths aligned when changing emissions. The roadmap is explicit that emissions
+will **not** stay winner-take-all (relative-improvement + time-decay is the
+direction).
+
+## A note on what "the score" means
+
+A submission's **score** is its throughput speedup vs the bracketed baseline,
+**but only if every gate passed**. If any gate failed, the score is `0.0`. If the
+round was too noisy to measure (the bracketing baselines disagreed), it's a
+NO-DECISION and the submission is re-queued, not selected. The validator refuses
+to pay emissions on a measurement it cannot reproduce.
+
+This is why the fidelity redesign matters: on the MiniMax-M3-NVFP4 arena,
+rollout-KL between two *identical* engine launches measured 0.81–0.96 (because
+kernel numerics are batch-variant, batch composition is timing-dependent, and
+autoregression amplifies one-ULP differences). Rollout-KL there would gate "did
+timing change" — exactly what miners are paid to change. The in-engine audit
+replaced it. See [Fidelity](/docs/validators/fidelity).
+
+## Where to go next
+
+- **The deep version of scoring:** [How scoring works](/docs/validators/scoring).
+- **The deep version of fidelity:** [Fidelity](/docs/validators/fidelity).
+- **Operating the chain loop:** [The chain loop](/docs/validators/chain-loop).
+- **For miners, the practical on-ramp:** [Miner guide → Start here](/docs/miners/overview).

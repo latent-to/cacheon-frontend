@@ -1,0 +1,208 @@
+---
+title: The bundle format
+description: The bundle directory layout, the manifest.toml schema shape, path rules, and why the validator treats the manifest as data, not code.
+---
+
+A **bundle** is your submission. It's a directory with a `manifest.toml` (data —
+what you're submitting) and your kernel source. The validator reads the manifest
+and loads your code; the manifest is never executed.
+
+## Directory layout
+
+```
+my_bundle/
+  manifest.toml          # DATA only — what you're submitting (never executed)
+  kernels/
+    my_kernel.py         # your kernel code (Triton / PyTorch / CuTe-DSL)
+    my_kernel.cu         # optional: declared via ops.cuda_sources (sanctioned CUDA)
+  metadata/
+    my_kernel.json       # optional: eligibility (dtypes, GPU arch, graph_safe)
+  rebuild.json           # optional: reviewed validator patcher steps
+  README.md              # optional human notes
+  patches/
+    moe_epilogue.patch   # optional: dep_patches diffs (see dep-patches.md)
+```
+
+The minimum is `manifest.toml` + `kernels/`. Everything else is optional but
+recommended.
+
+### Path rules
+
+All paths in the manifest are **bundle-relative**. At load, the validator
+rejects:
+
+- absolute paths
+- any `..` traversal
+- symlinks anywhere in the submitted tree
+- anything that isn't a scanned `.py`, a declared `cuda_source`, a declared
+  `dep_patch`, or benign metadata (README/LICENSE/manifest.toml/.gitignore)
+
+This is enforced in `optima/manifest.py` (`_safe_relpath`) and
+`optima/sandbox.py` (`scan_tree`). Binary suffixes (`.so`, `.o`, `.pyc`) fail
+**closed** — they're rejected outright, not scanned.
+
+## The manifest
+
+The full schema reference is at [Manifest schema](/docs/reference/manifest-schema).
+Here's the shape you'll write most of the time.
+
+### Minimal: one op slot
+
+```toml
+bundle_id  = "my-silu-v1"
+abi_version = "optima-op-abi-v0"
+
+[[ops]]
+slot   = "activation.silu_and_mul"
+source = "kernels/silu_and_mul.py"
+entry  = "silu_and_mul"
+```
+
+That's a complete, valid bundle. Four fields: a unique id, the frozen ABI
+version, the slot you're targeting, and where your entry function lives.
+
+### With eligibility (recommended)
+
+```toml
+bundle_id  = "my-silu-v1"
+abi_version = "optima-op-abi-v0"
+
+[[ops]]
+slot   = "activation.silu_and_mul"
+source = "kernels/silu_and_mul.py"
+entry  = "silu_and_mul"
+dtypes = ["bfloat16", "float16"]
+metadata = "metadata/silu.json"
+```
+
+`dtypes` is a manifest-level eligibility filter. The manifest field
+`architectures` is parsed and preserved for documentation, but the live registry
+reads runtime GPU architecture filters from metadata JSON today. Put arch
+filters and extra eligibility such as `graph_safe` there:
+
+```json
+{"architectures": ["sm90", "sm100"], "graph_safe": true}
+```
+
+### The (prepare, forward) pair — MoE
+
+For slots that need weight repacking/quantization (MoE experts), you ship two
+callables:
+
+```toml
+bundle_id  = "my-moe-v1"
+abi_version = "optima-op-abi-v0"
+
+[[ops]]
+slot    = "moe.fused_experts"
+source  = "kernels/moe.py"
+entry   = "fused_experts"
+prepare = "prepare"
+```
+
+`prepare(w13, w2)` runs **once at load** on the raw checkpoint weights. The
+validator holds the result and passes it to `forward` each step as `prepared`.
+See [The kernel ABI](/docs/miners/kernel-abi).
+
+### The override-point pattern
+
+Instead of shipping a whole MoE kernel, you can ship a small **epilogue** that
+composes into a validator-owned base megakernel. This is the sanctioned way to
+contribute to a quantized MoE without understanding the grouped-GEMM internals:
+
+```toml
+bundle_id  = "swigluoai-override-v1"
+abi_version = "optima-op-abi-v0"
+
+[[ops]]
+slot           = "moe.fused_experts"
+source         = "kernels/swigluoai.py"
+entry          = "gemm1_epilogue"
+base_kernel    = "nvfp4_moe_megakernel"
+override_point = "gemm1_epilogue"
+```
+
+See [Override points](/docs/miners/override-points).
+
+### Dependency patches (advanced)
+
+For the deep fused-epilogue collective slots, a bundle can declare a unified diff
+against the **pinned flashinfer csrc** — applied to an overlay copy, never the
+install:
+
+```toml
+[[dep_patches]]
+target = "flashinfer"
+path   = "patches/moe_epilogue.patch"
+```
+
+This is heavily policy-restricted (only `flashinfer/data/csrc/fused_moe/*` is
+patchable today; no dependency Python). See
+[Dependency patches](/docs/miners/dep-patches).
+
+Declaring `dep_patches` validates the diff, but it does not materialize an
+overlay by itself. Deep bundles also need a reviewed rebuild step:
+
+```json
+{
+  "steps": [
+    {"type": "repo_python", "path": "apply_dep_patch.py"}
+  ]
+}
+```
+
+## The fields, briefly
+
+| Field | Required | Meaning |
+|---|---|---|
+| `bundle_id` | yes | unique id, matches `^[0-9A-Za-z._\-]+$` |
+| `abi_version` | yes | must be exactly `"optima-op-abi-v0"` |
+| `[[ops]]` | yes (≥1) | one block per slot you target |
+| `ops.slot` | yes | a known slot id |
+| `ops.source` | yes | bundle-relative path to your kernel module |
+| `ops.entry` | yes | the callable name in that module |
+| `ops.prepare` | no | second callable for `(prepare, forward)` slots |
+| `ops.setup` | no | callable run once at engine init (framework mode) |
+| `ops.dtypes` | no | eligibility filter |
+| `ops.architectures` | no | documentation-only in the live registry today; put runtime arch filters in metadata JSON |
+| `ops.metadata` | no | path to a JSON eligibility file (e.g. `graph_safe`) |
+| `ops.base_kernel` | no | validator-owned base for override composition |
+| `ops.override_point` | no | the typed hole you're filling (requires `base_kernel`) |
+| `ops.cuda_sources` | no | list of `.cu`/`.cuh` paths (sanctioned CUDA tier) |
+| `[[dep_patches]]` | no | dependency diffs (policy-restricted) |
+
+Common metadata keys:
+
+| Key | Meaning |
+|---|---|
+| `dtypes` | optional runtime dtype filter; manifest `ops.dtypes` is the usual source |
+| `architectures` | runtime GPU-arch filter (`sm90`, `sm100`, `sm103`, ...) |
+| `graph_safe` | required for block/collective kernels to run under CUDA graph capture |
+| `max_last_dim` | last-dimension ceiling for simple tensor slots |
+| `quant` | quantization/layout claim, used by model-specific kernels |
+| `min_num_tokens` / `max_num_tokens` | token-count eligibility range |
+| `model` / `model_profile` | model key used by `verify --model` to select validator-owned slot profiles |
+
+The complete schema with all validation rules is at
+[Manifest schema](/docs/reference/manifest-schema).
+
+## One bundle, multiple slots
+
+You can target several slots in one bundle — just add more `[[ops]]` blocks. The
+deep fused-epilogue bundle (`miner_m3_fused_epilogue_deep`) does exactly this: it
+ships two ops on one shim module, sharing a CUDA source and a dep_patch. Each op
+must target a *different* slot (no duplicates).
+
+## The manifest is data, not code
+
+This bears repeating: the validator reads the manifest as TOML. It is never
+executed. Your code runs only after the manifest parses, the static scan passes,
+and (in evaluation) the bundle loads inside the isolated scheduler process. A
+malformed manifest is rejected at intake, before any of your code runs.
+
+## Where to go next
+
+- **The exact entry signatures:** [The kernel ABI](/docs/miners/kernel-abi).
+- **Full schema + validation:** [Manifest schema](/docs/reference/manifest-schema).
+- **See real examples:** [Example bundles](/docs/miners/examples).
+- **Build one now:** [Your first kernel (20 min)](/docs/miners/your-first-kernel).

@@ -1,0 +1,171 @@
+---
+title: Architecture overview
+description: The end-to-end mental model — the problem Optima solves, the three roles, the fixed arena, the slot, the seam, and the lifecycle of one submission.
+---
+
+This page is the end-to-end mental model. It assumes no prior knowledge of
+Bittensor, sglang, or subnets. If you already know what Optima is and want the
+contract-level detail, skip to [The slot contract](/docs/architecture/slot-contract).
+
+## What problem is Optima solving?
+
+Inference is the dominant cost of running a modern LLM. A serving engine (we use
+**sglang**) is a large, tuned stack: paged KV-caches, fused attention,
+fused-experts MoE, CUDA graphs, all-reduce fusion. The vendors (NVIDIA, the
+engine authors) tune the obvious kernels. The remaining opportunities are deep,
+narrow, and model-specific — a better fused epilogue for one MoE variant, a
+better compute-comm overlap for one TP shape, a better indexer for one
+sparse-attention block. No single team will find all of them.
+
+Optima's bet: **open that search to economic incentive.** Pay anyone, anywhere,
+who can write a kernel for one of those narrow ops that is measurably faster than
+what the engine ships, at equal output quality. Aggregate enough validated
+improvements and you have a continuously-improving inference stack — which is
+itself the product (sold as a managed service).
+
+The hard part is not "let people submit kernels." The hard part is **building a
+referee that cannot be cheated**, where "faster" and "still correct" are measured
+by the validator and not reported by the miner.
+
+## The roles
+
+| Role | Who | What they do |
+|---|---|---|
+| **Miner** | Anyone with a GPU and kernel skill | Writes a kernel for **one slot**, packages it as a *bundle*, commits it on-chain |
+| **Validator** | The operator(s) running this harness | Fetches bundles, evaluates them on GPUs the validator controls, settles scores, pushes weights |
+| **The chain** | Bittensor | The trust anchor: carries commitments + weights only. Does **not** run kernels |
+
+A miner never touches a validator's GPU directly. They publish a reference; the
+validator does all the compute.
+
+## The fixed model
+
+There is one **arena** (model + serving configuration) active per "season." Every
+validator runs the same arena on the same pinned engine, so a kernel's score is
+comparable across validators (this is required by Bittensor's Yuma consensus,
+which penalizes validators whose weights diverge from the stake-weighted
+median). Today's validated arenas include Qwen2.5 (single H100) and
+MiniMax-M3-NVFP4 (4×B300, TP=4).
+
+The arena is the unit of competition. A kernel that improves one model doesn't
+automatically improve another — but the *mechanism* is arena-agnostic.
+
+## The slot: the one thing a miner replaces
+
+A miner does not submit a model, a backend, or an engine. They submit a kernel
+for **one typed slot** — a narrowly-scoped region of the model graph with a fixed
+input/output contract. The validator owns the slot catalog; a miner may only
+target a slot that exists.
+
+There are three kinds:
+
+- **`op`** — a single fused operation. Example: `activation.silu_and_mul`,
+  the MLP activation. The contract is `entry(x, out)` — fill `out`.
+- **`block`** — a wider region fusing several ops behind one tensor boundary.
+  Example: `attention.sdpa` (the whole softmax-attention), `moe.fused_experts`
+  (the expert MLPs behind one `(prepare, forward)` pair).
+- **`collective`** — a slot that spans GPUs. The kernel is handed the process
+  group. Example: `collective.all_reduce`, or `moe.fused_experts_reduce` (the
+  MoE block that *owns* its trailing TP all-reduce, so it can overlap GEMM with
+  comms — ~75% of decode at scale).
+
+Ten slots exist today. The full table is at
+[Slot catalog](/docs/reference/slots-table); the contract they all share is at
+[The slot contract](/docs/architecture/slot-contract).
+
+**The key property:** a slot sits strictly *upstream of the sampler*. Its output
+feeds the residual stream → downstream layers → sampler, all stock. The miner
+only ever fills an output tensor the validator allocated. There is therefore no
+final output to substitute. This is what structurally defeats the "run gibberish,
+fetch the answer from an API" attack — there's no whole-model submission to
+hijack.
+
+## The seam: how a kernel gets into the running model
+
+The validator runs a **pinned, unmodified sglang**. It never forks sglang and it
+does not mutate the installed wheel. Arena flags such as attention backend,
+MoE backend, tensor parallelism, or FlashInfer AR fusion are validator-owned
+season configuration; they are not a miner-controlled backend menu. A thin piece
+of validator-owned code — the **seam** — is loaded into every Python interpreter
+that sglang spawns (including the child process that actually runs the model),
+and it patches a handful of sglang's internal chokepoints at runtime.
+
+When a candidate bundle is being evaluated, the seam routes the slotted op's
+calls to a **dispatcher**. The dispatcher asks the registry "is there a miner
+kernel active for this slot?" If yes, the validator allocates the output tensor
+and calls `impl.entry(x, out)`. If no (baseline run, or the kernel is
+ineligible), the original stock method runs. Fallback is the default; the miner
+kernel is an *opt-in override*, never a wedge.
+
+This is strictly better than a `--attention-backend` flag: it accepts *novel*
+kernels and needs no per-submission reconfigure. The full mechanism — the `.pth`
+bootstrap, the post-import hook, the receipt system — is at
+[The seam](/docs/architecture/seam).
+
+## The lifecycle of one submission
+
+End to end, from a miner's laptop to an on-chain weight:
+
+1. **Write + test locally.** The miner writes a kernel, packages it as a bundle
+   (a directory with a `manifest.toml` + `kernels/`), and runs the cheap local
+   gates: `optima scan` (static policy scan, no code execution) and
+   `optima verify` (op-correctness against an fp32 reference, on CPU). See
+   [Your first kernel](/docs/miners/your-first-kernel).
+2. **Test on a GPU.** The miner runs `python -m optima.cli evaluate`
+   (throughput + fidelity, graphs-on) and, when the arena requires task accuracy,
+   `python -m optima.cli bench`
+   (configured benchmarks such as GSM8K, MMLU, or long_math) on a real GPU. The
+   kernel must be faster than stock *at equal quality* to have any value.
+3. **Commit on-chain.** The miner packages the bundle into a tarball, computes
+   its content hash, and posts `{"v":1,"h":<hash>,"u":<url>}` via the chain's
+   **native timelock commit-reveal**. The URL is drand-encrypted until the reveal
+   block — nobody (validators included) can read it early, so there's no
+   pre-evaluation copy window. The reveal block is the consensus anti-copy
+   priority timestamp.
+4. **The validator loop.** The current loop reads the latest reveal per hotkey,
+   sorted by `(block, hotkey)`, fetches each new bundle (hostile-archive-safe,
+   size-capped), **re-hashes the
+   extracted tree and refuses a mismatch**, fingerprints it for copy detection
+   (copies are demoted, never evaluated), evaluates the original out-of-process
+   through the full gate chain, and records a typed `EvalRecord`.
+5. **Settle.** The ledger runs king-of-the-hill per slot: a challenger takes the
+   title only if it beats the champion by a margin. Emission is split across
+   slots (a specialist who owns one slot earns, not just the single best
+   end-to-end bundle).
+6. **Push weights.** The validator pushes the weight vector on-chain (the SDK
+   auto-routes through drand commit-reveal weights when the subnet enables it).
+
+The full pipeline, with the gate stack, is at
+[Submission lifecycle](/docs/architecture/pipeline).
+
+## Why this design?
+
+Three structural choices do most of the work:
+
+1. **The slot is upstream of the sampler.** The miner can't substitute the final
+   output because they never produce it. The attack *relocates* from "fake the
+   output" to "escape the slot abstraction with in-process code" — which is real
+   but is an isolation problem (solvable), not a scoring problem (existential).
+   See [Threat model](/docs/security/threat-model).
+2. **The validator measures everything itself, out-of-process.** The score never
+   trusts a number the miner's code could have produced. Throughput is timed by a
+   driver process that never imports miner code; model-level fidelity is judged
+   by the validator from stock/candidate distributions or the in-engine audit.
+   See
+   [How scoring works](/docs/validators/scoring).
+3. **Cheap correctness and model fidelity are separate gates.** Slot verify is
+   measured against an fp32/dequant reference, so a faster-but-slightly-different
+   kernel can pass the local sanity gate. The stock kernel is the throughput
+   baseline and, depending on fidelity mode, the rollout-KL or audit reference
+   inside the real model.
+
+## Where to go next
+
+- **The contract itself:** [The slot contract](/docs/architecture/slot-contract) — the four
+  invariants that keep the subnet cheat-resistant.
+- **How injection works:** [The seam](/docs/architecture/seam) — the `.pth` bootstrap and the
+  dispatcher.
+- **The pipeline in detail:** [Submission lifecycle](/docs/architecture/pipeline) — the gate
+  stack from scan to settle.
+- **For miners:** [Miner guide → Start here](/docs/miners/overview).
+- **For validators:** [Validator guide → Overview](/docs/validators/overview).

@@ -1,0 +1,100 @@
+---
+title: Example bundles
+description: The ~14 example bundles — minimal ops, deliberately-broken cheats, blocks, MoE/collectives, and the advanced override-point pattern.
+---
+
+The `examples/` directory ships ~14 bundles (a fresh clone; the dev machine carries a few extra untracked probe dirs). Most are **correctness demos** —
+faithful but slower than sglang's tuned kernels, there to show the shape of a
+submission and to prove the gates work. A few show advanced patterns.
+
+## By purpose
+
+### Minimal ops (start here)
+
+| Bundle | Slot | What it shows |
+|---|---|---|
+| `miner_silu_torch` | `activation.silu_and_mul` | the simplest possible op bundle (torch reference, ~5 lines) |
+| `miner_silu_triton` | `activation.silu_and_mul` | same, in Triton (the next step) |
+| `miner_rmsnorm_triton` | `norm.rmsnorm` | pure RMSNorm, the other op slot |
+| `miner_setup_demo` | `activation.silu_and_mul` | the `setup()` hook (framework mode) — a faithful kernel + a corrupting monkeypatch |
+
+### Deliberately broken (see the gates work)
+
+| Bundle | The cheat | What catches it |
+|---|---|---|
+| `miner_silu_broken` | computes `gate * up` (drops SiLU) | op-correctness (verify) + end-to-end KL |
+| `miner_silu_broken_torch` | the same cheat in pure torch (runs on CPU/macOS) | op-correctness (verify) — the no-GPU walkthrough's failing example |
+| `miner_silu_sparse` | drops SiLU every 64th row (~1.6%) | **argmax-disagreement-rate** (flips ~4% of tokens; mean-KL misses it) |
+| `miner_rmsnorm_broken` | computes `x * weight` (drops the reduction) | benchmark accuracy / KL — "the unnormalized activations blow up the model" |
+
+These exist on purpose. Run them through `verify` / `evaluate` to see the gates
+fire. The `miner_silu_sparse` one is especially instructive: it's the canonical
+"adversary the mean-KL gate misses" and the reason the argmax-rate gate exists.
+
+### Blocks (attention)
+
+| Bundle | Slot | Notes |
+|---|---|---|
+| `miner_attention_torch` | `attention.sdpa` | full softmax-attention (GQA/MQA), the block-slot pattern |
+| `miner_attention_decode_torch` | `attention.decode` | paged-decode attention; **structurally eager** (variable-shape gather — see the manifest comment) |
+
+### MoE + collectives
+
+| Bundle | Slot | Notes |
+|---|---|---|
+| `miner_moe_fused_experts_torch` | `moe.fused_experts` | the `(prepare, forward)` pair; `prepare` reorders W13 `[gate;up]→[up;gate]` |
+| `miner_moe_fused_experts_reduce_torch` | `moe.fused_experts_reduce` | the collective that **owns its trailing all-reduce**; `graph_safe: false` (eager demo) |
+| `miner_allreduce_torch` | `collective.all_reduce` | the simplest collective; `entry(x, out, group)` |
+
+### Advanced patterns
+
+| Bundle | Pattern | Notes |
+|---|---|---|
+| `miner_m3_swigluoai_override` | **override-point composition** | ships a 14-line swigluoai epilogue that composes into `nvfp4_moe_megakernel`; `graph_safe: true`. Read its `README.md`. |
+
+### DSV4 harness probes (not full bundles)
+
+The `miner_dsv4_hc_pre_*` directories (`_torch`, `_triton`, `_recompose`) are
+harness probes for the DeepSeek-V4 hidden-curvature pre-recompose work — they
+contain `kernels/` but not full manifests. They are **untracked** (dev machine
+only); a fresh clone does not have them. Treat them as in-progress experiment
+artifacts, not templates.
+
+> **Note:** `examples/miner_moe_mxfp4_sm120/` is a stale legacy directory
+> containing only `__pycache__` artifacts — no manifest, no source (untracked —
+> absent from a fresh clone). It's a
+> leftover from the retracted sm120/MXFP4 work (see
+> [How it evolved](/docs/history/changelog)). Don't use it as a template.
+
+## What to copy
+
+- **First kernel:** `miner_silu_torch` → edit the kernel. (See
+  [Your first kernel](/docs/miners/your-first-kernel).)
+- **A real op improvement attempt:** `miner_silu_triton` as the skeleton, then write
+  your own Triton.
+- **An MoE submission:** `miner_moe_fused_experts_torch` for the
+  `(prepare, forward)` shape, then make `prepare` do real weight repacking.
+- **A collective:** `miner_allreduce_torch` for the `group` argument shape.
+- **A quantized MoE epilogue:** `miner_m3_swigluoai_override` — the override
+  pattern (read the README first).
+
+## The reference validated bundles (not readable from a clone)
+
+The bundles behind the first validated submitted optimizations
+(`miner_m3_fused_epilogue` and `miner_m3_fused_epilogue_deep`) live under
+`experiments/minimax_m3/bundle/` on the maintainers' dev machine — gitignored
+and local-only, so a fresh clone of this repo does not have them and a
+stranger can't read them directly. What you *can* study instead: the manifest
+and file shape they follow is documented in
+[The bundle format](/docs/miners/bundle-format), and `miner_m3_swigluoai_override` above
+is the closest available worked example of the same epilogue-fusion pattern on
+the same arena (a different slot, but the same shape of problem). The
+committed *record* of the fused-epilogue results — scores, bars, audit counts
+— is in the README's "Measured record" section, not the bundles themselves.
+
+## Where to go next
+
+- **The shapes:** [The bundle format](/docs/miners/bundle-format).
+- **The contracts:** [The kernel ABI](/docs/miners/kernel-abi).
+- **The full slot list:** [Slot catalog](/docs/reference/slots-table).
+- **When yours fails:** [Why did my kernel fail?](/docs/miners/diagnostics).

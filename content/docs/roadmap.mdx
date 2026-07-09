@@ -5,7 +5,7 @@ description: Phase 1 (Cacheon) proved the mechanism with container inference ser
 
 ## Where we are
 
-Phase 1, the Cacheon container arena, is complete: it proved that a market for inference optimization can discover real improvements against a strong baseline faster than any single team. Phase 2, Optima, is the active mechanism. It replaces opaque container submissions with inspectable GPU kernels for typed slots, and the referee is validated end to end on real GPUs.
+Phase 1, the Cacheon container arena, is complete: it proved that a market for inference optimization can discover real improvements against a strong baseline faster than any single team. Phase 2, Optima, is the active mechanism. It replaces opaque container submissions with inspectable GPU kernels for typed slots, the referee is validated end to end on real GPUs, and the first submitted kernel has surpassed the pinned sglang baseline.
 
 ## Phase 1: single-model container arena (Cacheon)
 
@@ -21,19 +21,19 @@ One model, one hardware target, one mechanism. Miners submitted whole containeri
 
 Miners submit a **bundle** (`manifest.toml` + kernel source) for a typed **slot** inside a fixed, validator-controlled model. The validator swaps the kernel into a pinned sglang engine and scores throughput gated by fidelity.
 
-Validated end to end on real GPUs (H100, up to gpt-oss-120b):
+Validated end to end on real GPUs (single H100 up to gpt-oss-120b; 4×B300 for MiniMax-M3-NVFP4):
 
-- **Typed slots:** ops (`activation.silu_and_mul`, `norm.rmsnorm`), fused blocks (`attention.sdpa`, `attention.decode`, `moe.fused_experts`), and cross-GPU collectives (`collective.all_reduce`, `moe.fused_experts_reduce`, the block that owns its trailing all-reduce).
+- **Typed slots (ten today):** ops such as `activation.silu_and_mul` and `norm.rmsnorm`, fused blocks such as `attention.sdpa`, `attention.decode`, and `moe.fused_experts`, and cross-GPU collectives such as `collective.all_reduce` and `moe.fused_experts_reduce` (the block that owns its trailing all-reduce). See the [Slot catalog](/docs/reference/slots-table) for the full list.
 - **The seam** that swaps an untrusted kernel into the spawned sglang scheduler process, with tamper-resistant, out-of-process timing.
 - **Scoring under CUDA graphs on** (graphs-off cripples the baseline, so it is never used to score), with noise-robust bracketed measurement that returns no-decision on a box too noisy to reproduce.
 - **Fidelity gates:** per-token KL against the stock reference plus GSM8K and MMLU benchmark accuracy.
 - **Commit-reveal** anti-copy and **per-slot king-of-the-hill** settlement.
 
-### What is not done yet (honest status)
+### What is proven, and what is not (honest status)
 
-- **No submitted kernel has beaten sglang.** The referee is validated; the optimization side is unproven. Every example kernel is a correctness demo: faithful ones reproduce the model and are slower than sglang's own tuned kernels, and broken ones are caught by the gate.
-- **Host isolation for untrusted miners is not built.** The kernel is Python running in the model process. Today the VM is the trust boundary; namespaces, no network egress, per-eval CUDA context, and a watchdog are required before opening to untrusted miners.
-- **Chain integration is a local JSON ledger.** On-chain commit-reveal, content-addressed bundle fetch, and real on-chain weight-setting are pending, as is a real database for state.
+- **A submitted kernel has beaten sglang.** On the MiniMax-M3-NVFP4 arena (4×B300), fused decode epilogues measured **1.044×–1.074×** through the full scorer at equal audited fidelity, reproduced on independent prompt seeds and once through the on-chain loop. This is the first validated win, not the ceiling: most example kernels are still correctness demos (faithful ones reproduce the model; broken ones are caught by the gate).
+- **Host isolation for untrusted miners is not built.** The kernel is Python running in the model process. Today the process boundary is a tripwire (a static policy scan), not a wall; namespaces, no network egress, per-eval CUDA context, and a watchdog are required before opening to untrusted miners.
+- **Chain integration is live on testnet, not mainnet.** Commit-reveal, content-addressed bundle fetch, and the validator loop are built, merged, and live-validated on Bittensor testnet (netuid 307, 2026-07-08). Weights stayed dry-run there because that subnet rejects our stake, so a real weight push and mainnet economics need our own subnet. The Ledger is durable JSON, not yet a database.
 - **No public leaderboard or monitoring dashboard yet.** It is roadmap.
 - **More slots.** MLA and weight-absorbed attention, dense FP8/FP4 GEMM, a graph-safe paged-attention contract, and further comms-overlap blocks are the highest-value targets.
 

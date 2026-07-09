@@ -1,4 +1,13 @@
 {
-  "title": "Validators",
-  "pages": ["overview", "architecture", "running-the-harness", "gpu-pods", "sglang-tracking"]
+  "title": "Validator guide",
+  "pages": [
+    "overview",
+    "running-evals",
+    "first-hour",
+    "minimax-m3-case-study",
+    "scoring",
+    "fidelity",
+    "chain-loop",
+    "testnet"
+  ]
 }

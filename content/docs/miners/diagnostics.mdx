@@ -1,0 +1,85 @@
+---
+title: Why did my kernel fail?
+description: A diagnostics table — find your kernel's failure symptom, the likely cause, and the gate that caught it, from verify through evaluate.
+---
+
+A diagnostics table. Find your symptom, see the likely cause and the gate that
+caught it.
+
+## At verify (the local, cheap gate)
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `op-correctness FAIL` on an `allclose` slot | your output doesn't match the fp32 reference within tolerance | check your math; you may have dropped a term (the `miner_silu_broken` failure: `gate*up` instead of `silu(gate)*up`) |
+| `op-correctness FAIL` on `matched_ratio` / `cosine` | too many elements out of bound, or wrong direction/scale | for low-bit: check you're not conflating `swiglu_alpha` with the dequant `alpha_val`; for attention: check softmax ordering |
+| `op-correctness FAIL` only on some jittered shapes | your kernel branches on shape / hard-codes dims | make it shape-generic; the verify shapes are jittered from `--seed` precisely to catch this |
+| `scan` rejects your bundle | banned import/call, or a binary suffix, or a path escape | remove the banned call; `scan_tree` fails closed on `.so`/`.pyc` and rejects `..`/absolute paths/symlinks |
+| `manifest parse error` | wrong `abi_version`, duplicate slot, bad path | `abi_version` must be exactly `"optima-op-abi-v0"`; one `[[ops]]` per slot; paths bundle-relative |
+| `load_failed` receipt at evaluate | your module raised at import (e.g. a GPU import on CPU, or a syntax error) | guard GPU imports behind `try/except`; make sure the module imports cleanly |
+
+## At evaluate (the real gate)
+
+| Symptom | Likely cause | What's happening |
+|---|---|---|
+| `quality FAIL` — audit violations | your kernel's output doesn't match the stock baseline under the slot's tolerance, on real calls | the in-engine audit re-ran the stock baseline on cloned inputs and compared. Your kernel is doing something different from stock — possibly dropping work (faster-but-wrong). See [Fidelity](/docs/validators/fidelity). |
+| `quality FAIL` — KL too high (kl mode) | rollout-KL vs stock exceeded the threshold | on a *quiet* arena this means real drift. On a *noisy* arena (NVFP4/eager) KL may be advisory — check the mode. |
+| `quality FAIL` — KL too high with sparse pattern | argmax-disagreement-rate tripped | you're flipping a few % of tokens (the `miner_silu_sparse` pattern). Mean-KL misses this; the rate gate doesn't. |
+| `bench FAIL` — GSM8K/MMLU/long_math regression | task accuracy dropped beyond tolerance | your kernel corrupted the model enough to change answers. (The `miner_rmsnorm_broken` failure: GSM8K 75%→0%.) |
+| `NO-DECISION` | the bracketing baselines disagreed too much | the box is too noisy to measure. Re-queue (ideally on a quieter box, or lock clocks). Do not score this round. |
+| `FAIL` — speedup below bar | faithful but not faster than `1 + max(margin, k·noise)` | the bar scales with measured noise. Either the kernel isn't actually faster, or the box is too noisy to resolve a small improvement. |
+| `FAIL` — `fired` receipt missing | the seam never selected your kernel | your kernel was ineligible for the actual call shapes/dtypes, or the seam wasn't armed (`OPTIMA_*_SEAM=1`), or the bundle didn't load. The eval ran stock-vs-stock; check the `active`/`load_failed`/`fired` receipts. |
+
+## The phantom-pass class (important)
+
+If you see a result that looks **too good** — KL exactly 0.0, accuracy delta
+exactly 0.0, a huge speedup — **be suspicious**. The classic phantom-pass is:
+the candidate engine came up *without the seam* (missing `.pth`, bad env, bundle
+load failure), so the dispatcher fell back to stock, and the eval scored
+stock-vs-stock. The receipt system exists to catch this: the driver demands an
+`active` receipt (bundle loaded) and a `fired` receipt (the registry actually
+selected your kernel at least once). If `fired` is missing, the apparent speedup
+is not attributable to your kernel.
+
+If you're testing locally and the seam isn't installed, this is expected — you're
+running stock. Make sure the `.pth` is in site-packages (see
+[Dev environment](/docs/dev/environment)).
+
+## Common correctness mistakes
+
+- **Returning a tensor.** The dispatcher ignores it. You must write into `out`.
+- **Allocating the output.** The validator owns it. `torch.empty(...)` in your
+  kernel for the *model's* output is wrong (and wasteful). Use `out.copy_(...)`.
+- **Touching `weight` in-place in `forward`.** For `(prepare, forward)` slots,
+  `prepare` is where weight mutation belongs; `forward` should be pure.
+- **Host-sync in a graph-safe kernel.** If you declared `graph_safe: true` and
+  call `.item()` / `.cpu()`, capture will fail → fallback → no scored result.
+- **Wrong group handling in a collective.** You must use the `group` argument to
+  `torch.distributed`, not a global. And you must fill `out` with the
+  *already-reduced* result for reduce-owning slots.
+
+## Common throughput mistakes
+
+- **Trusting warmup numbers.** The scorer doesn't — it uses `warmup_iters` (default
+  2) off-clock passes, then `timed_iters` median. If you're eyeballing a single
+  run you'll see the ±7–17% clock ramp.
+- **Comparing to a graphs-off baseline.** Graphs-off cripples the baseline
+  ~6.5×. A speedup against that baseline is not a valid Optima result. Scoring is
+  graphs-on; your local checks should be too.
+- **Forgetting `ignore_eos`.** Without it, a kernel that nudges EOS timing can
+  inflate tok/s by emitting fewer tokens. The scorer uses `ignore_eos` (default
+  on) so the token budget is fixed and the count is driver-known.
+
+## Still stuck?
+
+- Read the committed `docs/MINER_GUIDE.md` (the repo's deeper version) —
+  especially its diagnostics section.
+- Run `python -m optima.cli verify` with `--device cuda --dtype bfloat16` to check correctness
+  on real shapes/dtypes (CPU `float32` verify is looser).
+- Check the receipts: the eval prints which receipts it demanded and got. A
+  missing `fired` is the smoking gun for a phantom-pass or an ineligible kernel.
+
+## Where to go next
+
+- **The gates in detail:** [Submission lifecycle](/docs/architecture/pipeline).
+- **Scoring math:** [How scoring works](/docs/validators/scoring).
+- **Fidelity:** [Fidelity: audit vs KL](/docs/validators/fidelity).

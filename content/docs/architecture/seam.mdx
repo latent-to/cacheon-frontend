@@ -1,0 +1,241 @@
+---
+title: "The seam: getting a kernel into a running model"
+description: How a validator swaps an untrusted miner kernel into a spawned, pinned, unmodified sglang process — the .pth bootstrap, the single adapter table, the dispatcher, and the receipt system.
+---
+
+The seam is the mechanism that lets a validator swap an untrusted miner kernel
+into a **spawned model process** that runs inside a **pinned, unmodified sglang**
+install — without forking sglang or mutating the installed wheel. Validator-owned
+arena flags still exist; the seam is what makes miner kernels pluggable without
+turning those flags into a per-submission backend menu. This page explains how.
+
+## The obstacle
+
+sglang runs the model in a **separate process** — a spawned scheduler child.
+Normal Python monkeypatching (e.g. `SiluAndMul.forward = my_impl` in the parent
+process) doesn't cross a process boundary. Module globals don't survive `mp
+spawn`. So if we patched the parent, the child — the one that actually runs the
+model — would never see the patch.
+
+On top of that, we can't import sglang at validator startup (it's heavy, it
+init CUDA, it may not be installed on a CPU box). And we must never fork sglang
+or mutate the installed wheel — every validator must run the identical pinned
+engine for consensus.
+
+## The solution: a `.pth` + a post-import hook
+
+The seam has three layers.
+
+### Layer 1 — the `.pth` bootstrap
+
+Python executes `.pth` files in `site-packages` at **every interpreter startup**.
+Optima installs one file:
+
+```bash
+SP=$(python -c 'import site;print(site.getsitepackages()[0])')
+echo 'import optima.bootstrap' > "$SP/optima.pth"
+```
+
+That single line runs in *every* interpreter — including sglang's spawned
+scheduler child. This is the version-independent way to land in the child.
+(`optima/bootstrap.py`)
+
+`optima.bootstrap` registers a **meta-path finder** (`_SeamFinder`) that watches
+a set of target modules (derived from the single seam table in
+`optima/seams.py`, e.g. `sglang.srt.layers.activation`). It does **not** import
+sglang at startup. Instead, when one of those target modules is imported by
+sglang, the finder wraps that module's loader so that **`seam.activate()` runs
+right after the module body executes** — before any class in it is instantiated.
+
+There's also a sglang plugin entry point (`optima/integrations/sglang_plugin.py`)
+that funnels into the same `activate()` for sglang versions that ship
+`sglang.srt.plugins`. Both paths land in the same code. Select with
+`SGLANG_PLUGINS=optima`.
+
+### Layer 2 — `seam.activate()` and the single adapter table
+
+`seam.activate()` (`optima/seam.py`) iterates `SEAM_ADAPTERS` from the **one
+table** in `optima/seams.py`. For each adapter, it imports the corresponding
+integration module (e.g. `optima.integrations.sglang_silu`) and calls its
+`install(REGISTRY)`. Each `install()` no-ops until its target module is present,
+so calling `activate()` repeatedly just patches whatever has loaded so far.
+
+The single-table design matters: **adding a seam is one `SeamAdapter(...)` entry
+in `optima/seams.py`, and the bootstrap watch-list, the `activate()` install
+loop, and the `optima compat` canary all pick it up.** There is no parallel list
+to keep in sync — that invariant is enforced in the repo's conventions.
+
+### Layer 3 — the dispatcher
+
+Each integration's `install()` patches one sglang chokepoint by rebinding a
+class method or module attribute to a **validator-owned dispatcher** built in
+`optima/dispatch.py`. The original (baseline) is captured first, for fallback.
+
+| Seam | Patches | Why there |
+|---|---|---|
+| `sglang_silu` | `SiluAndMul.forward_cuda` + `forward_native` | class methods, bound before instance creation |
+| `sglang_norm` | `RMSNorm.forward_cuda` + `forward_native` | same pattern |
+| `sglang_attention` | `RadixAttention.forward` | backend-agnostic (works over FlashInfer/FA3/FlashMLA/Triton) |
+| `sglang_moe` | `FusedMoE.**forward_impl**` | NOT `.forward` — under piecewise CUDA-graph capture, `.forward` is bypassed and both custom-op paths converge on `forward_impl` |
+| `sglang_allreduce` | `GroupCoordinator.all_reduce` | the TP comms chokepoint |
+| `sglang_arfusion` | module attr `flashinfer_allreduce_residual_rmsnorm` | callers resolve per-call via a function-local import, so rebinding the attribute reroutes all call sites |
+| `sglang_defer_gate` / `sglang_moe_export` / `flashinfer_overlay` | the deep-seam trio | for the fused-epilogue collective slots (see [Override points](/docs/miners/override-points) and [Dependency patches](/docs/miners/dep-patches)) |
+
+`attention.msa_block_score` is a registered slot contract, but its integration
+is model-specific rather than part of this generic table. The current
+`sglang_msa.py` file is a stub for an M3/MSA chokepoint; a validator can score
+that slot only in an arena that installs the matching seam.
+
+Most dispatchers follow this shape on every call (`optima/dispatch.py`):
+
+1. **Dynamo-trace guard.** If `torch.compiler.is_compiling()` is True (sglang
+   traces some seam call sites under Dynamo), short-circuit to `baseline_fn(...)`
+   so compiled regions bake pure stock. Eager execution and classic CUDA-graph
+   capture see False and route normally.
+2. **CUDA-graph safety gate for block/collective seams.** Under graph capture
+   (the scoring config), wider kernels run only if they declared
+   `eligibility.graph_safe`; otherwise the trusted baseline runs in-graph so an
+   un-capturable kernel can't wedge capture. Op seams are captured directly and
+   do not consult the metadata flag, but the kernel still has to be capture-safe
+   in practice.
+3. **Opt-in env gates.** The wider seams (attention, MoE, collective, arfusion)
+   are opt-in via `OPTIMA_ATTENTION_SEAM=1`, `OPTIMA_MOE_SEAM=1`,
+   `OPTIMA_COLLECTIVE_SEAM=1`, `OPTIMA_ARFUSION_SEAM=1`. Conservative by
+   construction — when in doubt, trust the baseline.
+4. **Scope guards.** The dispatcher checks the call is one the miner kernel
+   declared it handles (e.g. attention: standard MHA decode, real k/v, uniform
+   head dim; MoE: EP=1, standard topk format, dense/quant-format pairing). Any
+   deviation → baseline.
+5. **Registry lookup.** `registry.lookup(slot, dtype, last_dim, arch)`. If `None`
+   (inactive, no impl, or eligibility fail) → baseline. Otherwise the validator
+   allocates `out` and calls `impl.entry(*inputs, out)`.
+6. **First-fire receipt.** The first time a slot is actually selected, the
+   registry writes a `fired` receipt — anti-phantom-pass evidence the driver
+   demands (see [Receipts](#receipts-anti-phantom-pass) below).
+7. **Conservative fallback.** Any exception → trusted baseline (unless
+   `registry.strict`, which surfaces the error for proof runs).
+
+## The deep fused-epilogue path
+
+`collective.moe_finalize_ar_rmsnorm` is wider than a normal Python method
+rebind. It fuses MoE finalize, all-reduce, residual add, and RMSNorm into one
+deferred epilogue. The miner bundle declares a policy-allowlisted `dep_patches`
+diff against the pinned FlashInfer csrc; a validator-shipped patcher applies it
+to an overlay copy, never the installed dependency. The launcher then skips the
+stock in-op finalize and exports pre-finalize pointers through
+`optima/moe_export.py`; the deferred fusion call consumes those validator-owned
+exports and invokes the miner slot.
+
+Two details matter for correctness:
+
+- the bundle declaration is not enough by itself — a reviewed `rebuild.json`
+  step materializes the overlay before serving starts;
+- the last layer is vetoed, because MiniMax-M3's upstream layer metadata does
+  not wire `is_last_layer`; deferring the final layer's all-reduce would corrupt
+  the model output.
+
+### The two-launch discipline
+
+Evaluation needs **two** kinds of process:
+
+- The **driver / timer process** — it installs the seam pass-through but calls
+  `REGISTRY.disable()` and **never imports the miner module**. It only times the
+  scheduler over IPC. A malicious kernel cannot monkeypatch the timer.
+- The **scheduler child** — this is where the bundle loads and the miner kernel
+  runs. It's controlled by env vars:
+  - `OPTIMA_BUNDLE_PATH=<bundle dir>`
+  - `OPTIMA_ACTIVE=1` — load + enable the miner kernel
+  - `OPTIMA_STRICT=1` — crash instead of fallback (for proof / canary runs)
+
+The driver is the baseline launch (no bundle). The candidate launch sets
+`OPTIMA_ACTIVE=1` and `OPTIMA_BUNDLE_PATH`. Both run in a fresh spawned process
+because sglang + deterministic mode set process-global state a second launch
+would inherit. See [How scoring works](/docs/validators/scoring).
+
+## How a bundle loads
+
+`_load_bundle_into_registry(bundle)` (`optima/seam.py`) runs in the scheduler
+child when `OPTIMA_ACTIVE=1`:
+
+1. Load the `manifest.toml` (trusted TOML parse — the manifest is **data, not
+   code**; the validator reads it, the miner never runs code at intake).
+2. Recursively scan the bundle tree (`sandbox.scan_tree`) — every `.py` is
+   AST-policy-scanned; binary/artifact suffixes fail closed; under a manifest
+   context, anything that isn't a scanned `.py`, a declared `cuda_source`, a
+   declared `dep_patch`, or benign metadata is rejected.
+3. Apply the rebuild plan (compiled CUDA extensions / dep overlays must already
+   exist in this process — built by a reviewed patcher, never by miner code).
+4. For each op whose slot is known: load **one module per source file** (shared
+   module-global state across `prepare`/`entry`), pull `entry`/`prepare`/`setup`,
+   build override-composed kernels if `override_point` is set, and
+   `REGISTRY.register(KernelImpl(...))`.
+5. On success → write an `active` receipt. On empty/failure → write a
+   `load_failed` receipt.
+
+## Receipts: anti-phantom-pass
+
+The seam **deliberately never wedges the engine** — if a bundle fails to load,
+the dispatcher falls back to the stock baseline and the model keeps running. That
+is the right behavior for serving, but it creates a phantom-pass risk: a
+candidate engine that comes up *without* the seam (missing `.pth`, bad env, load
+failure) would score stock-vs-stock — identical logits, KL exactly 0.0, accuracy
+delta 0.0, verdict PASS. That's a false pass.
+
+The eval driver closes this by demanding **positive evidence** via the receipt
+system (`optima/receipts.py`). The driver sets `OPTIMA_SEAM_RECEIPT_DIR` for the
+candidate launch and requires:
+
+- **`active`** — the bundle loaded + the registry is enabled in a rank.
+  *Required before the engine is yielded to the driver.*
+- **`fired`** — the registry actually *selected* the miner impl for a slot at
+  least once. *Required after the driver's generations.* Without this, the engine
+  config never exercised the slot and every downstream number is stock-vs-stock.
+- **`load_failed`** — a rank attempted the load and fell back; lets the driver
+  report "bad bundle" instead of "no bootstrap."
+
+`receipts.require` raises with a precise diagnosis if any is absent. If the env
+var isn't set, every helper is a silent no-op (so verify paths, unit tests, and
+baseline launches don't litter files).
+
+## A full trace of one candidate forward pass
+
+To make it concrete, here's what happens on one forward of a candidate whose
+`activation.silu_and_mul` kernel is active:
+
+1. sglang's MLP calls `SiluAndMul.forward_cuda(self, x)` — but `forward_cuda` is
+   now our dispatcher (the seam rebound it at module import time).
+2. The dispatcher checks: not under Dynamo? not in a graph that the kernel
+   didn't declare graph-safe? slot `activation.silu_and_mul` registered + eligible
+   for this dtype/last_dim/arch?
+3. Yes → allocate `out = torch.empty(x.shape[:-1], self.dim, ...)`, call
+   `impl.entry(x, out)`. The miner fills `out`. First fire → write `fired`
+   receipt.
+4. No (any check fails) → call the captured original `forward_cuda` (the stock
+   baseline).
+5. Return `out`. sglang continues, downstream layers run, the sampler produces
+   tokens. The miner never saw the tokens and never produced them.
+
+The miner kernel ran in the scheduler child; the driver timed the whole
+generation over IPC without ever importing the miner module.
+
+## Why not just `--attention-backend`?
+
+sglang has flags to swap backends (`--attention-backend flashinfer`). The seam is
+strictly more powerful:
+
+- It accepts **novel** kernels, not just a predefined menu of backends.
+- It needs **no per-submission reconfigure** — the same engine process scores
+  every submission, so the baseline and candidate are measured in the identical
+  runtime.
+- It can target chokepoints that have no flag (the AR-fusion epilogue, the MoE
+  finalize).
+
+The cost is that the seam is version-pinned glue: every sglang bump risks a
+chokepoint moving, which is why `optima compat` exists. See
+[sglang pinning & canary](/docs/dev/sglang-tracking).
+
+## Where to go next
+
+- **The pipeline end to end:** [Submission lifecycle](/docs/architecture/pipeline).
+- **The slot contract the seam implements:** [The slot contract](/docs/architecture/slot-contract).
+- **For miners, what the seam means for you:** [The kernel ABI](/docs/miners/kernel-abi).

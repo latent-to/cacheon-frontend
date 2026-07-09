@@ -2,14 +2,21 @@
   "title": "Optima Docs",
   "pages": [
     "index",
+    "---Learn---",
     "concepts",
+    "architecture",
+    "---Build---",
     "miners",
     "validators",
-    "evaluation",
-    "monitoring",
+    "---Reference---",
+    "security",
+    "reference",
+    "dev",
+    "---Project---",
     "vision",
     "roadmap",
     "decisions",
-    "team"
+    "team",
+    "history"
   ]
 }

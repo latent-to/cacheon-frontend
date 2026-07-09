@@ -1,0 +1,280 @@
+---
+title: Isolation
+description: What the sandbox layer does and does not provide today for running untrusted miner kernels, the network boundary, and the production isolation target.
+---
+
+The single most important fact about running untrusted miner kernels in Optima, and
+the one most often misunderstood:
+
+> **With Triton/CuteDSL, the miner's kernel is Python that executes in-process.**
+> The `@triton.jit` body is traced, and the surrounding launch code runs on the CPU
+> in the same process as the validator. There is no artifact we can statically prove
+> safe. Nothing in `optima/sandbox.py` changes that.
+
+Source of truth: `optima/sandbox.py:1-29`. The module's own docstring says it: this
+file is **defense-in-depth, not the trust boundary.** This page documents what
+sandbox isolation **does** provide today, what it explicitly **does not**, and the
+production target.
+
+Read alongside [threat-model.md](/docs/security/threat-model) (attack class 4) and
+`docs/SUBNET_BLUEPRINT.md` §8 (the security pattern).
+
+## The standing gap
+
+A miner bundle is source code (`kernels/*.py`). The op-slot contract says "just fill
+`out` from `x`," but that contract is enforced by convention, not by the language.
+Once the module is imported, its top-level code runs in the caller's process and can
+in principle do anything Python can: monkeypatch the sampler, hook the logprob path,
+exfiltrate weights over the network, or persist across evals. This is attack class 4
+in [threat-model.md](/docs/security/threat-model).
+
+The real isolation must therefore come from the **host running the harness**, not
+from the harness's own code. This is the standing gap, and it is the gate to opening
+the subnet to genuinely untrusted miners (`AGENTS.md:85-86`,
+`docs/SUBNET_BLUEPRINT.md:262-278`).
+
+Parent CLIs do avoid importing miner code in the common gates: `verify` loads the
+entry in a fresh spawned subprocess, and end-to-end evaluation runs bundle code in
+the scheduler/model processes rather than the timing driver. That reduces blast
+radius for the CLI and timer, but it is not host isolation. Scheduler ranks still
+execute bundle Python and must be treated as untrusted workers.
+
+## What `optima/sandbox.py` DOES provide
+
+Three things, all explicitly labeled as **filters and tripwires, not a sandbox**.
+
+### 1. `scan_source` — AST policy scan (the tripwire)
+
+A cheap `ast` walk over a single kernel source that rejects obvious
+egress / code-execution patterns **before** anything is imported
+(`optima/sandbox.py:111-169`).
+
+It flags:
+
+| Pattern | Example | Where |
+|---|---|---|
+| Banned import roots | `socket`, `subprocess`, `pickle`, `requests`, `urllib`, `ctypes`, `importlib`, `pathlib`, `mmap`, `signal`, … (full set `_BANNED_IMPORT_ROOTS`, `sandbox.py:41`) | `Import` / `ImportFrom` |
+| Banned attr calls | `os.system`, `subprocess.Popen`, `ctypes.CDLL`, `os.execve`, `os.kill`, `setuid`, `dlopen`, `LoadLibrary`, `urlopen`, … (`_BANNED_ATTR_CALLS`, `sandbox.py:60`) | `Call` with `Attribute` func |
+| Qualified deserialization | `pickle.loads`, `torch.load`, `dill.load`, `marshal.load`, `cloudpickle.load` (`_DESERIALIZE_BASES`, `sandbox.py:75`) | caught by **base name**, so `tl.load` / `s.replace` do NOT false-positive |
+| Bare builtins | `eval`, `exec`, `compile`, `__import__`, `open`, `input`, `breakpoint`, `globals`, `vars`, `locals` (`_BANNED_BUILTINS`, `sandbox.py:81`) | `Call` with `Name` func |
+| Dynamic attribute access | `getattr(os, 'sys'+'tem')` — the classic literal-AST bypass. Flagged **only when the attribute name is not a string literal**, so a normal `getattr(self, 'forward')` is fine (`sandbox.py:88`, `:135`). | `getattr`/`setattr`/`delattr` |
+| Subscript escapes | `__builtins__['eval']`, `__globals__[...]` (`_BANNED_SUBSCRIPT_NAMES`, `sandbox.py:98`) | `Subscript` |
+| Escape dunders | `__class__` (the `().__class__.__bases__[0].__subclasses__()` hop), `__globals__`, `__builtins__`, `__subclasses__`, `__code__`, `__dict__`, … (`_BANNED_DUNDERS`, `sandbox.py:92`) | `Attribute` access (also catches aliasing: `f = os.system`) |
+
+`scan_path` wraps `scan_source` over a file (`sandbox.py:172`). Returns a
+`ScanResult(ok, violations)`; never raises on findings.
+
+This is deliberately a **tripwire, not a boundary** (`docs/HOW_OPTIMA_WORKS.md:259`).
+A determined adversary can defeat a literal-AST scan with `getattr`-on-dynamic-name
+(though that exact pattern is flagged) or bytecode tricks; the point is to make the
+*lazy* version of every class-4 attack fail at import, and to give a human reviewer
+something to grep.
+
+### 2. `scan_tree` — recursive vendored-tree guard (fail-closed)
+
+`scan_path` only covers the one declared entry module. A bundle can carry a whole
+vendored library, and a dangerous module in a file nobody scans would slip through.
+`scan_tree` closes that hole: it recursively scans **every** `.py` under the bundle
+root (`optima/sandbox.py:208-299`).
+
+It is **fail-closed** on:
+
+- **Any symlink** — `rglob` does not follow directory symlinks, so a symlinked dir
+  full of `.py` would otherwise be invisible to the scan while still importable. A
+  bundle has no business containing symlinks (`sandbox.py:256`).
+- **Binary/artifact suffixes** unconditionally: `.so`, `.o`, `.a`, `.dylib`, `.bin`,
+  and stray `.pyc` outside `__pycache__` (`_BANNED_BINARY_SUFFIXES`,
+  `sandbox.py:184`, `:264`). These can never be inspected by the AST scan or folded
+  into copy-fingerprint's import-closure walk.
+- **Undeclared `.cu`/`.cuh`** and **undeclared `.patch`/`.diff`** when a manifest is
+  available (`sandbox.py:275-290`). Declared CUDA sources are the sanctioned tier
+  (compiled only by a validator-reviewed patcher, see below); declared dep-patches
+  are structurally validated at manifest load (`optima/deppatch.py`).
+- **Anything else not covered**, when a manifest context is supplied: fails closed
+  on "file is neither a scanned `.py`, a declared cuda_source, nor benign metadata"
+  (`sandbox.py:291-296`). Benign metadata is narrow by rule: `manifest.toml`,
+  `rebuild.json`, `.gitignore`, `README*`, `LICENSE*`, `*.json` under `metadata/`
+  (`_is_benign_metadata`, `sandbox.py:196`).
+
+Without a manifest, the old call sites preserve their prior silent-skip behavior for
+back-compat (`sandbox.py:227`, `:298`).
+
+### 3. `load_module` / `load_entry` / `probe_in_subprocess`
+
+- `load_module(source_path)` imports the kernel module **in-process**, after running
+  `scan_path` as a tripwire (`optima/sandbox.py:302`). It registers the module in
+  `sys.modules` **before** `exec_module` so sglang 0.5.12+'s piecewise-CUDA-graph /
+  torch.compile path can import the swapped kernel by name
+  (`sandbox.py:329-334`). **This executes the module body** — the docstring says
+  "Call it only from inside an isolated worker … never from the trusted validator
+  process" (`sandbox.py:305`).
+- `load_entry` = `load_module` + pull one callable (`sandbox.py:347`). For several
+  callables from one op (entry + prepare + setup), call `load_module` **once** and
+  `getattr` them, or module-global state shared between `prepare` and `entry` silently
+  vanishes (`sandbox.py:310-314`).
+- `probe_in_subprocess(source_path, entry)` imports the module in a
+  **resource-limited child process** (Linux `RLIMIT_CPU` + `RLIMIT_AS`), to surface
+  import-time errors / payloads away from the caller (`sandbox.py:354`). It strips
+  proxy/network creds from the child env (`sandbox.py:378`). **This is a smoke check,
+  not isolation** — the docstring says so (`sandbox.py:359`).
+
+## What it explicitly does NOT provide
+
+Sandbox.py does **not** provide:
+
+- a process or namespace boundary,
+- network egress control,
+- a per-eval CUDA context,
+- memory safety on the device,
+- a watchdog, or
+- any guarantee that import-time or compile-time global constructors are harmless.
+
+All of those are the host's job. The static scan raises the bar; it does not draw the
+line. This is stated three times in the module: the top docstring
+(`sandbox.py:1-29`), the `load_module` security note (`sandbox.py:305`), and the
+`probe_in_subprocess` note (`sandbox.py:359`).
+
+## Network isolation — `isolate_network()`
+
+The one piece of real boundary that **is** in the harness code, in
+`optima/eval/_launch.py:36-77`:
+
+1. `os.unshare(CLONE_NEWNET)` puts this process (and every child it spawns) into a
+   fresh network namespace with only the `lo` interface, which starts **DOWN**
+   (`_launch.py:55`).
+2. Bring `lo` up so sglang's scheduler↔detokenizer localhost IPC still works
+   (`_launch.py:62`). External stays unreachable because the netns has no route
+   off-box.
+3. Force offline: `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1` (the model must already
+   be cached) (`_launch.py:66`).
+4. **Self-check** — prove egress is actually gone by attempting
+   `socket.create_connection(("1.1.1.1", 443))`; success logs `ISOLATION FAILED` and
+   returns `False`; the expected `OSError` confirms isolation (`_launch.py:71-77`).
+
+Returns `True` iff the candidate is confirmed no-egress. This is the boundary that
+makes the framework-mode **token-match** gate cheat-proof: the candidate must compute
+the right tokens — it can't see the trusted reference (separate process) and now
+can't fetch it either (`_launch.py:42-46`).
+
+### The lium pod caveat
+
+**Current lium pods run without `CAP_SYS_ADMIN` / `CAP_NET_ADMIN`**, so in-process
+`unshare(CLONE_NEWNET)` fails with `EPERM` (`_launch.py:56-57`,
+`docs/DEV_ENVIRONMENT.md:35-40`). The consequences:
+
+- `--allow-unsafe-no-isolation` is the **dev-only** escape hatch. With it set,
+  `prepare_candidate_environment` logs `UNSAFE dev override` and continues with
+  egress possible (`optima/eval/_launch.py:103-116`). Use it **only** for local
+  throughput replication.
+- **Production validator scoring** must run the eval worker in a privileged
+  namespace-capable container/VM, or launch the candidate side under Docker/OCI with
+  `--network=none` and the required GPU mounts (`docs/DEV_ENVIRONMENT.md:38-40`).
+
+### Framework-mode fail-closed
+
+`prepare_candidate_environment(cfg, bundle_path, active)` is the single entry point
+(`optima/eval/_launch.py:85`). Two fail-closed paths:
+
+- **Framework mode** (`cfg.framework_mode=True`, `cfg.isolate=False`): raises
+  `IsolationError("framework_mode requires no-egress candidate isolation …")` unless
+  `--allow-unsafe-no-isolation` is set (`_launch.py:92-101`). A framework-mode
+  candidate patches the engine, so its self-reported numbers are not trusted
+  (SLOT_CONTRACT invariant 4) — the token-match gate plus no-egress isolation are
+  mandatory there.
+- **Requested isolation that could not be proven** (`cfg.isolate=True` but
+  `isolate_network()` returned `False`): same `IsolationError`, same dev override
+  (`_launch.py:103-111`).
+
+`_offline_env()` (HF/transformers offline) is set in both override paths so the run
+at least doesn't try to reach the hub.
+
+## What you can do today
+
+The harness code alone does not give you host isolation (`optima/sandbox.py`'s
+own docstring says so). But on a box without `CAP_SYS_ADMIN` — most rented GPU
+pods, including the maintainers' own `lium` boxes — you can still get a real
+network boundary by running the eval worker itself inside a container instead
+of relying on the harness's in-process `unshare(CLONE_NEWNET)`:
+
+```bash
+docker run --rm \
+  --network=none \
+  --gpus all -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
+  -v /path/to/optima:/root/optima -v /path/to/models:/models:ro \
+  -w /root/optima <your-optima-image> \
+  python -m optima.cli evaluate <bundle> --model /models/<model> --device cuda
+```
+
+`--network=none` gives the candidate no route off the box at all — a stronger
+guarantee than `unshare(CLONE_NEWNET)` on a pod that lacks the capability to
+even attempt it. The GPU mounts (`--gpus all` plus the `NVIDIA_*` env vars, or
+the `nvidia` runtime on older Docker) are required or the container can't see
+the device at all. Mount weights read-only; mount the harness read-write only
+if you need to write results out.
+
+This is **partial hardening**, not the production target: it is one process for
+the whole run (not one per eval), there is no PID/mount/user namespace beyond
+what the container gives you, and a compromised kernel can still corrupt state
+within that one container's lifetime. `--framework-mode` and `--isolate` still
+fail closed inside the container if `isolate_network()` can't prove no-egress
+(e.g. the container itself lacks `CAP_NET_ADMIN` for the in-process check) —
+you would need `--allow-unsafe-no-isolation` to proceed, and that flag remains
+**dev-only**: it is for local throughput replication, never for scoring that
+mints emission. `--network=none` at the container boundary is the honest
+current answer; the namespace/watchdog/per-eval-context items in the production
+target below are still open.
+
+## The rebuild / dep-patch tier
+
+A bundle may declare `repo_python` patchers in `rebuild.json`. These are applied by
+`optima/rebuild.py` *inside* `prepare_candidate_environment` (`_launch.py:118-122`),
+but only **validator-shipped, reviewed patchers** under `optima/patchers/` — miner
+`bundle_python` is rejected (`docs/SLOT_CONTRACT.md:102-112`). This is the PyTorch
+model: you submit a patch to core to add a backend; you don't ship arbitrary code
+into the dispatcher. The fenced escape hatch is gated by the token/task-accuracy path
+plus no-egress isolation because a patched engine's self-reported numbers are not
+trusted.
+
+`dep_patches` are an additional explicit surface. A bundle can declare
+policy-allowlisted unified diffs against pinned dependency source (currently
+FlashInfer fused-MoE csrc). The validator validates the target dependency and
+path, parses the diff structurally, rejects dependency Python/binary/delete/rename
+and fuzzy patches, and applies exact-context changes to an overlay copy. The
+shared install is never mutated. Residual risk remains until each arena has a
+fully locked dependency base, because the blessed-base table records versions
+today but does not enforce every dependency pin.
+
+## Chain artifact fetch
+
+Candidate isolation starts after a bundle has been fetched and unpacked, so chain
+artifact fetch is its own trust boundary. On-chain payloads and hosted tarballs
+are untrusted input. The validator currently accepts `https://`, `http://`, and
+`file://` URLs, streams archives under size caps, safe-extracts regular files
+only, and re-hashes the extracted tree against the committed content hash before
+the bundle can proceed. Production should treat `file://` and plain `http://` as
+dev/testnet conveniences and move to HTTPS/content-addressed storage or a fetch
+proxy with SSRF, timeout, and availability controls.
+
+## The production target
+
+The TODO list, in priority (from `optima/sandbox.py:11-17` and
+`docs/SUBNET_BLUEPRINT.md:224-244`):
+
+1. **Per-eval process** — one fresh process per evaluation, wiped between evals
+   (ephemeral GPU box).
+2. **PID + mount + user namespaces** + seccomp, no shared filesystem across evals.
+3. **No network egress** except the SSH control channel — the SSH-tunnel pattern
+   from Affine: secrets live **only on a CPU control box**; the GPU box runs only
+   sglang and never sees chain/cloud keys (`docs/SUBNET_BLUEPRINT.md:226-244`).
+4. **One CUDA context per eval** (MPS or one process per eval) so an out-of-bounds
+   device write cannot corrupt other work or leak across requests.
+5. **Watchdog** that kills the whole CUDA context on timeout — CUDA cannot cleanly
+   preempt a running kernel, so a hung-kernel DoS needs the context torn down.
+6. **Resource limits** (`RLIMIT_AS` / `RLIMIT_CPU`) on the worker — `probe_in_subprocess`
+   already applies these as a smoke check; production applies them to the real worker.
+
+What is **done** vs **TODO**, in one line: the AST scan, recursive `scan_tree`,
+fail-closed binary/symlink rejection, `probe_in_subprocess`, `isolate_network()`
+(with the `CAP_SYS_ADMIN` caveat), and the framework-mode fail-closed are done; the
+per-eval process + PID/mount/user namespaces + seccomp + per-eval CUDA context +
+watchdog are TODO. Today the VM (or the privileged container) is the trust boundary.

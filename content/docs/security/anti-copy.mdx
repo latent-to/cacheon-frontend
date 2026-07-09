@@ -1,0 +1,225 @@
+---
+title: Anti-copy
+description: The commit-reveal and fingerprint stack that stops a miner from copying a champion's public source, reformatting it, and resubmitting for reward.
+---
+
+Every champion's source is public at reveal. The whole anti-copy problem in an open
+competition is: a lazy miner copies the leader, reflows the whitespace, restyles the
+comments, and resubmits — splitting reward for no work. King-of-the-hill stops a
+*byte-identical* tie (it can't clear the margin), but a reformat plus a one-constant
+tweak can clear a noisy margin on stolen work.
+
+This page documents the full stack that defeats that, in two layers: **commit-reveal**
+(when you may reveal, and who is the original) and **fingerprints** (what counts as
+"the same work"). Read alongside [threat-model.md](/docs/security/threat-model) attack class 5.
+
+Source: `optima/commit_reveal.py`, `optima/bundle_hash.py`,
+`optima/copy_fingerprint.py`, and `optima/chain/validator_loop.py:160-234` (where
+fingerprints are computed and fed into `Ledger.reveal`).
+
+## Bundle identity — the exact hash
+
+`bundle_hash.content_hash(bundle_dir)` is a deterministic SHA-256 over every
+regular bundle file that survives the hash skip rules (`optima/bundle_hash.py:39`).
+The manifest is included because it is a regular file in the bundle. It is the
+bundle's **identity**: what a commitment binds to, and what exact copy-detection
+compares.
+
+Construction (`bundle_hash.py:46-57`):
+
+- iterate every file via `root.rglob("*")`, **sorted**;
+- **skip symlinks** — `p.is_symlink()` returns early, so `read_bytes()` never follows
+  a symlink and folds an out-of-bundle file's bytes into the hash
+  (`bundle_hash.py:30`, with the rationale at `:24-29`);
+- skip `__pycache__` / `.git` dirs, `.pyc`/`.pyo` suffixes, and `._` editor junk
+  (`bundle_hash.py:18`, `:34`);
+- for each file, length-prefix the relative path (4-byte big-endian) and the contents
+  (8-byte big-endian) so concatenation is unambiguous (`bundle_hash.py:50-53`).
+
+Two bundles with the same content have the same hash; any byte change flips it. This
+is right for identity, but blind to the cheapest plagiarism.
+
+**The symlink-following bug, fixed in PR #24.** Before commit `2a73e8b` (PR #24,
+"Fix 18 verified review findings"), the hash followed symlinks. The consequence was
+exactly the split the docstring now warns about: `rglob` does not descend symlinked
+*directories*, so a symlinked dir full of `.py` was invisible to the hash (and to
+`scan_tree`) yet perfectly importable at runtime — a bundle's identity could depend
+on mutable state elsewhere on disk, and a kernel body hidden behind a symlink would
+never enter copy-detection. The fix: `_iter_files` skips symlinks outright
+(`bundle_hash.py:30`), `scan_tree` fails closed on any symlink
+(`optima/sandbox.py:256`), and a symlinked bundle is refused at load. The same fix
+closed the mirror hole in the AST scan.
+
+## Why exact hash isn't enough
+
+Cosmetic edits evade an exact hash: reflow whitespace, restyle comments, rewrite the
+docstring, and the content hash is new — so exact copy-detection passes the copy as
+"original." A structural signal is needed that survives cosmetic edits but does not
+demote genuinely independent work (near-zero false positives). That is
+`optima/copy_fingerprint.py`.
+
+## The four fingerprints
+
+| Fingerprint | Scope | What it catches | Role |
+|---|---|---|---|
+| **Exact** `content_hash` | whole bundle | byte-identical copies | identity + commitment binding |
+| **Whole-bundle reformat-invariant** `bundle_fingerprint` | whole bundle | reflowed/recommented/redocumented copies | auto-demote |
+| **Per-slot reformat-invariant** `bundle_slot_fingerprints` | each op's transitive closure | a stolen slot inside a bundle **padded** with an extra op | **load-bearing** auto-demote |
+| **Per-slot path-independent file-set** `bundle_slot_file_fingerprints` | each op's closure files | a stolen body **relocated** into an imported module | **load-bearing** auto-demote |
+
+There is also an **advisory** structural skeleton (`bundle_structural_fingerprint`,
+below) — robust to rename + constant-tweak, but never an auto-demote.
+
+The per-slot and per-file signals are the load-bearing ones because equality hashing
+**provably cannot** match a relocated or padded copy. The commit message on `2a73e8b`
+states this directly: "Equality hashing alone provably cannot match a relocated copy;
+the prior closure-hash draft was also never wired into `commit_reveal`."
+
+## The normalization layers
+
+Reformat-invariance is achieved by parsing Python to an AST, stripping presentation,
+and canonically re-emitting:
+
+- **AST unparse, docstrings stripped** — `normalized_source` parses with `ast.parse`,
+  drops the leading bare-string `Expr` from every module/def/class
+  (`_strip_docstrings`, `copy_fingerprint.py:52`), and re-emits via `ast.unparse`
+  (`copy_fingerprint.py:63`). Whitespace, comments, docstrings, and redundant parens
+  all normalize away. It deliberately does **not** normalize identifier names or
+  constants, so two genuinely different kernels keep different fingerprints.
+- **Skeletonize (advisory)** — `structural_source` runs `_Skeletonize`, which blanks
+  identifier **names** (→ `_v`), arg names (→ `_a`), and constant **values** (→ the
+  type name), keeping call/attribute structure (`copy_fingerprint.py:78-104`).
+  Attribute names are **kept** (`.silu` vs `.relu` stays distinct), so two genuinely
+  different kernels keep different skeletons. Higher false-positive risk than the
+  normalized form, so this is **advisory review signal, never auto-demote**
+  (`copy_fingerprint.py:107`).
+- **CUDA source comment-strip** — `normalized_cuda_source` strips `//` line comments
+  and `/* */` block comments and collapses whitespace runs (`copy_fingerprint.py:123-137`).
+  Deliberately **not** a CUDA parser, so rename + constant-tweak evasion is **not**
+  caught for `.cu`/`.cuh` (documented at `copy_fingerprint.py:113-121`). Accepted
+  because CUDA sources are validator-reviewed via `optima/rebuild.py` before
+  compilation, a stronger check than an advisory skeleton.
+- **Dep-patch header fold** — `normalized_dep_patch` keeps only the `--- `/`+++ `
+  file headers and the `+`/`-` payload lines, whitespace-collapsed
+  (`copy_fingerprint.py:144-164`). Hunk headers, context width, and git headers are
+  presentation an evader can regenerate freely; what a patch actually *does* is its
+  payload.
+
+## The transitive import closure
+
+A per-op fingerprint that hashes only the declared entry module is blind to any `.py`
+that module imports. A copier can move a champion's kernel body verbatim into
+`kernels/_impl.py` and make the entry a one-line re-export, and the body never enters
+the fingerprint. The closure fixes this (`copy_fingerprint.py:167-242`):
+
+- `_closure_files(root, entry)` walks the entry module's `ast`, collects every
+  `Import`/`ImportFrom`, and resolves each to a bundle-local file — handling both
+  absolute (`kernels._impl`) and relative (`from ._impl import`) imports, including
+  `from .pkg import name` where `name` is itself a submodule file
+  (`_resolve_module`, `copy_fingerprint.py:184`). A `visited` set guards against
+  cycles. Files are returned sorted by relpath so the result is stable regardless of
+  import discovery order.
+- External imports (torch, triton, …) are ignored — only files that resolve **under
+  the bundle root** are folded in (`copy_fingerprint.py:210-212`).
+- `_closure_norm` joins `transform(source)` over the closure (`copy_fingerprint.py:245`).
+  A **non-entry** closure file that fails to parse/decode is **skipped, not fatal**:
+  such a file cannot execute at runtime either (importing it would raise), while
+  treating it as fatal would let a copier disable the fingerprint on purpose by
+  "importing" a deliberately-broken module behind `if False:` (`copy_fingerprint.py:252-256`).
+  Only an unrunnable **entry** keeps the `""`/`{}` no-fingerprint fallback.
+
+The per-slot reformat-invariant fingerprint (`bundle_slot_fingerprints`) folds
+`_op_identity(op)` — slot id, entry/prepare/setup callable names, and override
+composition (`base_kernel`/`override_point`, so the same epilogue JIT-composed into a
+different hole fingerprints distinctly) — with the normalized closure
+(`copy_fingerprint.py:271-305`).
+
+## The per-FILE containment compare
+
+The closure hash is an all-or-nothing **equality**, so a copier who relocates a
+stolen body into `kernels/_impl.py` (or pads the closure with one extra file) perturbs
+it into freshness. `bundle_slot_file_fingerprints` is the relocation-proof signal
+(`copy_fingerprint.py:315-379`):
+
+- For each op, build a **set** of fingerprints — one per **substantial** closure file
+  (normalized length ≥ `_SUBSTANTIAL_NORM_LEN = 80`, so empty `__init__` shims and
+  one-line re-exports are excluded and can't collide across honest bundles,
+  `copy_fingerprint.py:308-312`).
+- Fold in the op's declared `cuda_sources`: each contributes **two** entries — the
+  exact sha256 of raw bytes (catches a byte-identical relocated copy) and
+  `cuda_source_fingerprint` (the reformat-invariant normalization). This closes the
+  "ship a stolen binary/.cu behind a trivially different .py shim" gap
+  (`copy_fingerprint.py:369-375`).
+- Fold in the bundle's declared `dep_patches`: two entries each (exact raw sha256 +
+  the reformat-invariant `dep_patch_fingerprint`), added to **every** slot's file set
+  — a stolen deep-seam patch re-shipped behind a different kernel shim is still "all
+  of their work inside yours" for the containment compare (`copy_fingerprint.py:347-354`).
+
+The ledger demotes a reveal when, for some slot, every substantial file of a prior
+reveal appears in this one (or vice versa) — **containment, not intersection**
+(`commit_reveal.py:306-309`). Containment is the key choice: two honest miners
+vendoring the same public utility next to their own distinct kernels never trigger it,
+because each has files the other does not.
+
+## How each evasion is closed
+
+| Evasion | Why it fails |
+|---|---|
+| Byte-identical copy | Exact `content_hash` match → copy (`commit_reveal.py:294`). |
+| Reflow / recomment / redocument | Reformat-invariant fingerprint matches (`commit_reveal.py:296`). |
+| Rename every variable + tweak a constant | **Advisory only** — the structural skeleton matches and is flagged for review (`structural_near_copies`, `commit_reveal.py:346`), but is not auto-demoted (could collide on genuinely distinct simple kernels). |
+| Move the body into `kernels/_impl.py`, entry is a re-export | The transitive **import closure** folds `_impl.py` into the fingerprint (`copy_fingerprint.py:167`). |
+| Relocate the body anywhere, pad with extra files | The per-FILE **containment** compare matches regardless of path or neighbors (`commit_reveal.py:306`). |
+| Pad the bundle with an extra unrelated op | Fingerprints are **per-slot**, so a stolen slot matches however the rest was padded (`bundle_slot_fingerprints`, `copy_fingerprint.py:285`). |
+| Ship a stolen `.cu` behind a trivially different `.py` shim | Declared cuda sources contribute exact + reformat-invariant entries to the file set (`copy_fingerprint.py:369`). |
+| Hide the body behind a symlink | Symlinks are skipped in the hash (`bundle_hash.py:30`), rejected in `scan_tree` (`sandbox.py:256`), and refused at load. |
+| "Import" a deliberately-broken module to null the fingerprint | Non-entry parse failures are skipped, not fatal (`copy_fingerprint.py:252`). |
+
+## Cumulative-across-rounds, earliest-wins semantics
+
+Copy detection in `Ledger.reveal` is **cumulative across ALL rounds**, not just the
+current one (`commit_reveal.py:256`). The `_same` predicate matches a **different
+hotkey's** earlier reveal on any of: exact hash, whole-bundle fingerprint, any single
+slot fingerprint, or per-slot file-set containment (`commit_reveal.py:291-310`).
+Same-hotkey re-reveals of one's own work are never copies.
+
+Priority is **earliest commit wins** (`commit_reveal.py:313-317`): among matching
+reveals, the one with the lowest `commit_seq` is the original; later identical ones
+are marked `original=False`. A reveal that predates already-recorded ones retroactively
+demotes them. Copies are excluded from scoring and listed in `rejected_copies`
+(`commit_reveal.py:412-414`).
+
+## The commit-reveal priority timestamp
+
+Commitments bind a hotkey to an exact bundle **before** the bundle is public.
+`make_commitment(content_hash, hotkey, salt)` is `SHA-256("{content_hash}:{hotkey}:{salt}")`
+(`commit_reveal.py:48`). A reveal is accepted only if that hash matches a commitment
+**that hotkey** posted earlier in the round (`commit_reveal.py:272-282`). So you
+cannot reveal a bundle you didn't already commit to — and you couldn't have committed
+to a competitor's bundle you hadn't seen yet.
+
+In production, commitments live **on-chain** (Bittensor's native commit-reveal),
+bundles are fetched from a content-addressed store, and `hotkey` is the miner's SS58
+address (`docs/HOW_OPTIMA_WORKS.md:614-620`). The current chain path reads each
+hotkey's **latest** revealed commitment, then sorts those refs by reveal block
+(`optima/chain/validator_loop.py:177-226`). That gives chain-order priority for
+the refs the pass sees, but earlier same-hotkey reveals can be skipped if a
+validator pass only sees the latest. A production exact-priority policy should
+either replay full reveal history or enforce one active submission per hotkey/window.
+The loop computes fingerprints from the fetched bundle (`:209-214`), derives the
+salt from the reveal block (`salt = f"chain:{ref.block}"`, `:223`), commits, and
+reveals into the ledger (`:224-226`). The JSON ledger in `commit_reveal.py` is a
+local, GPU-free stand-in with identical semantics so the whole mechanism is
+testable without a chain (`tests/test_commit_reveal.py`).
+
+## King-of-the-hill — the backstop
+
+Even if a copy slipped every fingerprint, it would still fail to earn. `settle` /
+`settle_per_slot` give the title only to a challenger that beats the champion by a
+margin (`commit_reveal.py:389-451`, `:453-516`). A copy **ties** the champion, never
+clears the margin, so it earns zero. The recorded score is already a noise-confirmed
+scoreable speedup, so a too-noisy or below-bar candidate cannot earn here either. The
+only way to earn is to genuinely beat the best. Per-slot championships
+(`settle_per_slot`) split emission equally across slots so a specialist who owns one
+slot is paid instead of winner-take-all starving everyone but the single best
+end-to-end bundle (`commit_reveal.py:453-461`).

@@ -1,0 +1,161 @@
+---
+title: Your first eval (first hour)
+description: A linear checklist from an empty GPU box to one real, gate-passing eval you can read and understand.
+---
+
+A linear checklist from an empty GPU box to one real, gate-passing eval you can
+read and understand. This page sequences three others — [GPU setup](/docs/dev/gpu-setup),
+[Running evals](/docs/validators/running-evals), and the receipts mechanism — into a single
+first session. It doesn't repeat their full detail; follow the links when you
+need the rest.
+
+<Callout type="info">
+  **What you're building toward:** by the end of this hour you'll have run
+  `optima evaluate` once on a small model, watched it PASS or FAIL for a
+  concrete reason, and know where to look when it doesn't.
+</Callout>
+
+## 1. Get a box
+
+- **One GPU is enough to start.** Validated architectures: H100 (`9.0`),
+  B200/B300-class (`10.0`/`10.3`). Provider doesn't matter.
+- **`nvcc` + `ninja` on disk/PATH** — sglang JIT-compiles kernels at runtime;
+  missing either gives a silently weak baseline, not an error.
+- **Python 3.12** and [uv](https://docs.astral.sh/uv/) (or plain pip).
+- **Disk for weights** — a few GB for the small model used below; budget ~69 GB
+  if you later score gpt-oss-120b (its native-quantization footprint, fits a
+  single 80 GB H100).
+
+Full checklist, including the CUDA-13 resolver gotchas: [GPU setup](/docs/dev/gpu-setup).
+
+## 2. Install + the seam
+
+```bash
+git clone https://github.com/latent-to/optima && cd optima
+uv venv --python 3.12 .venv && source .venv/bin/activate
+
+grep "^PINNED_SGLANG" optima/compat.py      # the sglang version validators score against
+uv pip install "sglang==<the pinned version>" ninja datasets
+uv pip install -e .                          # no [cpu] extra — torch comes from sglang
+
+# the seam is a .pth file, not a runtime patch — sglang spawns the model in a
+# CHILD process (mp spawn), so this must land in every interpreter of this venv:
+SP=$(python -c 'import site;print(site.getsitepackages()[0])')
+echo 'import optima.bootstrap' > "$SP/optima.pth"
+
+export CUDA_HOME=/usr/local/cuda
+export PATH=/usr/local/cuda/bin:$PWD/.venv/bin:$PATH
+export TORCH_CUDA_ARCH_LIST=9.0             # 9.0 = H100, 10.0 = B200 — match your GPU
+```
+
+{/* TODO: confirm canonical optima repo URL (latent-to/optima vs ShivanshuPurohit/optima) before publish */}
+(This is the GPU install. If you only want the CPU-only manifest/scan/verify
+loop with no model at all, that's a different, simpler recipe — see the repo
+[README](https://github.com/latent-to/optima/blob/main/README.md#quickstart-cpu--no-gpu-required).)
+
+## 3. Self-check: `optima compat`
+
+Before spending GPU time on a real eval, confirm the seam's chokepoints still
+exist in the sglang you just installed — this is a static introspection check,
+no model load:
+
+```bash
+python -m optima.cli compat
+```
+
+Every line should read `[ok  ] ...`. A `[FAIL]` means either sglang moved
+underneath the pin (a real compatibility break — see
+[Dev environment](/docs/dev/environment) / `docs/SGLANG_TRACKING.md`) or the
+installed version isn't the pinned one at all (`grep "^PINNED_SGLANG"
+optima/compat.py` again and check what you actually installed). Don't proceed
+to a real eval on a red canary — the seam adapters it's checking are exactly
+what makes a candidate launch mean anything.
+
+## 4. Run one real eval
+
+Two commands — op-correctness, then the real gate chain — on a small model so
+the first pass is cheap:
+
+```bash
+# op-correctness: does the kernel compute the slot's function at all?
+python -m optima.cli verify examples/miner_rmsnorm_triton --device cuda
+
+# the real gate: throughput + fidelity, bracketed baseline/candidate/baseline'
+python -m optima.cli evaluate examples/miner_silu_triton \
+    --model Qwen/Qwen2.5-0.5B-Instruct --no-deterministic
+```
+
+Always launch through `python -m optima.cli ...`, never `optima` directly or
+`python optima/cli.py` — sglang spawns its scheduler with `mp spawn`, and the
+`__main__` guard is what makes that spawn-safe.
+
+## 5. Read the report
+
+`evaluate` ends with a fixed-format block (`optima/cli.py`, `cmd_evaluate`).
+The shape below is schematic — it matches the CLI's print format; the values
+are illustrative, not a real run of the command above:
+
+```text
+=== Optima end-to-end report ===
+bundle: example-silu-triton-v1
+baseline    <tok/s>  (median of N; range min-max, sd ...)
+candidate   <tok/s>  (median of N; range min-max, sd ...)
+baseline'   <tok/s>  (trailing bookend; baseline noise <pct>)
+speedup     <x>x  (needs >= <bar> = 1 + max(margin, k*noise) -> <verdict>)
+quality     mean_kl=... argmax_disagree=.../... token_match=... -> PASS|FAIL
+SCORE       <crownable speedup, else 0.0>
+```
+
+- **`speedup` line** — bracketed by a baseline *before and after* the candidate
+  (`B, C, B′`) because a rented pod's clock drifts (warmup, thermal ramp); the
+  bar is derived from how much the two baseline reads disagree, not a flat
+  constant. Three verdicts appear here: **`PASS (noise-confident real win)`**
+  (cleared the bar, trustworthy bracket); **`below the noise-derived bar`**
+  (genuinely not fast enough, scores 0.0); **`NO-DECISION (box too noisy /
+  un-bracketed; re-queue, never crown)`** — the bracket itself disagreed too
+  much to trust, not a fail, just re-run it.
+- **`quality` line** — the fidelity verdict. In `--fidelity-mode audit`
+  (default `kl` unless you pass it) this becomes an in-engine audit line
+  (`N audited calls, M violations`) with KL printed as advisory only; see
+  [Fidelity: audit vs KL](/docs/validators/fidelity) for which mode your arena needs.
+- **`SCORE`** — what gets written to the ledger: the crownable speedup, or
+  `0.0` if quality failed, the bar wasn't cleared, or the round was NO-DECISION.
+
+For the full flag table and a real recorded run at this level of detail (the
+first submission that beat sglang through this exact report format), see
+[Running evals](/docs/validators/running-evals) and the
+[MiniMax-M3 case study](/docs/validators/minimax-m3-case-study).
+
+## 6. Where the receipts are
+
+The report block above never mentions receipts — they live in the **launch
+logs**, at `INFO` level, because that's where the anti-phantom-pass evidence is
+produced (`optima/receipts.py`). Two lines matter:
+
+- `optima: seam active receipts: [...]` — the bundle loaded and the registry is
+  enabled. Printed once, before generation starts.
+- A **missing `fired` receipt aborts the eval** with a `RuntimeError` after
+  generation, rather than silently scoring a stock-vs-stock run. This is
+  deliberate: without it, a broken bootstrap (no `optima.pth` in the spawned
+  child, wrong env, a bundle that failed to load) still produces bit-identical
+  logits — KL exactly 0.0, PASS — for a kernel that never ran.
+
+If a run looks suspiciously clean, grep the launch log for `seam active
+receipts` and `fired` before you trust the SCORE line. Common cause when
+`fired` is missing: the `.pth` from step 2 didn't land in the interpreter the
+spawned scheduler actually uses. See [the phantom-pass
+class](/docs/miners/diagnostics#the-phantom-pass-class-important) for the
+full failure-mode writeup (same mechanism, miner-side framing).
+
+## Recap
+
+- [ ] `optima compat` is all `[ok]`
+- [ ] `verify --device cuda` passes on a faithful example bundle
+- [ ] one `evaluate` run produced a `speedup` verdict and a `quality` verdict
+      you can explain in one sentence each
+- [ ] you found the `seam active receipts` / `fired` lines in the launch log
+
+From here: [Running evals](/docs/validators/running-evals) for the full flag reference and
+multi-GPU recipe, [How scoring works](/docs/validators/scoring) for the bookended-measurement
+math, and [The chain loop](/docs/validators/chain-loop) once you're ready to point this at a
+real subnet instead of running commands by hand.

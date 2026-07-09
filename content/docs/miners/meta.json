@@ -1,12 +1,17 @@
 {
-  "title": "Miners",
+  "title": "Miner guide",
   "pages": [
     "overview",
     "slots",
-    "submission-format",
-    "local-testing",
+    "bundle-format",
+    "kernel-abi",
+    "your-first-kernel",
+    "graph-safety",
+    "override-points",
+    "dep-patches",
     "finding-a-win",
-    "registration",
-    "rules"
+    "examples",
+    "submitting",
+    "diagnostics"
   ]
 }

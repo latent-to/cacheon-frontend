@@ -1,0 +1,325 @@
+---
+title: GPU pods & toolchain
+description: The maintainers' own pod notebook — how to get a GPU, push the harness, run evals, and the exact pinned toolchain versions scoring runs against.
+---
+
+<Callout type="info">
+  this page is the maintainers' own pod notebook — provider-specific
+  (their `lium` accounts, pod names, IPs). If you're setting up your own GPU box,
+  start at [GPU setup](/docs/dev/gpu-setup) instead.
+</Callout>
+
+How to get a GPU, push the harness, and run evals. Written so a fresh agent can pick
+up cold. This is the operator-facing companion to `docs/DEV_ENVIRONMENT.md`; commands
+are concrete and verified against the validated recipe.
+
+Read alongside [sglang-tracking.md](/docs/dev/sglang-tracking) (the pin) and
+[isolation.md](/docs/security/isolation) (the `CAP_SYS_ADMIN` caveat).
+
+## The two environments
+
+There are two Python environments and they do different jobs — do not mix them.
+
+| Env | Where | Python | Purpose |
+|---|---|---|---|
+| `sn120` pyenv | dev macbook (`~/.pyenv/versions/sn120`) | 3.11 | chain + pod control + Affine: bittensor 10.x SDK, `bittensor-cli`, `bittensor-wallet`, `lium-cli` 0.6, `affine` |
+| pod venv | on the GPU box (`/root/optima/.venv`) | 3.12 | the engine: sglang, torch+cu130, flashinfer, kernels. Built fresh per pod with `uv`. |
+
+The `sn120` env on the macbook is where the **Bittensor SDK** lives (reading
+commitments, submitting dry-run or real weights when the validator has a permit)
+and where `lium` is on PATH.
+The Affine subnet code is at `~/Downloads/github/affine`. Activate with
+`pyenv activate sn120`; if that isn't wired into your shell, call the binaries
+directly, e.g. `~/.pyenv/versions/sn120/bin/lium ...`
+(`docs/DEV_ENVIRONMENT.md:6-20`).
+
+## Building these docs
+
+The `sn120` env also has MkDocs:
+
+```bash
+cd ~/Downloads/github/temp/docs_optima
+PYENV_VERSION=sn120 python -m mkdocs build --strict
+```
+
+Use `PYENV_VERSION=sn120` if `pyenv activate sn120` is not loaded in the shell.
+
+## The GPU pods (lium.io)
+
+GPUs are rented on [lium](https://github.com/Datura-ai/lium-cli) (Datura-ai). The CLI
+is configured at `~/.lium`. **Pod names and IPs change on redeploy — always run
+`lium ps` to get the current ones** (`docs/DEV_ENVIRONMENT.md:25-26`). As of the last
+validated run:
+
+| Pod | GPU | CUDA | Role |
+|---|---|---|---|
+| `golden-lion-b6` | H100 (80 GB HBM) | 13.0 | canonical harness validation (Qwen → gpt-oss-120b) |
+| rented B200/B300 box | B200 / B300 (Blackwell sm100) | 13.0 | MiniMax-M3-NVFP4 TP=4 validation arena |
+| rented H200 box | H200 (Hopper) | 13.0 | profiling with nsys/ncu (standard H200 is not Confidential-Computing, so CUPTI works) |
+
+Rent a multi-GPU box per experiment when you need TP / PD-disaggregation / EP.
+
+### The lium pod caveat (read before isolation work)
+
+**Current lium pods run without `CAP_SYS_ADMIN` / `CAP_NET_ADMIN`**, so in-process
+`os.unshare(CLONE_NEWNET)` no-egress isolation fails with `EPERM`
+(`docs/DEV_ENVIRONMENT.md:35-40`, `optima/eval/_launch.py:56`). Consequences:
+
+- `--allow-unsafe-no-isolation` is **dev-only** — use it for local throughput
+  replication, never for scoring that mints emission.
+- Production validator scoring must run the eval worker in a privileged
+  namespace-capable container/VM, or launch the candidate side under Docker/OCI with
+  `--network=none` and the required GPU mounts.
+
+Full detail in [isolation.md](/docs/security/isolation).
+
+### Driving a pod
+
+All from the `sn120` env (`lium` on PATH there):
+
+```bash
+lium ps                      # list pods + names + IPs
+lium exec <pod> "nvidia-smi -L"   # run a command non-interactively
+lium ssh  <pod>              # interactive shell
+lium rsync <pod> ./optima    # push a directory (use for the harness)
+lium scp  <pod> ./file /root/    # copy a single file
+lium logs <pod>              # stream logs
+lium rm   <pod>              # TERMINATE (stops billing)
+```
+
+The H100 also answers direct ssh:
+`ssh root@<ip> -p <port> -i ~/.ssh/id_ed25519`. Pod ssh ports rotate, so confirm with
+`lium ps`.
+
+<Callout type="warn" title="Billing">
+  the H100 is ~$1.48/h; multi-GPU boxes cost more. **Tear down idle pods with
+  `lium rm <name>` — they bill while RUNNING.**
+</Callout>
+
+## The pod-side venv (the exact versions)
+
+The engine env that scoring runs in. CUDA 13.0 throughout. Resolved versions when you
+install `sglang==0.5.13.post1` with `--torch-backend=cu130`:
+
+| Package | Version | Notes |
+|---|---|---|
+| Python | 3.12 | `uv venv --python 3.12` |
+| sglang | **0.5.13.post1** (`PINNED_SGLANG`) | CUDA 13; see [sglang-tracking.md](/docs/dev/sglang-tracking). Static canary green; GPU end-to-end re-validation on this exact pin is **PENDING** per `optima/compat.py` (0.5.12.post1 was the last fully H100-validated pin, and the MiniMax-M3 measured record was run on the M3-branch sglang, not this pin) — re-baseline before treating it as authoritative for scoring. |
+| torch | 2.11.0+cu130 | comes via the cu130 index |
+| flashinfer-python | 0.6.11.post1 | the override base (the M3 validation used 0.6.12) |
+| kernels | `>=0.12,<0.13` | **pin `<0.13`** — transformers 5.6 breaks against 0.15 |
+| transformers | 5.6 | pulled by sglang |
+| nvcc + ninja | on PATH | sglang `jit_kernel` JIT-compiles CUDA at runtime |
+
+The blessed-base surface (torch, triton, flashinfer, nvidia-cutlass-dsl, sgl-kernel,
+deepgemm) is **record-only today** — the canary reports installed versions for
+consensus audit but does not enforce, because exact arena versions aren't finalized
+(`optima/blessed_base.py:36-43`). Enforcement ships per-arena.
+
+## The exact install sequence
+
+Order matters. From a fresh pod (`docs/DEV_ENVIRONMENT.md:71-87`,
+`WORKLOG.md:1000-1011`):
+
+```bash
+# on your machine: push the repo payload the editable install needs
+lium exec <pod> "mkdir -p /root/optima"
+lium rsync <pod> ~/Downloads/github/optima/pyproject.toml /root/optima/
+lium rsync <pod> ~/Downloads/github/optima/optima /root/optima/
+lium rsync <pod> ~/Downloads/github/optima/optima_kernels /root/optima/
+lium rsync <pod> ~/Downloads/github/optima/examples /root/optima/
+lium rsync <pod> ~/Downloads/github/optima/tests /root/optima/
+lium rsync <pod> ~/Downloads/github/optima/docs /root/optima/
+lium rsync <pod> ~/Downloads/github/optima/README.md /root/optima/
+lium rsync <pod> ~/Downloads/github/optima/AGENTS.md /root/optima/
+
+# on the pod (lium ssh, or wrap each in `lium exec <pod> "..."`)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+cd /root/optima && uv venv --python 3.12 .venv && source .venv/bin/activate
+
+# 1. sglang FIRST. --prerelease=allow (flash-attn-4 beta is a pure-python wheel);
+#    --torch-backend=cu130 routes the torch family to the cu130 index.
+uv pip install --prerelease=allow --torch-backend=cu130 "sglang==0.5.13.post1"
+
+# 2. THEN -e . + the kernels pin + datasets/pytest
+uv pip install ninja "kernels>=0.12,<0.13" datasets pytest -e '.[dev]'
+
+# 3. the .pth seam install — the single line that puts the seam in EVERY interpreter
+SP=$(python -c 'import site;print(site.getsitepackages()[0])')
+echo 'import optima.bootstrap' > "$SP/optima.pth"
+# optional on newer sglang: export SGLANG_PLUGINS=optima (same activate path)
+```
+
+The `sglang==0.5.13.post1` above is the current `PINNED_SGLANG` — the version
+consensus scoring uses. A dev box chasing a specific arena or experiment (e.g. a
+model that pin can't yet serve) may run a different sglang than the pin, as the
+M3 measured record did (`docs/SGLANG_TRACKING.md`); just don't treat those numbers
+as pin-consensus results until a re-baseline confirms the pin reproduces them.
+
+### Why this exact order
+
+- **sglang first.** It is the heavy dep that pulls torch+cu130 and flash-attn-4. The
+  `--prerelease=allow` is required because sglang 0.5.12+ hard-depends on the
+  `flash-attn-4` beta (a pure-python wheel); without it uv refuses and torch never
+  installs. `--torch-backend=cu130` is what actually routes the torch family to the
+  cu130 index (`docs/DEV_ENVIRONMENT.md:113-122`).
+- **`kernels<0.13`.** transformers 5.6 (pulled by sglang) breaks against kernels 0.15
+  with `LayerRepository: Either a revision or a version must be specified` at
+  `import sglang`. Pin the floor and ceiling (`docs/DEV_ENVIRONMENT.md:76-78`).
+- **the `.pth` last.** A `.pth` line starting with `import` is executed at interpreter
+  startup in the parent *and* in every spawned child. sglang's `Engine` does
+  `mp.set_start_method("spawn")`, so the model runs in a fresh child interpreter; the
+  `.pth` is the one version-independent, spawn-safe way to install the seam there
+  (`optima/bootstrap.py:1-16`, `docs/HOW_OPTIMA_WORKS.md:307-336`).
+
+### The env vars
+
+```bash
+export CUDA_HOME=/usr/local/cuda
+export PATH=/usr/local/cuda/bin:$PWD/.venv/bin:$PATH    # sglang JIT needs nvcc + ninja
+export TORCH_CUDA_ARCH_LIST=9.0    # set per GPU: 9.0=H100/H200, 10.0=B200, B300 often 10.3
+```
+
+Confirm the actual capability with:
+
+```bash
+python - <<'PY'
+import torch
+print(torch.cuda.get_device_name(0), torch.cuda.get_device_capability(0))
+PY
+```
+
+`TORCH_CUDA_ARCH_LIST` by GPU family: **9.0** = H100/H200, **10.0** = B200,
+**10.3** = B300 on the validated box, **12.0** = RTX-Blackwell sm_120.
+
+Then confirm the seams are intact on the pin:
+
+```bash
+.venv/bin/python -m optima.cli compat     # ALL SEAMS INTACT, or the seams need an adapter
+```
+
+## Pushing code and running evals
+
+Run the CLI via `python -m optima.cli` (the spawn-safe `__main__` guard), not the
+`optima` console script, when on the pod (`WORKLOG.md:1025-1027`).
+
+```bash
+# op-correctness on device (the cheap gate)
+.venv/bin/python -m optima.cli verify examples/miner_rmsnorm_triton --device cuda
+
+# cheap KL smoke on a generic corpus
+.venv/bin/python -m optima.cli evaluate examples/miner_silu_triton \
+    --model Qwen/Qwen2.5-0.5B-Instruct --no-deterministic
+
+# capability path: real benchmark prompts (GSM8K + MMLU), accuracy-gated.
+# Pair with evaluate for throughput/fidelity when making a scoring decision.
+.venv/bin/python -m optima.cli bench examples/miner_silu_triton \
+    --model Qwen/Qwen2.5-1.5B-Instruct --benchmarks gsm8k,mmlu --samples 64
+```
+
+## Concrete recipes
+
+### Single-H100 Qwen / gpt-oss
+
+```bash
+# gpt-oss-120b fits one 80 GB H100 (~69 GB at native quantization) — single GPU:
+.venv/bin/python -m optima.cli bench examples/miner_rmsnorm_triton \
+    --model openai/gpt-oss-120b --benchmarks gsm8k,mmlu --samples 16 \
+    --mem-fraction 0.9
+```
+
+A broken kernel must FAIL the gate (accuracy collapse and/or KL blowup):
+
+```bash
+.venv/bin/python -m optima.cli bench examples/miner_rmsnorm_broken \
+    --model openai/gpt-oss-120b --benchmarks gsm8k,mmlu --samples 16 \
+    --mem-fraction 0.9    # must FAIL
+```
+
+### 4×B300 MiniMax-M3 (TP=4)
+
+gpt-oss-120b on TP=4: plain-triton MoE, custom-allreduce off
+(`README.md:295-300`, `WORKLOG.md:1014`):
+
+```bash
+.venv/bin/python -m optima.cli bench <bundle> \
+    --model openai/gpt-oss-120b --benchmarks gsm8k,mmlu --samples 16 \
+    --tp-size 4 --moe-runner-backend triton --disable-custom-all-reduce \
+    --mem-fraction 0.85
+```
+
+For MiniMax-M3-NVFP4 pass quantization through engine kwargs and (on the
+Blackwell image) `SGLANG_DISABLE_CUDNN_CHECK=1`; `mem_fraction_static=0.9`
+(`WORKLOG.md:1016-1018`). The M3 deep-seam validation also needed
+`enable_flashinfer_allreduce_fusion` as an arena engine kwarg so the
+`collective.ar_residual_rmsnorm` fused-epilogue chokepoint funnels every layer
+epilogue (`WORKLOG.md:1166`, `optima/dispatch.py:740-760`).
+
+```bash
+.venv/bin/python -m optima.cli evaluate <bundle> \
+    --model /models/MiniMax-M3-NVFP4 --tp-size 4 \
+    --attention-backend fa4 --moe-runner-backend flashinfer_cutlass \
+    --mem-fraction 0.90 \
+    --engine-kwargs-json '{"quantization":"modelopt_fp4","enable_flashinfer_allreduce_fusion":true,"trust_remote_code":true}' \
+    --fidelity-mode audit --no-deterministic
+```
+
+### The `--moe-runner-backend` flag
+
+`--moe-runner-backend triton` selects sglang's plain-triton MoE path; alternatives are
+`marlin` (W4A16 dequant, used on Hopper where there are no FP4 tensor cores) and the
+CUTLASS FP4 path on Blackwell. Pass `--candidate-moe-runner-backend` to set it on the
+candidate launch only (`optima/cli.py:434`, `optima/eval/_launch.py:181-185`).
+`--disable-custom-all-reduce` is required when the custom allreduce kernel isn't
+available on the arch.
+
+## Gotchas (don't relearn these)
+
+- **The `.pth` must be in every interpreter.** sglang `mp spawn` means parent-process
+  patching doesn't reach the model. The `.pth` is how the seam lands in the spawned
+  scheduler child. Run via `python -m optima.cli` (`WORKLOG.md:1025-1027`).
+- **JIT compile at runtime.** sglang's `jit_kernel` compiles CUDA on first launch, so
+  the box needs `nvcc` + `ninja` on PATH (`CUDA_HOME=/usr/local/cuda`).
+- **`ENGINE_KWARGS_JSON` via `--engine-kwargs-json`.** EvalConfig covers the common
+  knobs (`tp_size`, `moe_runner_backend`, `disable_custom_all_reduce`,
+  `mem_fraction`, `attention_backend`); anything else goes through
+  `--engine-kwargs-json '<json>'` (baseline) and `--candidate-engine-kwargs-json`
+  (candidate), folded into `extra_engine_kwargs` (`optima/cli.py:439-440`,
+  `optima/eval/_launch.py:191`).
+- **Pin `kernels<0.13`.** Otherwise transformers 5.6 vs kernels 0.15 breaks at
+  `import sglang`.
+- **`--prerelease=allow` for flash-attn-4.** Without it uv refuses and torch never
+  installs.
+- **Box noise / lock clocks.** Measure the stock-vs-stock KL/throughput noise floor
+  before claiming a kernel "drifts" or is faster. If the box permits, lock clocks
+  (`nvidia-smi -lgc`) — kills the warmup noise. The scoring bar is noise-derived
+  (`1 + max(margin, k·noise)`), so a noisy box just raises the bar rather than minting
+  a champion (`optima/eval/scoring.py:81-118`).
+- **`optima compat` after ANY sglang change.** A bump is a coordinated event; re-baseline
+  the champion. See [sglang-tracking.md](/docs/dev/sglang-tracking).
+- **Don't `pgrep -f "<string>"` in a waiter whose own command line contains
+  `<string>`** — it matches itself and waits forever (`WORKLOG.md:1032`).
+- **Docker/B200 DinD GPU** needs `no-cgroups=true` in the containerd config, and
+  `--privileged --runtime nvidia -e NVIDIA_VISIBLE_DEVICES=all
+  -e NVIDIA_DRIVER_CAPABILITIES=all --shm-size 32g` (the shm-size is mandatory for
+  TP NCCL) plus the correct `TORCH_CUDA_ARCH_LIST` for the GPU and
+  `CUDA_HOME=/usr/local/cuda`
+  (`WORKLOG.md:608-611`).
+
+## Profiling (the H200 box)
+
+The H200 exists to get the ground-truth, time-weighted per-kernel breakdown you cannot
+get on a Confidential-Computing B200 (which blocks CUPTI). Standard H200 is NOT CC, so
+nsys/ncu/torch-profiler all work — but confirm before anything else
+(`H200_SESSION.md:33-41`):
+
+```bash
+python3 /opt/optima/_kineto_check.py     # MUST print KINETO_OK with non-zero device_time
+```
+
+The finding from the completed 4×H200 nsys profile (`H200_SESSION.md:5-12`): **decode
+is communication-bound** — cross-GPU comm is the #1 category in every config (TP
+all-reduce 32–39%, or DP+EP DeepEP all-to-all 43%); MoE GEMM 32–44%; attention 4–8%.
+That is why the big slots are `collective.all_reduce`, `moe.fused_experts_reduce`,
+and the fused `collective.ar_residual_rmsnorm` epilogue — the comms-overlap levers —
+not the small elementwise ops.

@@ -1,0 +1,226 @@
+---
+title: The kernel ABI
+description: The exact entry-function contract — fill the pre-allocated output and return None; signatures by slot kind, the four correctness modes, and graph_safe.
+---
+
+This is the exact contract your kernel function must satisfy. Get this right and
+the validator can swap your kernel in; get it wrong and you'll fail at load or at
+the gates.
+
+## The one rule
+
+> **Your entry function fills a pre-allocated output tensor and returns `None`.**
+
+The validator allocates every output (shape/dtype/device/stride) and owns the
+call site. You write into the `out` tensor (via `out.copy_(...)` or in-place
+writes). You never return tensors, never allocate the model's output, and never
+touch the sampler. This is invariant #1 of
+[the slot contract](/docs/architecture/slot-contract).
+
+## By kind
+
+### op slots — `entry(x, out)`
+
+The simplest. Two tensor arguments: the input(s) and the output to fill.
+
+**`activation.silu_and_mul`** — the MLP activation:
+
+```python
+import torch
+import torch.nn.functional as F
+
+def silu_and_mul(x, out):
+    """x: (..., 2d)  →  out: (..., d).   out = silu(x[...,:d]) * x[...,d:]"""
+    d = x.shape[-1] // 2
+    gate, up = x[..., :d], x[..., d:]
+    out.copy_(F.silu(gate) * up)
+```
+
+**`norm.rmsnorm`** — pure RMSNorm (the validator owns the fused residual-add):
+
+```python
+def rmsnorm(x, weight, out, eps):
+    """x, weight, out: (..., H).  RMS normalize, scale by weight."""
+    var = x.pow(2).mean(dim=-1, keepdim=True)
+    normed = x * torch.rsqrt(var + eps)
+    out.copy_(normed * weight)
+```
+
+Note: for `rmsnorm` you compute the *pure normalization*. The fused
+add+norm (residual + RMSNorm) is the validator's job at the call site — you don't
+see the residual.
+
+### block slots
+
+**`attention.sdpa`** — full softmax-attention (GQA/MQA):
+
+```python
+def attention(q, k, v, out, sm_scale, causal=True):
+    """q: (T, Hq, D), k,v: (S, Hkv, D)  →  out: (T, Hq, D).
+    Hq % Hkv == 0 (GQA/MQA). Fuses QK^T, softmax, att(.)v."""
+    ...
+```
+
+**`attention.decode`** — paged-decode attention:
+
+```python
+def attention_decode(q, k, v, seq_lens, sm_scale, out):
+    """q: (B, Hq, D), k,v: (B, S, Hkv, D), seq_lens: (B,)  →  out: (B, Hq, D).
+    Each request's single query attends to its first seq_lens[i] cached k/v."""
+    ...
+```
+
+The decode gather is variable-shape (the `seq_lens` host sync), so this slot is
+**structurally eager** — not CUDA-graph-capturable in its current form. See
+[Graph-safe kernels](/docs/miners/graph-safety).
+
+### The (prepare, forward) pair — MoE
+
+`prepare` runs **once at load** on raw weights. `forward` runs every step and
+receives whatever `prepare` returned.
+
+```python
+def prepare(w13, w2):
+    """Runs once at load on raw checkpoint weights.
+    w13: fused gate-up (E, 2*inter, hidden), w2: (E, hidden, inter).
+    Return whatever layout your forward needs; the validator holds it."""
+    I = w13.shape[1] // 2
+    # e.g. reorder [gate; up] -> [up; gate] for the sm120 repack
+    w13_up_gate = torch.cat([w13[:, I:], w13[:, :I]], dim=1).contiguous()
+    return {"w13": w13_up_gate, "w2": w2.contiguous(), "inter": I}
+
+def fused_experts(x, topk_ids, topk_weights, prepared, out):
+    """Runs every step.
+    x: (tokens, hidden), topk_ids: (tokens, k), topk_weights: (tokens, k).
+    prepared: whatever prepare() returned. out: (tokens, hidden)."""
+    ...
+    out.copy_(result)
+```
+
+### collective slots — `entry(..., group)`
+
+You're handed a `torch.distributed` process group — a wider capability than
+op/block. You still only fill a validator-allocated buffer, mid-network and
+upstream of the sampler.
+
+**`collective.all_reduce`**:
+
+```python
+def all_reduce(x, out, group=None):
+    """Fill out with the sum of x across ranks."""
+    tmp = x.clone()
+    torch.distributed.all_reduce(tmp, group=group)
+    out.copy_(tmp)
+```
+
+**`moe.fused_experts_reduce`** — the MoE block that owns its trailing reduce:
+
+```python
+def fused_experts_reduce(x, topk_ids, topk_weights, prepared, out, group=None):
+    """Compute local expert output AND the trailing TP all-reduce.
+    The validator does NOT replay a stock reduce after this — so you can
+    fuse/overlap the expert GEMM with the reduce."""
+    local = run_experts(x, topk_ids, topk_weights, prepared)
+    torch.distributed.all_reduce(local, group=group)
+    out.copy_(local)
+```
+
+**`collective.ar_residual_rmsnorm`** — the fused AR + residual + RMSNorm epilogue:
+
+```python
+def ar_residual_rmsnorm(x, residual, weight, eps, out_norm, out_residual, group=None):
+    """All-reduce x, add residual, RMSNorm. Two outputs."""
+    tmp = x.clone()
+    torch.distributed.all_reduce(tmp, group=group)
+    tmp = tmp + residual
+    out_residual.copy_(tmp)
+    var = tmp.pow(2).mean(dim=-1, keepdim=True)
+    out_norm.copy_(tmp * torch.rsqrt(var + eps) * weight)
+```
+
+**`collective.moe_finalize_ar_rmsnorm`** — deep fused MoE finalize + AR +
+residual + RMSNorm:
+
+```python
+def moe_finalize_ar_rmsnorm(
+    gemm_out, row_map, scales, residual, weight, eps,
+    out_norm, out_residual, group=None,
+):
+    """Finalize the exported MoE GEMM output, reduce, add residual, normalize.
+
+    gemm_out / row_map / scales are validator-exported views from the patched
+    FlashInfer launcher. You fill both outputs; the validator does not replay a
+    stock finalize or all-reduce after this call.
+    """
+    local = finalize_moe(gemm_out, row_map, scales)
+    torch.distributed.all_reduce(local, group=group)
+    y = local + residual
+    out_residual.copy_(y)
+    var = y.pow(2).mean(dim=-1, keepdim=True)
+    out_norm.copy_(y * torch.rsqrt(var + eps) * weight)
+```
+
+## The four correctness modes
+
+Op-correctness (`verify`) compares your output to a **high-precision (fp32/dequant)
+reference** under the slot's `Correctness` policy. The mode depends on the slot:
+
+| Mode | What it checks | When you hit it |
+|---|---|---|
+| `allclose` | every element within `atol + rtol*|e|` | a numerically-equivalent kernel (silu, rmsnorm) |
+| `matched_ratio` | at least `min_ratio` of elements within bound | a kernel that legitimately differs at ULP level (attention reorders softmax; fp8) |
+| `cosine` | flattened cosine similarity ≥ `min_cosine` | **low-bit** kernels (FP4/FP8) where element-wise tolerance is meaningless |
+| `topk_overlap` | the top-k sets agree (for selection outputs) | a kernel whose output is *which blocks*, not values (the MSA indexer) |
+
+The mode is validator-owned per (model, slot) — you don't choose it. A
+faster-but-slightly-different kernel can pass `matched_ratio`/`cosine`; a wrong
+one cannot pass any of them.
+
+## graph_safe: declare it if you can
+
+For **block/collective** slots, scoring runs under CUDA-graph capture. If your
+kernel can run inside a captured graph, declare it:
+
+```json
+// metadata/my_kernel.json
+{"graph_safe": true}
+```
+
+Without it, the seam falls back to the trusted baseline under capture — your
+kernel runs eager-only and can't be scored in the only regime that counts
+(graphs-on).
+Op slots do not use the metadata gate, but they are still captured directly, so
+the same practical graph-safety rules apply. See
+[Graph-safe kernels](/docs/miners/graph-safety).
+
+## What you MUST do / what you MUST NOT
+
+**Must:**
+
+- Fill the validator-allocated `out`(s). Return `None`.
+- For `(prepare, forward)` slots: make `prepare` pure (a function of the weights
+  only) and idempotent.
+- Declare `graph_safe: true` truthfully if you want to be scored under graphs.
+- Keep your code importable on a CPU box if you want to test locally (guard GPU
+  imports behind `try/except`).
+
+**Must not:**
+
+- Return a tensor. (The dispatcher won't use it.)
+- Allocate the output the model consumes. (The validator owns it.)
+- Touch the sampler, the logprob computation, or anything downstream of your
+  slot. (You're upstream of the sampler by contract.)
+- Read the final tokens. (You don't have them and you don't need them.)
+- Use banned imports/calls (`socket`, `subprocess`, `pickle`, `ctypes`, `eval`,
+  `exec`, `__subclasses__`, ...). `optima scan` will catch them; see
+  [Isolation](/docs/security/isolation) for why the scan is a tripwire not a
+  boundary.
+- Host-sync inside a graph (`.item()`, `.cpu()` that reads back) if you declared
+  `graph_safe`. It'll error at capture.
+
+## Where to go next
+
+- **Build one now:** [Your first kernel (20 min)](/docs/miners/your-first-kernel).
+- **Graph capture rules:** [Graph-safe kernels](/docs/miners/graph-safety).
+- **See real kernels:** [Example bundles](/docs/miners/examples).
+- **When it fails:** [Why did my kernel fail?](/docs/miners/diagnostics).

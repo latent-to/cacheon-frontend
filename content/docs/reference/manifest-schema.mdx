@@ -1,0 +1,330 @@
+---
+title: Manifest schema
+description: The manifest.toml a miner submits — top-level fields, the ops and dep_patches tables, path-safety rules, and what intake rejects, with minimal and maximal examples.
+---
+
+A **bundle** is what a miner submits: a directory (or tarball) containing a
+`manifest.toml` plus kernel source and optional eligibility metadata. The
+manifest is **data**, not code — it declares which slots the bundle claims to
+implement and where the source lives. The validator reads it; the miner never
+runs code at this stage.
+
+The parser and validator live in `optima/manifest.py` (~396 lines). This module
+is pure-Python (no torch/GPU) so the whole intake/validation path runs anywhere.
+
+## Bundle layout
+
+```
+bundle/
+  manifest.toml          # what you're submitting (data — never executed)
+  kernels/
+    silu_and_mul.py      # exposes the slot's `entry` callable
+    silu_and_mul.cu      # optional: declared via ops.cuda_sources (sanctioned
+                          # inspectable CUDA source; compiled only by a
+                          # validator-reviewed patcher)
+  patches/
+    fe_export.patch      # optional: declared via dep_patches (text unified diff
+                          # against a pinned dependency tree)
+  metadata/
+    silu_and_mul.json    # optional eligibility (dtypes, architectures, graph_safe)
+```
+
+## Top-level fields
+
+```toml
+bundle_id   = "my-silu-v1"            # required
+abi_version = "optima-op-abi-v0"      # required — must be exactly this
+
+[[ops]]                                 # required, ≥1 — one per slot you target
+# ...
+
+[[dep_patches]]                         # optional, ≥0 — dependency diffs
+# ...
+```
+
+| field | type | required | meaning |
+|---|---|---|---|
+| `bundle_id` | string | yes | unique id; must match `^[0-9A-Za-z._\-]+$` |
+| `abi_version` | string | yes | must equal `"optima-op-abi-v0"` (the `ABI_VERSION` constant, `optima/manifest.py:57`) |
+| `ops` | list of `[[ops]]` tables | yes, ≥1 | the slots this bundle implements; duplicate slots rejected |
+| `dep_patches` | list of `[[dep_patches]]` tables | no, ≥0 | text unified diffs against a pinned dependency tree |
+
+## `[[ops]]` — OpEntry
+
+One `[[ops]]` block per slot the bundle targets. A bundle can target several
+slots at once. Defined by `OpEntry` (`optima/manifest.py:65-89`).
+
+| field | type | required | meaning |
+|---|---|---|---|
+| `slot` | string | yes | the slot id from [the catalog](/docs/reference/slots-table); duplicates rejected |
+| `source` | path | yes | bundle-relative path to the kernel module; must resolve inside the bundle |
+| `entry` | identifier | yes | the callable name inside the module (must be a Python identifier) |
+| `dtypes` | list[str] | no | eligibility filter (e.g. `["bfloat16", "float16"]`); outside → validator runs baseline |
+| `architectures` | list[str] | no | manifest documentation today; runtime arch eligibility is read from metadata JSON |
+| `metadata` | path | no | bundle-relative path to a JSON file with eligibility fields |
+| `prepare` | identifier | no | 2nd callable for `(prepare, forward)` slots (weight-prep, runs once at load) |
+| `setup` | identifier | no | callable run ONCE at engine init (framework mode — miner may patch the engine) |
+| `base_kernel` | string | no | override-point: the validator-owned base kernel name (e.g. `"nvfp4_moe_megakernel"`) |
+| `override_point` | string | no | override-point: the typed hole in the base kernel (e.g. `"gemm1_epilogue"`); requires `base_kernel` |
+| `cuda_sources` | list[path] | no | bundle-relative `.cu`/`.cuh` sources for this op; sanctioned + identity-hashed |
+
+`entry` must be a valid Python identifier (`str.isidentifier()`). `prepare` and
+`setup` likewise if set. Unknown keys under `[[ops]]` are not rejected — they
+land in `OpEntry.extra` (a catch-all dict) rather than failing the parse, so
+forward-compatible metadata can travel alongside.
+
+Runtime eligibility combines the manifest `dtypes` with fields read from the
+metadata JSON. As of this checkout, manifest-level `architectures` is parsed and
+preserved but not consumed by the runtime registry; put GPU architecture filters
+in metadata as `{"architectures": ["sm90", "sm100"]}`.
+
+## Metadata JSON
+
+Metadata is eligibility plus documentation. The registry currently reads:
+
+| field | meaning |
+|---|---|
+| `dtypes` | additional dtype eligibility, unioned with manifest `dtypes` |
+| `architectures` | GPU architecture eligibility; use plural form |
+| `max_last_dim` | maximum accepted last dimension |
+| `graph_safe` | whether a block/collective implementation may run under CUDA graph capture |
+| `quant` | accepted quantization formats, e.g. `["nvfp4"]` |
+| `max_num_tokens` | upper token/row count gate |
+| `min_num_tokens` | lower token/row count gate |
+
+The `verify` CLI also reads `model` or `model_profile` as a development
+convenience to select a validator-owned per-model slot profile. Thresholds and
+correctness policy in metadata are documentation only unless validator code
+explicitly reads them.
+
+### Override-point submissions (`base_kernel` + `override_point`)
+
+The bundle does NOT ship a whole kernel — it fills a typed hole in a
+validator-owned base kernel from [`optima_kernels/`](/docs/reference/codebase-map).
+`entry` then names the override device fn (e.g. a CuTe-DSL epilogue),
+`base_kernel` names the base (e.g. `"nvfp4_moe_megakernel"`), and
+`override_point` names the hole (e.g. `"gemm1_epilogue"`). The validator
+JIT-composes base+override at load (`optima_kernels/override.py`). In this mode
+`prepare` is omitted — the validator owns the weight-prep for the base kernel.
+The `is_override` property (`optima/manifest.py:91`) is `True` when
+`override_point` is set.
+
+### CUDA source tier (`cuda_sources`)
+
+Bundle-relative paths to inspectable `.cu`/`.cuh` sources. Compiled only by a
+validator-reviewed patcher (`optima/patchers/build_cuda_ext.py`) — this field
+only validates the declaration is well-formed and safe to point at. Declaring a
+path here is what lets `scan_tree` treat the file as sanctioned instead of an
+unscanned stray binary. Validated by `_validate_cuda_source`
+(`optima/manifest.py:153`): must exist, resolve inside the bundle, be a regular
+non-symlink file, and have a `.cu`/`.cuh` suffix.
+
+## `[[dep_patches]]` — DepPatchEntry
+
+One block per text unified diff against a PINNED dependency tree (e.g.
+flashinfer). The first occupant is the `fe_export` deep seam. Defined by
+`DepPatchEntry` (`optima/manifest.py:96-108`).
+
+| field | type | required | meaning |
+|---|---|---|---|
+| `target` | identifier | yes | the pinned dependency name (e.g. `"flashinfer"`); must match `^[0-9A-Za-z._\-]+$` |
+| `path` | path | yes | bundle-relative `.patch`/`.diff` file; a text unified diff |
+
+`path` is structurally validated at load by `_validate_dep_patch`
+(`optima/manifest.py:187`): same containment/symlink posture as `cuda_sources`,
+PLUS a structural parse of the diff itself (`parse_patch_text`,
+`optima/deppatch.py`) — a bundle carrying a binary/rename/delete "patch" fails
+at intake, not at apply time. Whether a `target` is patchable at all, and where
+inside it a patch may land, is arena policy enforced by the one reviewed
+applier (`optima/patchers/apply_dep_patch.py`) against `optima/dep_policy.py` —
+never bundle content. Duplicate `(target, path)` pairs are rejected.
+
+## Path-safety rules
+
+All bundle paths (`source`, `metadata`, `cuda_sources`, `dep_patches.path`)
+must obey the same rules, enforced by `_safe_relpath` (`optima/manifest.py:131`):
+
+1. **Bundle-relative** — must not start with `/` (no absolute paths).
+2. **No traversal** — must resolve inside the bundle root; `..` that escapes
+   is rejected (`p == root_resolved or root_resolved in p.parents`).
+3. **Must exist** and be a regular file.
+4. **No escaping symlinks** — for `cuda_sources` and `dep_patches` (the
+   "sanctioned source" tiers), symlinks are refused outright
+   (`not unresolved.is_symlink()`), because a bundle-relative symlink could
+   point a "reviewed" path at file contents outside the reviewed tree even
+   while resolving inside the bundle boundary.
+5. **Suffix-restricted** — `cuda_sources` must be `.cu`/`.cuh`;
+   `dep_patches` must be `.patch`/`.diff`. This stops a declaration from being
+   used to sneak an arbitrary file past `scan_tree`'s binary-suffix rejection.
+
+`resolve_source` / `resolve_cuda_sources` / `resolve_dep_patches` re-validate
+cheaply (rather than trusting the manifest was loaded from this exact root) —
+same posture everywhere.
+
+## What's rejected at intake
+
+`load_manifest` (`optima/manifest.py:223`) raises `ManifestError` for:
+
+- bundle root is not a directory, or `manifest.toml` missing
+- TOML parse failure
+- `bundle_id` empty or has illegal chars (must match `^[0-9A-Za-z._\-]+$`)
+- `abi_version` ≠ `"optima-op-abi-v0"`
+- `ops` missing, empty, or not a list
+- any `[[ops]]` not a table; `slot`/`source`/`entry` missing or empty
+- duplicate `slot` within the manifest
+- `entry`/`prepare`/`setup` not a Python identifier
+- `source`/`metadata`/`cuda_sources`/`dep_patches.path` fails path-safety
+  (absolute, escapes bundle, missing, not a file, wrong suffix, is a symlink)
+- `override_point` set without `base_kernel`
+- `cuda_sources` not a list, or any entry fails `_validate_cuda_source`
+- `dep_patches` not a list; `target` not a simple identifier; any patch fails
+  `_validate_dep_patch` (including a structurally invalid diff)
+- duplicate `(target, path)` dep-patch pair
+- a `dep_patches` table with unknown keys
+
+Intake validates schema and path-safety only. It does NOT import or execute any
+miner code (that is `optima/sandbox.py`'s job) and does NOT check the slot
+contract numerically (that is `optima/verify.py`'s job).
+
+## Minimal complete example
+
+A trivially-correct pure-torch `silu_and_mul` (from `examples/miner_silu_torch`):
+
+```toml
+bundle_id  = "example-silu-torch-cpu"
+abi_version = "optima-op-abi-v0"
+
+[[ops]]
+slot   = "activation.silu_and_mul"
+source = "kernels/silu_and_mul.py"
+entry  = "silu_and_mul"
+dtypes = ["float32", "bfloat16", "float16"]
+metadata = "metadata/silu_and_mul.json"
+```
+
+The kernel (`kernels/silu_and_mul.py`):
+
+```python
+import torch
+import torch.nn.functional as F
+
+def silu_and_mul(x: torch.Tensor, out: torch.Tensor) -> None:
+    d = x.shape[-1] // 2
+    out.copy_(F.silu(x[..., :d].float()).to(x.dtype) * x[..., d:])
+```
+
+The (prepare, forward) MoE case (`examples/miner_moe_fused_experts_reduce_torch`):
+
+```toml
+bundle_id  = "example-moe-fused-experts-reduce-torch"
+abi_version = "optima-op-abi-v0"
+
+[[ops]]
+slot    = "moe.fused_experts_reduce"
+source  = "kernels/moe_reduce.py"
+entry   = "fused_experts_reduce"
+prepare = "prepare"
+dtypes  = ["float32", "bfloat16", "float16"]
+metadata = "metadata/moe_reduce.json"
+```
+
+## Maximal example — override + dep_patches
+
+The MiniMax-M3 NVFP4 swigluoai override, which combines the override-point tier
+and (in its full form) the dep_patches deep seam. The manifest
+(`examples/miner_m3_swigluoai_override/manifest.toml`):
+
+```toml
+bundle_id  = "m3-swigluoai-override-v1"
+abi_version = "optima-op-abi-v0"
+
+[[ops]]
+slot          = "moe.fused_experts"
+source        = "kernels/swigluoai.py"
+entry         = "gemm1_epilogue"            # the device epilogue (entry+"_ref" = its torch reference)
+base_kernel   = "nvfp4_moe_megakernel"      # validator-owned base
+override_point = "gemm1_epilogue"           # the typed hole
+dtypes        = ["bfloat16", "float16"]
+metadata      = "metadata/moe.json"
+
+# A deep-seam bundle additionally declares the flashinfer patch that exports
+# pre-finalize pointers for collective.moe_finalize_ar_rmsnorm to consume.
+# (Shown here for completeness; the public override example does not ship one.)
+[[dep_patches]]
+target = "flashinfer"
+path   = "patches/fe_export.patch"
+```
+
+The override kernel ships two callables — the CuTe-DSL device epilogue and its
+portable torch reference (`examples/miner_m3_swigluoai_override/kernels/swigluoai.py`):
+
+```python
+def gemm1_epilogue_ref(gate, up, alpha: float = 1.702, limit: float = 7.0):
+    """M3 clamped swigluoai — the fidelity oracle + what the CPU/dense path runs."""
+    import torch
+    g = gate.clamp(max=limit)
+    u = up.clamp(min=-limit, max=limit)
+    return g * torch.sigmoid(alpha * g) * (u + 1.0)
+
+# gemm1_epilogue (the @cute.jit device fn) lives behind a `cutlass` import guard
+# so the module imports on a CPU box; the validator's loader returns None for it
+# there and uses the torch reference.
+```
+
+The metadata declares the model (which selects the validator's
+[per-model profile](/docs/reference/slots-table#per-model-profiles)) and graph-safety:
+
+```json
+{
+  "slot": "moe.fused_experts",
+  "model": "MiniMax-M3-NVFP4",
+  "arch": "sm_100",
+  "graph_safe": true,
+  "quant": ["nvfp4"],
+  "swiglu": {"kind": "swigluoai", "alpha": 1.702, "limit": 7.0}
+}
+```
+
+<Callout type="info">
+  Correctness thresholds (`min_cosine`, `kl_threshold`) are
+  **validator-owned** via `MODEL_PROFILES["MiniMax-M3"]`. A value declared in
+  metadata is documentation only — the validator never reads thresholds from
+  miner data. The manifest `model`/`model_profile` field only selects WHICH
+  validator profile applies.
+</Callout>
+
+<Callout type="info">
+  The registry reads `architectures`, not singular `arch`. The public
+  M3 metadata keeps `arch` as human documentation; use `architectures` when you
+  want an actual eligibility gate.
+</Callout>
+
+## Framework-mode (setup) example
+
+A bundle whose `setup()` may patch the engine — gated on token-match vs the
+trusted stock baseline, not in-process KL (`examples/miner_setup_demo`):
+
+```toml
+bundle_id  = "example-setup-demo"
+abi_version = "optima-op-abi-v0"
+
+[[ops]]
+slot   = "activation.silu_and_mul"
+source = "kernels/k.py"
+entry  = "silu_and_mul"
+setup  = "setup"
+dtypes = ["float32", "bfloat16", "float16"]
+```
+
+Run with `python -m optima.cli evaluate --framework-mode` (auto-enables no-egress
+isolation).
+This is the fenced escape hatch, not the core slot contract — see
+the escape-hatch section of the committed `docs/SLOT_CONTRACT.md`.
+
+---
+
+Cross-links: the [slot catalog](/docs/reference/slots-table) for the `slot` values and
+contracts each `[[ops]]` block targets; the [CLI reference](/docs/reference/cli) for
+`scan`/`hash`/`verify`; the [codebase map](/docs/reference/codebase-map) for the patchers
+and override machinery. The sandbox rules (what a kernel may NOT contain) are
+in the [bundle format](/docs/miners/bundle-format).

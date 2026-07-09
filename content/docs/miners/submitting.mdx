@@ -1,0 +1,144 @@
+---
+title: Submitting on-chain
+description: The last step — committing a bundle on-chain via Bittensor timelock commit-reveal, from wallet setup through the reveal block and settlement.
+---
+
+Everything before this page — writing a kernel, running `scan` and `verify`,
+[your first kernel](/docs/miners/your-first-kernel), GPU `evaluate`/`bench` — needs no
+wallet and no chain. This page is the last step: getting a bundle you trust
+in front of the validator.
+
+## How submission rides the chain
+
+Submission uses Bittensor's native **timelock commit-reveal**: you commit your
+bundle's content hash and fetch URL on-chain, and the payload stays encrypted
+until the reveal block — nobody, validators included, can read your URL
+before then. The reveal block is your **priority timestamp**: the validator
+replays reveals in chain order, so being first is decided by the chain, not
+by any off-chain clock. Only that tiny payload (~1 KB: a hash and a URL) ever
+touches the chain — your kernel source never does.
+
+The consequence for copying: a bundle revealed *after* yours, whose content is
+the same or a reformatted rename of yours, is detected and demoted — not
+evaluated, scored 0 — by exact hash **or** a reformat-invariant fingerprint
+that survives whitespace/rename changes. Detection is cumulative across
+rounds, not just within one.
+
+## One-time setup
+
+You need a wallet, a small amount of testnet TAO, and a registered hotkey.
+
+```bash
+pip install bittensor-cli
+btcli wallet create        # creates a coldkey + a hotkey; back up the mnemonics
+                            # it prints — there is no recovery without them
+```
+
+A wallet has two keys with different jobs: the **coldkey** holds funds and
+signs registration — it's the one worth protecting. The **hotkey** signs the
+recurring actions (commitments, and later `set_weights` if you run a
+validator) and is what receives emission. See Bittensor's own key
+documentation: [https://docs.learnbittensor.org/keys/wallets](https://docs.learnbittensor.org/keys/wallets).
+
+Testnet TAO for registration comes from the Bittensor Discord faucet (manual,
+ask in the server — there's no self-serve endpoint at the time of writing).
+Once you have some, register your hotkey on the subnet:
+
+```bash
+python -m optima.cli chain-register --netuid <NETUID> --network <NET> \
+    --wallet default --hotkey default
+```
+
+This runs `burned_register` (needs the coldkey password) and skips if you're
+already registered.
+
+## Per submission
+
+Three commands, run in order, once your bundle passes `scan` + `verify` +
+`evaluate` locally.
+
+**1. Package.** Tars the bundle exactly as the identity hash sees it and
+prints the content hash you're about to commit:
+
+```bash
+python -m optima.cli chain-package my_bundle --out my_bundle.tar.gz
+```
+
+Identity is `content_hash` over the *extracted* directory tree, so the same
+bundle contents hash the same however they're archived — but the tarball you
+host has to extract to exactly what you packaged. Don't edit the bundle after
+this step without re-running it.
+
+**2. Host it.** Put `my_bundle.tar.gz` anywhere the validator can fetch it
+over HTTPS — any static host works (a GitHub release, object storage, your
+own server). The validator re-hashes what it downloads against the hash you
+committed, so a mismatch — wrong file, edited after packaging, wrong URL — is
+rejected at fetch time and recorded, not retried every pass. (`file://` URLs
+are fine for a same-machine dev loop, not for a real submission.)
+
+**3. Commit.** Post the hash and URL on-chain via the timelock commit-reveal:
+
+```bash
+python -m optima.cli chain-submit my_bundle --url https://<where-you-hosted-it> \
+    --netuid <NETUID> --network <NET> --wallet default --hotkey default \
+    --blocks-until-reveal 10
+```
+
+`--hotkey` here is **your miner hotkey**. `--blocks-until-reveal` sets how
+long the payload stays encrypted (default 10 blocks); `--dry-run` builds and
+prints the exact payload without signing or submitting, useful for a sanity
+check first. A malformed payload (bad hash/URL binding) is refused *before*
+signing.
+
+**Check what the subnet currently sees:**
+
+```bash
+python -m optima.cli chain-status --netuid <NETUID> --network <NET>
+```
+
+Prints the current block, neuron/permit counts, and every revealed commitment
+in reveal-block order — this is how you confirm your submission actually
+landed and see when it reveals.
+
+> `optima commit` / `optima reveal` / `optima settle` are the same
+> commit-reveal protocol run against a **local ledger file** — useful for
+> testing round logic offline. They are not the production submission path;
+> use `chain-submit` for a real subnet.
+
+## What happens after your reveal block
+
+Once your commitment reveals, the validator's `chain-validate` loop picks it
+up on its next pass: fetch the archive (hostile-archive-safe extraction,
+size-capped) → **re-hash the extracted tree and refuse a mismatch against
+your committed hash** → fingerprint it and check for copies (a copy is
+demoted, not evaluated) → run the original through the full gate chain
+out-of-process (op-correctness, fidelity, benchmark, throughput) → record the
+score → settle king-of-the-hill per slot → push weights. For the mechanics of
+that loop and the operator-side runbook, see
+[The chain loop](/docs/validators/chain-loop) and
+[Running on testnet](/docs/validators/testnet) — the latter has the
+full record of an end-to-end run on testnet netuid 307, commit through
+settlement.
+
+## Terms
+
+{/* TODO: confirm canonical optima repo URL (latent-to/optima vs ShivanshuPurohit/optima) before publish */}
+Submitting is made under the terms in
+[`docs/SUBMISSION_TERMS.md`](https://github.com/latent-to/optima/blob/main/docs/SUBMISSION_TERMS.md)
+— currently a **published draft**, not yet in effect. In short: you keep
+copyright in your submission; the operator gets a perpetual, commercial
+license to run and improve it — including in a hosted inference service —
+in exchange for subnet emissions as the sole compensation. Read the full
+document before you commit anything you'd want different terms for.
+
+## Ready to submit when
+
+- [ ] `optima scan` and `optima verify --device cuda` pass on your bundle
+- [ ] `evaluate` shows a speedup over the noise bar with an `active` + `fired`
+      receipt (see [Why did my kernel fail?](/docs/miners/diagnostics) — no phantom pass)
+- [ ] fidelity is green in the arena's mode (audit violations 0, or KL under
+      threshold) and `bench` shows no task-accuracy regression
+- [ ] block/collective kernels: `graph_safe` is declared and the kernel
+      actually captures under CUDA graphs
+- [ ] the hosted `.tar.gz` re-hashes to what `chain-package` printed
+- [ ] your hotkey is registered (`chain-register`) and funded for the commit

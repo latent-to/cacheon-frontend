@@ -1,0 +1,92 @@
+---
+title: Arenas
+description: An arena is the unit of competition — a specific model, serving config, and hardware. What defines one, why exactly one is active per season, and how a new model gets added.
+---
+
+An **arena** is the unit of competition: a specific model, run under a specific
+serving configuration, on specific hardware. Optima is arena-agnostic by design —
+the slots, the seam, the scoring, and the chain loop are all general — but exactly
+**one arena is active per "season,"** and every validator runs the same arena on
+the same pinned engine so scores are comparable.
+
+This page is short on purpose. The point is to make the concept a first-class
+thing so that adding a model later is *adding a row*, not rewriting prose. The
+current code does not have a separate `optima/arenas.py` registry; an arena is
+the coordinated bundle of CLI flags, slot profiles, pinned sglang version, and
+operator runbook for a season.
+
+## What defines an arena
+
+| Dimension | Why it matters | Example (M3) |
+|---|---|---|
+| **Model (+ quantization)** | the fixed graph kernels are swapped into | MiniMax-M3-NVFP4 (`modelopt_fp4`) |
+| **Hardware / topology** | the box the validator controls | 4×B300, tensor-parallel 4 |
+| **Serving config** | the backend stack the baseline runs on | attention `fa4`, MoE `flashinfer_cutlass`, `enable_flashinfer_allreduce_fusion=true` |
+| **Slot profile** | validator-owned per-model facts (activation kind, correctness mode, KL floors) | `swigluoai(1.702, 7.0)` activation; `cosine(0.985)` correctness for NVFP4 experts |
+| **Fidelity mode** | audit vs KL, chosen by whether the stack is launch-deterministic | `audit` (the stack is nondeterministic; rollout-KL gates timing, not fidelity) |
+| **Record regime** | the `NP/MNT/TI/WU` that produces a stable, resolvable tok/s | `NP=256 MNT=256 TI=3 WU=4` |
+
+The arena is chosen deliberately. A kernel that improves throughput on one arena
+doesn't automatically improve another — different models expose different slot
+surfaces (MoE experts on M3, SSM state on Nemotron, MLA attention on DeepSeek),
+and every speedup is relative to *that* arena's stock baseline.
+
+## Why exactly one is active per season
+
+Two reasons:
+
+1. **Consensus.** Bittensor's Yuma consensus penalizes a validator whose weight
+   vector diverges from the stake-weighted median. If validators A and B ran
+   different arenas (different models, different sglang pins), they'd measure
+   different throughput for the identical kernel → divergent weights → lost
+   emission. So a single arena + a single `PINNED_SGLANG` are coordinated subnet
+   parameters, bumped together per season. See
+   [sglang pinning](/docs/dev/sglang-tracking).
+2. **Comparability.** A "speedup" is only meaningful against a specific baseline.
+   The arena *is* that baseline, fixed for the season.
+
+## How a new model gets added
+
+An arena is mostly *configuration*, not code:
+
+1. **Slot profiles** — add a row to `MODEL_PROFILES` in `optima/slots.py` if the
+   model needs a non-default activation, correctness mode, or KL floor (e.g. M3
+   retargets the MoE reference to `swigluoai` and switches to `cosine`). Models
+   with stock activations need no profile at all.
+2. **The serving flags** — the `--model`, `--attention-backend`,
+   `--moe-runner-backend`, `--engine-kwargs-json` set. These are the validator's
+   run config for the season, not miner-facing.
+3. **The fidelity mode** — `audit` by default on launch-nondeterministic stacks
+   (FP4/FP8, eager fa4); `kl` only on arenas where a stock-vs-stock control
+   measures ~0. See [fidelity](/docs/validators/fidelity).
+4. **The record regime** — calibrate `NP/MNT/TI/WU` until the bracketing
+   baselines agree on that hardware. See [running evals](/docs/validators/running-evals).
+5. **A sglang pin** — the engine version all validators agree on for the season.
+
+The slots themselves don't change per arena — they're the
+[narrow waist](/docs/architecture/slot-contract). A new model may *expose* slots
+that didn't matter before (a new attention variant, a different MoE shape), but
+adding those is a validator-side slot-catalog change, not a per-arena thing.
+
+## Arenas validated so far
+
+| Arena | Hardware | Status | Notes |
+|---|---|---|---|
+| **MiniMax-M3-NVFP4** | 4×B300 (TP4) | **Validated end-to-end; submitted kernels surpassed sglang** | first complete case study. See [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study). |
+| Qwen2.5 (0.5B / 1.5B) | single H100 | **Mechanism validated** | the referee fires; no submitted kernel has surpassed sglang here. The default for the [20-min first kernel](/docs/miners/your-first-kernel) walkthrough. |
+| gpt-oss-120b | single H100 | **Mechanism validated** | the largest single-GPU model validated; the MoE seam routes its experts. |
+
+Planned / future arenas that are not yet validated as scored Optima arenas:
+Nemotron-3-Ultra (SSM/comms), GLM-5.2, DeepSeek-V4 (MLA attention), and others.
+Some of these may already have profiling or prototype folders under
+`experiments/`; they become rows here only after the validator gate chain has
+been run as a scoring arena.
+
+## A note on "what Optima is for"
+
+The arena list will grow. Don't read the M3 examples in these docs as "this is
+the M3 subnet" — read them as "the general system, documented through its first
+fully validated instance." The [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study)
+page is deliberately specific because concrete measurements are more useful than
+an abstract template; when a second arena is validated, it should get the same
+treatment alongside it.

@@ -14,7 +14,7 @@ Miners submit optimized GPU **kernels** (Triton / CuteDSL) for individual typed 
     </li>
     <li>
       <b>Score:</b> throughput speedup, gated by KL fidelity + benchmark accuracy.{" "}
-      <a href="/docs/evaluation/scoring">Scoring</a>
+      <a href="/docs/validators/scoring">Scoring</a>
     </li>
     <li>
       <b>Incentive:</b> one champion per slot; dethrone only by beating the margin (+2% default)
@@ -23,7 +23,7 @@ Miners submit optimized GPU **kernels** (Triton / CuteDSL) for individual typed 
 </Callout>
 
 <Callout type="info" title="Cacheon → Optima, Phase 2">
-  Optima is the same subnet as Cacheon (netuid **14** mainnet, **470** testnet), evolved. Cacheon's
+  Optima is the same subnet as Cacheon (mainnet netuid **14**), evolved. Cacheon's
   Phase 1 proved the mechanism with whole-container inference servers. Cacheon's own roadmap named
   Phase 2 as auditable code contributions instead of opaque containers. Optima is that phase: you
   submit an inspectable kernel for one op, not a Docker image serving a whole model.
@@ -52,7 +52,7 @@ See [Why it matters](/docs/concepts/why-it-matters) for the full problem stateme
   />
   <Card
     title="I want to know what's measured"
-    href="/docs/evaluation/scoring"
+    href="/docs/validators/scoring"
     description="Throughput, the KL fidelity gate, benchmark accuracy, and noise-robust scoring."
   />
   <Card
@@ -68,11 +68,19 @@ See [Why it matters](/docs/concepts/why-it-matters) for the full problem stateme
 - **Not a container or BYO-stack.** You do not ship a Docker image serving a whole model. You submit a kernel for one typed slot, and the validator owns everything around it.
 - **Not a whole-model submission.** You implement one op (an activation, a norm, an attention or MoE block, a collective) upstream of the sampler. You never produce the final tokens, which is what makes the competition cheat-resistant.
 
+{/* TODO: confirm the mainnet/own-subnet story before publish — testnet loop was validated on netuid 307, which is someone else's subnet (no permit, weights dry-run). Mainnet is SN14. */}
+
 <Callout type="warn" title="Honest status">
-  The mechanism is validated end-to-end on real GPUs (H100, up to gpt-oss-120b), but **no submitted
-  kernel has beaten sglang yet**: the referee is proven, the optimization side is not. Host isolation
-  for untrusted miners is not built (the VM is the trust boundary today), chain integration is a
-  local JSON ledger, and a public leaderboard is roadmap. See the [Roadmap](/docs/roadmap).
+  The mechanism is validated end-to-end on real GPUs (single H100 up to gpt-oss-120b; 4×B300 for
+  MiniMax-M3-NVFP4). A submitted kernel **has** surpassed the pinned sglang baseline: on the
+  MiniMax-M3-NVFP4 arena, fused decode epilogues measured **1.044×–1.074×** through the scorer at
+  equal audited fidelity, reproduced on independent prompt seeds and once through the on-chain loop
+  (1.072× against the noise-derived bar 1.026). Chain integration is built, merged, and
+  live-validated on Bittensor testnet (netuid **307**, 2026-07-08) — though weights stay dry-run
+  there because that subnet rejects our stake, so a real weight push needs our own subnet. Still
+  open: host isolation for untrusted miners (today the process boundary is a tripwire, not a wall),
+  a real DB behind the durable-JSON ledger, mainnet economics, and a public leaderboard. See the
+  [Roadmap](/docs/roadmap).
 </Callout>
 
 ## Useful links
