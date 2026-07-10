@@ -2,85 +2,139 @@
 title: Introduction
 ---
 
-**Optima** is Bittensor Subnet 14 (SN14). It is an open, on-chain competition for **inference-throughput optimization** of LLMs.
+# Optima
 
-Miners submit optimized GPU **kernels** (Triton / CuteDSL) for individual typed **slots**, a single op, a fused block, or a cross-GPU collective, inside a **fixed** model the validator controls. The validator swaps each kernel into a pinned **sglang** engine, runs the model, and scores **throughput gated by output fidelity**: per-token **KL** divergence against a stock reference run, plus task accuracy on real benchmarks. Each slot has one champion; a challenger takes the title only by beating it by a margin (**king-of-the-hill**).
+**Optima is a Bittensor-style subnet that pays miners for making LLM inference
+faster.**
 
-<Callout title="TL;DR" className="my-2 gap-2 p-2 [&>*:last-child]:gap-1">
-  <ul className="marker:text-fd-muted-foreground my-0 list-disc space-y-0.5 pl-4 leading-snug">
-    <li>
-      <b>Submit:</b> a <b>bundle</b> (<code>manifest.toml</code> + <code>kernels/*.py</code>), <b>not</b> a container
-    </li>
-    <li>
-      <b>Score:</b> throughput speedup, gated by KL fidelity + benchmark accuracy.{" "}
-      <a href="/docs/validators/scoring">Scoring</a>
-    </li>
-    <li>
-      <b>Incentive:</b> one champion per slot; dethrone only by beating the margin (+2% default)
-    </li>
-  </ul>
-</Callout>
+Miners submit GPU **kernels** (Triton or CuteDSL) that replace a single,
+tightly-scoped **slot** inside a *fixed* model: an op, a fused block, or a
+cross-GPU collective. A validator swaps each
+submission into the model it controls, runs it, and scores it on **throughput**
+— but only if it passes the **fidelity** gate (the output distribution is still
+correct) and, in production scoring, the arena's **task-accuracy** gate.
+The endgame: a continuously-improving, state-of-the-art inference stack, sold as
+a managed service, driven by economic incentive instead of a single vendor.
 
+This repo is the **validator harness** — the referee — plus example miner
+submissions. It is not the model, not the inference engine, and not the chain
+itself. It is the machinery that decides whether one kernel is genuinely faster
+than the stock one, at equal quality, on the only regime that counts
+(CUDA-graphs on).
 
+---
 
-## Why Optima exists
-
-Inference is the bottleneck for serving LLMs at scale. Latency, memory, and cost decide whether a model is usable in production. Optimization techniques such as _FlashAttention_, fused kernels, MoE kernels, and tensor-parallel collectives are usually benchmarked in isolation, so objective performance comparisons are impossible.
-
-Optima turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring. Miners write real GPU kernels for well-defined boundaries inside the model. The only thing that matters is making the model faster while keeping its outputs correct.
-
-See [Why it matters](/docs/concepts/why-it-matters) for the full problem statement.
-
-## Pick your path
-
-<Cards>
-  <Card
-    title="I want to mine"
-    href="/docs/miners/overview"
-    description="The slots you can target, the bundle format, the scoring gates, and how to test locally then on a GPU."
-  />
-  <Card
-    title="I want to understand the system"
-    href="/docs/validators/overview"
-    description="What the validator owns, the seam that swaps a kernel into a spawned sglang process, and the two-launch measurement."
-  />
-  <Card
-    title="I want to know what's measured"
-    href="/docs/validators/scoring"
-    description="Throughput, the KL fidelity gate, benchmark accuracy, and noise-robust scoring."
-  />
-  <Card
-    title="I want to see the roadmap"
-    href="/docs/roadmap"
-    description="Phase 1 container arena (done), Phase 2 kernel competition (active), then production serving and the intelligence layer."
-  />
-</Cards>
-
-## What Optima is not
-
-- **Not a training subnet.** The model is fixed and validator-controlled. You do not finetune weights.
-- **Not a container or BYO-stack.** You do not ship a Docker image serving a whole model. You submit a kernel for one typed slot, and the validator owns everything around it.
-- **Not a whole-model submission.** You implement one op (an activation, a norm, an attention or MoE block, a collective) upstream of the sampler. You never produce the final tokens, which is what makes the competition cheat-resistant.
-
-{/* TODO: confirm the mainnet/own-subnet story before publish — testnet loop was validated on netuid 307, which is someone else's subnet (no permit, weights dry-run). Mainnet is SN14. */}
-
-<Callout type="warn" title="Honest status">
-  The mechanism is validated end-to-end on real GPUs (single H100 up to gpt-oss-120b; 4×B300 for
-  MiniMax-M3-NVFP4). A submitted kernel **has** surpassed the pinned sglang baseline: on the
-  MiniMax-M3-NVFP4 arena, fused decode epilogues measured **1.044×–1.074×** through the scorer at
-  equal audited fidelity, reproduced on independent prompt seeds and once through the on-chain loop
-  (1.072× against the noise-derived bar 1.026). Chain integration is built, merged, and
-  live-validated on Bittensor testnet (netuid **307**, 2026-07-08) — though weights stay dry-run
-  there because that subnet rejects our stake, so a real weight push needs our own subnet. Still
-  open: host isolation for untrusted miners (today the process boundary is a tripwire, not a wall),
-  a real DB behind the durable-JSON ledger, mainnet economics, and a public leaderboard. See the
-  [Roadmap](/docs/roadmap).
-</Callout>
 
 ## Useful links
-{/* TODO: confirm optima links */}
+{/* TODO: confirm links */}
 - [GitHub](https://github.com/latent-to/optima)
   
 - [Discord](https://discord.com/invite/???)
 - [X](https://x.com/???)
 - [TAO.app subnet page](https://tao.app/subnets/14)
+
+## Who is this site for?
+
+| If you are… | Start here |
+|---|---|
+| **A miner** — you write kernels and want to earn | [Miner guide → Start here](miner-guide/overview.md), or [submit on-chain](miner-guide/submitting.md) if your kernel is ready |
+| **A validator / operator** — you run the referee and push weights | [Validator guide → Overview](validator-guide/overview.md), or [Validator guide → First hour](validator-guide/first-hour.md) for the fastest path to a first scored eval |
+| **Trying to understand the design** — how does this stay un-cheatable? | [Architecture → Overview](architecture/overview.md) |
+| **Auditing the security model** | [Security → Threat model](security/threat-model.md) |
+| **Setting up a GPU pod to run evals** | [Dev → GPU setup](dev/gpu-setup.md) (provider-agnostic checklist) |
+| **Wondering how the project grew** | [Project history](history/changelog.md) |
+
+---
+
+## Why Optima exists
+
+Inference is the bottleneck for serving LLMs at scale. Latency, memory, and cost decide whether a model is usable in production. Optimization techniques are usually benchmarked in isolation, so objective performance comparisons are impossible.
+
+Optima turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring. Miners write real GPU kernels for well-defined boundaries inside the model. The only thing that matters is making the model faster while keeping its outputs correct.
+
+See [Why it matters](/docs/concepts/why-it-matters) for the full problem statement.
+
+
+## How the incentive mechanism works
+
+> A miner replaces *one slot* in a fixed model with a faster kernel; the
+> validator measures throughput and output fidelity itself, out-of-process, and
+> pays the miner only if the kernel is genuinely faster at equal quality.
+
+Everything else — the slots, the seams, the commit-reveal, the audit, the
+copy-detection — is engineering in service of making that one sentence
+un-cheatable.
+
+## The two key ideas
+
+1. **The slot.** A miner never submits a whole model, a whole backend, or a whole
+   inference engine. They submit a kernel for **one typed slot** (a single
+   op, a fused block, or a cross-GPU collective) that the validator drops into a
+   fixed place in a fixed model. Because the miner only ever *fills an output
+   tensor the validator allocated* — strictly upstream of the sampler — there is
+   no final output to fake. The "run gibberish, fetch the real answer from an
+   API" attack structurally cannot happen. See
+   [The slot contract](architecture/slot-contract.md).
+
+2. **The seam.** The validator never forks the inference engine (sglang). It runs
+   a pinned, unmodified sglang and patches a handful of internal chokepoints
+   *at runtime*, in the spawned process that actually runs the model, so a
+   miner's kernel can be swapped in without reconfiguring anything. Every
+   validator runs the identical pinned engine, so scores are comparable. See
+   [The seam](architecture/seam.md).
+
+## What's actually proven
+
+- The **mechanism** is done and validated on real GPUs (H100 up to gpt-oss-120b;
+  4×B300 MiniMax-M3-NVFP4): ten slots across op / block / collective kinds, the
+  runtime-injection seam, op-correctness, bookended throughput, two fidelity
+  modes, a real-task capability gate, commit-reveal + king-of-the-hill, and
+  tamper-resistant timing.
+- The **chain integration** is built, merged (PR #25 and PR #26 both on `main`),
+  and live-validated on the Bittensor testnet (netuid 307, 2026-07-08): a miner
+  committed a bundle via the chain's native timelock commit-reveal, the validator
+  loop discovered it, fetched and re-hashed the artifact, fingerprinted it for
+  copy detection, and drove the full GPU referee out-of-process — no human in the
+  path. It scored the bundle at **1.072× against the noise-derived bar 1.026**
+  (in-engine audit 12,824 sampled calls, 0 violations) — the third independent
+  reproduction of that bundle's speedup.
+  Weights stayed dry-run because subnet 307 (owned by someone else, never
+  start-called) rejects stake, so the validator hotkey never got a permit — a real
+  weight push needs our own subnet.
+- **A submitted optimization has surpassed the pinned sglang baseline.** The first
+  fully validated arena is MiniMax-M3-NVFP4 on 4×B300. In that arena, a fused
+  AR+residual+RMSNorm decode epilogue measured 1.044×, and a deeper MoE-finalize
+  + AR + add + norm fusion measured 1.074×, both through Optima's scorer at equal
+  audited fidelity and above the noise-derived bar. The result was reproduced on
+  independent prompt seeds and once through the on-chain loop (the 1.072× above).
+  This is the first case study, not the limit of the system: later arenas such as
+  Nemotron-3-Ultra and DeepSeek-V4 should be added as new arena records.
+  See [Arenas](reference/arenas.md).
+
+## What's still in progress
+
+- **Isolation for untrusted miners.** Today the miner's host Python runs in the
+  same process as the scheduler. The static policy scan is a tripwire, not a
+  boundary. Production needs per-eval process + namespaces + no-egress + GPU
+  context isolation. See [Isolation](security/isolation.md).
+- **A real DB behind the Ledger** (it's durable JSON today) and **mainnet
+  economics** (own subnet, staked validator permits, hosted bundle store).
+- **A tiered eval scheduler** (screen cheap, record rarely) for fleet-scale
+  throughput.
+
+The README in the repo is the current state of record; if anything here and it
+disagree, the README wins.
+
+---
+
+## A note on how these docs are organized
+
+These docs are structured like a readthedocs site because the repo outgrew being
+understandable from a single file. The deep, committed reference docs still live
+in `docs/` in the repo (`HOW_OPTIMA_WORKS.md`, `SLOT_CONTRACT.md`,
+`MINER_GUIDE.md`, `FIDELITY.md`, `TESTNET.md`, `SUBNET_BLUEPRINT.md`,
+`SGLANG_TRACKING.md`, `DEV_ENVIRONMENT.md`, `SUBMISSION_MODEL.md`). This site is
+a re-organized, cross-linked, human-readable pass over the same material — not a
+replacement. When a page here points at a committed doc for the deep version,
+that's intentional.
+
