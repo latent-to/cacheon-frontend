@@ -486,7 +486,7 @@ function EvalOutcomeCard({
           </>
         )}
         <a
-          href="/docs/evaluation/scoring#disqualification-reason-codes"
+          href="/docs/validators/scoring#what-a-result-means"
           target="_blank"
           rel="noopener noreferrer"
           className="text-2xs tracking-caps border-border/40 text-secondary hover:border-accent/40 hover:text-accent inline-flex rounded border bg-transparent px-2.5 py-1.5 font-mono font-semibold uppercase no-underline transition-colors"
