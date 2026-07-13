@@ -4,7 +4,7 @@ title: Roadmap
 
 ## Where we are
 
-Phase 1, the Cacheon container arena, proved that a market for inference optimization can discover real improvements against a strong baseline faster than any single team.  Optima replaces opaque container submissions with inspectable GPU kernels for typed slots, the referee is validated end to end on real GPUs, and the first submitted kernel has surpassed the pinned sglang baseline.
+Phase 1, the Cacheon container arena, proved that a market for inference optimization can discover real improvements against a strong baseline faster than any single team.  Cacheon replaces opaque container submissions with inspectable GPU kernels for typed slots, the referee is validated end to end on real GPUs, and the first submitted kernel has surpassed the pinned sglang baseline.
 
 ## Phase 1: single-model container arena (Cacheon)
 
@@ -14,7 +14,7 @@ One model, one hardware target, one mechanism. Miners submitted whole containeri
 
 **What it proved:** inference optimization is a search problem that a competitive network can solve faster than any single team. Its limitation is what motivated Phase 2: an opaque container is not portable IP and cannot be inspected, composed, or folded into a library.
 
-## Phase 2: kernel competition (Optima)
+## Phase 2: kernel competition (Cacheon)
 
 **Status:** active, current mechanism.
 
@@ -41,7 +41,7 @@ Validated end to end on real GPUs (single H100 up to gpt-oss-120b; 4×B300 for M
 Winning kernels deployed as a managed service (`optima-serve`) running the `optima-kernels` library on a rented engine, serving real traffic. The subnet stops being just a competition and becomes a product.
 
 - Agent, RAG, and multi-turn workloads with latency targets
-- **Product-market fit:** teams route traffic to Optima because nothing else serves this model on this hardware as efficiently
+- **Product-market fit:** teams route traffic to Cacheon because nothing else serves this model on this hardware as efficiently
 
 ## Phase 4: intelligence layer
 

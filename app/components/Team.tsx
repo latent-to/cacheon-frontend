@@ -30,7 +30,7 @@ export default function Team() {
   return (
     <section id="team" className="border-border/50 relative border-t">
       <div className="mx-auto max-w-6xl px-6 py-28 max-sm:py-16">
-        <SectionHeader eyebrow="04 — Team" title="The people building Optima." />
+        <SectionHeader eyebrow="04 — Team" title="The people building Cacheon." />
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-5">
           {TEAM.map((m) => (

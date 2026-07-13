@@ -5,7 +5,7 @@ const COMPETITORS = [
   {
     rank: 1,
     name: 'Your Kernel',
-    tag: 'Optima champion',
+    tag: 'Cacheon champion',
     speed: 1.37,
     pass: true,
     leader: true,
@@ -86,7 +86,7 @@ export default function WhatIs() {
   return (
     <section id="about" className="border-border/50 relative border-t">
       <div className="mx-auto max-w-6xl px-6 py-28 max-sm:py-16">
-        <SectionHeader eyebrow="01 — Overview" title="What is Optima?" />
+        <SectionHeader eyebrow="01 — Overview" title="What is Cacheon?" />
 
         <p className="text-lg2 text-secondary -mt-8 mb-14 max-w-2xl font-sans leading-[1.65]">
           An arena where GPU kernels race the stock sglang baseline. The fastest kernel that stays

@@ -5,7 +5,7 @@ title: Finding a throughput improvement
 This is the hard part. Writing a *correct* kernel is mechanical; writing one
 that's *faster than the vendor's tuned kernel* is a research problem. This page
 is the practical guide, grounded in the MiniMax-M3 case study where submitted
-kernels first surpassed the pinned sglang baseline through Optima's scorer.
+kernels first surpassed the pinned sglang baseline through Cacheon's scorer.
 
 ## The one rule
 
@@ -76,7 +76,7 @@ model-specific or fusion-specific:
 
 ## Step 4 — expect incremental end-to-end gains
 
-An Optima-relevant improvement is narrow. The first validated submitted kernels
+An Cacheon-relevant improvement is narrow. The first validated submitted kernels
 measured **1.044× and 1.074×** on MiniMax-M3, which mattered because they exceeded
 the pinned sglang baseline through the referee at equal audited fidelity. These
 effects stack: a 1.05× change in one epilogue composed with a 1.04× change in a
@@ -110,7 +110,7 @@ accept the cold-start cost in your measurement).
 
 These are the measured improvements on the first arena validated end-to-end
 (MiniMax-M3-NVFP4 / 4×B300). They are included because concrete measurements are
-more useful than an abstract template, not because this is the only arena Optima
+more useful than an abstract template, not because this is the only arena Cacheon
 can support. The same slot/scoring/audit machinery applies to any arena; when a
 second one is validated, its results should get a table alongside this one. See
 [Arenas](/docs/reference/arenas).

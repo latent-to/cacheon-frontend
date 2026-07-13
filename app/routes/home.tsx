@@ -10,20 +10,20 @@ import Footer from '~/components/Footer'
 
 export function meta(_: Route.MetaArgs) {
   return [
-    { title: 'Optima: Inference Optimization Arena' },
+    { title: 'Cacheon: Inference Optimization Arena' },
     {
       name: 'description',
       content:
         'Compete to write the fastest GPU kernels for LLM inference. Fair benchmark, clear champion, real reason to route traffic.',
     },
-    { property: 'og:title', content: 'Optima: Inference Optimization Arena' },
+    { property: 'og:title', content: 'Cacheon: Inference Optimization Arena' },
     {
       property: 'og:description',
       content:
         'Compete to write the fastest GPU kernels for LLM inference. Fair benchmark, clear champion, real reason to route traffic.',
     },
     { property: 'og:type', content: 'website' },
-    // TODO: confirm canonical Optima domain before publish — is the site staying on cacheon.ai or moving to an optima domain?
+    // TODO: confirm canonical Cacheon domain before publish — is the site staying on cacheon.ai or moving to an optima domain?
     { property: 'og:url', content: 'https://cacheon.ai' },
   ]
 }

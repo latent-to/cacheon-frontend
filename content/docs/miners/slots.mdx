@@ -69,7 +69,7 @@ Ten slots exist today. Grouped by what part of the model they're in:
 - `collective.ar_residual_rmsnorm` — the fused AR + residual-add + RMSNorm
   epilogue (behind sglang's `--enable-flashinfer-allreduce-fusion`). Contract:
   `entry(x, residual, weight, eps, out_norm, out_residual, group)`. This was the
-  first submitted kernel to surpass the pinned sglang baseline through Optima's
+  first submitted kernel to surpass the pinned sglang baseline through Cacheon's
   scorer (2026-07-07).
 - `collective.moe_finalize_ar_rmsnorm` — the **DEEP** fused epilogue: MoE
   finalize + AR + add + RMSNorm as ONE kernel. Enabled by a bundle-declared

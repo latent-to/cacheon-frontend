@@ -3,13 +3,13 @@ title: MiniMax-M3 case study
 ---
 
 <Callout type="info">
-  This page documents the first arena where a submitted Optima kernel surpassed
+  This page documents the first arena where a submitted Cacheon kernel surpassed
   the pinned sglang baseline through the full scorer. It records the exact
   multi-GPU regime, the eval-bridge architecture, and the engineering issue that
   had to be fixed before the deep fusion path was valid.
 </Callout>
 
-Optima is arena-agnostic; this page documents **the first arena validated
+Cacheon is arena-agnostic; this page documents **the first arena validated
 end-to-end** — MiniMax-M3-NVFP4 on 4×B300. The mechanics (the eval-bridge, the
 bracketed scoring, the fidelity audit) are general and carry over to any arena;
 the exact flags, numbers, and the last-layer veto below are specific to this
@@ -37,7 +37,7 @@ transcript, the command ledger, and the chain ledger — not just re-quoted.
 
 
 Graphs-on is non-negotiable: graphs-off cripples the baseline ~6.5×, so a
-graphs-off speedup is not a valid Optima result. The NVFP4 / eager-fa4 stack is launch-nondeterministic
+graphs-off speedup is not a valid Cacheon result. The NVFP4 / eager-fa4 stack is launch-nondeterministic
 (two identical launches score mean_kl 0.81–0.96), which is *why* the audit mode
 exists — rollout-KL there gates "did timing change," exactly what miners are paid
 to change.
@@ -243,7 +243,7 @@ These are not theoretical — each affected the validation run:
 
 **Proven (end to end, with receipts):**
 
-- Optima ingests and scores the fused-epilogue bundles as real miner submissions.
+- Cacheon ingests and scores the fused-epilogue bundles as real miner submissions.
 - The deep path is graph-safe after the last-layer veto fix.
 - The deep speedup reproduced three times: 1.074 / 1.071 / 1.072.
 - The chain loop discovers a revealed commitment, fetches the archive, verifies

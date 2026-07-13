@@ -3,7 +3,7 @@ title: Arenas
 ---
 
 An **arena** is the unit of competition: a specific model, run under a specific
-serving configuration, on specific hardware. Optima is arena-agnostic by design —
+serving configuration, on specific hardware. Cacheon is arena-agnostic by design —
 the slots, the seam, the scoring, and the chain loop are all general — but exactly
 **one arena is active per "season,"** and every validator runs the same arena on
 the same pinned engine so scores are comparable.
@@ -75,13 +75,13 @@ adding those is a validator-side slot-catalog change, not a per-arena thing.
 | Qwen2.5 (0.5B / 1.5B) | single H100 | **Mechanism validated** | the referee fires; no submitted kernel has surpassed sglang here. The default for the [20-min first kernel](/docs/miners/your-first-kernel) walkthrough. |
 | gpt-oss-120b | single H100 | **Mechanism validated** | the largest single-GPU model validated; the MoE seam routes its experts. |
 
-Planned / future arenas that are not yet validated as scored Optima arenas:
+Planned / future arenas that are not yet validated as scored Cacheon arenas:
 Nemotron-3-Ultra (SSM/comms), GLM-5.2, DeepSeek-V4 (MLA attention), and others.
 Some of these may already have profiling or prototype folders under
 `experiments/`; they become rows here only after the validator gate chain has
 been run as a scoring arena.
 
-## A note on "what Optima is for"
+## A note on "what Cacheon is for"
 
 The arena list will grow. Don't read the M3 examples in these docs as "this is
 the M3 subnet" — read them as "the general system, documented through its first

@@ -9,7 +9,7 @@ title: How it evolved
   state of record. If this page lags behind a recent merge, trust the README.
 </Callout>
 
-A PR-by-PR reconstruction of Optima's development, organized into phases. Dates are
+A PR-by-PR reconstruction of Cacheon's development, organized into phases. Dates are
 merge-commit dates (IST). The arc: build the referee, prove the gate fires both
 ways on real GPUs, then show that a submitted kernel can surpass the pinned sglang
 baseline under that referee.
@@ -20,7 +20,7 @@ the operator page as the current state of record.
 
 ## Phase 0 — Genesis (2026-05-31)
 
-**`d066d45` — Optima validator harness: slots, seam, KL+benchmark eval, commit-reveal, docs.**
+**`d066d45` — Cacheon validator harness: slots, seam, KL+benchmark eval, commit-reveal, docs.**
 
 The whole incentive core in one commit: the slot ABI, the `.pth` post-import seam
 (`bootstrap.py` + `seam.py`), the two-launch throughput+KL eval, commit-reveal +
@@ -42,7 +42,7 @@ canary + `PINNED_SGLANG` (`52458c9`, `16886e2`).
 
 **`cab283d` — Block slots + attention seam; sglang 0.5.12/cu13 compat; strong-baseline eval defaults.**
 
-Generalized the ABI to `kind = op|block` and added the `attention.sdpa` / `attention.decode` block slots plus the decode seam: intercept `RadixAttention.forward`, gather the paged KV, run the miner kernel. Brought up sglang 0.5.12 + CUDA 13 (`PINNED_SGLANG 0.5.9 → 0.5.12.post1`): `load_entry` now registers the kernel in `sys.modules` before exec (0.5.12's piecewise CUDA graph imports it by name), seam installers guard on the class attribute. Default scoring config became **CUDA graphs ON + auto attention backend** (graphs-off cripples the baseline ~6.5×, so a graphs-off speedup is not a valid Optima result). Found per-slot KL thresholds are needed (attention's intrinsic floor ~6e-3 vs 5e-3 for silu).
+Generalized the ABI to `kind = op|block` and added the `attention.sdpa` / `attention.decode` block slots plus the decode seam: intercept `RadixAttention.forward`, gather the paged KV, run the miner kernel. Brought up sglang 0.5.12 + CUDA 13 (`PINNED_SGLANG 0.5.9 → 0.5.12.post1`): `load_entry` now registers the kernel in `sys.modules` before exec (0.5.12's piecewise CUDA graph imports it by name), seam installers guard on the class attribute. Default scoring config became **CUDA graphs ON + auto attention backend** (graphs-off cripples the baseline ~6.5×, so a graphs-off speedup is not a valid Cacheon result). Found per-slot KL thresholds are needed (attention's intrinsic floor ~6e-3 vs 5e-3 for silu).
 
 ## Phase 3 — prepare/forward slots + MoE + framework mode (#5–7, 2026-06-01)
 
@@ -142,7 +142,7 @@ PR **#26** (`feat/chain-integration`) — **merged to main** (`698191d`).
 | `e866acf` | **Native timelock commit-reveal submissions + the validator loop**, live-validated on testnet netuid 307. The full miner→chain→validator loop: `payload.py` (on-chain submission ref), `fetch.py` (tar transport, hostile-archive extraction, re-hash to committed content_hash), `submit.py` (drand-encrypted timelock commit — the anti-copy priority timestamp), `validator_loop.py` (reveals in chain order → fetch → fingerprint → out-of-process eval → settle per slot → weights). `Ledger.current_weights()` becomes the single emission-policy seam. |
 | `22e1ab9` | **Testnet runbook + state-of-record** for the chain layer. |
 
-The design explicitly **rejected the central-relay model** used by some subnets (the validator fetches a platform-computed weight vector over HTTPS and just signs it). Optima's thesis is *local, independent evaluation*, so the validator runs its own GPU referee and the chain is the trust anchor only. Live proof on netuid 307: the deep fused-epilogue bundle was committed by a miner hotkey and the loop scored it at **SCORE 1.0717 (1.072× vs bar 1.026; audit 12,824/0)** — the third independent reproduction. Weights stayed dry-run because subnet 307 (owned by someone else, never start-called) rejects stake, so the validator hotkey never got a permit.
+The design explicitly **rejected the central-relay model** used by some subnets (the validator fetches a platform-computed weight vector over HTTPS and just signs it). Cacheon's thesis is *local, independent evaluation*, so the validator runs its own GPU referee and the chain is the trust anchor only. Live proof on netuid 307: the deep fused-epilogue bundle was committed by a miner hotkey and the loop scored it at **SCORE 1.0717 (1.072× vs bar 1.026; audit 12,824/0)** — the third independent reproduction. Weights stayed dry-run because subnet 307 (owned by someone else, never start-called) rejects stake, so the validator hotkey never got a permit.
 
 ## Corrections
 
@@ -150,7 +150,7 @@ Two corrections are load-bearing — they are part of why the state-of-record is
 
 - **The sm120/MXFP4 throughput claim was retracted (`c83c5a9`, 2026-06-07).**
   Earlier docs described the sm120/MXFP4 MoE experiment as a submitted throughput
-  improvement. That claim was removed because it had not passed Optima's scored
+  improvement. That claim was removed because it had not passed Cacheon's scored
   end-to-end gate against sglang. The fix dropped the `moe.fused_experts_mxfp4`
   slot + example (catalog 7 → 6), removed the sm120/MXFP4/tok-s claims, and kept
   the useful generic pieces: `moe.fused_experts` and the `cosine` correctness mode.
@@ -158,7 +158,7 @@ Two corrections are load-bearing — they are part of why the state-of-record is
 
 ## First validated submitted optimization (2026-07-07)
 
-The first submitted kernel to surpass the pinned sglang baseline through Optima's
+The first submitted kernel to surpass the pinned sglang baseline through Cacheon's
 own scorer at equal fidelity was the `miner_m3_fused_epilogue` bundle (the July-2
 M3 validation kernel for fused AR+residual+RMSNorm,
 `collective.ar_residual_rmsnorm`, `graph_safe`) on the MiniMax-M3-NVFP4 / 4×B300

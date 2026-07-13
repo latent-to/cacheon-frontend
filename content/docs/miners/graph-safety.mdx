@@ -4,8 +4,8 @@ title: Graph-safe kernels
 
 Scoring runs with **CUDA graphs ON**. This is not a configuration choice — it's
 the only regime that counts. Graphs-off cripples the baseline ~4.5–6.5×, so a
-graphs-off speedup is not a valid Optima result, and surpassing
-sglang/vLLM/TensorRT graphs-on is the entire point of Optima.
+graphs-off speedup is not a valid Cacheon result, and surpassing
+sglang/vLLM/TensorRT graphs-on is the entire point of Cacheon.
 
 That has one big consequence for block/collective kernels: **you must declare
 `graph_safe: true` if you want to be scored under graphs.** Op slots do not

@@ -38,7 +38,7 @@ python -m optima.cli <subcommand> [flags]
 **Always launch via `python -m optima.cli`, never `optima` directly.** sglang's
 engine spawns its scheduler process with `multiprocessing spawn`; the module
 entrypoint keeps the `__main__` guard spawn-safe. The `.pth` bootstrap is still
-what gets Optima into every spawned interpreter, but the module form avoids
+what gets Cacheon into every spawned interpreter, but the module form avoids
 console-script/import ambiguity in the parent.
 
 The module docstring documents the pipeline mirror and the security posture:
@@ -69,7 +69,7 @@ it in table form.
 ### `compat`
 
 The sglang seam canary. Introspects the *installed* sglang (imports + signatures
-only, no GPU, no model) and checks every integration point Optima patches
+only, no GPU, no model) and checks every integration point Cacheon patches
 (`SiluAndMul.forward_cuda`, `RadixAttention.forward`, `FusedMoE.forward_impl`,
 the fused-AR epilogue module function, the Engine logprob API, etc.) still
 exists.
@@ -88,7 +88,7 @@ Driven by `SEAM_ADAPTERS` in `optima/seams.py`. Source: `cmd_compat`,
 The Bittensor SDK canary. Same posture as `compat` but for the chain layer:
 introspects the installed `bittensor` SDK (imports + class attributes +
 signatures, **no network, no wallet, no chain connection**) and verifies the
-weight/commitment/metagraph API Optima calls still exists.
+weight/commitment/metagraph API Cacheon calls still exists.
 
 ```bash
 python -m optima.cli chain-compat

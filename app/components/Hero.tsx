@@ -72,7 +72,7 @@ export default function Hero() {
         {/* Sub-copy */}
         <p className="text-secondary mb-10 max-w-xl font-sans text-base leading-[1.65] sm:text-lg sm:leading-[1.6]">
           Inference has been a limiting factor for serving LLMs at scale.{' '}
-          <span className="text-primary font-medium">Optima</span> is a live competition to write
+          <span className="text-primary font-medium">Cacheon</span> is a live competition to write
           the fastest GPU kernels for LLM inference. Submit a Triton or CuteDSL kernel, beat{' '}
           <code className="text-accent text-[0.88em]">sglang</code> at equal fidelity, and earn{' '}
           <span className="group relative inline-block">

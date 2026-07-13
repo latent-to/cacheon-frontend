@@ -62,7 +62,7 @@ running stock. Make sure the `.pth` is in site-packages (see
   2) off-clock passes, then `timed_iters` median. If you're eyeballing a single
   run you'll see the ±7–17% clock ramp.
 - **Comparing to a graphs-off baseline.** Graphs-off cripples the baseline
-  ~6.5×. A speedup against that baseline is not a valid Optima result. Scoring is
+  ~6.5×. A speedup against that baseline is not a valid Cacheon result. Scoring is
   graphs-on; your local checks should be too.
 - **Forgetting `ignore_eos`.** Without it, a kernel that nudges EOS timing can
   inflate tok/s by emitting fewer tokens. The scorer uses `ignore_eos` (default

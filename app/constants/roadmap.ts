@@ -23,7 +23,7 @@ export const ROADMAP: RoadmapPhase[] = [
     label: 'Kernel Optimization Competition',
     status: 'active',
     items: [
-      'Optima: miners submit Triton/CuteDSL kernels for typed slots (op, block, collective), swapped into a pinned sglang engine',
+      'Cacheon: miners submit Triton/CuteDSL kernels for typed slots (op, block, collective), swapped into a pinned sglang engine',
       'Throughput scored gated by fidelity: per-token KL vs a stock reference + real-benchmark task accuracy',
       'Commit-reveal submissions with per-slot king-of-the-hill: one champion per slot',
       'Auditable kernel source instead of opaque containers',
@@ -37,7 +37,7 @@ export const ROADMAP: RoadmapPhase[] = [
     items: [
       'Winning configurations deployed as live endpoints serving real traffic',
       'Agent, RAG, and multi-turn workloads with P99 latency targets',
-      'PMF: teams route traffic to Optima for the fastest production backend',
+      'PMF: teams route traffic to Cacheon for the fastest production backend',
     ],
   },
   {

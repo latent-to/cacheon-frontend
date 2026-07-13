@@ -75,10 +75,10 @@ needs a rewrite.
 
 ### The insulation layer
 
-Miners code to **Optima's slot ABI** (`entry(x, out)`), not to
-`SiluAndMul.forward_cuda`. When sglang changes *how* it invokes an op, Optima's
+Miners code to **Cacheon's slot ABI** (`entry(x, out)`), not to
+`SiluAndMul.forward_cuda`. When sglang changes *how* it invokes an op, Cacheon's
 dispatcher and seam absorb the change — every row in the "what usually breaks" table
-below is fixed in Optima code, not in miner code. This holds as long as the op's
+below is fixed in Cacheon code, not in miner code. This holds as long as the op's
 mathematical contract is stable; it breaks only when sglang changes what the op
 fundamentally *is* (e.g. fuses it away) — which is a real product change, so
 re-competing on it is correct.
@@ -165,7 +165,7 @@ From `docs/SGLANG_TRACKING.md:127-145`:
 
 ## What usually breaks, and where to fix it
 
-The seam table is `optima/seams.py:46`; every fix below is in Optima code, not miner
+The seam table is `optima/seams.py:46`; every fix below is in Cacheon code, not miner
 code (`docs/SGLANG_TRACKING.md:148-156`).
 
 | sglang change | canary catches it as | fix in |

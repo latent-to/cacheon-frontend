@@ -75,7 +75,7 @@ export default function Nav() {
           className="text-primary flex items-center gap-2.5 text-xl font-semibold tracking-tight no-underline"
         >
           <img src="/icon-192.png" alt="" className="h-7 w-7" />
-          <span>Optima</span>
+          <span>Cacheon</span>
         </Link>
 
         <div className="hidden items-center gap-8 font-mono md:flex">{renderLinks()}</div>

@@ -124,7 +124,7 @@ the overlap, because there the reduce is severed onto a separate stock call.
 ## Graph-safety is part of the contract
 
 Scoring runs with **CUDA graphs ON**. Graphs-off cripples the baseline ~4.5–6.5×,
-so a graphs-off speedup is not a valid Optima result — beating
+so a graphs-off speedup is not a valid Cacheon result — beating
 sglang/vLLM/TensorRT graphs-on is the entire point.
 
 - The **op seams** (`silu`, `rmsnorm`) are graph-captured directly.

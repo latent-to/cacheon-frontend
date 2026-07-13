@@ -3,7 +3,7 @@ title: Competition model
 
 ---
 
-Optima runs a **per-slot king-of-the-hill** competition. For each typed slot there is at most one **champion**: the kernel with the best crownable speedup on record. A challenger takes the title only by beating the champion by a fixed margin. Emission is split across the slots that have a champion, so a miner can earn by specializing in a single slot rather than winning everywhere.
+Cacheon runs a **per-slot king-of-the-hill** competition. For each typed slot there is at most one **champion**: the kernel with the best crownable speedup on record. A challenger takes the title only by beating the champion by a fixed margin. Emission is split across the slots that have a champion, so a miner can earn by specializing in a single slot rather than winning everywhere.
 
 ## How a round works
 
@@ -39,7 +39,7 @@ Submissions are evaluated in the open, so a lazy miner could try to copy the cur
 - A copier who only sees a rival's bundle at reveal time has **no matching prior commitment** for it, so they cannot reveal it. Copying at reveal time is impossible.
 - If two miners independently committed to the same content, the **earliest commit is the original**; later identical ones are marked copies.
 
-In production this is Bittensor's native commit-reveal; Optima keeps the off-chain scoring half.
+In production this is Bittensor's native commit-reveal; Cacheon keeps the off-chain scoring half.
 
 ## Copy detection
 

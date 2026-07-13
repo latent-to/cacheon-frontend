@@ -2,9 +2,9 @@
 title: Introduction
 ---
 
-# Optima
+# Cacheon
 
-**Optima is a Bittensor subnet that pays miners for optimizing LLM inference.**
+**Cacheon is a Bittensor subnet that pays miners for optimizing LLM inference.**
 
 Miners submit GPU **kernels** (Triton or CuteDSL) that replace a single,
 tightly-scoped **slot** inside a *fixed* model: an op, a fused block, or a
@@ -45,11 +45,11 @@ than the stock one, at equal quality, on the only regime that counts
 
 ---
 
-## Why Optima exists
+## Why Cacheon exists
 
 Inference is the bottleneck for serving LLMs at scale. Latency, memory, and cost decide whether a model is usable in production. Optimization techniques are usually benchmarked in isolation, so objective performance comparisons are impossible.
 
-Optima turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring. Miners write real GPU kernels for well-defined boundaries inside the model. The only thing that matters is making the model faster while keeping its outputs correct.
+Cacheon turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring. Miners write real GPU kernels for well-defined boundaries inside the model. The only thing that matters is making the model faster while keeping its outputs correct.
 
 See [Why it matters](/docs/concepts/why-it-matters) for the full problem statement.
 
@@ -103,7 +103,7 @@ un-cheatable.
 - **A submitted optimization has surpassed the pinned sglang baseline.** The first
   fully validated arena is MiniMax-M3-NVFP4 on 4×B300. In that arena, a fused
   AR+residual+RMSNorm decode epilogue measured 1.044×, and a deeper MoE-finalize
-  + AR + add + norm fusion measured 1.074×, both through Optima's scorer at equal
+  + AR + add + norm fusion measured 1.074×, both through Cacheon's scorer at equal
   audited fidelity and above the noise-derived bar. The result was reproduced on
   independent prompt seeds and once through the on-chain loop (the 1.072× above).
   This is the first case study, not the limit of the system: later arenas such as

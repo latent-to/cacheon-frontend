@@ -6,11 +6,11 @@ title: Why inference optimization matters
 
 Better models only matter if you can serve them. Frontier quality keeps improving, yet for most deployments the limiting factor is not research headlines but **how fast the model runs** on the hardware and traffic you actually have.
 
-- **Throughput:** tokens per second on fixed hardware, the number Optima scores.
+- **Throughput:** tokens per second on fixed hardware, the number Cacheon scores.
 - **Latency:** how long a request takes end to end.
 - **Cost:** GPU utilization and serving efficiency. Dollars per million tokens.
 
-These are **inference-time** constraints. Optima treats inference optimization as a competitive problem and pushes the network to discover faster GPU kernels in the open.
+These are **inference-time** constraints. Cacheon treats inference optimization as a competitive problem and pushes the network to discover faster GPU kernels in the open.
 
 ## The optimization surface
 
@@ -24,7 +24,7 @@ A modern inference stack is a stack of GPU kernels, and each one is a place wher
 | **MoE**         | fused experts (routing, grouped GEMM, SwiGLU)               | The compute waist of mixture-of-experts models |
 | **Collectives** | tensor-parallel all-reduce and all-to-all                  | Comms-bound at TP/EP scale, ~32–43% of GPU time at decode |
 
-Engines like sglang, vLLM, and TensorRT-LLM each make different tradeoffs across these boundaries, and their kernels are already heavily tuned. No single team has tried every combination or every GPU. Optima creates an incentive to search this space in the open, one typed boundary at a time.
+Engines like sglang, vLLM, and TensorRT-LLM each make different tradeoffs across these boundaries, and their kernels are already heavily tuned. No single team has tried every combination or every GPU. Cacheon creates an incentive to search this space in the open, one typed boundary at a time.
 
 ## The benchmark problem
 
@@ -36,7 +36,7 @@ There is no shared, verifiable benchmark for kernel-level inference performance:
 
 The **numbers don't compare.** Teams shipping production inference have no way to know which kernel actually wins for their specific model, GPU, and workload.
 
-<Callout title="What Optima does">
+<Callout title="What Cacheon does">
   Fix the model, fix the hardware, fix the prompts, fix the scoring, and let anyone submit a kernel
   for a well-defined slot. The subnet produces an ordered ranking per slot that is apples-to-apples
   comparable, because every kernel is measured against the same stock reference on the same box.

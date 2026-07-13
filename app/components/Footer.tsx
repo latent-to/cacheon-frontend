@@ -10,7 +10,7 @@ export default function Footer() {
     <footer className="border-border/60 border-t px-4 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-4">
         <div className="text-base2 flex items-center gap-2 font-sans">
-          <img src="/icon-192.png" alt="Optima" className="h-5 w-5" />
+          <img src="/icon-192.png" alt="Cacheon" className="h-5 w-5" />
           <span className="text-sm2 text-secondary">· SN14 · MIT License</span>
         </div>
 

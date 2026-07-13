@@ -26,7 +26,7 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 **Reasoning:** Because the validator owns an exact local reference run, it can compare the full per-token output distribution directly rather than only checking that outputs are plausible. KL is dense and low-variance, so it makes a good primary gate; benchmark accuracy is noisier and needs large sample counts, so it serves as a capability floor rather than the primary signal. The KL threshold is per-slot and calibrated to the model's own nondeterminism noise floor, because attention's flash-style softmax reorders arithmetic and sits at a higher floor than elementwise ops.
 
-**Rejected:** A teacher-forcing plausibility gate (the Phase 1 approach), which checks that an output is plausible under the model's logprobs but does not measure exact distribution match. Optima's two-launch design provides an exact reference, so it can measure the distribution difference directly.
+**Rejected:** A teacher-forcing plausibility gate (the Phase 1 approach), which checks that an output is plausible under the model's logprobs but does not measure exact distribution match. Cacheon's two-launch design provides an exact reference, so it can measure the distribution difference directly.
 
 ## Engine: a pinned sglang version
 

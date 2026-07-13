@@ -4,10 +4,10 @@ title: Architecture overview
 ---
 
 This page is the end-to-end mental model. It assumes no prior knowledge of
-Bittensor, sglang, or subnets. If you already know what Optima is and want the
+Bittensor, sglang, or subnets. If you already know what Cacheon is and want the
 contract-level detail, skip to [The slot contract](/docs/architecture/slot-contract).
 
-## What problem is Optima solving?
+## What problem is Cacheon solving?
 
 Inference is the dominant cost of running a modern LLM. A serving engine (we use
 **sglang**) is a large, tuned stack: paged KV-caches, fused attention,
@@ -17,7 +17,7 @@ narrow, and model-specific — a better fused epilogue for one MoE variant, a
 better compute-comm overlap for one TP shape, a better indexer for one
 sparse-attention block. No single team will find all of them.
 
-Optima's bet: **open that search to economic incentive.** Pay anyone, anywhere,
+Cacheon's bet: **open that search to economic incentive.** Pay anyone, anywhere,
 who can write a kernel for one of those narrow ops that is measurably faster than
 what the engine ships, at equal output quality. Aggregate enough validated
 improvements and you have a continuously-improving inference stack — which is

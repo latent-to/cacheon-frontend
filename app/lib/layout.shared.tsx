@@ -5,7 +5,7 @@ import { DiscordIcon, XIcon } from '~/components/icons'
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: <img src="/icon-192.png" alt="Optima" className="h-6 w-6" />,
+      title: <img src="/icon-192.png" alt="Cacheon" className="h-6 w-6" />,
       url: '/',
     },
     links: [

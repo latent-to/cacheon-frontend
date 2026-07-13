@@ -99,13 +99,13 @@ validator, recorded in the JSON `Ledger`.
 
 ## What's actually been run (the honest state)
 
-Optima is arena-agnostic (see [Arenas](/docs/reference/arenas)); the slots, seam,
+Cacheon is arena-agnostic (see [Arenas](/docs/reference/arenas)); the slots, seam,
 scoring, and chain loop are general. The first fully validated arena is
 MiniMax-M3-NVFP4 on 4×B300, and the mechanism has also been validated on Qwen2.5
 and gpt-oss-120b. Both halves of the M3 record are merged and live-validated:
 
 - **The referee (PR #25).** The fused-epilogue bundles were evaluated as miner
-  submissions through Optima's own scorer: shallow
+  submissions through Cacheon's own scorer: shallow
   `collective.ar_residual_rmsnorm` (1.044× / 1.049×) and deep
   `collective.moe_finalize_ar_rmsnorm` (1.074× / 1.071×), all with **0
   fidelity-audit violations**. See [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study) for the
@@ -127,7 +127,7 @@ you own.
 
 Testnet pays nothing — netuid 307's alpha pool rejects stake and the validator
 hotkey there never holds a permit, so `set_weights` only ever ran dry-run (see
-above). Mainnet economics — a subnet Optima's own operators control, staked
+above). Mainnet economics — a subnet Cacheon's own operators control, staked
 validator permits, and the actual emission split miners are paid under — are
 documented open items, not yet built. That last piece, the emission *policy*,
 is deliberately kept behind one seam (`Ledger.current_weights`) precisely so it

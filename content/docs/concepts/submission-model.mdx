@@ -6,12 +6,12 @@ This page answers a different question from the [competition model](/docs/concep
 
 <Callout type="info" title="Status: design of record">
   Parts of this model are target-state, not all built. Where the current code differs, this page
-  describes where Optima is going. It is included as a concept so the submission surface makes sense.
+  describes where Cacheon is going. It is included as a concept so the submission surface makes sense.
 </Callout>
 
 ## Why it exists
 
-Optima's end goal is not "patches to sglang." It is a portable kernel library (`optima-kernels`): inspectable, composable device code shipped on top of any engine. The subnet is the machine that populates that library. Miners are paid to *create* fast kernels, the validator measures them, and an accepted win drops straight into the library.
+Cacheon's end goal is not "patches to sglang." It is a portable kernel library (`optima-kernels`): inspectable, composable device code shipped on top of any engine. The subnet is the machine that populates that library. Miners are paid to *create* fast kernels, the validator measures them, and an accepted win drops straight into the library.
 
 That only works if the contribution is **portable IP**. A win expressed as "monkeypatch sglang's `FusedMoE` to call kernel X" is worthless to the library: it evaporates the moment the engine changes. So the submission surface is built around one product axiom and one judgment test, on top of the four cheat-resistance invariants that govern the [slots](/docs/miners/overview).
 
@@ -51,7 +51,7 @@ A quantization codec as a kernel plus its `prepare` step, gated against a clean 
 
 ## The three layers
 
-Optima's product model separates the library, the referee, and the service so the moat lives in portable kernels rather than in any one engine:
+Cacheon's product model separates the library, the referee, and the service so the moat lives in portable kernels rather than in any one engine:
 
 - **`optima-kernels`, the library and the product.** Portable device code, host launchers, and clean-reimplemented codec and layout primitives. Zero sglang imports. Each entry carries a regime tag mapping `(model, context, concurrency, GPU, format)` to a base or override, a measured speedup, and its fidelity gate. This is what ships.
 - **`optima-harness`, the subnet referee.** sglang plus the seam plus scoring, confined here. It consumes `optima-kernels` to place and measure submissions. sglang lives in this layer and nowhere else.
