@@ -1,4 +1,4 @@
 {
   "title": "Security",
-  "pages": ["threat-model", "isolation", "anti-copy"]
+  "pages": ["threat-model", "isolation", "evidence", "anti-copy"]
 }

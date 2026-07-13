@@ -1,207 +1,340 @@
 ---
-title: The bundle format
+title: Bundle format
 ---
 
-A **bundle** is your submission. It's a directory with a `manifest.toml` (data —
-what you're submitting) and your kernel source. The validator reads the manifest
-and loads your code; the manifest is never executed.
+A component bundle is a source-only proposal for one registered contribution
+target. Its `manifest.toml` is data: the validator parses it before importing
+miner code.
 
-## Directory layout
+The parser is implemented in
+[manifest.py](https://github.com/latent-to/optima/blob/main/optima/manifest.py).
+Target resolution is a separate step implemented by
+[target_catalog.py](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
+A manifest can be structurally valid and still be ineligible for a registered
+target.
 
-```
+## Recommended layout
+
+```text
 my_bundle/
-  manifest.toml          # DATA only — what you're submitting (never executed)
+  manifest.toml
   kernels/
-    my_kernel.py         # your kernel code (Triton / PyTorch / CuTe-DSL)
-    my_kernel.cu         # optional: declared via ops.cuda_sources (sanctioned CUDA)
+    kernel.py
   metadata/
-    my_kernel.json       # optional: eligibility (dtypes, GPU arch, graph_safe)
-  rebuild.json           # optional: reviewed validator patcher steps
-  README.md              # optional human notes
-  patches/
-    moe_epilogue.patch   # optional: dep_patches diffs (see dep-patches.md)
+    kernel.json
+  README.md
+  LICENSE
 ```
 
-The minimum is `manifest.toml` + `kernels/`. Everything else is optional but
-recommended.
+Advanced, target-approved bundles may also contain declared `.cu`/`.cuh`
+sources, unified dependency diffs, and a reviewed `rebuild.json`. Do not include
+compiled objects, wheels, shared libraries, caches, model weights, credentials,
+or absolute machine paths.
 
-### Path rules
+All declared paths are bundle-relative. Intake rejects path traversal, unsafe
+filesystem entries, and undeclared executable material. The fetched archive is
+rehash-checked and republished as immutable validator-owned input before any
+screen or qualification runs.
 
-All paths in the manifest are **bundle-relative**. At load, the validator
-rejects:
+### What each file is for
 
-- absolute paths
-- any `..` traversal
-- symlinks anywhere in the submitted tree
-- anything that isn't a scanned `.py`, a declared `cuda_source`, a declared
-  `dep_patch`, or benign metadata (README/LICENSE/manifest.toml/.gitignore)
+| File | Identity and execution role |
+|---|---|
+| `manifest.toml` | names the proposal ABI, requested target, implementation rows, and paths; it is parsed as data before candidate import |
+| `kernels/*.py` | candidate source loaded only after structural and static-policy gates, and only inside the appropriate worker boundary |
+| `metadata/*.json` | routing eligibility such as graph declaration, model, phase, dtype, topology, and shape domain; it cannot set correctness tolerances or reward policy |
+| declared `.cu`/`.cuh` | inspectable native inputs to a validator-approved rebuild step; never prebuilt output |
+| declared `.patch`/`.diff` | exact source delta for the narrowly allowed pinned dependency surface |
+| `rebuild.json` | selects registered validator-owned build capabilities; it is not a shell script |
+| `README*`, `LICENSE*` | human context and licensing; still identity-bearing bytes, so changing them creates a different content hash |
 
-This is enforced in `optima/manifest.py` (`_safe_relpath`) and
-`optima/sandbox.py` (`scan_tree`). Binary suffixes (`.so`, `.o`, `.pyc`) fail
-**closed** — they're rejected outright, not scanned.
+“Source-only” does not mean “only `.py`.” It means that every executable product can be
+derived by a registered builder from visible, identity-bound inputs. A `.so`, wheel,
+object file, cache entry, or undeclared source cannot be made acceptable by mentioning it
+in a README.
 
-## The manifest
+### Three validations happen at different times
 
-The full schema reference is at [Manifest schema](/docs/reference/manifest-schema).
-Here's the shape you'll write most of the time.
+1. **Manifest validation** checks TOML structure, identifiers, safe relative paths, and
+   declaration shapes. It does not import the entry or decide target eligibility.
+2. **Tree/static validation** inventories the recursive tree and scans every Python
+   source. It rejects obvious escape/egress patterns and undeclared executable material.
+   This is defense in depth, not a sandbox.
+3. **Target resolution and execution validation** compare independently observed bundle
+   features with the active target catalog, then build and exercise the selected delta
+   in validator-owned isolation.
 
-### Minimal: one op slot
+A bundle can pass the first two and fail the third. For example, `setup = "initialize"`
+is valid manifest syntax, but no current registered target permits that observed feature.
+
+## A competitive singleton bundle
+
+Use an explicit competition table even though old development examples may
+still resolve through a legacy singleton convenience:
 
 ```toml
-bundle_id  = "my-silu-v1"
+bundle_id = "alice-silu-sm90-v1"
 abi_version = "optima-op-abi-v0"
 
-[[ops]]
-slot   = "activation.silu_and_mul"
-source = "kernels/silu_and_mul.py"
-entry  = "silu_and_mul"
-```
-
-That's a complete, valid bundle. Four fields: a unique id, the frozen ABI
-version, the slot you're targeting, and where your entry function lives.
-
-### With eligibility (recommended)
-
-```toml
-bundle_id  = "my-silu-v1"
-abi_version = "optima-op-abi-v0"
+[competition]
+target = "activation.silu_and_mul"
+mode = "slot"
 
 [[ops]]
-slot   = "activation.silu_and_mul"
+slot = "activation.silu_and_mul"
 source = "kernels/silu_and_mul.py"
-entry  = "silu_and_mul"
+entry = "silu_and_mul"
 dtypes = ["bfloat16", "float16"]
+architectures = ["sm90"]
 metadata = "metadata/silu.json"
 ```
 
-`dtypes` is a manifest-level eligibility filter. The manifest field
-`architectures` is parsed and preserved for documentation, but the live registry
-reads runtime GPU architecture filters from metadata JSON today. Put arch
-filters and extra eligibility such as `graph_safe` there:
+`competition.target` selects a validator-registered reward unit. It does not
+create a target or alter its contract.
+
+### Complete anatomy of this example
+
+The matching source file must export the named callable and write the supplied output:
+
+```python
+# kernels/silu_and_mul.py
+import torch
+
+
+def silu_and_mul(x, out):
+    d = x.shape[-1] // 2
+    gate = torch.nn.functional.silu(x[..., :d].float()).to(x.dtype)
+    out.copy_(gate * x[..., d:])
+```
+
+The metadata narrows where the row may route:
 
 ```json
-{"architectures": ["sm90", "sm100"], "graph_safe": true}
+{
+  "graph_safe": true,
+  "capabilities": {
+    "num_tokens": {"min": 1, "max": 4096}
+  }
+}
 ```
 
-### The (prepare, forward) pair — MoE
+Read the three files together:
 
-For slots that need weight repacking/quantization (MoE experts), you ship two
-callables:
+- the competition table asks for the economic target;
+- the op row maps one semantic slot to one source callable;
+- manifest and metadata constraints intersect to form the effective routing domain;
+- the source implements the computation but does not choose when it is called; and
+- the target catalog supplies correctness, reference, feature permissions, overlap, and
+  serving binding.
+
+The numeric range is a routing claim, not a verifier-shape request. If a live call
+descriptor lacks a field you constrain, routing fails closed rather than treating the
+field as a wildcard.
+
+Valid modes are:
+
+- `slot` for a registered singleton target;
+- `atomic` for a registered multi-slot target;
+- legacy `system`, which remains parseable for migration but is never
+  registered or crownable.
+
+## Op rows
+
+Each `[[ops]]` row describes one implementation:
+
+| Field | Meaning |
+|---|---|
+| `slot` | semantic slot implemented by this row |
+| `source` | bundle-relative Python source module |
+| `entry` | callable exported by that module |
+| `variant` | explicit implementation identity; required on every row when a slot has more than one row |
+| `dtypes` | allowed runtime dtypes |
+| `architectures` | allowed canonical GPU architectures such as `sm90` or `sm103` |
+| `metadata` | bundle-relative JSON eligibility metadata |
+| `prepare` | optional load-time weight preparation callable for a slot whose ABI permits it |
+| `setup` | engine-wide setup hook; currently forbidden by every registered target |
+| `base_kernel`, `override_point` | registered override composition fields |
+| `cuda_sources` | declared inspectable `.cu`/`.cuh` inputs to an approved build step |
+
+`bundle_id` must be a simple non-empty identifier, and the component ABI is
+currently exactly `optima-op-abi-v0`.
+
+Unknown op keys are preserved as extra data, but that does not make them
+meaningful or allowed by target policy.
+
+## Capability metadata
+
+The validator routes a variant only when its entire declared domain matches a
+validator-produced live call descriptor. Missing fields are mismatches, not
+wildcards.
+
+Use the `capabilities` object for named specialization predicates:
+
+```json
+{
+  "graph_safe": true,
+  "capabilities": {
+    "model": {"exact": "MiniMax-M3-NVFP4"},
+    "phase": {"exact": "prefill"},
+    "head_dim": {"exact": 128},
+    "block_size": {"one_of": [64, 128]},
+    "q_len": {"min": 256, "max": 8192},
+    "tp_size": {"exact": 4}
+  }
+}
+```
+
+A scalar is shorthand for `exact`, and an array is shorthand for `one_of`.
+Numeric fields may use inclusive `min`/`max`. Supported fields currently include:
+
+- context: `architecture`, `dtype`, `graph_mode`, `layout`, `model`, `phase`,
+  `quant`, `runtime`;
+- dimensions/topology: `alignment`, `batch_size`, `block_size`, `ep_size`,
+  `exp_tokens`, `head_dim`, `hidden_dim`, `intermediate_dim`, `kv_len`,
+  `last_dim`, `num_experts`, `num_kv_heads`, `num_q_heads`, `num_tokens`,
+  `page_size`, `q_len`, `top_k`, `tp_size`, `world_size`.
+
+Unknown capability names fail at metadata load. Manifest `dtypes` and
+`architectures` are real routing constraints and intersect with metadata
+constraints. Legacy metadata keys such as `min_num_tokens`, `max_num_tokens`,
+`max_last_dim`, `quant`, and `graph_safe` are still interpreted, but new
+specializations should be expressed in `capabilities` where possible.
+
+The canonical vocabulary and normalization rules are in
+[capabilities.py](https://github.com/latent-to/optima/blob/main/optima/capabilities.py)
+and routing is in
+[registry.py](https://github.com/latent-to/optima/blob/main/optima/registry.py).
+
+An empty manifest list contributes no constraint for that field; a non-empty list does.
+If both manifest and metadata declare a field, their canonicalized intersection is the
+domain. A disjoint intersection is invalid, which catches mistakes such as BF16 in TOML
+and FP16-only metadata before candidate execution.
+
+## Multiple variants
+
+Multiple implementations of one slot are permitted only when all rows name
+unique variants and their effective capability domains are provably disjoint.
+Manifest order never chooses a winner.
 
 ```toml
-bundle_id  = "my-moe-v1"
-abi_version = "optima-op-abi-v0"
+[[ops]]
+slot = "activation.silu_and_mul"
+variant = "small"
+source = "kernels/small.py"
+entry = "silu_small"
+metadata = "metadata/small.json"
 
 [[ops]]
-slot    = "moe.fused_experts"
-source  = "kernels/moe.py"
-entry   = "fused_experts"
+slot = "activation.silu_and_mul"
+variant = "large"
+source = "kernels/large.py"
+entry = "silu_large"
+metadata = "metadata/large.json"
+```
+
+For example, `small.json` might cap `num_tokens` at 127 while `large.json`
+starts at 128. If overlap exists—or cannot be resolved safely—the registry
+rejects the bundle rather than inventing priority.
+
+This matters because variant selection is a semantic decision, not a source-order
+convenience. If two rows match the same call, the validator cannot know which selected
+delta was measured or which implementation would later serve. Conversely, a gap is
+allowed: the trusted incumbent remains the fallback outside all candidate domains.
+
+## What the content hash binds
+
+`chain-package` computes proposal identity from every regular identity-bearing file in
+sorted relative-path order, with paths and contents length-prefixed before SHA-256. It
+then puts exactly those files under one archive wrapper directory. Filesystem modes,
+gzip compression details, `.git`, `__pycache__`, `.pyc`, `.pyo`, and AppleDouble `._*`
+noise do not define the content hash; production extraction rejects identity-excluded
+archive state rather than placing unhashed material next to the proposal.
+
+Practical consequences:
+
+- renaming a source file changes the hash even if its bytes do not;
+- editing metadata, README, license, or the manifest changes the hash;
+- recompressing the same canonical tree need not change the content hash;
+- editing the local tree after packaging makes `chain-submit` commit a different hash
+  from the hosted archive; and
+- a fix after reveal is a new content identity and therefore a new proposal, not a
+  mutation of the old one.
+
+The archive URL is transport, while the content hash is proposal identity. The validator
+may retry transient transport for the same hash, but it must never accept different
+extracted bytes under that identity.
+
+## Prepare/forward slots
+
+MoE slots use a load-time preparation callable plus a serving callable:
+
+```toml
+[competition]
+target = "moe.fused_experts"
+mode = "slot"
+
+[[ops]]
+slot = "moe.fused_experts"
+source = "kernels/moe.py"
 prepare = "prepare"
+entry = "fused_experts"
 ```
 
-`prepare(w13, w2)` runs **once at load** on the raw checkpoint weights. The
-validator holds the result and passes it to `forward` each step as `prepared`.
-See [The kernel ABI](/docs/miners/kernel-abi).
+`prepare(w13, w2)` may derive a weight layout. The serving call receives the
+returned object as `prepared`. This does not authorize engine-wide mutation.
 
-### The override-point pattern
+## Atomic bundles
 
-Instead of shipping a whole MoE kernel, you can ship a small **epilogue** that
-composes into a validator-owned base megakernel. This is the sanctioned way to
-contribute to a quantized MoE without understanding the grouped-GEMM internals:
+An atomic bundle must request a registered atomic target and implement its
+complete member set. The current example shape is:
 
 ```toml
-bundle_id  = "swigluoai-override-v1"
-abi_version = "optima-op-abi-v0"
+[competition]
+target = "collective.moe_epilogue.v1"
+mode = "atomic"
 
 [[ops]]
-slot           = "moe.fused_experts"
-source         = "kernels/swigluoai.py"
-entry          = "gemm1_epilogue"
-base_kernel    = "nvfp4_moe_megakernel"
-override_point = "gemm1_epilogue"
+slot = "collective.ar_residual_rmsnorm"
+source = "kernels/epilogue.py"
+entry = "ar_residual_rmsnorm"
+
+[[ops]]
+slot = "collective.moe_finalize_ar_rmsnorm"
+source = "kernels/epilogue.py"
+entry = "moe_finalize_ar_rmsnorm"
 ```
 
-See [Override points](/docs/miners/override-points).
+The committed
+[atomic stack fixture](https://github.com/latent-to/optima/tree/main/tests/fixtures/stack_fused_epilogue_atomic)
+is useful for studying identity and rebuild declarations. It is a test fixture,
+not a production-ready kernel and not a template whose stub ABI should be
+copied blindly.
 
-### Dependency patches (advanced)
+## Advanced declarations
 
-For the deep fused-epilogue collective slots, a bundle can declare a unified diff
-against the **pinned flashinfer csrc** — applied to an overlay copy, never the
-install:
+These fields are valid only where the registered target explicitly allows the
+corresponding observed feature:
 
 ```toml
 [[dep_patches]]
 target = "flashinfer"
-path   = "patches/moe_epilogue.patch"
+path = "patches/fused_moe.patch"
 ```
 
-This is heavily policy-restricted (only `flashinfer/data/csrc/fused_moe/*` is
-patchable today; no dependency Python). See
+```toml
+[[ops]]
+slot = "moe.fused_experts"
+source = "kernels/epilogue.py"
+entry = "gemm1_epilogue"
+base_kernel = "nvfp4_moe_megakernel"
+override_point = "gemm1_epilogue"
+cuda_sources = ["kernels/epilogue_sm103.cu"]
+```
+
+Declarations do not bypass policy. Intake independently observes rebuild,
+override, CUDA-source, and dependency-patch features and resolves them against
+the target catalog. See [Override points](/docs/miners/override-points) and
 [Dependency patches](/docs/miners/dep-patches).
 
-Declaring `dep_patches` validates the diff, but it does not materialize an
-overlay by itself. Deep bundles also need a reviewed rebuild step:
-
-```json
-{
-  "steps": [
-    {"type": "repo_python", "path": "apply_dep_patch.py"}
-  ]
-}
-```
-
-## The fields, briefly
-
-| Field | Required | Meaning |
-|---|---|---|
-| `bundle_id` | yes | unique id, matches `^[0-9A-Za-z._\-]+$` |
-| `abi_version` | yes | must be exactly `"optima-op-abi-v0"` |
-| `[[ops]]` | yes (≥1) | one block per slot you target |
-| `ops.slot` | yes | a known slot id |
-| `ops.source` | yes | bundle-relative path to your kernel module |
-| `ops.entry` | yes | the callable name in that module |
-| `ops.prepare` | no | second callable for `(prepare, forward)` slots |
-| `ops.setup` | no | callable run once at engine init (framework mode) |
-| `ops.dtypes` | no | eligibility filter |
-| `ops.architectures` | no | documentation-only in the live registry today; put runtime arch filters in metadata JSON |
-| `ops.metadata` | no | path to a JSON eligibility file (e.g. `graph_safe`) |
-| `ops.base_kernel` | no | validator-owned base for override composition |
-| `ops.override_point` | no | the typed hole you're filling (requires `base_kernel`) |
-| `ops.cuda_sources` | no | list of `.cu`/`.cuh` paths (sanctioned CUDA tier) |
-| `[[dep_patches]]` | no | dependency diffs (policy-restricted) |
-
-Common metadata keys:
-
-| Key | Meaning |
-|---|---|
-| `dtypes` | optional runtime dtype filter; manifest `ops.dtypes` is the usual source |
-| `architectures` | runtime GPU-arch filter (`sm90`, `sm100`, `sm103`, ...) |
-| `graph_safe` | required for block/collective kernels to run under CUDA graph capture |
-| `max_last_dim` | last-dimension ceiling for simple tensor slots |
-| `quant` | quantization/layout claim, used by model-specific kernels |
-| `min_num_tokens` / `max_num_tokens` | token-count eligibility range |
-| `model` / `model_profile` | model key used by `verify --model` to select validator-owned slot profiles |
-
-The complete schema with all validation rules is at
-[Manifest schema](/docs/reference/manifest-schema).
-
-## One bundle, multiple slots
-
-You can target several slots in one bundle — just add more `[[ops]]` blocks. The
-deep fused-epilogue bundle (`miner_m3_fused_epilogue_deep`) does exactly this: it
-ships two ops on one shim module, sharing a CUDA source and a dep_patch. Each op
-must target a *different* slot (no duplicates).
-
-## The manifest is data, not code
-
-This bears repeating: the validator reads the manifest as TOML. It is never
-executed. Your code runs only after the manifest parses, the static scan passes,
-and (in evaluation) the bundle loads inside the isolated scheduler process. A
-malformed manifest is rejected at intake, before any of your code runs.
-
-## Where to go next
-
-- **The exact entry signatures:** [The kernel ABI](/docs/miners/kernel-abi).
-- **Full schema + validation:** [Manifest schema](/docs/reference/manifest-schema).
-- **See real examples:** [Example bundles](/docs/miners/examples).
-- **Build one now:** [Your first kernel (20 min)](/docs/miners/your-first-kernel).
+Next, read the [Kernel ABI](/docs/miners/kernel-abi), then build the minimal example in
+[Your first kernel](/docs/miners/your-first-kernel).

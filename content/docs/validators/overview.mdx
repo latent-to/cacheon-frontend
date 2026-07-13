@@ -1,153 +1,192 @@
 ---
-title: Validator overview
+title: Validator and operator guide
 ---
 
-A validator is the **referee**. It owns the entire measurement: it hosts the fixed
-model on its own GPUs, swaps each miner's kernel into a single typed boundary (a
-*slot*), runs the model, and measures two things against the stock (unmodified
-sglang) baseline — **throughput** and **fidelity**. A miner earns if and only if the
-kernel is *both* faster *and* faithful. The validator is what turns that rule into a
-number that ends up as chain weights.
+Cacheon has two operational planes with different trust boundaries:
 
-This page is the map. The rest of the validator guide fills in each piece.
+- the **referee plane** accepts proposals, measures marginal improvements, retains
+  evidence, settles target ownership, and projects rewards; and
+- the **release plane** turns reviewed contributions into signed, chain-independent
+  Cacheon Engine artifacts.
 
-## Responsibilities
+A validator may operate both planes, but they must not be collapsed. A crowned miner
+bundle is still hostile proposal material. It is not a production release, and the
+serving fleet never needs chain access or a miner-hosted URL.
 
-A running validator does five things, in a loop:
+<Callout type="info">
+The public `optima chain-validate` command can run finalized **intake only**. Full
+screening and qualification require deployment code to inject a trusted
+`ArenaServiceRegistry` and select `--arena-id`. This repository defines the typed
+interface and enforcement logic; it does not ship a production arena provider.
+</Callout>
 
-1. **Run the referee.** Read miner submissions off the chain, fetch them, hash-verify
-   them, and evaluate each one out-of-process. The validator never imports miner code
-   in a trusted process. See [The chain loop](/docs/validators/chain-loop).
-2. **Evaluate.** For each submission, bracket the candidate between two stock
-   baseline launches (`B, C, B′`), time them, and check fidelity. The commands and
-   their flags are in [Running evals](/docs/validators/running-evals).
-3. **Score.** Turn raw tok/s into a noise-robust verdict and a scoreable result. The
-   math — bookended measurement, the `1 + max(margin, k·noise)` bar, the NO-DECISION
-   case, king-of-the-hill — is in [How scoring works](/docs/validators/scoring).
-4. **Settle.** One champion per slot. A challenger takes the title only by beating
-   the champion by the margin. Emission splits across slots that have a champion.
-5. **Push weights.** Read the champion state off the ledger and emit it on chain.
-   Weight *policy* is intentionally narrow: local `set-weights` reads
-   `Ledger.current_weights`, while the current chain loop pushes the
-   `settle_per_slot(...)` result directly. Keep those paths aligned when changing
-   emissions.
+## Deployment topology
 
-## The trust posture: the validator owns all measurement
+The production design is a set of authorities, not one privileged daemon. A practical
+deployment has at least four independently supervised roles:
 
-The validator **never trusts a miner-reported number.** Every datum that decides a
-score is produced by the validator, or derivable from inputs the validator controls:
-
-- **Throughput.** The token count in the numerator is driver-known a priori
-  (`prompts × max_new_tokens` under `ignore_eos`), not the scheduler's self-reported
-  field (`optima/eval/throughput_kl.py`, `_counted_tokens`). Timing brackets are
-  `torch.cuda.synchronize`-wrapped in the driver process, which never imports the
-  miner module (`optima/eval/_launch.py`, `seam.mark_driver`).
-- **Fidelity.** KL is computed against a validator-run baseline launch; the in-engine
-  audit re-runs the *captured stock baseline* on pre-call clones and compares under
-  the slot's own verify tolerances (`optima/audit.py`). See
-  [Fidelity: audit vs KL](/docs/validators/fidelity).
-- **Identity.** A submission is content-addressed (`optima/bundle_hash.py`); the
-  fetched archive is re-hashed after extraction and a mismatch is a hard reject
-  (`optima/chain/fetch.py`, `fetch_bundle`).
-- **Anti-phantom-pass.** An active candidate launch must produce seam receipts
-  proving the bundle loaded *and* the miner impl was actually selected — else a
-  silent stock-vs-stock run would score KL 0.0 / PASS (`optima/receipts.py`).
-
-The miner's whole on-chain footprint is one timelock commitment carrying
-`{"v":1,"h":"<content_hash>","u":"<url>"}`. Everything else is off-chain, on the
-validator.
-
-## Architecture: CPU control box + GPU box
-
-Production splits the validator across two machines, joined by SSH. This is the
-isolation pattern documented in `docs/SUBNET_BLUEPRINT.md` §8 and is the concrete
-shape of the threat model:
-
-- **CPU control box** — holds the chain keys (hotkey), the ledger, the loop. It
-  never runs miner code. The coldkey stays off-box entirely; the recurring loop is
-  **hotkey-only**.
-- **GPU box** — runs sglang and the untrusted miner kernel. It holds **no chain
-  keys, no cloud creds, and no network egress** except the SSH control channel. A
-  fully malicious kernel that achieves code execution can't steal keys that aren't
-  there and can't exfiltrate over a network that isn't there. It can be wiped
-  between evals.
-
-The two are wired together by the loop's `--eval-cmd` contract: the control box
-shells out over SSH, the GPU box runs the arena evaluator wrapper (`optima
-evaluate` plus `optima bench` when the arena requires a benchmark gate), and the
-result travels back as a JSON report. See [The chain loop](/docs/validators/chain-loop) and
-[Running on testnet](/docs/validators/testnet).
-
-```
-        ┌──────── CPU control box ────────┐
-        │  chain keys (hotkey)            │
-        │  Ledger (scores, champions)     │
-        │  validator_loop.run_pass        │
-        └───────────────┬─────────────────┘
-                        │ ssh gpubox optima-eval.sh {bundle} {report}
-        ┌───────────────▼─────────────────┐
-        │  GPU box (no keys, no egress)   │
-        │  sglang + miner kernel          │
-        │  optima evaluate / bench        │
-        └─────────────────────────────────┘
+```mermaid
+flowchart LR
+    Chain["Finalized chain history"] --> Intake["Intake controller<br/>no wallet"]
+    Origin["Miner HTTPS origin"] --> Intake
+    Intake --> Private["Private 0700 fetch tree"]
+    Private --> Publication["Immutable worker publication"]
+    Publication --> Arena["Injected arena service<br/>trusted provider"]
+    Arena --> OCI["Untrusted B / C / B′ engines<br/>OCI worker fleet"]
+    OCI --> T["Pristine T reference<br/>candidate-free"]
+    T --> Evidence["Content-addressed evidence"]
+    Evidence --> Store["Single-writer SQLite authority"]
+    Store --> Signer["Weight reconciler<br/>hotkey only"]
+    Signer --> Chain
+    Store -. "reviewed crown input" .-> Integration["Integration and release authority"]
+    Integration --> Registry["Signed engine release / registry"]
+    Registry --> Serving["Production serving fleet<br/>no chain access"]
 ```
 
-This mirrors the service decomposition in `docs/SUBNET_BLUEPRINT.md` §2: the chain
-is the trust anchor **only** (commitments + weights); everything else — fetching,
-hash verification, copy detection, the gate chain, settlement — happens on the
-validator, recorded in the JSON `Ledger`.
+The boxes imply operational boundaries:
 
-## What's actually been run (the honest state)
+- **Intake host:** reads finalized chain state and untrusted HTTPS, owns the private
+  tree and SQLite scope, but needs no wallet.
+- **Arena control plane:** owns the registered service manifest, provider implementation,
+  capacity policy, selection secrets, and qualification construction. Candidate metadata
+  cannot select any of them.
+- **Execution fleet:** receives immutable, content-addressed inputs and runs hostile
+  engines under the OCI controller. It receives neither wallet material nor release keys.
+- **Signer:** opens the same durable authority only for a coordinated reconciliation
+  window, refreshes live metagraph state, and uses the validator hotkey. The store's
+  nonblocking process lock prevents concurrent controllers from silently sharing it.
+- **Release and serving plane:** starts only from reviewed integrated source. It does not
+  mount proposal publications, evidence roots, the intake database, or chain credentials.
 
-Cacheon is arena-agnostic (see [Arenas](/docs/reference/arenas)); the slots, seam,
-scoring, and chain loop are general. The first fully validated arena is
-MiniMax-M3-NVFP4 on 4×B300, and the mechanism has also been validated on Qwen2.5
-and gpt-oss-120b. Both halves of the M3 record are merged and live-validated:
+They can be colocated for development, but colocation does not merge their authority.
+For example, putting the signer on the intake host does not permit `chain-validate` to
+open the wallet, and putting a release builder beside the worker fleet does not make a
+crown deployable.
 
-- **The referee (PR #25).** The fused-epilogue bundles were evaluated as miner
-  submissions through Cacheon's own scorer: shallow
-  `collective.ar_residual_rmsnorm` (1.044× / 1.049×) and deep
-  `collective.moe_finalize_ar_rmsnorm` (1.074× / 1.071×), all with **0
-  fidelity-audit violations**. See [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study) for the
-  exact record regime, the eval-bridge architecture, and the last-layer veto bug.
-- **The chain loop (PR #26).** On Bittensor testnet netuid 307, a miner hotkey
-  committed the deep bundle via the native timelock commit-reveal; the validator
-  loop fetched it, hash-verified it, evaluated it out-of-process on the real
-  4×B300 referee, and scored it at SCORE 1.0717 (the third independent
-  reproduction). See [Running on testnet](/docs/validators/testnet).
+## Production flow
 
-**One honest boundary:** weights stayed dry-run on 307. Subnet 307 is owned by
-someone else and was never start-called, so its alpha pool rejects stake
-(`SubtokenDisabled`) and the validator hotkey never got a permit (permits go to
-the top-64 by stake). The *mechanism* is proven end to end; a real signed
-`set_weights` needs a subnet where the validator has a permit — preferably one
-you own.
+The current validator path is deliberately staged:
 
-## Economics (honest note)
+1. Read every newly finalized reveal in canonical chain-event order.
+2. Reserve that order durably in a single-writer SQLite store.
+3. Fetch the committed archive over HTTPS, enforce transport and extraction limits,
+   and rederive the committed content hash.
+4. Resolve the submitted delta to one registered target, or to the separate discovery
+   lane, and compute copy fingerprints over submitted bytes only.
+5. Copy the private intake tree into an immutable worker publication.
+6. Run registered, non-crownable arena screens.
+7. Qualify promoted candidates as complete isolated engines under the B/C/B′/T causal
+   protocol.
+8. Require an independent reproduction of the same candidate identity.
+9. Apply target and evaluation-stack changes in one settlement transaction.
+10. Reconcile the global reward projection from a separate signer process.
 
-Testnet pays nothing — netuid 307's alpha pool rejects stake and the validator
-hotkey there never holds a permit, so `set_weights` only ever ran dry-run (see
-above). Mainnet economics — a subnet Cacheon's own operators control, staked
-validator permits, and the actual emission split miners are paid under — are
-documented open items, not yet built. That last piece, the emission *policy*,
-is deliberately kept behind one seam (`Ledger.current_weights`) precisely so it
-can change without touching chain I/O: today it's per-slot king-of-the-hill,
-and it is expected to move toward relative-improvement-plus-time-decay rather
-than staying winner-take-all forever. No revenue or reward projections exist
-for this subnet; none should be inferred from anything on this page.
+One reservation therefore crosses three different kinds of state:
 
-## Where to go next
+| Phase | Durable state or product | Who may advance it |
+|---|---|---|
+| Arrival | Finalized cursor and `reserved` row | Intake controller |
+| Transport | `fetching` → `transport_retry`, `failed`, or `published` | Intake controller |
+| Screening | `screening` → `promoted`, retry lane, `failed`, or `held` | Registered arena service through the controller |
+| Qualification | `qualifying` → `reproduction_pending`, `qualified`, `failed`, or `no_decision` | Qualification authority plus transactional store projection |
+| Settlement | Leased candidate, event journal, stack generation, active claims | Pure planner plus SQLite transaction |
+| Emissions | Projection and append-only publication journal | Separate weight reconciler |
+| Shipping | Integration record and signed release | Release authority, never the settlement loop |
 
-- You want to run a single eval by hand → [Running evals](/docs/validators/running-evals)
-- You want to understand the speedup math and the settle rule →
-  [How scoring works](/docs/validators/scoring)
-- You want to understand the fidelity gate (and why rollout-KL was retired) →
-  [Fidelity: audit vs KL](/docs/validators/fidelity)
-- You want to run the autonomous loop against a real subnet →
-  [The chain loop](/docs/validators/chain-loop)
-- You want the operator runbook for netuid 307 → [Running on testnet](/docs/validators/testnet)
+`FAIL` and `NO_DECISION` are intentionally different. `FAIL` is an attributable terminal
+candidate disposition under a frozen rule. `NO_DECISION` means the validator lacks fair,
+complete authority and may retry or hold the work. Operators must preserve that distinction
+in alerts, dashboards, and manual procedures.
 
-For the miner's view of the same pipeline, see
-[the miner guide overview](/docs/miners/overview). For the architecture this
-implements, see [the architecture overview](/docs/architecture/overview) (and the
-deeper `docs/SUBNET_BLUEPRINT.md` in the repo for the service-decomposition vision).
+Read [The chain loop](/docs/validators/chain-loop), [Arena service](/docs/validators/arena-service),
+[Qualification](/docs/validators/qualification), and
+[Settlement and weights](/docs/validators/settlement-and-weights) in that order.
+
+## Authorities that must stay separate
+
+| Authority | Owns | Must not trust |
+|---|---|---|
+| Chain intake controller | Finalized order, reservations, private fetch, publication, durable state | Network arrival order, miner paths, mutable hosted bytes |
+| Arena service | Runtime/model/topology/workload identity, capacity, screens, qualification-plan construction | Submission-provided module paths or commands |
+| OCI execution controller | Engine roles, mounts, deadlines, device observations, protocol, teardown | Candidate process, candidate clocks, candidate quality claims |
+| Pristine reference T | Untimed teacher-forced quality evidence | Candidate C or incumbent B′ as grading oracle |
+| Settlement store | Paired reproductions, target transitions, reward claims | A single passing report or stale incumbent identity |
+| Weight signer | Wallet, live metagraph, publication journal, chain readback | An SDK “submitted” return value as confirmation |
+| Release authority | Integration review, model seal, release key, deterministic artifacts | A crown as automatic permission to ship |
+
+## Operator surfaces
+
+| Task | Supported surface |
+|---|---|
+| Inspect slot and SDK compatibility | `optima slots`, `optima compat`, `optima chain-compat` |
+| Package and submit a proposal | `optima chain-package`, `optima chain-submit` |
+| Inspect chain state | `optima chain-status` |
+| Run production-safe public intake | `optima chain-validate --intake-only` |
+| Run full referee service | Deployment code calling `run_validator(...)` with an injected registry/provider |
+| Reconcile rewards | `optima set-weights` in a separate control-plane process |
+| Seal model bytes | `optima model-provision` |
+| Verify a signed release | `optima release-verify` |
+| Materialize a release build context | `optima release-context` |
+| Construct, sign, publish, or start a release | Reviewed programmatic APIs; no public construction CLI is bundled |
+
+`optima verify`, `optima evaluate`, and `optima bench` are developer diagnostics.
+They are useful before submission and during integration, but their output is not a
+crown, a settlement record, or weight authority. See [Running diagnostics](/docs/validators/running-evals).
+
+## Durable state
+
+Production referee state lives in `FinalizedIntakeStore`, not the legacy JSON ledger.
+The store binds its database to a chain genesis hash and netuid, records finalized
+priority, and carries each reservation through fetch, screening, qualification,
+reproduction, settlement, and weight-publication state. WAL mode, full synchronous
+writes, a process lock, and explicit restart recovery make partially completed work
+visible rather than silently replaying it.
+
+The SQLite database is also the join point between intake, settlement, and weight
+publication. It is not a generic shared database service: one `FinalizedIntakeStore`
+owner holds an exclusive filesystem lock while open. Schedule signer runs between
+validator passes or stop the controller cleanly for reconciliation; do not add a second
+writer, copy a live WAL database into place, or remove the lock file to force access.
+
+Immutable publications and evidence roots are durable dependencies of standing state.
+Deleting them after a crown can make later settlement reopening, reward projection, or
+integration review fail closed. Treat retention, backup, and restore as part of consensus
+operations, not log rotation.
+
+## Failure ownership
+
+Use the authority boundary to decide who absorbs a failure:
+
+| Failure | Economic treatment | Operator action |
+|---|---|---|
+| Invalid payload, committed-hash mismatch, unsafe archive, attributable screen/qualification violation | Candidate `FAIL` | Retain reason/evidence; no automatic retry |
+| DNS/TLS timeout, publication storage fault, controller crash, excessive baseline drift, missing evidence authority | `NO_DECISION`, retry, or `held` | Repair validator infrastructure, then use the bounded retry/release path |
+| Queue or cohort capacity exceeded | Queue while within policy; otherwise `held` | Add capacity or review the registered bounds; never reorder by fetch completion |
+| Settlement incumbent or journal head changed | Abort/hold; no partial transaction | Reopen current authority and re-plan |
+| Weight readback missing or divergent | Publication `held` | Preserve journal, audit chain state, append an explicit release only after review |
+| Release verification or serve receipt failure | No rollout | Quarantine artifact/image; do not fall back silently to stock serving |
+
+The JSON `commit`, `reveal`, `ledger`, and `legacy-settle --development-only` commands
+remain local simulation tools. They do not describe production economics.
+
+## What the implementation does not claim
+
+- It does not provide a turnkey production arena provider or fleet scheduler.
+- It does not make direct diagnostic execution safe for crownable work.
+- It does not make a single validator's measurement globally trustworthy; validator
+  consensus and deployment policy remain external system concerns.
+- It does not eliminate workload overfitting, GPU/driver vulnerabilities, denial of
+  service, or release-key operational risk.
+- It does not automatically ship a crowned proposal.
+
+Security assumptions and residual risks are detailed in
+[Threat model](/docs/security/threat-model) and [Isolation](/docs/security/isolation).
+
+## Source anchors
+
+- [Product contract](https://github.com/latent-to/optima/blob/main/docs/PRODUCT_CONTRACT.md)
+- [Finalized validator loop](https://github.com/latent-to/optima/blob/main/optima/chain/validator_loop.py)
+- [SQLite intake authority](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py)
+- [Arena service contract](https://github.com/latent-to/optima/blob/main/optima/arena_service.py)
+- [Settlement planner](https://github.com/latent-to/optima/blob/main/optima/settlement.py)
+- [Release implementation](https://github.com/latent-to/optima/blob/main/optima/release.py)

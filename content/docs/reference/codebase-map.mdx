@@ -2,287 +2,180 @@
 title: Codebase map
 ---
 
-A directory-by-directory map of the Cacheon repo, so a new contributor can find
-the file they need. The repo is split so the parts that do NOT need a GPU
-(manifest parsing, static scanning, registry/eligibility, scoring math, the
-chain I/O) run and are tested anywhere, while the GPU-only pieces (kernel
-correctness on device, end-to-end sglang eval) sit behind lazy imports.
+This map groups the Cacheon source by authority boundary. File names are links
+to the current code repository; source remains authoritative when details
+change.
 
-The package threat model, in one sentence (`optima/__init__.py`): with
-Triton/CuteDSL the miner's kernel is *Python that runs in-process*, so
-artifact-level safety is impossible and the real boundary is process + GPU-
-context isolation; the code is designed to shrink the miner's host surface and
-keep timing/scoring outside the miner's reach.
+## Read by authority, not import depth
 
-## The narrow waist (read these first)
+The easiest way to get lost in Cacheon is to follow imports as though every
+module had the same trust level. Start from the decision whose authority you
+are trying to understand:
 
-Three files are the deliberately-ossified contract. Everything else is free to
-churn around them.
+```mermaid
+flowchart LR
+    M["manifest + slots + target catalog"] --> D["local dispatch and verification"]
+    M --> I["finalized intake + immutable publication"]
+    I --> A["injected arena service"]
+    A --> Q["isolated qualification evidence"]
+    Q --> S["settlement + evaluation stack"]
+    S --> W["emissions + weight journal"]
+    Q --> R["integration review"]
+    R --> E["Engine tree + signed release"]
+```
 
-| file | what it is | why it's the waist |
-|---|---|---|
-| `optima/slots.py` | the `SlotSpec` catalog + `Correctness` policy — the miner-facing submission ABI | frozen, model-agnostic; see the [slot catalog](/docs/reference/slots-table) |
-| `optima/seams.py` | `SEAM_ADAPTERS` — the single source of truth for sglang chokepoint adapters | the bootstrap watch-list, the `activate()` install loop, and the `compat` canary all derive from this one table |
-| `docs/SLOT_CONTRACT.md` | the four invariants every slot must satisfy | the checklist a new slot is judged against |
+The left branch is useful to contributors but cannot crown anything. The upper
+production branch owns hostile evaluation and economic state. The release
+branch reopens evidence but accepts only reviewed integrated source.
 
-`seams.py` is deliberately separate from `slots.py`: `SlotSpec` is the stable
-contract; a seam adapter is version-pinned glue to a specific sglang internal
-that churns on every `PINNED_SGLANG` bump. Coupling them would tie the stable
-contract to sglang's internals.
+## Contribution contract
 
-Everything else — `cli.py`, `dispatch.py`, `manifest.py`, the integrations, the
-eval harness, the experiments — is bell-work above or below the waist.
-
-## `optima/` — the validator harness
-
-The core package. ~7,600 lines across ~28 modules.
-
-### Intake & contract (no GPU, no miner code execution)
-
-| file | lines | what |
-|---|---|---|
-| `manifest.py` | 396 | `manifest.toml` parsing + structural validation; path-safety rules; `OpEntry`/`DepPatchEntry`. See [manifest schema](/docs/reference/manifest-schema). |
-| `slots.py` | 1056 | the `SlotSpec` catalog + `Correctness` policy + per-model profiles. The narrow waist. See [slot catalog](/docs/reference/slots-table). |
-| `seams.py` | 89 | `SEAM_ADAPTERS` — the seam adapter registry (bootstrap + activate + compat all derive from it). The other half of the waist. |
-| `bundle_hash.py` | 57 | deterministic content hash of a bundle (its identity; what commit-reveal binds to). |
-| `copy_fingerprint.py` | 420 | near-copy fingerprints (reformat-invariant / per-slot / per-file / structural) that catch reformatted/renamed copies the exact hash misses. |
-| `blessed_base.py` | 71 | the pinned dependency-base surface (kernel libs scored on, for consensus); record-only today. |
-
-### Sandbox & verification
-
-| file | lines | what |
-|---|---|---|
-| `sandbox.py` | 394 | AST policy scan (defense-in-depth, NOT the trust boundary); `scan_path` / `scan_tree`. Documents what isolation the host must provide. |
-| `verify.py` | 291 | op-correctness — the cheap sanity gate (HP reference vs miner output under the slot's `Correctness`). |
-| `verify_collective.py` | 275 | distributed verify for `kind="collective"` slots (spawns `world_size` ranks; gloo/CPU or nccl/GPU). |
-| `registry.py` | 205 | validator-owned kernel registry + eligibility + active toggle (the dispatcher consults this per call). |
-
-### The dispatcher & seams (where the miner kernel actually runs)
-
-| file | lines | what |
-|---|---|---|
-| `dispatch.py` | 954 | the validator-owned dispatcher — the ONLY place a miner kernel is invoked during serving. Owns output allocation, eligibility gating, baseline fallback, the single auditable call. |
-| `seam.py` | 196 | shared seam activation (used by both the `.pth` bootstrap and the plugin hook); env-driven (`OPTIMA_BUNDLE_PATH` / `OPTIMA_ACTIVE`). |
-| `bootstrap.py` | 77 | version-independent seam loader via a post-import hook (the `.pth` file route that catches sglang's spawned scheduler). |
-| `audit.py` | 221 | in-engine slot audit — direct fidelity (runs the captured stock baseline on pre-call clones), the `audit` fidelity mode. |
-| `receipts.py` | 86 | seam-activation receipts — the anti-phantom-pass gate (demands positive evidence the seam fired). |
-
-### Deep-seam machinery
-
-| file | lines | what |
-|---|---|---|
-| `moe_export.py` | 477 | validator side of the `fe_export` protocol — the state machine for the deep `collective.moe_finalize_ar_rmsnorm` slot (skip-finalize + export pre-finalize pointers). |
-| `rebuild.py` | 147 | rebuild-plan helper for the framework-mode escape hatch (selects reviewed patchers under `optima/patchers/`, never bundle code). |
-| `deppatch.py` | 219 | strict unified-diff parsing + exact application — the `dep_patches` engine (`parse_patch_text` / `apply_file_patch`). |
-| `dep_policy.py` | 71 | which dependencies a bundle may patch, and where — VALIDATOR policy, never bundle data. |
-
-### Canaries
-
-| file | lines | what |
-|---|---|---|
-| `compat.py` | 212 | sglang seam canary (introspects installed sglang; `PINNED_SGLANG = "0.5.13.post1"`). |
-| `chain_canary.py` | 121 | bittensor SDK canary (introspects installed chain SDK; no network). |
-
-### Commit-reveal & chain
-
-| file | lines | what |
-|---|---|---|
-| `commit_reveal.py` | 516 | commit-reveal + king-of-the-hill scoring ledger — the anti-copy mechanism. |
-| `chain/` | — | on-chain I/O (see below). |
-
-### CLI
-
-| file | lines | what |
-|---|---|---|
-| `cli.py` | 1062 | the `optima` CLI — all 18 subcommands. See [CLI reference](/docs/reference/cli). |
-
-## `optima/eval/` — end-to-end evaluation
-
-The GPU tier: the same model under stock and candidate conditions
-(identical weights/seed/sampler), bracketed by baseline launches and optionally
-augmented with an untimed in-engine audit pass. ~1,800 lines.
-
-| file | lines | what |
-|---|---|---|
-| `_launch.py` | 323 | shared spawn-safe, tamper-resistant engine-launch context manager (marks the driver so it never imports miner code). |
-| `throughput_kl.py` | 366 | end-to-end throughput + KL fidelity eval (`evaluate`); the `EvalConfig` + `evaluate()`. |
-| `capability.py` | 255 | benchmark-based capability eval (`bench`) — throughput gated by task accuracy + KL. |
-| `kl.py` | 269 | KL between two runs' per-position top-k token distributions. |
-| `scoring.py` | 122 | noise-robust speedup scoring for a validator that cannot lock GPU clocks (the bracketing + noise-derived bar). |
-| `benchmarks.py` | 367 | capability benchmarks (GSM8K / MMLU / long_math) — real tasks that double as the eval distribution. |
-| `prompts.py` | 94 | per-epoch prompt sampling (fresh subset each epoch so a kernel can't special-case fixed prompts). |
-
-## `optima/integrations/` — sglang seam adapters
-
-Version-pinned glue to specific sglang internals. Each file patches ONE
-chokepoint. These are the lower-bell adapters — re-validated on every
-`PINNED_SGLANG` bump via `optima compat`. ~780 lines.
-
-| file | lines | what | chokepoint |
-|---|---|---|---|
-| `sglang_silu.py` | 97 | wires the dispatcher into `SiluAndMul` (replaces `forward_cuda`/`forward_native`) | `SiluAndMul.forward_cuda` |
-| `sglang_norm.py` | 57 | wires into `RMSNorm` (universal — fires on every transformer layer) | `RMSNorm.forward_cuda` |
-| `sglang_attention.py` | 59 | wires into the attention layer (backend-agnostic block seam) | `RadixAttention.forward` |
-| `sglang_moe.py` | 83 | wires into fused-MoE (`forward_impl`, NOT `.forward` — piecewise-graph-safe) | `FusedMoE.forward_impl` |
-| `sglang_allreduce.py` | 65 | wires into the TP all-reduce (the comms waist) | `GroupCoordinator.all_reduce` |
-| `sglang_arfusion.py` | 72 | wires into the fused AR+residual+RMSNorm epilogue (module-level fn rebind) | `flashinfer_allreduce_residual_rmsnorm` |
-| `sglang_msa.py` | 38 | MSA-indexer seam stub (M3-specific; NOT in the generic table) | MSA backend score kernel |
-| `sglang_defer_gate.py` | 104 | model-agnostic defer-gate for the deep fused-epilogue seam | `LayerCommunicator.should_fuse_mlp_allreduce_with_next_layer` |
-| `sglang_moe_export.py` | 65 | export producer for the deep seam (modelopt fused-moe wrap) | `flashinfer_cutlass_fused_moe` |
-| `flashinfer_overlay.py` | 123 | runtime consume side of `dep_patches` — repoints flashinfer at the overlay + forces JIT | `attr:JitSpec` (flashinfer.jit.core) |
-| `sglang_plugin.py` | 20 | sglang plugin entry point (for versions that ship the plugin framework) | — |
-
-## `optima/chain/` — on-chain I/O
-
-Mirrors the sglang seam architecture: pure helpers (no SDK, no network) carry
-the weight-vector math and are unit-tested directly; thin RPC wrappers lazily
-`import bittensor` and are the only code that touches the chain. ~800 lines.
-
-| file | lines | what |
-|---|---|---|
-| `__init__.py` | 233 | `connect`, `fetch_metagraph`, `read_revealed_commitments`, `set_weights`, `preflight` — the chain RPC wrappers. |
-| `payload.py` | 82 | the on-chain submission payload `{"v":1,"h":<hash>,"u":<url>}` — encode/decode (fail-quiet). |
-| `submit.py` | 27 | miner-side submission: bind a bundle to a URL, commit via timelock commit-reveal. |
-| `fetch.py` | 164 | bundle transport: `package_bundle` (tar.gz) + hostile-archive `fetch_bundle` (re-hashes after extraction). |
-| `validator_loop.py` | 298 | the validator loop: commitments → fetch → evaluate → settle → weights (`run_pass` / `run_validator`). |
-
-## `optima/patchers/` — reviewed rebuild patchers
-
-The ONLY sanctioned patcher tier for the escape hatch. Validator-shipped and
-reviewed; selected by name from a bundle's `rebuild.json`. ~330 lines.
-
-| file | lines | what |
-|---|---|---|
-| `apply_dep_patch.py` | 188 | applies a bundle's declared `dep_patches` to an OVERLAY copy of the pinned dependency tree (never the shared install). |
-| `build_cuda_ext.py` | 143 | compiles a bundle's declared `cuda_sources` (`.cu`/`.cuh`) and pre-loads them. |
-
-## `optima_kernels/` — the validator-owned kernel library
-
-The base kernels a miner override-point submission fills, plus first-party
-validated kernels. ~485 lines of Python (+ vendored CUDA).
-
-| file | lines | what |
-|---|---|---|
-| `override.py` | 142 | the EFC (Epilogue Fusion Customization) submission ABI — load-time composition of a miner epilogue into a base kernel; CPU/dense path. |
-| `codec/nvfp4.py` | 122 | NVFP4 codec + weight-layout primitives (pure torch, CPU-validatable references). |
-| `moe/nvfp4_megakernel.py` | 46 | `nvfp4_moe_megakernel` — the validator-owned NVFP4 MoE base kernel (GPU path is a stub; M1.2 in the build spec). |
-| `collective/fused_ar_rmsnorm.py` | 111 | fused all-reduce + residual-add + RMSNorm — the M3 decode-epilogue validated kernel, first-party portable launch layer. |
-| `collective/fused_ar_rmsnorm_sm103.cu` | — | the actual SM103 CUDA kernel used in the 2026-07-02 M3 validation work. |
-
-## `examples/` — reference bundles
-
-Minimal working bundles for the common slot families, plus deliberately broken
-examples that show what a failing kernel looks like. The examples are demos, not
-the complete slot surface: the MSA and deep fused-epilogue validation bundles live
-under `experiments/`, not `examples/`.
-
-| bundle | slot | kind | notes |
-|---|---|---|---|
-| `miner_silu_torch` | `activation.silu_and_mul` | op | CPU dry-run, pure torch — the on-ramp |
-| `miner_silu_triton` | `activation.silu_and_mul` | op | Triton version |
-| `miner_silu_broken` | `activation.silu_and_mul` | op | intentionally fails op-correctness |
-| `miner_silu_broken_torch` | `activation.silu_and_mul` | op | the same cheat in pure torch (CPU-runnable) |
-| `miner_silu_sparse` | `activation.silu_and_mul` | op | sparse-cheat example |
-| `miner_rmsnorm_triton` | `norm.rmsnorm` | op | Triton |
-| `miner_rmsnorm_broken` | `norm.rmsnorm` | op | intentionally failing |
-| `miner_attention_torch` | `attention.sdpa` | block | — |
-| `miner_attention_decode_torch` | `attention.decode` | block | the runtime-wired attention slot |
-| `miner_moe_fused_experts_torch` | `moe.fused_experts` | block | (prepare, forward) demo |
-| `miner_moe_fused_experts_reduce_torch` | `moe.fused_experts_reduce` | collective | the overlap-lever demo |
-| `miner_allreduce_torch` | `collective.all_reduce` | collective | — |
-| `miner_m3_swigluoai_override` | `moe.fused_experts` | block | the maximal override-point example |
-| `miner_setup_demo` | `activation.silu_and_mul` | op | framework-mode (setup) demo |
-| `miner_moe_mxfp4_sm120` | `moe.fused_experts` | block | MXFP4 / SM120 (untracked stale leftover — absent from a fresh clone) |
-| `miner_dsv4_hc_pre_*` | — | — | DeepSeek-V4 pre-recompose harness probes (untracked — absent from a fresh clone) |
-
-## `tests/` — the test suite
-
-37 test files, all runnable without a GPU for the intake/contract/scoring paths.
-Grouped by subsystem:
-
-- **intake/contract**: `test_static.py`, `test_cuda_source_scan.py`,
-  `test_dep_patches.py`, `test_model_profiles.py`, `test_slots_block.py`,
-  `test_msa_block_score.py`, `test_moe_reduce_slot.py`,
-  `test_moe_finalize_slot.py`
-- **sandbox/verify**: `test_scan_hardening.py`, `test_verify_cpu.py`,
-  `test_collective.py`, `test_slot_audit.py`
-- **dispatch/seams**: `test_dispatch_gates.py`, `test_moe_seam.py`,
-  `test_arfusion_seam.py`, `test_moe_export.py`, `test_flashinfer_overlay.py`,
-  `test_seam_receipts.py`, `test_isolation.py`
-- **scoring/commit-reveal**: `test_scoring.py`, `test_commit_reveal.py`,
-  `test_copy_fingerprint.py`, `test_per_slot_settle.py`,
-  `test_settle_staleness.py`, `test_ledger_durability.py`
-- **eval**: `test_benchmarks.py`, `test_kl_hardening.py`, `test_m2_hardening.py`,
-  `test_prompt_seeding.py`
-- **chain**: `test_chain.py`, `test_chain_canary.py`, `test_chain_fetch.py`,
-  `test_chain_payload.py`, `test_chain_validator_loop.py`
-- **kernels/rebuild**: `test_optima_kernels.py`, `test_rebuild.py`,
-  `test_fused_ar_rmsnorm_lib.py`
-
-## `experiments/` — profiling & build artifacts (not shipped)
-
-Per-model profiling campaigns, kernel prototypes, and findings. **Not part of
-the shipped package** — this is where candidate optimizations are developed and
-validated before they become part of the public record. Grouped
-by target model:
-
-| dir | what |
+| Area | Primary source |
 |---|---|
-| `minimax_m3/` | the first full arena case study — swigluoai override, fused AR+norm epilogue, deep fe_export seam, NVFP4 MoE. `frontier_*/` are dated snapshots; `bundle/` holds prototype bundles; `kernels/` the prototypes; `harness/` the profiling drivers; `FINDINGS_*.md`/`WIN_*.md` the writeups. |
-| `qwen35/` | Qwen3.5 profiling on B200/B300 (`B300_FINDINGS.md`, `PROFILING_B300.md`); `serve_load*.py` load-test harnesses. |
-| `nemotron3/` | Nemotron-3 headroom analysis (`HEADROOM_ANALYSIS.md`, `NEMOTRON_B300_FINDINGS.md`). |
-| `dsv4_flash/` | DeepSeek-V4 flash attention / indexer microbenches. |
-| `sm120_flashinfer_moe/` | SM120 flashinfer MoE patch exploration. |
-| `chain/` | chain integration ledger + hosted-bundle fixtures + the pod eval driver. |
+| Bundle parsing and path rules | [`manifest.py`](https://github.com/latent-to/optima/blob/main/optima/manifest.py) |
+| Slot ABI and trusted references | [`slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py) |
+| Target identity and composition | [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py) |
+| Typed tensor/output boundary | [`tensor_spec.py`](https://github.com/latent-to/optima/blob/main/optima/tensor_spec.py) |
+| Static policy | [`sandbox.py`](https://github.com/latent-to/optima/blob/main/optima/sandbox.py) |
+| Tracing-JIT admission (post-main snapshot) | `optima/dsl_jit_policy.py` |
+| Local and distributed verification | [`verify.py`](https://github.com/latent-to/optima/blob/main/optima/verify.py), [`verify_collective.py`](https://github.com/latent-to/optima/blob/main/optima/verify_collective.py) |
+| SGLang dispatch | [`dispatch.py`](https://github.com/latent-to/optima/blob/main/optima/dispatch.py), [`seams.py`](https://github.com/latent-to/optima/blob/main/optima/seams.py) |
+| Scheduler-role candidate load (post-main snapshot) | `optima/seam.py`, `optima/integrations/sglang_scheduler_gate.py` |
 
-## `scripts/` — dev utilities
+## Intake and referee
 
-| file | lines | what |
-|---|---|---|
-| `check_sglang.py` | 103 | checks the installed sglang version against the pin. |
-| `gptoss_tp_bench.py` | 143 | GPT-OSS tensor-parallel bench harness. |
-| `moe_config_microbench.py` | 160 | MoE config micro-benchmark. |
-
-## `docs/` — the readthedocs-style site source
-
-| file | lines | what |
-|---|---|---|
-| `HOW_OPTIMA_WORKS.md` | 867 | the deep design reference (threat model, injection mechanism, full scoring math). |
-| `MINER_GUIDE.md` | 429 | the miner on-ramp. |
-| `SLOT_CONTRACT.md` | 119 | the four invariants (the narrow waist checklist). |
-| `SUBMISSION_MODEL.md` | 301 | the submission/evaluation model. |
-| `SUBMISSION_MODEL_BUILD_SPEC.md` | 326 | the build spec (M1/M2 milestones). |
-| `SUBNET_BLUEPRINT.md` | 282 | the subnet architecture. |
-| `FIDELITY.md` | 172 | the fidelity gate in depth. |
-| `SGLANG_TRACKING.md` | 205 | how the scored sglang version is pinned and bumped. |
-| `DEV_ENVIRONMENT.md` | 182 | the GPU/toolchain setup recipe. |
-| `TESTNET.md` | 111 | testnet operations. |
-
-## Root notable files
-
-| file | what |
+| Area | Primary source |
 |---|---|
-| `pyproject.toml` | package metadata; installs the `optima` CLI + test deps. |
-| `README.md` | the project overview (~30k chars). |
-| `AGENTS.md` | agent/cursor operating notes. |
-| `datagen_magpie.py` | prompt-corpus generation for the eval distribution. |
+| Chain-facing commands | [`cli.py`](https://github.com/latent-to/optima/blob/main/optima/cli.py) |
+| Finalized intake and SQLite state | [`chain/intake.py`](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py) |
+| Hardened archive fetch | [`chain/fetch.py`](https://github.com/latent-to/optima/blob/main/optima/chain/fetch.py) |
+| Validator loop | [`chain/validator_loop.py`](https://github.com/latent-to/optima/blob/main/optima/chain/validator_loop.py) |
+| Injected arena boundary | [`arena_service.py`](https://github.com/latent-to/optima/blob/main/optima/arena_service.py) |
+| Qualification schema and regrading | [`eval/qualification.py`](https://github.com/latent-to/optima/blob/main/optima/eval/qualification.py) |
+| OCI lifecycle and protocol | [`eval/oci_backend.py`](https://github.com/latent-to/optima/blob/main/optima/eval/oci_backend.py), [`eval/oci_session_protocol.py`](https://github.com/latent-to/optima/blob/main/optima/eval/oci_session_protocol.py) |
+| Host-owned B/C/B′ session | [`eval/oci_outer_session.py`](https://github.com/latent-to/optima/blob/main/optima/eval/oci_outer_session.py) |
+| Immutable native prebuild | [`eval/oci_prebuild.py`](https://github.com/latent-to/optima/blob/main/optima/eval/oci_prebuild.py) |
+| Device conditioning/cleanup | [`eval/device_state.py`](https://github.com/latent-to/optima/blob/main/optima/eval/device_state.py) |
 
----
+## State, economics, and weights
 
-## Where things live (quick lookup)
-
-| if you need to... | go to |
+| Area | Primary source |
 |---|---|
-| add or read a slot | `optima/slots.py` (+ [slot catalog](/docs/reference/slots-table)) |
-| add or read a seam adapter | `optima/seams.py` + `optima/integrations/sglang_*.py` |
-| understand manifest validation | `optima/manifest.py` (+ [manifest schema](/docs/reference/manifest-schema)) |
-| see what a kernel may NOT contain | `optima/sandbox.py` |
-| trace where the miner kernel is invoked | `optima/dispatch.py` |
-| understand the scoring math | `optima/eval/scoring.py` + `optima/eval/kl.py` |
-| trace commit-reveal / king-of-the-hill | `optima/commit_reveal.py` |
-| trace the on-chain loop | `optima/chain/validator_loop.py` |
-| find a reference bundle | `examples/` |
-| find a profiling campaign | `experiments/<model>/` |
+| Evaluation/release stack identities | [`stack_manifest.py`](https://github.com/latent-to/optima/blob/main/optima/stack_manifest.py) |
+| Transactional settlement state | [`chain/intake.py`](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py) |
+| Pure emissions projection | [`economics.py`](https://github.com/latent-to/optima/blob/main/optima/economics.py) |
+| Weight publication reconciliation | [`chain/weights.py`](https://github.com/latent-to/optima/blob/main/optima/chain/weights.py) |
+| Copy and attribution evidence | [`copy_fingerprint.py`](https://github.com/latent-to/optima/blob/main/optima/copy_fingerprint.py) |
 
-Cross-links: the [CLI reference](/docs/reference/cli), [slot catalog](/docs/reference/slots-table), and
-[manifest schema](/docs/reference/manifest-schema) are the other reference pages.
+## Engine integration and release
+
+| Area | Primary source |
+|---|---|
+| Deterministic Engine tree | [`engine_tree.py`](https://github.com/latent-to/optima/blob/main/optima/engine_tree.py) |
+| Model provisioning | [`model_provision.py`](https://github.com/latent-to/optima/blob/main/optima/model_provision.py) |
+| Release evidence/signing/publication | [`release.py`](https://github.com/latent-to/optima/blob/main/optima/release.py) |
+| Release runtime verification | [`release_runtime.py`](https://github.com/latent-to/optima/blob/main/optima/release_runtime.py) |
+| Container host policy | [`release_host.py`](https://github.com/latent-to/optima/blob/main/optima/release_host.py) |
+
+## Compatibility and discovery
+
+| Area | Primary source |
+|---|---|
+| SGLang pin and canary | [`compat.py`](https://github.com/latent-to/optima/blob/main/optima/compat.py) |
+| Bittensor SDK canary | [`chain_canary.py`](https://github.com/latent-to/optima/blob/main/optima/chain_canary.py) |
+| Discovery policy and arm | [`discovery.py`](https://github.com/latent-to/optima/blob/main/optima/discovery.py) |
+| Discovery overlay | [`discovery_overlay.py`](https://github.com/latent-to/optima/blob/main/optima/discovery_overlay.py) |
+
+## Follow a concrete task
+
+### “Why was this bundle rejected?”
+
+Read in this order:
+
+1. `manifest.py` for exact TOML shape and contained-path rules;
+2. `sandbox.py` and `dep_policy.py` for observed source/build features;
+3. `target_catalog.py` for target resolution and admitted features;
+4. `slots.py` and `tensor_spec.py` for callable/output semantics; and
+5. `verify.py` or `verify_collective.py` for executable correctness.
+
+This ordering separates syntax, capability admission, ABI, and numerical
+failure. They are different diagnoses even when the CLI reports them in one
+run.
+
+### “How did a finalized reveal become a crown?”
+
+Start at `chain/intake.py`, then follow `chain/fetch.py` and
+`chain/publication.py` into `chain/validator_loop.py`. The loop resolves the
+closed `ArenaServiceRegistry`, receives screening and qualification work,
+persists evidence references, and invokes transactional settlement. Read
+`eval/qualification_runner.py` alongside `eval/qualification.py`: the runner
+orchestrates work; the schema and regrader define what counts as authority.
+
+The first matching PASS leaves reproduction pending. A second distinct,
+matching PASS may settle the contribution and advance the evaluation stack.
+Console output and evaluator summary text are never the settlement input.
+
+### “Why did weight publication remain pending?”
+
+Read `economics.py` first: it computes the pure global projection from reopened
+active contribution state. Then read `chain/weights.py`: it refreshes the live
+metagraph, journals intent before submission, records SDK results without
+treating them as confirmation, and reconciles later chain observation.
+`--dry-run` creates no journal intent, while reconciliation and submission have
+different durable states.
+
+### “What exactly ships?”
+
+Follow `stack_manifest.py` into `engine_tree.py`, `model_provision.py`, and
+`release.py`. The release manifest accepts only `IntegratedContributionRef`
+objects. The selected payload remains bound to its crowned digest; later
+materialization owns deterministic module namespaces and packaging. Finally,
+`release_runtime.py` and `release_host.py` enforce consumer and host policy.
+
+## State and evidence locations
+
+| Object | Owner | Identity / persistence rule |
+|---|---|---|
+| Parsed bundle | Contributor/diagnostic process | Content hash over the admitted bundle tree |
+| Finalized publication | Intake controller | Validator-owned immutable worker publication |
+| Qualification evidence | External evidence root | Typed content-addressed artifacts reopened before grading/settlement |
+| Evaluation stack | Referee state | Canonical manifest that may reference hostile proposals |
+| Settlement and weight state | Chain-scoped SQLite controller | Transactional single-writer state plus intent/readback journal |
+| Integrated source | Reviewed source control | Full reviewed commit plus selected-payload and attribution digests |
+| Engine release | Release publication root | Descriptor-addressed signed tree reopened under an expected public key |
+
+Paths are deliberately not identities. A local directory name, URL, database
+row number, or registry tag cannot replace the corresponding digest-bound
+object.
+
+## Tests as executable maps
+
+Tests mirror the authority boundaries rather than one monolithic integration
+fixture:
+
+- `test_static.py`, manifest tests, and `test_target_catalog.py` cover hostile
+  input and target admission;
+- `test_stack_manifest.py`, stack-planning tests, and `test_engine_tree.py`
+  cover canonical composition and integration materialization;
+- qualification, OCI, and reference-protocol tests cover the B/C/B′/T
+  authority;
+- chain-intake, settlement, economics, and weight-publication tests cover
+  durable economic transitions; and
+- release, runtime, registry, and host tests cover the signed serving boundary.
+
+When learning a type, search for both its successful construction and its
+rejection tests. The negative cases usually reveal which fields are security
+inputs rather than descriptive metadata.
+
+## Legacy and diagnostic paths
+
+Some older simulator and direct-evaluation modules remain useful for tests and
+development. In particular, `commit_reveal.py` and the local `commit`,
+`reveal`, `ledger`, and `legacy-settle --development-only` commands do not back
+the production SQLite controller. Likewise, `eval/_launch.py` and direct
+`evaluate`/`bench` flows are not alternate qualification authorities. Start
+from the validator loop and qualification runner when auditing production.
+
+Tests are organized under `tests/` by the same boundaries. Contract tests are
+often the clearest executable examples because they build exact typed objects
+and assert fail-closed behavior.

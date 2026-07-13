@@ -2,12 +2,16 @@
   "title": "Validators",
   "pages": [
     "overview",
-    "running-evals",
     "first-hour",
-    "minimax-m3-case-study",
+    "arena-service",
+    "chain-loop",
+    "qualification",
     "scoring",
     "fidelity",
-    "chain-loop",
-    "testnet"
+    "settlement-and-weights",
+    "releases",
+    "running-evals",
+    "testnet",
+    "minimax-m3-case-study"
   ]
 }

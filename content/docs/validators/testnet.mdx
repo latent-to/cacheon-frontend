@@ -1,216 +1,264 @@
 ---
-title: Running on testnet
+title: Testnet runbook
 ---
 
-The operator runbook for running the chain layer (`optima/chain/`) against a real
-subnet. This reproduces and expands `docs/TESTNET.md`, the runbook validated on
-testnet **netuid 307** on 2026-07-08. For the loop's design, see
-[chain-loop.md](/docs/validators/chain-loop); for the architecture this implements, see
-`docs/SUBNET_BLUEPRINT.md`.
+This runbook exercises native timelock submission and the current finalized intake path.
+It does not claim that the repository ships a turnkey production arena provider.
+
+Testnet validates chain integration; it does not magically make off-chain GPU evidence or
+release operations authoritative. Keep the plane boundaries explicit:
+
+| Plane | Testnet can exercise | Still supplied off chain |
+|---|---|---|
+| Submission | Registration, commit/reveal, finality, canonical event order | Stable HTTPS archive origin |
+| Intake | Finalized history, reservation, fetch, re-hash, publication, restart | Validator-owned storage and policy |
+| Arena | Selection of a registered arena ID after injection | Production provider, worker fleet, prompts, topology, calibration |
+| Qualification | Persistence/settlement joins when a real provider executes them | B/C/B′/T GPU execution and retained evidence |
+| Emissions | Live metagraph/readback and dry-run projection | Genuine crown, approved policy values, signer operations |
+| Release | Nothing inherently chain-hosted | Integration review, release key, registry, build and serving fleet |
+
+## What is on chain
+
+A miner commits one canonical payload:
+
+```json
+{"v":1,"h":"<64 lowercase hex SHA-256>","u":"https://host/bundle.tar.gz"}
+```
+
+The payload is limited to 1024 UTF-8 bytes and posted through the chain's native timelock
+commit-reveal interface. The validator uses finalized reveal event order as priority.
+Proposal bytes, evaluation evidence, stack state, and release artifacts remain off chain.
+
+The reveal event's finalized `(block, block hash, event index, event subindex, hotkey,
+content hash)` becomes the reservation identity and priority. `chain-status` can show
+revealed commitments before the validator has accepted them as finalized history; wait
+for finality rather than using display order or local arrival time as authority.
 
 ## Prerequisites
 
-- **`bittensor` SDK, validated at 10.3.2.** Note it pins `bittensor-drand<2.0.0` —
-  a drand 2.x wheel breaks the import. Run `optima chain-compat` after ANY SDK bump:
-  it introspects the installed SDK for every method we call
-  (`optima/chain_canary.py`), no network. `optima/cli.py:cmd_chain_compat`.
-- **A wallet: coldkey + hotkey.** The coldkey holds funds and signs
-  registration/staking — it is the thing worth protecting. The hotkey signs the
-  recurring on-chain actions (commitments, `set_weights`) and receives
-  emission — it's the thing the validator process actually touches while
-  running.
+- An explicitly configured WebSocket endpoint and netuid.
+- A compatible Bittensor SDK; run `optima chain-compat` after installation or upgrade.
+- A wallet and hotkey for registration/submission.
+- Faucet funds or other testnet funding required by that network.
+- An HTTPS origin that serves the exact archive bytes stably.
+- Durable local storage for the intake database and both storage roots.
 
-  ```bash
-  pip install bittensor-cli
-  btcli wallet create        # creates both the coldkey and a hotkey; back up
-                              # the mnemonics it prints — there is no recovery
-                              # without them
-  ```
+Registration may require coldkey authorization. Recurring submission and weight calls use
+the hotkey. Keep the coldkey off long-lived validator and evaluator hosts.
 
-  See Bittensor's own wallet documentation for the full key model:
-  [https://docs.learnbittensor.org/keys/wallets](https://docs.learnbittensor.org/keys/wallets).
+## Set explicit network variables
 
-- **Key roles, verified against SDK source:**
-  - registration (`burned_register`): coldkey + hotkey
-  - staking: coldkey
-  - **commitments and `set_weights`: hotkey only** — the recurring loop never
-    touches the coldkey.
-
-  **Rule: the GPU box never holds keys, of either kind.** It runs untrusted
-  miner code; the coldkey lives offline or on a separate control box, and even
-  the hotkey belongs on the CPU control box that runs `chain-validate`, not on
-  the box executing the candidate kernel. See
-  [Validator overview: CPU control box + GPU box](/docs/validators/overview#architecture-cpu-control-box-gpu-box).
-- **Testnet TAO** — the faucet is Discord-manual these days (no self-serve
-  faucet endpoint at the time of writing); ask in the Bittensor Discord.
-
-## The test-network endpoint gotcha
-
-Pass the URL **explicitly**. The SDK's `'test'` alias resolves to
-`wss://test.finney.opentensor.ai:443` — a different host than the testnet we
-validated against (`optima/chain/__init__.py:103-106`).
+Do not rely on a mutable SDK alias when you intend a particular endpoint:
 
 ```bash
-NET="wss://test.chain.opentensor.ai:443"
+export OPTIMA_NET="wss://test.chain.opentensor.ai:443"
+export OPTIMA_NETUID="307"
 ```
 
-Every `optima chain-*` command takes `--network "$NET"` and forwards it to
-`Subtensor(network=...)`.
+Confirm the endpoint and netuid for your deployment; the values above are examples, not a
+promise that a public test subnet remains available.
 
-## The loop, step by step
-
-(Bare `optima ...` is fine for every chain subcommand, matching the repo's
-`docs/TESTNET.md`; the `python -m optima.cli` launch rule is specific to
-`evaluate`/`bench`, which spawn sglang under `mp spawn`.)
+## Register a hotkey
 
 ```bash
-# 0. one-time: join the subnet (validator hotkey, and each miner hotkey)
-optima chain-register --netuid 307 --network "$NET" --wallet default --hotkey default
-
-# 1. miner: package a bundle -> tar.gz + the content hash that will be committed
-optima chain-package examples/miner_silu_torch --out hosted/bundle.tar.gz
-
-# 2. miner: host the tarball anywhere fetchable (https://...; file:// for a
-#    same-machine dev loop), then commit hash+URL on-chain (timelock)
-optima chain-submit examples/miner_silu_torch --url https://example.com/bundle.tar.gz \
-    --netuid 307 --network "$NET" --wallet default --hotkey miner
-#    (--dry-run prints the exact payload without signing)
-
-# 3. inspect the subnet: neurons, permits, revealed submissions
-optima chain-status --netuid 307 --network "$NET" --wallet default --hotkey default
-
-# 4. validator: the referee loop (single pass with --once; daemon without)
-optima chain-validate --netuid 307 --network "$NET" --wallet default --hotkey default \
-    --ledger chain_ledger.json --bundles-dir chain_bundles \
-    --once --margin 0 --dry-run-weights
+optima chain-register \
+  --netuid "$OPTIMA_NETUID" \
+  --network "$OPTIMA_NET" \
+  --wallet default \
+  --hotkey miner
 ```
 
-### What each command does
+The command is idempotent for an already registered hotkey and prints chain preflight
+results.
 
-- **`chain-register`** (`cmd_chain_register`) — `burned_register` (needs the
-  coldkey password) then `chain.preflight`: reports whether the hotkey is registered
-  and holds a validator permit. Burn on testnet is tiny (~0.0005 tTAO each on 307).
-- **`chain-package`** (`cmd_chain_package`, `fetch.package_bundle`) — `tar.gz` the
-  bundle containing exactly the files the identity hash covers, and print the
-  `content_hash` to commit. Identity is `content_hash` over the extracted
-  *directory*, so the same bundle hashes the same however it ships.
-- **`chain-submit`** (`cmd_chain_submit`, `chain.submit_bundle`) — build the
-  payload `{"v":1,"h":...,"u":...}` and commit it via `set_reveal_commitment`
-  (timelock, drand-encrypted until reveal). Hotkey-signed, no coldkey. `--dry-run`
-  prints the payload without signing. The payload is validated before signing
-  (`encode_payload` raises `PayloadError` loud on a bad hash/url/size).
-- **`chain-status`** (`cmd_chain_status`) — block, neuron count, permit count, and
-  the revealed submissions in reveal-block order; with `--wallet`, also reports
-  your hotkey's uid and validator permit.
-- **`chain-validate`** (`cmd_chain_validate`, `validator_loop.run_validator`) — the
-  referee. One pass = read latest revealed commitments sorted by `(block, hotkey)` →
-  fetch each new artifact (size-capped; hostile-archive-safe extraction: no symlinks/hardlinks/path
-  escapes) → **re-hash the extracted tree and refuse a mismatch** → fingerprint +
-  ledger reveal (copies demoted, not evaluated) → evaluate originals out-of-process
-  → record scores → settle per slot → push weights. `--once` runs a single pass and
-  exits; without it the loop runs forever with per-pass fault isolation and linear
-  backoff. `--dry-run-weights` runs the full loop but never submits weights.
+## Package and host a proposal
 
-### Choosing the evaluator
+```bash
+optima chain-package ./my_bundle --out ./hosted/my_bundle.tar.gz
+```
 
-- **Default (no `--eval-cmd`):** `verify_evaluator` — runs `optima verify` on CPU,
-  scores pass/fail as 1.0/0.0. A 1.0 never clears a positive dethrone margin, so
-  plumbing runs use `--margin 0`. **Never use this for real emissions.**
-- **Production:** `--eval-cmd 'ssh gpubox optima-eval.sh {bundle} {report}'` — any
-  command template. Exit 0 = the wrapper passed its gate chain, and a JSON report
-  written to `{report}` carries the real score. The wrapper should run
-  `optima evaluate` for throughput/fidelity and `optima bench` when task accuracy
-  is part of the arena's security policy. `evaluate` alone does not enforce a
-  benchmark gate.
+Upload that archive without changing it. The production payload and fetcher accept
+**HTTPS only**. `file://` is available solely through explicit hermetic-test helpers, and
+plain HTTP is not supported.
 
-## Validated on netuid 307 (2026-07-08)
+## Submit
 
-- Registered validator (uid 3) + miner (uid 4) hotkeys; burn ≈ 0.0005 tTAO each.
-- Committed `miner_silu_torch` (178-byte payload, 5-block timelock) from the miner
-  hotkey; the reveal appeared at **block 7509374**. The CLI default reveal delay
-  is longer; the validated testnet run passed `--blocks-until-reveal 5`.
-- One validator pass picked it up, fetched via `file://`, hash-verified,
-  CPU-verified, settled it as the slot champion, and produced
-  `{miner_hotkey: 1.0}` targeting uid 4.
-- A **second pass did zero new work** — idempotence (`EvalRecord` dedup; see
-  [chain-loop.md](/docs/validators/chain-loop)).
-- Subnet-307 hyperparams: tempo 360, commit-reveal weights ENABLED,
-  weights_rate_limit 100 (skipped under commit-reveal).
+Inspect the exact payload without signing:
 
-The same chain loop also drove the real M3 deep fused-epilogue bundle through the
-GPU evaluator: `miner_m3_fused_epilogue_deep` scored **1.0717×** (1.072× vs bar
-1.026) with audit **12,824 / 0**. That was the third independent reproduction of
-the measured deep-fusion result. The chain report recorded the score under the first manifest slot
-(`collective.ar_residual_rmsnorm`), even though the bundle carried both the
-shallow and deep slots; multi-slot report attribution is a current limitation of
-the chain bridge, not a limitation of the bundle format.
+```bash
+optima chain-submit ./my_bundle \
+  --url https://example.invalid/my_bundle.tar.gz \
+  --netuid "$OPTIMA_NETUID" \
+  --network "$OPTIMA_NET" \
+  --wallet default \
+  --hotkey miner \
+  --dry-run
+```
 
-## Subnet-307 caveats (someone else's unstarted subnet)
+Replace the URL with the real stable HTTPS location, then remove `--dry-run`:
 
-- Its alpha pool rejects stake with `SubtokenDisabled` — `add_stake` fails.
-- **Validator permits are the gate for actually landing `set_weights`.** Permits go
-  to the top-64 by stake-weight (α + 0.18·τ), recalculated each epoch. With zero
-  stake (which is forced on 307 because staking is disabled), the validator
-  hotkey never gets a permit — confirmed empirically: after the epoch crossed at
-  block 7509559, permits were `[uid0 only]`; uid 3 (our validator) stayed
-  `permit=False`. **A real `set_weights` is structurally impossible on 307 from a
-  zero-stake validator** — not a loop bug. The dry-run weight payload
-  (`{miner_hotkey: 1.0}`) is proven; the signed extrinsic is not. A real weight
-  push needs a subnet you own, where you can stake to your validator for a permit.
+```bash
+optima chain-submit ./my_bundle \
+  --url https://bundles.example.org/my_bundle.tar.gz \
+  --netuid "$OPTIMA_NETUID" \
+  --network "$OPTIMA_NET" \
+  --wallet default \
+  --hotkey miner \
+  --blocks-until-reveal 10
+```
 
-## Operational lessons (each one actually bit during the 307 run)
+The committed content hash is rederived from the local bundle and later from the fetched
+and extracted tree. Hosting different bytes causes a durable rejection.
 
-These are the gotchas that cost real session time. They're not theoretical:
+## Inspect chain state
 
-- **Pin `bittensor-drand<2.0.0` (== 1.3.0).** `bittensor` 10.3.2 requires
-  `bittensor-drand<2.0.0,>=1.3.0`, but a drand 2.x wheel gets installed and
-  **breaks the `bittensor` import entirely**. Fix: `pip install
-  bittensor-drand==1.3.0`. Run `optima chain-compat` after *any* SDK bump.
-- **The wallet password store must be base64-encoded.** The env-var unlock
-  (`wallet.coldkey_file.env_var_name()`, pattern `BT_PW_<PATH_UPPER>_<WALLET>_COLDKEY`)
-  must be written via `save_password_to_env()` (base64). A raw password gives
-  `Base64DecodeError`. For dev, the coldkey password can live in a `.pass` file
-  at the repo root (git-excluded).
-- **Pass the network URL explicitly.** `network="test"` aliases to
-  `wss://test.finney.opentensor.ai:443` — a *different* host than the intended
-  `wss://test.chain.opentensor.ai:443`. Always pass the URL.
-- **The commit budget is real.** ~3100 payload-bytes per hotkey per epoch; each
-  commit costs `max(100, bytes)`. That's ~3 × 1KB commits per tempo. The payload
-  is capped at 1024 bytes. Commitments are free (no deposit) but require a
-  registered hotkey.
-- **`get_all_revealed_commitments` is capped at 10 most recent per hotkey.** The
-  validator takes the newest reveal as the hotkey's current submission.
-- **Score-state files must be keyed by content hash, not bundle basename.** The
-  eval-bridge initially polled by bundle *name*; a re-named bundle made the poll
-  spin blind. Every pod-side state file (`<hash>.log`, `<hash>.rc`,
-  `<hash>.ledger.json`) is keyed by the **committed content hash**. (See
-  [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study).)
-- **Kill stale GPU processes before launching the GPU referee.** An earlier
-  `evaluate` still holding the GPU silently starved the chain-driven run.
-  `nvidia-smi` + verify all GPUs ~4 MiB idle first.
-- **btcli gotchas:** `--json-output` conflicts with prompting on some commands
-  (`subnet show` needs `--no-prompt`; `subnet hyperparameters` rejects
-  `--no-prompt` — json alone works). Public endpoints rate-limit ~1 req/s/IP →
-  gentle polling + backoff.
-- **The validator computes its own weights — it never relays someone else's.**
-  A design alternative common on other subnets — the validator fetching a
-  platform-computed weight vector over HTTPS and signing it — was considered and
-  rejected. Cacheon's thesis is *local, independent evaluation*: the validator
-  runs its own GPU referee and the chain is the trust anchor only.
+```bash
+optima chain-status \
+  --netuid "$OPTIMA_NETUID" \
+  --network "$OPTIMA_NET" \
+  --wallet default \
+  --hotkey miner
+```
 
-## Threat-model notes
+Wait for the reveal to become finalized before expecting intake to reserve it.
 
-- **The validator never imports miner code.** Evaluation is subprocess-only, same
-  as `optima verify`. Bundle fetch treats archives as hostile (member-type and path
-  checks, archive/extracted/member-count budgets — `optima/chain/fetch.py`).
-- **Chain keys stay on the control box; the GPU box only ever sees the bundle
-  directory.** Wire `--eval-cmd` over SSH accordingly (`docs/SUBNET_BLUEPRINT.md`
-  §8).
-- **A miner lying about the hash** (committing X, hosting Y) is rejected at the
-  re-hash step and recorded, so the lie is not retried every pass.
-- **Coldkey off-box.** The recurring loop is hotkey-only; the coldkey never lives on
-  the validator box.
+## Run one finalized intake pass
 
-For the loop internals (the Ledger, the evaluator contract, crash-only discipline),
-see [chain-loop.md](/docs/validators/chain-loop). For the original runbook this expands, see
-`docs/TESTNET.md`.
+```bash
+optima chain-validate \
+  --netuid "$OPTIMA_NETUID" \
+  --network "$OPTIMA_NET" \
+  --intake-db chain_intake/intake.sqlite3 \
+  --private-root chain_intake/private \
+  --publication-root chain_intake/worker \
+  --intake-only \
+  --once
+```
+
+Expected output summarizes finalized block, arrivals, reservations, immutable
+publications, copies, rejections, screens, decisions, settlements, and holds. In
+intake-only mode the screen, qualification, and settlement counts remain disabled.
+
+Run the same command again. No new reveal should be republished; durable identity and the
+finalized cursor make the pass idempotent.
+
+Retain both summaries plus the SQLite/database scope, immutable publication receipt,
+committed content hash, finalized block/hash/event position, and HTTPS response metadata.
+A successful fetch without those joins is not a restart proof.
+
+Then perform controlled restart drills on a disposable testnet deployment:
+
+1. stop between finalized reservation and fetch; the row must remain pending;
+2. interrupt an active fetch; restart must retain `NO_DECISION`/hold rather than claim a
+   candidate failure;
+3. stop after publication but before copy reconciliation; the next pass must reconcile
+   authoritative later copies idempotently; and
+4. attempt a second controller against the same database; it must fail on exclusive
+   ownership rather than run concurrently.
+
+Do not perform these drills against the only copy of standing production evidence.
+
+## Full qualification is a deployment integration
+
+The console entry point cannot construct a production `ArenaServiceRegistry`. Full
+validation requires reviewed Python deployment code to inject a registry/provider and
+select the arena. See [Arena service](/docs/validators/arena-service) and
+[Qualification](/docs/validators/qualification).
+
+Do not resurrect the removed `--eval-cmd`, `--ledger`, `--margin`,
+`--dry-run-weights`, wallet, or hotkey flags on `chain-validate`. They do not exist in the
+current production path.
+
+With an injected deployment registry, the same testnet loop may screen, qualify, retain a
+two-PASS pair, and settle. That does not move B/C/B′/T on chain: the chain supplies arrival
+and current metagraph authority, while the registered OCI/referee fleet produces and
+retains the evidence. Use one-pass commissioning first, and verify the primary and
+reproduction lanes separately before daemon mode.
+
+## Weight dry run
+
+Only after the SQLite store contains genuine current-schema crowns and complete active
+arena state can the separate signer build a projection:
+
+```bash
+optima set-weights \
+  --intake-db chain_intake/intake.sqlite3 \
+  --netuid "$OPTIMA_NETUID" \
+  --network "$OPTIMA_NET" \
+  --wallet default \
+  --hotkey validator \
+  --half-life-blocks <BLOCKS> \
+  --discovery-lifetime-blocks <BLOCKS> \
+  --discovery-pool-ppm <PPM> \
+  --refresh-blocks <BLOCKS> \
+  --dry-run
+```
+
+Dry run refreshes live authority and prints/reconciles the projection without creating a
+publication intent. An empty intake-only test database cannot be turned into weights by
+supplying arbitrary CLI values.
+
+The dry run still opens the exclusive SQLite authority and reads a live metagraph. Stop or
+coordinate the validator loop so it does not own the database at that moment. Preserve
+the projected digest, effective block/hash, membership digest, policy digest, stack
+generations, and output vector. `status=dry_run` and `submitted=false` are the expected
+non-emitting result.
+
+A real weight test is a materially different operation: it requires a genuine crown,
+persists journal intent before signing, and may submit a hotkey extrinsic. Do not remove
+`--dry-run` merely to prove connectivity, and do not treat an SDK submission response as
+confirmation; the exact recipient set, fixed-tolerance normalized values, and a
+sufficiently new chain `last_update` are required.
+
+## What the retained testnet proof established
+
+The 2026-07-13 closure record retained a real finalized testnet reveal through strict
+HTTPS fetch, committed-tree re-hash, registered-target resolution, immutable publication,
+and restart with zero new work. It also retained a live metagraph-backed weight dry run
+with no extrinsic.
+
+The later generation-1 crown/reproduction portion was explicitly structural and used a
+synthetic 100-ppm fixture. It was not a current empirical GPU win. The actual joined OCI
+double-build/TP8 serving proof was not run, and the repository still ships no production
+`ArenaServiceProvider`. These are commissioning obligations, not details hidden behind a
+CLI flag.
+
+## Testnet exit criteria
+
+Before treating a deployment as production-capable, require evidence for all of:
+
+- endpoint/genesis/netuid scope and finality behavior;
+- HTTPS intake limits, committed hash, publication reopen, copy ordering, and restart;
+- registered arena manifest/provider identity and queue behavior;
+- faithful and broken non-crown screen controls;
+- real isolated primary and independent reproduction attempts with evidence restore;
+- settlement lease expiry, blocker, atomic-commit, and stale-incumbent controls;
+- live dry-run projection plus signer journal/readback drills under approved policy; and
+- independently verified release build/serve/rollback if operating the release plane.
+
+Passing only the first two bullets proves intake, not a launch-ready validator.
+
+## Failure triage
+
+| Symptom | Check |
+|---|---|
+| Payload refused before signing | HTTPS URL, lowercase 64-hex hash generation, payload size |
+| Reveal not visible | Timelock, finality, endpoint/netuid, hotkey registration |
+| Fetch rejected | DNS/global routing, TLS certificate, redirect chain, archive limits, committed hash |
+| Reservation held | Store reason, retry count, controller restart, queue/arena capacity |
+| No qualification | `--intake-only`, or missing injected registry/provider |
+| Weight projection refused | No genuine crown, incomplete/stale family, metagraph change, held publication journal |
+| Database ownership error | Another validator pass or signer owns the exclusive store; coordinate, never remove the lock |
+| `pending` weight publication persists | Wait until retry block, inspect authoritative readback, preserve the journal |
+| Weight publication becomes `held` | Audit projection/readback/signer state; append a reasoned release only after review |
+| Release smoke missing receipts | This is off-chain release validation; stop rollout rather than treating testnet intake as proof |
+
+Never “fix” a test by editing SQLite rows, weakening HTTPS, or treating
+`NO_DECISION` as a candidate failure.
+
+## Source anchors
+
+- [Chain submission helper](https://github.com/latent-to/optima/blob/main/optima/chain/submit.py)
+- [Payload contract](https://github.com/latent-to/optima/blob/main/optima/chain/payload.py)
+- [Current validator loop](https://github.com/latent-to/optima/blob/main/optima/chain/validator_loop.py)
+- [Finalized intake store](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py)

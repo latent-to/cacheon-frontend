@@ -1,153 +1,145 @@
 ---
-title: Override points (base kernels)
+title: Override points
 ---
 
-<Callout type="warn" title="Not scorable end-to-end on GPU today">
-  This path **cannot be scored end-to-end on GPU today**. The
-  `nvfp4_moe_megakernel` base kernel's GPU path is a stub that raises
-  `NotImplementedError` on every call — verified in the repo source at
-  `optima_kernels/moe/nvfp4_megakernel.py` (`run()`: *"GPU fused MoE with the
-  miner's GEMM1 epilogue installed. Not yet built."*). Only the CPU/dense
-  reference path (`prepared["fmt"] == "dense"`, in
-  `optima_kernels/override.py`) runs today — real and laptop-testable, but not
-  a GPU-scored submission. Read the rest of this page only if you're
-  prototyping ahead of the base kernel landing (tracked as milestone M1.2 in
-  `docs/SUBMISSION_MODEL_BUILD_SPEC.md`); otherwise start with
-  [Your first kernel](/docs/miners/your-first-kernel).
-</Callout>
+Override points let a small miner-owned function fill a typed hole in a
+validator-owned base kernel. The resulting callable still implements a normal
+registered slot ABI; the base kernel, preparation path, output ownership, and
+serving integration remain validator-owned.
 
-For quantized MoE, writing the *whole* fused-experts kernel from scratch is
-brutal — it's an ~8.7k-LoC grouped-GEMM megakernel. But the *interesting* part
-(the activation epilogue, the dequant scaling) is small. The **override-point**
-pattern lets you ship only that small hook, composing into a validator-owned base
-kernel.
+This is an advanced composition mechanism, not permission to patch arbitrary
+engine code.
 
-This is the sanctioned, accessible way to contribute to a quantized MoE without
-understanding the grouped-GEMM internals. Current status: the API and CPU/dense
-reference path are real and useful for bundle development, but the
-`nvfp4_moe_megakernel` GPU path in this repo is still a stub. Treat the
-override-point example as a contract/demo until the validator-owned GPU base
-kernel is vendored and scored.
+## Current scope and status
 
-## The idea
+There is currently one implemented override-point identity:
 
-The validator owns a **base kernel** (e.g. `nvfp4_moe_megakernel`) that exposes
-a **typed hole** — an `override_point` (e.g. `gemm1_epilogue`). You ship:
+```text
+moe.fused_experts/gemm1_epilogue
+```
 
-- a **device epilogue** — a small `@cute.jit` CuTe-DSL (or Triton) function that
-  fills that hole on the GPU, and
-- a **torch reference** — `<entry>_ref`, the same math in plain torch (the
-  fidelity oracle + the CPU/dense path).
+It selects the `gemm1_epilogue` hole in the validator-owned
+`nvfp4_moe_megakernel` base. The registry and composition code are in
+[override.py](https://github.com/latent-to/optima/blob/main/optima_kernels/override.py).
 
-At load time, the validator **composes** your epilogue into the base kernel by
-JIT-binding it as a constexpr parameter. The composed result has the standard
-`fused_experts(x, topk_ids, topk_weights, prepared, out)` signature, so it flows
-through the existing MoE dispatcher and inherits validator output-ownership,
-eligibility, quant pairing, graph-safety, and fallback for free.
+The status matters:
 
-## The manifest
+- manifest parsing, point lookup, composition, and the dense/CPU reference path
+  are implemented and tested;
+- the GPU `nvfp4_moe_megakernel.run` path is currently a stub that raises
+  `NotImplementedError`;
+- therefore the committed example is useful for ABI development but cannot
+  establish a GPU crown through this base today.
+
+See the explicit status in
+[nvfp4_megakernel.py](https://github.com/latent-to/optima/blob/main/optima_kernels/moe/nvfp4_megakernel.py).
+Do not quote provenance measurements embedded in example metadata as results of
+the current override bundle.
+
+## Bundle declaration
+
+A competitive version must still request its registered singleton target:
 
 ```toml
-bundle_id   = "swigluoai-override-v1"
+bundle_id = "my-moe-epilogue-v1"
 abi_version = "optima-op-abi-v0"
 
+[competition]
+target = "moe.fused_experts"
+mode = "slot"
+
 [[ops]]
-slot           = "moe.fused_experts"
-source         = "kernels/swigluoai.py"
-entry          = "gemm1_epilogue"        # the device epilogue; entry + "_ref" = torch ref
-base_kernel    = "nvfp4_moe_megakernel"
+slot = "moe.fused_experts"
+source = "kernels/epilogue.py"
+entry = "gemm1_epilogue"
+base_kernel = "nvfp4_moe_megakernel"
 override_point = "gemm1_epilogue"
+dtypes = ["bfloat16", "float16"]
+metadata = "metadata/moe.json"
 ```
 
-Note: `override_point` requires `base_kernel`. And you **omit** `prepare` — the
-validator owns the NVFP4 weight-prep for the base kernel.
+The target catalog must allow the observed `override` feature, and the point
+registry must resolve the `(slot, override_point)` pair. Manifest fields cannot
+name a miner-supplied base kernel.
 
-## The kernel file
+## The paired callable convention
 
-You write **two functions** in one file:
+For `entry = "gemm1_epilogue"`, the loader expects:
+
+- `gemm1_epilogue_ref(gate, up, ...)`: a required Torch reference used by the
+  dense path and fidelity checking;
+- `gemm1_epilogue(...)`: the optional-at-import device function, required for a
+  real GPU implementation.
+
+On a CPU host, guard CuTe/CUTLASS imports so the reference remains importable:
 
 ```python
-# kernels/swigluoai.py
-import torch
-
 def gemm1_epilogue_ref(gate, up):
-    """The torch reference — the fidelity oracle + CPU/dense path. Always importable."""
-    g = torch.clamp(gate, max=7.0)
-    u = torch.clamp(up, -7.0, 7.0)
-    return g * torch.sigmoid(1.702 * g) * (u + 1.0)
+    return activation(gate, up)
 
-# GPU device epilogue, behind a guard so the module imports on a CPU box
 try:
     import cutlass
-    from cutlass import cute
+    import cutlass.cute as cute
+
     @cute.jit
-    def gemm1_epilogue(...):
-        # ~12 lines of CuTe-DSL: the swigluoai math, device-side
+    def gemm1_epilogue(t_compute, gate, up, alpha_val, *act_params):
         ...
 except ImportError:
-    gemm1_epilogue = None   # the loader returns None for it on CPU
+    pass
 ```
 
-The `_ref` is **mandatory** (the loader raises if it's missing). The device
-epilogue may be `None` on a CPU box — that's fine, you can still test the
-reference path locally.
+If the device implementation calls `cute.compile(...)`, static closure accepts
+that method only when `cute` is bound exactly once by `import cutlass.cute as
+cute` or the equivalent absolute `from cutlass import cute`. Rebinding or
+shadowing the alias, importing it twice, using another module's `.compile`,
+vendoring a local `cutlass` package, or passing a string/bytes literal as the
+first positional argument fails closed. The validator-owned
+`DSL_JIT_ENTRYPOINTS` table contains only CuTe today. The exception exists only
+for CuTe's function-object tracing API; it does not permit string-to-code
+compilation or `builtins.compile`. Triton's lazy `@triton.jit` launch path does
+not need an explicit `.compile` admission.
 
-## What the validator does at load
+The current admission logic is pinned in the post-main working-tree paths
+`optima/dsl_jit_policy.py` and `optima/engine_tree.py` at the commit named in
+[State of record](/docs/reference/state-of-record).
 
-1. `optima_kernels.override.OVERRIDE_POINTS` maps `"moe.fused_experts/gemm1_epilogue"`
-   → the `nvfp4_moe_megakernel` base.
-2. `build_override(...)` loads your `<entry>_ref` (required) and `<entry>` (may
-   be None on CPU), then calls `compose(...)`.
-3. `compose(...)` JIT-binds the base kernel with your epilogue as a constexpr
-   param. It returns a standard `fused_experts(x, topk_ids, topk_weights,
-   prepared, out)` that picks the path off `prepared["fmt"]`: `"dense"` → the
-   torch epilogue (laptop-testable); otherwise the GPU megakernel path once the
-   validator-owned base is available. In the current tree that GPU path raises
-   instead of scoring.
+The exact device ABI belongs to the registered point. For the current point,
+`alpha_val` is the per-expert quantization/dequantization value; activation
+parameters such as a sigmoid gain are distinct values. Mixing those two
+meanings is a correctness bug.
 
-From the dispatcher's view, this is an ordinary `moe.fused_experts` kernel. It
-inherits everything.
+## What composition does
 
-## Why this is the accessibility lever
+The loader resolves the point, loads the required `_ref` function and optional
+device function, and builds a standard `fused_experts` callable. In dense mode,
+the validator-owned base implementation evaluates the miner's Torch activation.
+In GPU mode, the base would install the device epilogue inside the megakernel.
 
-The base does the hard mainloop. You write ~14 lines of epilogue in Triton or
-CuTe-DSL. Once the validator-owned GPU base kernel is present, you don't need to
-understand the grouped-GEMM internals, the NVFP4 layout swizzling, or the
-tensor-memory-accelerator async copies; you just change the activation math.
+The miner does not supply `prepare` for this override. The validator owns the
+base kernel's weight layout and returns the composed `(entry, prepare)` pair.
 
-Contrast this with the *old* shape of this submission: a bundle that
-imported sglang and `open()`-patched site-packages flashinfer (which is
-sandbox-banned). The override-point pattern is the clean replacement.
+## Development checks
 
-## The two-alpha trap
+Study the committed
+[swigluoai override example](https://github.com/latent-to/optima/tree/main/examples/miner_m3_swigluoai_override),
+then run the source scan and focused composition tests:
 
-If you target the swigluoai epilogue, beware: there are **two distinct alphas**.
+```bash
+python -m optima.cli scan examples/miner_m3_swigluoai_override
+python -m pytest -q tests/test_optima_kernels.py tests/test_model_profiles.py
+```
 
-- `swiglu_alpha` (1.702) — inside the sigmoid, part of the activation math.
-- `alpha_val` — the per-expert NVFP4 dequant scale, part of the weight layout.
+The example declares only BF16/FP16 NVFP4 eligibility. A normal CPU `verify`
+descriptor is dense and therefore correctly reports every shape N/A; do not
+misread that as a composition pass. The focused tests exercise the dense
+reference mechanism explicitly. None of these checks tests the missing GPU base,
+graph replay, authoritative quality evidence, or performance.
 
-Conflating them produces a silent-wrong result (cosine ~0.449, which fails the
-cosine gate). They are different numbers doing different jobs. The validator
-owns `swigluoai(1.702, 7.0)` as a model-level fact; you apply the activation
-alpha in your epilogue, and the dequant alpha comes through the prepared weight
-layout.
+## When not to use an override
 
-## What override points exist today
-
-The override-point ladder (from `optima_kernels/override.py`):
-
-- **`gemm1_epilogue`** on `nvfp4_moe_megakernel` — the activation epilogue after
-  the first GEMM. CPU/dense demo today; GPU scoring waits on the base kernel.
-
-The ladder is designed to extend (epilogue → codec → prologue → tile-last), but
-today only `gemm1_epilogue` is wired. Adding an override point is a
-validator-owned change in `optima_kernels/override.py`.
-
-## Where to go next
-
-- **The portable library:** `optima_kernels/` is the validator-owned base
-  kernels. See [Codebase map](/docs/reference/codebase-map).
-- **For the deep version:** `docs/SUBMISSION_MODEL.md` and
-  `docs/SUBMISSION_MODEL_BUILD_SPEC.md` in the repo.
-- **The example:** `examples/miner_m3_swigluoai_override/` (read its `README.md`).
-- **If you need to patch a dependency instead:** [Dependency patches](/docs/miners/dep-patches).
+Use a normal slot implementation when you own the complete registered callable.
+Use a [dependency patch](/docs/miners/dep-patches) only when a registered target explicitly
+requires an approved dependency export/build change. Use the
+[Discovery lane](/docs/miners/discovery-lane) when the desired hole, base, or engine change
+is not registered. Do not vendor a large dependency into a bundle to simulate a
+validator-owned base.

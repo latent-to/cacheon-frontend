@@ -1,193 +1,255 @@
 ---
-title: The slot contract (the narrow waist)
+title: Slot contract
 ---
 
-> This page is the invariant — the one thing that must never change. Everything
-> *around* it (which slots exist, which sglang chokepoints we patch, correctness
-> modes, eval knobs) is free to churn. The waist's job is to be **boring and
-> stable**. If a feature can't satisfy the four rules below, it is not a core
-> slot.
->
-> The committed source is `docs/SLOT_CONTRACT.md` in the repo; the live code is
-> `optima/slots.py` (`SlotSpec`) and `optima/seams.py` (the adapter table).
+The slot contract is Cacheon's narrow waist: a stable, validator-owned tensor boundary between untrusted optimization code and a pinned inference engine.
 
-## Why a "waist"
+Slots may evolve, SGLang adapters may churn, and correctness policies may be recalibrated. Every core slot must still satisfy the four invariants on this page. The normative checklist is [`docs/SLOT_CONTRACT.md`](https://github.com/latent-to/optima/blob/main/docs/SLOT_CONTRACT.md); the executable catalog is [`optima/slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py).
 
-Long-lived extensible systems are hourglasses: a *thin, stable, minimal* waist,
-with a proliferation of things above it (slots) and below it (sglang seam
-adapters) that change freely. The waist's job is to be **boring and ossified** —
-that is the feature, not a bug. Cf. the Internet's IP layer, Unix syscalls, the
-PyTorch dispatcher contract. We keep the waist thin so a "seemingly impossible"
-submission becomes "add a slot / add an adapter / stage it in the escape hatch,"
-never "rewrite everything."
-
-## The four invariants (inviolable)
-
-Every core slot must satisfy all four. If it can't, it is not a core slot — it
-goes in the [fenced escape hatch](#the-escape-hatch-where-exotic-submissions-go-first) (experimental, framework
-tier), or it doesn't exist.
+## The four invariants
 
 ### 1. The validator owns the boundary
 
-The validator allocates **every output tensor** (shape / dtype / device / stride)
-and owns the call site. The miner kernel only *fills* validator-allocated
-outputs; it never allocates or returns the result the model consumes. Some slots
-have one output (`out`); others have multiple outputs (`out_norm`,
-`out_residual`) or an additional process-group argument for collectives. The
-common rule is not the spelling of the last argument — it is validator-owned
-storage and no miner-returned model tensor.
+The validator owns the call site and allocates every output tensor, including shape, dtype, device, stride, layout, and storage. The candidate entry point only fills the provided output. It does not allocate or return the result consumed by the model.
 
-This is enforced literally in the dispatchers (`optima/dispatch.py`): the
-dispatcher allocates the outputs, then calls `impl.entry(*inputs, *outputs, ...)`.
-A miner cannot hand back a tensor for the model to consume; the validator takes
-the buffers it allocated.
+The same typed output contract is used by offline verification and the live engine binding. After execution, the binding revalidates output identity and layout before the engine consumes it.
 
-### 2. Strictly upstream of the sampler
+### 2. The slot is strictly upstream of the sampler
 
-A slot sits **above** the logprobs/sampler. Its output feeds the residual stream
-→ downstream layers → sampler, all stock. There is therefore **no final output to
-substitute** — this is what defeats the "run gibberish, fetch the real answer
-from an API" attack.
+A slot may replace a bounded data-plane region, but it may not control final logits, logprobs, tokens, or sampling. Its output continues through validator-owned or pinned-runtime computation before the final response exists.
 
-This is a hard line. A slot that crosses the sampler line (e.g. "submit a whole
-sampler") reintroduces the output-substitution attack: a miner could run
-gibberish internally and fetch the real answer over the network. Keeping every
-slot upstream of the logprobs is what keeps op/block/collective slots safe.
+For selection-style slots, the candidate fills an intermediate score sheet and the validator-owned tail performs the selection. This preserves the same property: the candidate never supplies the final selected output by assertion.
 
-### 3. Gated against a validator-owned reference
+### 3. Correctness uses trusted high-precision ground truth
 
-The cheap slot-level correctness gate is measured against an **fp32 / dequant
-reference**, **not against the stock kernel**. A faster, slightly-different
-kernel can pass; a wrong one cannot.
+Per-slot verification compares candidate output with a validator-owned fp32 or dequantized reference, never with the stock kernel as semantic truth. A faster implementation may use different reductions or low-precision arithmetic, so each slot selects an appropriate registered metric:
 
-The *metric* may vary per slot — `allclose`, `matched_ratio`, `cosine`,
-`topk_overlap` — but the *verify reference* is always high-precision ground
-truth. This matters because legitimate optimized kernels *do* differ from the stock kernel at
-the ULP level (reordered softmax, fp8, weight-absorbed forms). If the cheap gate
-were tied to stock bit patterns, those kernels would be false-failed; if it were
-loose without a trusted reference, a wrong kernel could sneak through.
+- `allclose` for elementwise-equivalent results;
+- `matched_ratio` for numerically reordered kernels;
+- `cosine` with an optional norm guard for low-bit outputs;
+- `topk_overlap` for selection score sheets.
 
-The production model-level fidelity gate is separate. In clean deterministic
-arenas, `evaluate --fidelity-mode kl` compares rollout distributions against
-stock. In noisy arenas, `evaluate --fidelity-mode audit` samples live dispatcher
-calls and re-runs the captured stock baseline on cloned pre-call inputs under
-the slot's tolerances.
+This cheap gate proves that the candidate computes the registered function. It is necessary but not sufficient: production qualification also applies pristine T quality authority to sealed end-to-end trajectories.
 
-### 4. No trust in miner-reported numbers
+### 4. Miner-reported performance and evidence are not trusted
 
-The score never trusts a value the miner's code could have produced.
+The host times requests outside the candidate process. The validator owns workloads, role schedules, output storage, reference work, evidence schemas, and verdicts. Candidate logs, self-reported throughput, and self-reported quality cannot mint a score.
 
-- **Throughput** is timed out-of-process. The driver/timer process never imports
-  the miner module (`seam.mark_driver()`); the kernel runs only in the spawned
-  scheduler, which the driver times over IPC. A malicious kernel cannot reach the
-  clock.
-- **Fidelity** is judged by the validator, not by miner-reported summaries. In
-  KL mode the driver compares emitted-token distributions from stock and
-  candidate launches. In audit mode the validator re-runs the captured stock
-  baseline itself on cloned inputs.
-- The token count is **driver-known** under the scoring default (`ignore_eos` +
-  a set `max_new_tokens` → the count is `len(prompts) * max_new_tokens` a
-  priori), never a scheduler-reported field the miner could inflate.
+A feature that cannot preserve all four invariants is not a core slot. It must use a fenced discovery or reviewed integration path.
 
-## Collective slots — the wider surface
+## Slot kinds
 
-`kind="collective"` slots span GPUs. Decode at TP/EP scale is **comms-bound**
-(the all-reduce / all-to-all is the single largest category, ~32–43% of GPU time,
-and it's *latency*-bound). Capturing that lever needs a slot that spans GPUs, so
-the kernel is handed the **process group** — a wider capability than the
-op/block "fill a tensor" contract.
+The live catalog supports three kinds. Kind changes the breadth and capability of the boundary, not the trust model.
 
-The four invariants still hold (validator owns the output buffer + the group +
-the call site; the reduce is mid-network, upstream of the sampler; gated vs the
-trusted fp32 cross-rank result; timing is out-of-process). But the larger surface
-makes two things **mandatory, not optional**:
+| Kind | Boundary | Additional requirement |
+|---|---|---|
+| `op` | One fused operation | Standard typed input/output verification |
+| `block` | Several operations behind one bounded tensor contract | Explicit graph-safe behavior and end-to-end qualification |
+| `collective` | A cross-rank operation or block that owns a communication step | Distributed verification, canonical live ABI, terminal all-rank selection, and end-to-end qualification |
 
-- **Distributed verification.** A collective can't be checked on one GPU.
-  `optima.verify_collective.verify_collective` spawns `world_size` ranks, runs
-  the miner kernel as the real collective, and compares each rank's output to a
-  `torch.distributed` reduce of the **fp32** partials (gloo/CPU for a numeric
-  check, nccl/GPU for the real path).
-- **The end-to-end gate.** Per-collective error compounds across every layer, so
-  the op-level cosine/matched_ratio is necessary-but-not-sufficient — the
-  model-level fidelity gate and any configured benchmark gate are required.
+## Current catalog
 
-### Overlap needs a block that owns both
+The current API contains **11 slots**.
 
-A "hide the reduce behind the producer GEMM" optimization is *not* a reduce-only slot —
-it needs a **block that owns both** the producer and the reduce. This is realized
-as **`moe.fused_experts_reduce`**: a `(prepare, forward)` block handed the
-process group whose `forward(...)` fills `out` with the *already-reduced* expert
-output — the validator does **not** replay a stock all-reduce after it. This
-lifts the structural ceiling: the plain `moe.fused_experts` slot can't express
-the overlap, because there the reduce is severed onto a separate stock call.
+| Slot | Kind | Entry point | Semantic boundary |
+|---|---|---|---|
+| `activation.silu_and_mul` | `op` | `silu_and_mul` | Gated MLP activation product |
+| `norm.rmsnorm` | `op` | `rmsnorm` | RMS normalization; residual addition remains outside |
+| `attention.sdpa` | `block` | `attention` | Scaled dot-product attention core |
+| `attention.decode` | `block` | `attention_decode` | Paged decode-attention boundary |
+| `attention.msa_block_score` | `block` | `msa_block_score` | MSA decode block-score sheet; validator owns top-k selection |
+| `attention.msa_prefill_block_score` | `block` | `msa_prefill_block_score` | MSA chunked-prefill block-score sheet; validator owns top-k selection |
+| `moe.fused_experts` | `block` | `fused_experts` | Prepared MoE expert execution |
+| `moe.fused_experts_reduce` | `collective` | `fused_experts_reduce` | Prepared MoE experts plus owned trailing reduce |
+| `collective.all_reduce` | `collective` | `all_reduce` | Cross-rank sum into a validator-owned output |
+| `collective.ar_residual_rmsnorm` | `collective` | `ar_residual_rmsnorm` | Fused all-reduce, residual add, and RMSNorm |
+| `collective.moe_finalize_ar_rmsnorm` | `collective` | `moe_finalize_ar_rmsnorm` | Deep MoE finalize, all-reduce, residual, and RMSNorm boundary |
 
-## Graph-safety is part of the contract
+Run `optima slots` against the installed code for the human-readable live list.
+The command prints multi-line summaries rather than a JSON/structured schema;
+automation should import the typed catalog instead of scraping this page or the
+CLI output. Documentation should not be used to bypass catalog resolution.
 
-Scoring runs with **CUDA graphs ON**. Graphs-off cripples the baseline ~4.5–6.5×,
-so a graphs-off speedup is not a valid Cacheon result — beating
-sglang/vLLM/TensorRT graphs-on is the entire point.
+## Typed call shape
 
-- The **op seams** (`silu`, `rmsnorm`) are graph-captured directly.
-- A **block/collective** kernel must **declare `graph_safe: true`** in its
-  metadata to run *inside* the graph. Otherwise the seam falls back to the
-  trusted baseline under capture — an un-capturable kernel cannot wedge the
-  graph.
+`SlotSpec` binds every semantic detail needed by both verifier and live dispatch:
 
-`graph_safe` means: static shapes, no host syncs (`.item()`/`.cpu()` that read
-back), no data-dependent Python control flow, writes only the
-validator-allocated buffer. A kernel that lies either errors at capture (→
-fallback) or is caught by the fidelity gate. See
-[Graph-safe kernels](/docs/miners/graph-safety).
+- canonical dotted name and kind;
+- required `entry` callable and optional `prepare` callable;
+- deterministic input generator and registered shapes;
+- output shape or typed `OutputSpec` resolver;
+- trusted reference invocation;
+- candidate invocation adapter;
+- graph-dynamic input names;
+- correctness mode and dtype tolerances;
+- optional slot-specific end-to-end quality threshold;
+- collective reference and invocation hooks when applicable.
 
-The one structurally-eager seam is `attention.decode`'s gather MVP (a per-step
-`max_len` host-sync); its graph-safe form is a paged-direct contract (the next
-rung).
+The target catalog freezes a stdlib-only projection of each live slot into `TargetContractRef`: input ABI, output ABI, reference, verification profile, binding family, graph inputs, correctness policy, tolerances, and optional quality threshold all contribute to the target specification digest. A target name alone is not enough.
 
-## Evolution rules
+### One call, end to end
 
-- **Additive only.** `abi_version` gates the bundle format; new `SlotSpec` fields
-  are optional; never break a bundle that parsed before (Linux's "don't break
-  userspace"). A miner who wrote a bundle against `abi_version =
-  "optima-op-abi-v0"` last year still parses today.
-- **Seam adapters are version-pinned glue, not the contract.** Each sglang
-  chokepoint (`SiluAndMul.forward`, `RadixAttention.forward`,
-  `FusedMoE.forward_impl`, …) is a *lower-bell* adapter, re-validated on every
-  `PINNED_SGLANG` bump via `optima compat`. Proliferate them freely; they never
-  touch the four invariants.
-- **Extraction trigger (do NOT do early).** `SlotSpec` is a dataclass today, and
-  that is correct while it's small. When the next slot forces *yet another*
-  optional field/callable — or the `lambda` soup stops being readable — extract
-  `Slot` into an interface (one class per slot, mirroring sglang's
-  `AttentionBackend` base class). Not before: premature abstraction is its own way
-  projects die. The refactor is local — it touches neither the invariants nor any
-  miner's bundle.
+For a non-collective slot such as `norm.rmsnorm`, the important sequence is:
 
-## The escape hatch (where exotic submissions go FIRST)
+```mermaid
+sequenceDiagram
+    participant E as Pinned engine adapter
+    participant D as Validator dispatcher
+    participant C as Candidate entry
+    participant R as Trusted reference
 
-Some optimizations can't be expressed as tensor-in/tensor-out (a backend swap, a source
-recompile). Those do **not** get special-cased into the core. They go through the
-**framework / rebuild tier**, which is experimental and fenced:
+    E->>D: Live tensors + canonical call descriptor
+    D->>D: Resolve target/variant and allocate output
+    D->>C: entry(inputs, out=validator_output)
+    C-->>D: Completion, not an authoritative result object
+    D->>D: Revalidate storage/shape/dtype/device/layout
+    D-->>E: Model-facing validator-owned output
+    R-->>D: Separate verification truth for registered tests
+```
 
-- It runs **only validator-shipped, reviewed patchers** (`rebuild.json`
-  `repo_python` steps) — never miner-supplied code (`bundle_python` is rejected).
-  Like PyTorch: you submit a patch to core to add a backend; you don't ship
-  arbitrary code into the dispatcher.
-- It is gated by the **token / task-accuracy** path plus **no-egress isolation**,
-  because a patched engine's self-reported numbers aren't trusted (invariant 4).
-- When a pattern recurs there *and* can be made to satisfy the four invariants,
-  **promote it** to a clean core slot. The escape hatch is a staging area, not a
-  permanent home.
+Offline `verify` generates registered inputs, allocates the same typed output contract,
+runs the candidate, and compares it with the trusted reference. Live dispatch derives the
+descriptor from real SGLang state and uses the same output rules. Production qualification
+then asks the broader question that per-call verification cannot answer: does the complete
+engine preserve graph behavior and end-to-end quality while improving registered serving
+workloads?
 
-## What's just churn (don't)
+The candidate therefore never gets to say “this is the output,” “this call is eligible,”
+or “this run passed.” It receives a bounded computation opportunity and a buffer; the
+validator owns every surrounding decision.
 
-A broad "robustness PR" or load-time weight-conversion framework is premature
-until its trigger fires (a real second contributor, a real exotic submission,
-memory becoming the bottleneck). The sglang plugin hook and GPU canaries now
-exist because the runtime needed them; they are still implementation churn below
-the waist, not new miner-facing contract.
+## Prepare and forward
 
-## Where to go next
+Layout-sensitive or quantized slots may define a `(prepare, forward)` pair. `prepare` runs once against raw validator-supplied checkpoint state and produces prepared state retained by the engine. `entry` receives that state on each forward call and still fills validator-allocated outputs.
 
-- **The slots themselves:** [Slot catalog](/docs/reference/slots-table).
-- **How the seam implements the contract:** [The seam](/docs/architecture/seam).
-- **For miners, the practical version:** [The slots you can target](/docs/miners/slots).
+This makes weight repacking, scale interleaving, or layout transformation attributable to the same bounded slot without granting a generic engine-wide setup hook. The live layer-to-contract mapping remains validator-owned.
+
+## Collective contract
+
+Collective candidates receive a process group, which is a wider capability. They therefore carry mandatory rules beyond the common invariants.
+
+### Distributed verification
+
+The single-rank `verify_entry` path refuses collective slots. The public
+`optima verify` command routes them to `verify_collective`, which spawns the
+requested world size, executes the real collective on every rank, and compares
+every output with a trusted cross-rank fp32 reduction plus any registered
+post-reduce transform.
+
+### One canonical ABI
+
+Offline verification and the SGLang binding derive the same call descriptor and typed output/workspace contract. The binding obtains rank and world size from the actual process group. Unsupported topology, missing fields, or an ineligible candidate route to stock before selection.
+
+### Terminal selection
+
+Candidate selection must agree across all ranks. Once all ranks select the candidate route, a rank-local prepare, allocation, execution, or validation failure aborts the candidate engine. A single-rank stock retry would deadlock or diverge from peers already inside the candidate collective, so fallback is no longer safe after selection.
+
+### End-to-end qualification
+
+Passing the distributed numerical check does not establish model quality or speed. Collective error can compound across layers, and topology controls performance. The candidate must still pass the registered full-engine bracket and pristine-reference quality policy.
+
+The implementation is split between [`verify_collective.py`](https://github.com/latent-to/optima/blob/main/optima/verify_collective.py), [`dispatch.py`](https://github.com/latent-to/optima/blob/main/optima/dispatch.py), and the version-pinned adapters in [`integrations/`](https://github.com/latent-to/optima/tree/main/optima/integrations).
+
+## CUDA graph contract
+
+Production qualification is graphs-on. A candidate cannot earn authority by passing only eager execution when the arena serves captured graphs.
+
+Each slot declares the tensor inputs whose values may change between replays while their addresses and shapes remain stable. Graph verification:
+
+1. captures the candidate route;
+2. mutates every declared dynamic input in place for each replay;
+3. recomputes the trusted reference for the new values;
+4. validates every replay output;
+5. rejects cached-answer, stale-input, or graph-unsafe behavior.
+
+Model weights and prepare-time state are capture-static. Python scalar changes require a different graph bucket unless the slot explicitly tensorizes them. Block and collective proposals must declare graph-safe behavior; the arena screen and retained qualification evidence bind the result.
+
+See [Graph safety](/docs/miners/graph-safety) for bundle-facing guidance.
+
+## Variants and eligibility
+
+A slot may expose several implementation variants for disjoint, validator-observable capability domains such as dtype, shape, compute capability, or topology. Variants do not create new reward units: all rows for one semantic slot resolve to one singleton target.
+
+Eligibility is evaluated before candidate selection. Unknown capability fields, overlapping ambiguous variants, unsupported topology, and missing prerequisites fail closed or route to stock according to the registered pre-selection policy. The miner cannot introduce a new capability vocabulary through manifest extras.
+
+## Atomic targets and composition
+
+A slot is a semantic ABI; a reward target is an economic identity. Most current targets are one-to-one singleton projections of slots, but the catalog can register an atomic target spanning multiple slots.
+
+`collective.moe_epilogue.v1` owns the pair:
+
+- `collective.ar_residual_rmsnorm`;
+- `collective.moe_finalize_ar_rmsnorm`.
+
+The catalog explicitly records displacement of the corresponding singleton targets. It also defines first-applicable precedence for the compatible `moe.fused_experts_reduce` and `moe.fused_experts` targets. Packaging order never decides overlap or ownership.
+
+See [Product model](/docs/architecture/product-model) and [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
+
+## Slot evolution
+
+Adding or changing a slot is a validator code change. It requires coordinated updates to:
+
+1. `SlotSpec` and its reference/shape/graph contract;
+2. the target catalog's frozen contract projection;
+3. offline and, for collectives, distributed verification;
+4. the live SGLang seam adapter and dispatch path;
+5. compatibility canaries against the pinned runtime;
+6. graph, failure, fallback, and end-to-end tests;
+7. arena policy and documentation.
+
+The stable waist is the four invariants, not a promise that the catalog's set of slots will never grow.
+
+## Escape hatches
+
+Normal target submissions cannot request arbitrary engine-wide setup or framework mutation. Cross-cutting proposals use the discovery lane; source or dependency patching uses validator-shipped, policy-constrained patchers. Successful work should be resolved into a core slot, an atomic target, or reviewed product source without relabeling changed selected payload bytes under old evidence.
+
+This keeps experimentation possible without widening every ordinary submission's authority.
+
+## Failure behavior by phase
+
+| Phase | Example | Required behavior |
+|---|---|---|
+| Manifest resolution | Unknown slot, ambiguous variant, stale contract digest | Reject before candidate execution |
+| Pre-selection live routing | Shape or topology is outside a registered variant | Use the stock path when policy permits; do not count a candidate firing |
+| Selected non-collective call | Candidate raises, corrupts output identity, or violates layout | In strict qualification, invalidate the candidate execution; a silent stock retry cannot produce crown evidence |
+| Selected collective call | One rank fails after all-rank candidate selection | Abort the candidate engine; rank-local fallback is unsafe |
+| Graph replay | Output reflects capture-time input after a declared dynamic tensor changes | Fail graph verification/screening |
+| End-to-end quality | Per-slot numerics pass but sealed trajectory regresses | Fail under pristine T quality authority |
+| Infrastructure | Worker, device, or evidence authority cannot establish a valid result | `NO_DECISION`, not an attributable candidate loss |
+
+This distinction explains why “fallback exists” and “the candidate qualifies” are
+different statements. Fallback can preserve availability in a non-strict serving or
+development context. Crownable evidence must prove that the selected candidate route
+actually fired and completed.
+
+## Slot reviewer checklist
+
+A new or changed slot is ready for a target only when a reviewer can answer yes to all of
+the following:
+
+- Is the semantic region bounded and strictly upstream of sampling?
+- Are every output and workspace shape, dtype, layout, stride, device, and storage rule
+  validator-owned and machine-checkable?
+- Does the trusted reference express the intended function independently of the stock
+  implementation?
+- Are capability domains finite, unambiguous, and observable before selection?
+- Are graph-dynamic inputs complete, with capture-and-mutate replay coverage?
+- If communication is owned, do offline and live paths share one distributed ABI and
+  terminal all-rank selection rule?
+- Is there a real pinned-runtime chokepoint, or is the catalog entry explicitly marked as
+  verifier-only until one exists?
+- Do strict-mode receipts and end-to-end qualification prove that the candidate path fired
+  without fallback?
+- Has the target catalog encoded overlap, displacement, requirements, and composition
+  rather than relying on bundle order?
+
+Passing a unit test without these properties is not sufficient to extend the narrow waist.
+
+## Source map
+
+- [`docs/SLOT_CONTRACT.md`](https://github.com/latent-to/optima/blob/main/docs/SLOT_CONTRACT.md) — normative invariants
+- [`slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py) — executable slot catalog
+- [`tensor_spec.py`](https://github.com/latent-to/optima/blob/main/optima/tensor_spec.py) — typed outputs and workspaces
+- [`verify.py`](https://github.com/latent-to/optima/blob/main/optima/verify.py) — op/block verification and graph replay
+- [`verify_collective.py`](https://github.com/latent-to/optima/blob/main/optima/verify_collective.py) — distributed verification
+- [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py) — economic target projection

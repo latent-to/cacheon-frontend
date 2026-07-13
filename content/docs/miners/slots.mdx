@@ -1,132 +1,167 @@
 ---
-title: The slots you can target
+title: Slots and contribution targets
 ---
 
-A **slot** is a replaceable, narrowly-typed region of the model graph. The
-validator owns the catalog; you may only target a slot that exists. You don't
-invent slots — you pick one and write a kernel for its contract.
+The validator publishes two related registries:
 
-The full authoritative table is at [Slot catalog](/docs/reference/slots-table).
-This page explains the *shape* of each kind so you can pick.
+- the **slot registry** defines callable seams and their ABIs;
+- the **target catalog** defines crownable contribution identities.
 
-## The three kinds
+Do not treat those words as synonyms. A slot is an execution boundary. A target
+is a validator-owned reward unit over one or more slots.
 
-| Kind | Boundary | What you get | Verification |
+You can print the slot registry from the checkout you are developing against:
+
+```bash
+python -m optima.cli slots
+```
+
+The authoritative sources are
+[slots.py](https://github.com/latent-to/optima/blob/main/optima/slots.py) and
+[target_catalog.py](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
+
+## Current slot catalog
+
+There are 11 semantic slots. `entry` below means the callable named by your
+manifest; it does not require the Python function itself to be named `entry`.
+
+| Slot | Kind | Required call boundary | What the validator retains |
 |---|---|---|---|
-| **`op`** | a single fused op | `entry(x, out)` (inputs + the output to fill) | single-process, vs fp32 reference |
-| **`block`** | a wider region, several ops fused behind one tensor boundary | `entry(q, k, v, out, ...)` or a `(prepare, forward)` pair | single-process vs fp32 reference |
-| **`collective`** | spans GPUs | `entry(..., out, group)` — you're handed the process group | **distributed**: spawns world_size ranks, vs fp32 cross-rank reduce |
+| `activation.silu_and_mul` | op | `entry(x, out)` | MLP activation output |
+| `norm.rmsnorm` | op | `entry(x, weight, out, eps)` | pure RMSNorm output |
+| `attention.sdpa` | block | `entry(q, k, v, out, sm_scale, causal)` | dense/GQA/MQA attention output |
+| `attention.decode` | block | `entry(q, k, v, seq_lens, sm_scale, out)` | paged decode-attention output |
+| `attention.msa_block_score` | block | `entry(q, index_k, seq_lens, block_size, out)` | decode-time block scores; validator owns top-k selection and attend |
+| `attention.msa_prefill_block_score` | block | `entry(q, index_k, prefix_len, scale, block_size, out)` | causal per-row prefill block scores; validator owns top-k selection and attend |
+| `moe.fused_experts` | block | `prepare(w13, w2)` plus `entry(x, topk_ids, topk_weights, prepared, out)` | local expert result; stock path owns the trailing reduction |
+| `moe.fused_experts_reduce` | collective | `prepare(w13, w2)` plus `entry(x, topk_ids, topk_weights, prepared, out, group)` | already reduced expert result |
+| `collective.all_reduce` | collective | `entry(x, out, group)` | sum across the supplied process group |
+| `collective.ar_residual_rmsnorm` | collective | `entry(x, residual, weight, eps, out_norm, out_residual, group)` | reduced residual and normalized output |
+| `collective.moe_finalize_ar_rmsnorm` | collective | `entry(gemm_out, row_map, scales, residual, weight, eps, out_norm, out_residual, group)` | finalized/reduced residual and normalized output |
 
-All three share the same cheat-resistant contract from
-[The slot contract](/docs/architecture/slot-contract): you only ever fill an
-output tensor the validator allocated, strictly upstream of the sampler.
+The two MSA slots output **scores**, not selected indices or attended values.
+Their target contracts grade the validator-owned top-k result. The prefill slot
+is a distinct long-prefill boundary and its canonical live descriptor is eager;
+do not assume a decode optimization exercises it.
 
-## The slots, at a glance
+Registration and live installation are also different facts. The
+`attention.msa_block_score` decode contract is registered and CPU-verifiable, but its
+current SGLang decode adapter is deliberately a non-installing stub until the pinned
+runtime has a stable model-specific chokepoint. The prefill sibling has a real guarded
+adapter. Confirm that the operator's arena actually binds and activates the target before
+investing in a production submission; a contract alone does not make a call site hot.
 
-Ten slots exist today. Grouped by what part of the model they're in:
+Collective slots are distributed contracts. `group` is the process group the
+validator supplies, and every listed output is validator-allocated. Test with
+the arena's world/TP size, not just one rank.
 
-**Activations / norms (ops — the simplest entry point):**
+See [Kernel ABI](/docs/miners/kernel-abi) for tensor semantics and
+[Graph evidence](/docs/miners/graph-safety) for capture requirements.
 
-- `activation.silu_and_mul` — the MLP activation `silu(x[...,:d]) * x[...,d:]`.
-  Contract: `entry(x, out)`. Correctness: `allclose`.
-- `norm.rmsnorm` — RMSNorm (the pure normalization; the validator owns the
-  residual-add fusion). Contract: `entry(x, weight, out, eps)`. Correctness:
-  `allclose`.
+## Singleton targets
 
-**Attention (blocks):**
+The current default target catalog registers one singleton target for each of
+the 11 slots. Its target ID is the slot ID. A normal proposal therefore names
+the slot target explicitly:
 
-- `attention.sdpa` — full softmax-attention (GQA/MQA), prefill-scale. Contract:
-  `entry(q, k, v, out, sm_scale, causal)`. Correctness: `matched_ratio` (0.99).
-  Today this is mainly an offline/verify contract; the generic runtime seam
-  dispatches decode and falls back for prefill unless a model-specific seam is
-  installed.
-- `attention.decode` — paged-decode attention. Contract:
-  `entry(q, k, v, seq_lens, sm_scale, out)`. Correctness: `matched_ratio` (0.99).
-  **Structurally eager** today (a per-step host-sync) — see
-  [Graph-safe kernels](/docs/miners/graph-safety).
-- `attention.msa_block_score` — the MiniMax-M3 sparse-attention indexer (which
-  blocks to attend to). Contract: `entry(q, index_k, seq_lens, block_size, out)`.
-  Correctness: `topk_overlap` — the output is a *selection*, not values. This is
-  a live slot contract but not a generic seam; it is scoreable only in an arena
-  that installs the matching MSA chokepoint.
+```toml
+[competition]
+target = "attention.msa_prefill_block_score"
+mode = "slot"
+```
 
-**Mixture-of-experts (blocks):**
+The catalog, not your manifest, binds that target to its member slot, ABI,
+reference, verification profile, serving binding, correctness policy, and
+allowed implementation features.
 
-- `moe.fused_experts` — the expert MLPs (SwiGLU-style). A `(prepare, forward)`
-  pair: `prepare(w13, w2)` runs once on raw weights; `forward(x, topk_ids,
-  topk_weights, prepared, out)` per step. Correctness: `matched_ratio` (0.97).
-  The validator replays the TP all-reduce after.
-- `moe.fused_experts_reduce` — **the MoE block that owns its trailing TP
-  all-reduce.** Same `(prepare, forward)` pair but `forward(...)` gets the
-  `group` and fills `out` with the *already-reduced* result. This is the slot
-  that can express the compute-comm **overlap** optimization (hide the reduce behind the
-  expert GEMM). Correctness: `matched_ratio` (0.97).
+## The registered atomic target
 
-**Cross-GPU collectives:**
+The default catalog also registers:
 
-- `collective.all_reduce` — the TP all-reduce. Contract: `entry(x, out, group)`.
-  Correctness: `matched_ratio` (0.99).
-- `collective.ar_residual_rmsnorm` — the fused AR + residual-add + RMSNorm
-  epilogue (behind sglang's `--enable-flashinfer-allreduce-fusion`). Contract:
-  `entry(x, residual, weight, eps, out_norm, out_residual, group)`. This was the
-  first submitted kernel to surpass the pinned sglang baseline through Cacheon's
-  scorer (2026-07-07).
-- `collective.moe_finalize_ar_rmsnorm` — the **DEEP** fused epilogue: MoE
-  finalize + AR + add + RMSNorm as ONE kernel. Enabled by a bundle-declared
-  `dep_patches` diff against pinned flashinfer. See
-  [Dependency patches](/docs/miners/dep-patches).
+| Target | Mode | Members | Displaces |
+|---|---|---|---|
+| `collective.moe_epilogue.v1` | `atomic` | `collective.ar_residual_rmsnorm`, `collective.moe_finalize_ar_rmsnorm` | both corresponding singleton targets |
 
-## How to pick
+Use an atomic target only when the optimization's semantics genuinely require
+the coupled boundary and your bundle implements all registered members:
 
-- **New to this?** Start with `activation.silu_and_mul` or `norm.rmsnorm`. They're
-  the simplest contracts (`entry(x, out)`), they're op-correctness-gated by
-  `allclose`, and they're graph-captured directly (no `graph_safe` declaration
-  needed). The [20-minute walkthrough](/docs/miners/your-first-kernel) uses silu.
-- **Want the big lever?** Decode at TP/EP scale is **comms-bound** (the
-  all-reduce is ~32–43% of GPU time). The collective slots
-  (`collective.ar_residual_rmsnorm`, `moe.fused_experts_reduce`,
-  `collective.moe_finalize_ar_rmsnorm`) capture compute-comm overlap and fused
-  epilogue opportunities. But they're distributed-verified
-  and need a multi-GPU box to test.
-- **Writing a quantized MoE?** `moe.fused_experts` with a `(prepare, forward)`
-  pair — `prepare` does the weight repack/quant once, `forward` is the fused
-  GEMM. For NVFP4 specifically, there's an
-  [override-point](/docs/miners/override-points) path that lets you ship just an epilogue
-  hook into a validator-owned base megakernel.
+```toml
+[competition]
+target = "collective.moe_epilogue.v1"
+mode = "atomic"
+```
 
-## Per-model specialization
+Adding two unrelated `[[ops]]` rows does not create a target. Nor may a miner
+declare membership, displacement, overlap, or a new target ID. An unregistered
+combination belongs in the [Discovery lane](/docs/miners/discovery-lane).
 
-Some slots are retargeted per model. The big example: MiniMax-M3's MoE uses the
-**swigluoai** activation (`swish` with alpha 1.702), not plain silu, and its
-NVFP4 experts are gated on **cosine** (not element-wise) correctness because
-4-bit kernels carry ~6–12% per-element quant error. These are **validator-owned
-facts** — you just name the model, and the slot is retargeted via the
-`MODEL_PROFILES` registry (`optima/slots.py`). See
-[Slot catalog](/docs/reference/slots-table) for the per-model details.
+## Selecting a target
 
-## The contract each slot shares
+Start from the published arena, not from an isolated kernel idea:
 
-Whichever slot you pick, the contract is the same shape:
+1. Confirm that the arena activates the target, model, architecture, dtype,
+   topology, and serving phase you intend to optimize.
+2. Profile the exact incumbent stack and find a material wall-time boundary.
+3. Choose the smallest registered target that contains the required delta.
+4. Describe every specialization in an explicit capability domain.
+5. If the change needs engine-wide setup, arbitrary SGLang edits, or semantics
+   outside a registered target, stop and use discovery instead.
 
-1. **You fill `out`.** The validator allocates it (shape/dtype/device/stride).
-   You write into it (via `out.copy_(...)` or in-place writes). You return
-   `None`. See [The kernel ABI](/docs/miners/kernel-abi).
-2. **You stay upstream of the sampler.** Your output feeds the residual stream →
-   downstream layers → sampler, all stock. You never produce tokens.
-3. **The cheap verify gate uses high-precision ground truth**, not stock
-   bit-patterns. The production model-level fidelity gate then compares
-   stock/candidate behavior by KL or audit, depending on the arena.
-4. **The validator measures everything itself.** You don't report your own
-   throughput or correctness.
+For a first implementation, `activation.silu_and_mul` and `norm.rmsnorm` have
+the smallest single-process ABIs. They are good learning targets, not a promise
+of economic headroom against tuned incumbents. Advanced collective and deep-MoE
+targets require the matching multi-GPU and build environment to test honestly.
 
-If your kernel needs to break any of these, it's not a core slot — it goes
-through the fenced framework tier (the `setup()` hook + isolation). That's an
-advanced, experimental path; see [the override points page](/docs/miners/override-points)
-for the sanctioned composition pattern instead.
+### A decision procedure
 
-## Where to go next
+Walk the desired change from semantics outward:
 
-- **The exact signatures:** [The kernel ABI](/docs/miners/kernel-abi).
-- **The full table with thresholds:** [Slot catalog](/docs/reference/slots-table).
-- **For collective slots (graph capture):** [Graph-safe kernels](/docs/miners/graph-safety).
-- **Just build one:** [Your first kernel (20 min)](/docs/miners/your-first-kernel).
+1. **Name the changed outputs.** Which validator-visible tensor values differ from the
+   incumbent implementation while remaining semantically equivalent?
+2. **Find who owns those outputs.** Locate the narrowest slot whose ABI owns every changed
+   value and no unrelated engine behavior.
+3. **Check the live arena binding.** A registered target must also be active for the exact
+   model, runtime, architecture, dtype, phase, topology, and graph regime you plan to
+   optimize.
+4. **Check required features.** If the implementation needs an override point, CUDA
+   rebuild, dependency patch, or multiple members, the selected target must explicitly
+   allow those observed features.
+5. **Estimate materiality.** Profile the incumbent and calculate whether improving that
+   boundary could move end-to-end critical-path time above calibrated noise.
+6. **State the honest domain.** Use capability predicates for real specialization
+   boundaries. Do not use them to hide failing shapes or claim a target that never routes.
+
+The outcome should be one of exactly three shapes: one registered singleton, the exact
+complete member set of a registered atomic target, or discovery. “Closest available
+slot” is not a fourth option.
+
+### Worked choices
+
+| Idea | Choice | Reasoning |
+|---|---|---|
+| fuse SiLU and multiply for a particular token range | `activation.silu_and_mul` singleton with a constrained variant | both operations and the output are already inside one slot |
+| add a residual connection to pure RMSNorm | not `norm.rmsnorm`; use a matching registered collective boundary only if its full semantics apply, otherwise discovery | the singleton RMSNorm contract explicitly does not own residual addition |
+| replace local expert compute and its trailing reduction as one implementation | `moe.fused_experts_reduce` | this slot, unlike `moe.fused_experts`, owns the supplied-group reduction |
+| jointly alter the shallow and deep MoE collective epilogues | `collective.moe_epilogue.v1`, implementing both members | the catalog already registers and prices the coupled overlap unit |
+| patch scheduler batching or invent a new attention seam | discovery | engine control flow lies outside every component callable ABI |
+
+This exercise prevents two common errors. Choosing a boundary that is too narrow makes
+the desired optimization impossible without hidden side effects. Choosing one that is
+too broad destroys the causal comparison: the validator can no longer attribute the
+measured change to one registered reward unit.
+
+## Target resolution fails closed
+
+Production intake resolves the selected delta against trusted observations of
+its features. A claim can be rejected when, for example:
+
+- the target is unregistered or `mode` disagrees with the catalog;
+- the bundle's implemented member set does not equal the target;
+- an atomic claim omits a member;
+- the bundle uses a feature the target does not allow;
+- observed rebuild features are incomplete;
+- multiple variants have overlapping capability domains;
+- an `ops.setup` hook appears in a registered target (none currently allow it).
+
+This is why a manifest that merely parses is not necessarily a crownable
+proposal. Continue with [Bundle format](/docs/miners/bundle-format).

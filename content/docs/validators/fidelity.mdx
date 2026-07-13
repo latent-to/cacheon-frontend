@@ -1,249 +1,104 @@
 ---
-title: "Fidelity: audit vs KL"
+title: Fidelity and quality authority
 ---
 
-The fidelity gate enforces the "without making it worse" half of the deal. It must
-catch **garbage** (kernels computing the wrong function) and **cheats** (kernels
-that buy throughput by skipping or faking work, including ones that behave only
-while being watched) — while **never false-failing an honest reimplementation**: a
-kernel that computes the same function with different (even better) rounding must
-pass, or no one can earn for a real improvement and the subnet is dead on arrival.
+Cacheon uses different quality checks at different stages. Confusing them creates a major
+security error: a useful development diagnostic is not necessarily safe as a grading
+oracle.
 
-This page documents `optima/audit.py`, `optima/eval/kl.py`, `optima/receipts.py`,
-and the fidelity design in `docs/FIDELITY.md`. The companion reference for the
-throughput half is [scoring.md](/docs/validators/scoring).
+## The three layers
 
-<Callout type="info">
-  Miner-side view of these gates: [../miner-guide/diagnostics.md](/docs/miners/diagnostics).
-</Callout>
-
-<Callout type="info">
-  Status 2026-07-07: the audit stack is designed, built, unit-tested, **and
-  pod-validated on the M3 arena (4×B300)** — the honest v6 kernel
-  passed (2,996 audited calls, 0 violations, worst_frac 0.9901) while the advisory
-  KL still read 0.89, and a residual-add-dropped sabotage kernel failed on all
-  3,120 audited calls (worst_frac 0.0029). Full record:
-  `docs/FIDELITY.md` §0.
-</Callout>
-
-## What fidelity is — and is not — for
-
-The fidelity gate's job is the three items above. **Arbitrary-code-execution /
-fooling-the-harness is NOT this gate's job**: that is source-only bundles + policy
-scan + out-of-process verify + seam receipts + (roadmap) process isolation, and
-none of it changed in the audit redesign (`docs/FIDELITY.md` §1).
-
-## The KL mode, and why it fails on noisy arenas
-
-The legacy primary gate compares per-token logprobs between two engine launches
-(stock baseline vs candidate) along greedy rollouts (`optima/eval/kl.py`).
-
-On a **deterministic-capable** arena — fixed batching, pinned autotune, a backend
-that supports deterministic inference — two launches of identical code are
-logit-identical, and KL measures fidelity cleanly. The gate is a stack of checks
-(detailed below): mean KL, p99, argmax-disagree rate, coverage deviation.
-
-On a **noisy arena** it does not. The 2026-07-07 MiniMax-M3 finding
-(`docs/FIDELITY.md` §2), measured on 4×B300 with eager fa4/NVFP4:
-
-| control | mean_kl | verdict |
+| Layer | Purpose | Crown authority? |
 |---|---|---|
-| stock vs stock, identical speed (no seam loaded) | exactly 0.0 | launches *can* be bit-identical |
-| v6 miner kernel (graphs-on) | 0.15–0.17 | FAIL |
-| v6 miner kernel (eager) | 0.38–0.43 | FAIL |
-| **fp32-EXACT reference** at the same slot | **0.78** | FAIL — *worse than the kernel it checked* |
-| **bit-stock fallback** (entry raises, dispatcher runs stock) at 0.545× speed | **0.96** | FAIL |
-| bit-stock fallback, single prompt (no batch composition) | **0.81** | FAIL |
-| sglang deterministic mode on this arena | refuses to launch (fa4 unsupported) | — |
+| Typed slot verification | Fast ABI, output-layout, numerical, applicability, and graph preflight | No |
+| `evaluate` / `bench` KL or in-engine audit | Developer feedback and integration diagnosis | No |
+| Pristine T over sealed B/C/B′ trajectories | Candidate-free, retained production quality evidence | Yes, as one required part of qualification |
 
-The per-call **stockcheck** (23,000 in-engine calls per rank) showed the v6 kernel's
-outputs differ from stock by **single-ULP bf16 rounding on outlier channels** — no
-corruption, no coverage divergence, no input mutation. Yet exact math failed harder
-than the kernel, bit-stock failed harder still, and a single prompt with zero
-batching still failed.
+## Slot verification
 
-**The conclusion:** two launches of identical code are not logit-identical on this
-stack (no deterministic-inference support on the arena backend; per-launch
-autotuner tactic selection; batch-variant kernels; then autoregressive chaos
-compounds per-forward differences into full trajectory divergence). Cross-launch
-logit identity is not a measurable property here, so a gate keyed on it fails
-*every* candidate — honest or not, including stock itself. Worse, the divergence
-scales with any *timing* change, so the gate structurally punishes the one thing
-the subnet exists to buy: speed.
+Each registered slot owns a typed input/output contract and correctness mode. Depending
+on the slot, verification may use all-close tolerances, matched ratio, cosine similarity,
+or top-k overlap. The verifier jitters eligible dimensions, checks variant routing, and
+requires graph evidence where applicable.
 
-This is why `--fidelity-mode kl` is valid only where its premise holds — and the
-premise is now a **measured requirement**, not an assumption: stock-vs-stock KL must
-be ~0 on that arena config. Where the control fails (any nondeterministic stack),
-`audit` is the only sound mode.
+This catches many broken kernels cheaply, but it samples a finite contract. It cannot by
+itself establish end-to-end model behavior or serving quality.
 
-## The audit mode, end-to-end
+## Development KL and audit modes
 
-`optima/audit.py` + `optima/receipts.py`. `--fidelity-mode audit` runs an **extra
-untimed eager launch** of the candidate and, on randomly sampled dispatcher calls,
-re-runs the **captured stock baseline on pre-call clones** and compares under the
-slot's own verify tolerances. The invariant it tests is the one the referee actually
-needs: *"in the scored engine, the miner kernel computes the slot's declared
-function"* — directly, in place, on the real call distribution, instead of through
-a 62-layer chaotic proxy.
+`optima evaluate --fidelity-mode kl` compares aligned rollout distributions. Mean KL is
+not the only diagnostic: configured tail and argmax-disagreement checks help expose sparse
+corruption. KL is interpretable only when stock-vs-stock variation is within the setup's
+calibration; launch nondeterminism can otherwise dominate the signal.
 
-### The flow
+`--fidelity-mode audit` adds an untimed candidate launch that samples live dispatcher
+calls and compares them with an in-engine stock calculation. This is valuable for
+debugging nondeterministic stacks, but the candidate process contains the audit machinery
+and cannot be the final authority against a hostile engine.
 
-1. `evaluate` (`throughput_kl.py`) runs the timed `B` baseline, then an **untimed
-   quality launch** (`_run_quality_launch`) before the timed candidate `C`. The
-   quality launch is eager (`disable_cuda_graph=True`) because calls replayed inside
-   a captured CUDA graph never re-enter the Python dispatcher, so a graphs-on launch
-   would audit ~nothing.
-2. The driver sets `OPTIMA_SLOT_AUDIT=<rate>` and `OPTIMA_SLOT_AUDIT_SEED=<int>` in
-   the candidate ranks' environment (`_launch.launched_engine`). The seed is drawn
-   fresh per launch with `random.SystemRandom()` and shared by all ranks (collective
-   baselines need rank-identical sampling, or a rank-divergent sample of a collective
-   baseline deadlocks — `audit.py` module docstring).
-3. On each eligible dispatcher call, `audit.sampled()` draws from the process-private
-   RNG. If sampled, the dispatcher calls the captured stock baseline (`baseline_thunk`)
-   on **clones of the inputs taken before the miner kernel executes**, then
-   `audit.record()` compares miner outputs vs baseline outputs under the slot's
-   `Correctness` policy and `Tolerance`.
-4. Per-rank rolling stats are written as receipts (`audit._receipt` →
-   `receipts.write`). The eval driver collects them at cleanup
-   (`launched_engine` → `audit_out`).
-5. `audit.gate()` folds the receipts into a verdict: **PASS iff zero violations AND
-   total audited-call count ≥ `min_calls`** (`EvalConfig.audit_min_calls`, default
-   32). Insufficient coverage is a FAIL — an unaudited kernel is unproven, not
-   innocent; compare errors also fail closed.
+Framework-mode diagnostics use token matching and request diagnostic no-egress isolation.
+They do not make engine-wide setup a registered target and do not produce a crown.
 
-### Why each property holds
+## Pristine T
 
-- **Same numeric contract offline and online.** The audit reuses the slot's verify
-  `Correctness`/`Tolerance` (`optima/slots.py`), so "equal fidelity" is one
-  definition in one place, calibrated per slot.
-- **Unpredictable.** The audit decision is drawn per call from a validator-private
-  RNG. A kernel cannot know ex-ante whether a call is audited, so "behave only when
-  watched" is not a strategy.
-- **Timing-clean.** The audit runs only in the separate untimed quality launch; the
-  timed launches carry zero audit overhead, so the audit can bias the speedup
-  measurement in neither direction.
-- **Fail-closed.** No receipts / too few audited calls / comparison errors all FAIL.
-  A kernel that arranges to never be compared loses.
-- **Baseline-poisoning-proof at the tensor level.** The baseline runs on clones
-  taken *before* the kernel executes, so a kernel that mutates its inputs cannot
-  steer the expected value.
+Production qualification launches a separate candidate-free reference session after the
+relevant C engines have been destroyed. T:
 
-### The matched_ratio margin
+- reopens an empty evaluation stack with no proposal contributions;
+- binds the same runtime/model/reference identity and frozen calibration;
+- receives sealed B/C/B′ prompt and trajectory identities from the trusted controller;
+- teacher-forces those trajectories;
+- emits bounded token-level teacher evidence; and
+- runs the registered hidden quality work.
 
-Verify compares the candidate against an **FP32 reference**; the audit compares it
-against the **STOCK low-precision kernel**, so both sides carry rounding and honest
-implementations sit a hair below the verify-calibrated bar. Measured on the M3
-control bundles (2026-07-07): an fp32-EXACT reference audited at `worst_frac 0.9894`
-(8/3308 calls under the raw 0.99 bar — a must-pass control failing), the honest v6
-kernel at `0.9901`, and residual-dropping sabotage at `0.0029`. The fix:
-`_MATCHED_RATIO_AUDIT_MARGIN = 0.005` in `audit.py` — the audit bar is `verify_bar
-− margin`. It splits honest rounding (~0.989+) from garbage (~0.003) with three
-orders of magnitude to spare. For `allclose` slots the bar is
-`_ALLCLOSE_MIN_RATIO = 0.995`.
+The controller then regrades raw evidence under the frozen metric policy. Candidate C
+does not choose prompts, support tokens, thresholds, or the hidden judge. Incumbent B′ is
+also untrusted and is never substituted for T.
 
-### KL demoted to advisory
+## Calibration
 
-In audit mode KL is still computed and printed from the quality launch — it is
-useful calibration/trend data — but it **gates nothing**. `cmd_evaluate` prints it
-on the `quality` line tagged `(ADVISORY, not gated — launch-nondeterminism
-confounded)`.
+A crown-authoritative `CalibrationManifest` is content-addressed and frozen. It binds:
 
-## The KL gate hardening (when KL *is* the gate)
+- pristine reference manifest;
+- arena, runtime, base engine, model, logical hardware, and workload;
+- verification policy and controller distribution;
+- raw calibration evidence and seeds;
+- speed margin, noise multiplier, and maximum noise; and
+- metric envelopes, candidate deltas, and any absolute floors.
 
-On deterministic-capable arenas where KL is the gate, `kl_gate_ok` (`optima/eval/kl.py`)
-requires the candidate to clear **all** configured checks — mean alone is blind to
-sparse/targeted cheats:
+Controls include expected stock/positive passes and negative failure. A provisional,
+stale, incomplete, or context-mismatched calibration is not usable for a crown.
 
-| check | catches | default |
-|---|---|---|
-| `mean_kl` ≤ `kl_threshold` | diffuse drift | `5e-3` (generic); per-slot overrides (attention `3e-2`) |
-| `p99_kl` ≤ `p99_kl_threshold` | a catastrophic tail | opt-in (needs per-model calibration) |
-| `argmax_disagree_rate` ≤ threshold | sparse argmax flips (bit-exact 99.9%, wrong on a rare pattern) | `0.01` |
-| `mean_coverage_dev` ≤ threshold | tail-mass shift the top-k KL can't see (calibration collapse / diversity loss) | `0.25` |
+## Quality decisions
 
-`kl_threshold is None` → advisory (always OK for the KL function). That is safe
-only when the wrapper also runs `audit` or a real benchmark/accuracy gate; do not
-mistake it for a standalone quality decision. `num_positions == 0` likewise
-defers to the surrounding gate. A degenerate candidate (inf/NaN logprobs) maps to
-`DEGENERATE_KL = 1e3`, not silent zero. Top-k truncation means the KL is an
-approximation of the full-vocab KL; it is sensitive enough to catch the cheats
-that matter at `k ≥ 20`, but the coverage guard backstops the head-only blind
-spot.
+The registered policy can grade metrics such as argmax disagreement, support coverage,
+teacher NLL, KL-derived measures, tail rate, and task score. Exact metrics depend on the
+frozen arena calibration; documentation must not present one universal threshold as the
+Cacheon quality contract.
 
-## The capability gate: GSM8K / MMLU no-regression
+Missing teacher coverage, wrong prompt/trajectory identity, tampered evidence, or
+unreopenable calibration yields `NO_DECISION`. A measured candidate regression yields
+`FAIL`. Quality `PASS` is still only one prerequisite alongside execution, graph, speed,
+identity, and reproduction evidence.
 
-`optima/eval/capability.py` (`optima/cli.py:cmd_bench`). The semantic backstop:
-throughput on real benchmark problems, gated by "no accuracy regression on ANY
-benchmark beyond a small tolerance" (default 2%). It is separate from
-`evaluate`'s KL/audit fidelity path; production wrappers should run both when
-both properties are required.
+## Honest limits
 
-Crucially, **accuracy generations do NOT inherit the throughput eval's `ignore_eos`**
-(`capability._sampling_params`). Forcing a model past its answer graded
-hallucinated self-Q&A — measured 2026-07-07 on M3 at 4096 forced tokens: 6.2%
-absolute on a ~90% model; at 256 the truncation accidentally capped the ramble at
-~45%. Completion-format benches also declare stop cues (e.g. `"\nQuestion:"`). The
-`tok/s` this runner reports is consequently **noise** (unequal token counts); the
-throughput authority is `evaluate`.
+- Finite prompts and hidden tasks cannot rule out all shape or workload overfitting.
+- A pristine implementation can contain bugs; it is an independent authority, not a
+  mathematical proof.
+- Calibration is specific to the registered runtime, model, hardware, and workload and
+  must be redone when those identities change.
+- Diagnostic KL/audit output is useful evidence for engineers but has no settlement
+  effect.
+- Passing fidelity does not establish license, security review, or release readiness.
 
-## The seam receipts: anti-phantom-pass
+See [Evidence and replay](/docs/security/evidence) for how raw quality products are
+retained and reopened.
 
-`optima/receipts.py`. The failure mode this closes (hit for real on 2026-07-07):
-the candidate engine comes up **without** the seam (missing `optima.pth`, bad env,
-bundle load failure falling back to baseline) and the eval happily scores
-stock-vs-stock — identical logits, KL exactly 0.0, accuracy delta 0.0, verdict PASS.
-`seam.activate()` deliberately never wedges the engine on a bad bundle, so the
-*engine* can't be the one to fail; the **eval driver must demand positive
-evidence**.
+## Source anchors
 
-An **active** candidate launch demands three receipt kinds, written by the scheduler
-ranks to `OPTIMA_SEAM_RECEIPT_DIR` and required by the driver:
-
-| receipt | meaning |
-|---|---|
-| `active` | bundle loaded + registry enabled in a rank (`seam.activate`) |
-| `load_failed` | a rank ATTEMPTED the bundle load and fell back to baseline (lets the driver report "bad bundle" instead of "no bootstrap") |
-| `fired` | the registry actually SELECTED the miner impl for a slot at least once (`registry.lookup`) |
-
-`launched_engine` requires `active` before handing the engine to the caller, and
-`fired` after the caller's generations (`_launch.py:246-264`). If neither `active`
-nor `load_failed` appears, `receipts.require` raises with a diagnosis: the candidate
-ran without the miner kernel and the run is refused as a phantom. No env var set →
-every helper is a silent no-op (verify paths, unit tests, and baseline launches
-produce no receipt litter).
-
-## Which mode for which arena
-
-Record the control result (stock-vs-stock KL) in the arena row.
-
-| arena | mode | why |
-|---|---|---|
-| deterministic-capable backend, pinned autotune, fixed batching; stock-vs-stock KL ≈ 0 | `kl` | KL is a clean, cheap razor here |
-| nondeterministic stack (fa4/NVFP4, batch-variant kernels, no deterministic inference); stock-vs-stock KL ≠ 0 | `audit` | rollout-KL gates batching/tactics, not fidelity — the only sound mode |
-| big MoE where KL is noise-dominated even when deterministic | `kl` + `--kl-advisory`, rely on accuracy | accuracy carries quality |
-
-The arena registry is the home for this choice, together with bench budgets, stop
-cues, and template policy (`docs/FIDELITY.md` §6).
-
-## The honest residual risk
-
-The audit closes every *output-correctness* cheat an out-of-process adversary can
-mount, and turns "watched vs unwatched" into a losing game. Two structural residuals
-remain (documented in `docs/FIDELITY.md` §4), neither introduced by the redesign:
-
-- **In-process tampering** (#9) — miner host code shares the rank process and could
-  in principle monkeypatch `optima.audit` / the baseline fn, forge/suppress
-  receipts, or introspect the RNG. Closure = process/namespace isolation + receipts
-  over an authenticated channel. Until then, scan + human review of host code is the
-  control.
-- **Timed-workload fingerprinting** (#11) — a kernel that detects the timed
-  launch's workload shape and runs fast-garbage only there. The numerator is
-  driver-computed a priori (can't be inflated), and operators can vary prompt
-  seeds and eval commands. Automatic champion re-runs/re-baselining are still
-  roadmap work; current chain validation skips already-scored submissions.
-  Roadmap closure: draw timed workloads from the serving distribution and
-  randomize regimes so "timed" has no stable fingerprint.
-
-Attention slots have a specific gap (#12): the audit is not wired for them because
-re-running the baseline re-drives the stateful KV-cache write path; they rely on
-verify + the benchmark gate. Attention slots are eager-only MVP anyway.
+- [Typed slot contracts](https://github.com/latent-to/optima/blob/main/optima/slots.py)
+- [Tensor output specifications](https://github.com/latent-to/optima/blob/main/optima/tensor_spec.py)
+- [Qualification quality model](https://github.com/latent-to/optima/blob/main/optima/eval/qualification.py)
+- [Pristine wire protocol](https://github.com/latent-to/optima/blob/main/optima/eval/reference_protocol.py)
+- [Calibration authority](https://github.com/latent-to/optima/blob/main/optima/eval/calibration.py)

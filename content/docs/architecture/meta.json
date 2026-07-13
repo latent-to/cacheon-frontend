@@ -1,4 +1,12 @@
 {
   "title": "Architecture",
-  "pages": ["overview", "slot-contract", "seam", "pipeline"]
+  "pages": [
+    "overview",
+    "product-model",
+    "pipeline",
+    "slot-contract",
+    "stacks",
+    "seam",
+    "releases"
+  ]
 }

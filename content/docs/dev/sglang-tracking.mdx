@@ -1,190 +1,162 @@
 ---
-title: sglang pinning & canary
+title: SGLang compatibility
 ---
 
-Staying current with sglang is **two** problems at once, because sglang is both the
-**baseline** (we score a kernel by its speedup vs sglang's own kernels) and the
-**runtime** (we patch sglang internals — the op/block/collective seams). A stale
-baseline means miners optimize against an old frontier; a runtime churn means a bump
-can break us. This page is the operator-facing companion to `docs/SGLANG_TRACKING.md`.
+Cacheon competes against and integrates with an exact SGLang runtime. The pin is
+part of evaluation and release identity, not a loose minimum version. The
+current source pin is `0.5.13.post1` in
+[`optima/compat.py`](https://github.com/latent-to/optima/blob/main/optima/compat.py).
 
-## The pinned version
+At the current snapshot, the static seam canary is green for `0.5.13.post1`,
+while the GPU end-to-end broken-bundle rejection, faithful-bundle pass, and
+champion rebaseline are still pending. `0.5.12.post1` remains the last pin with
+complete retained H100 validation. Treat the source pin as the compatibility
+target, not as proof that those empirical gates have already run.
 
-```python
-# optima/compat.py:30
-PINNED_SGLANG = "0.5.13.post1"   # CUDA 13
-```
+## Why the pin matters
 
-### Validation state (read before treating the pin as authoritative)
+SGLang internals define the lower side of Cacheon's narrow waist: module paths,
+call signatures, graph capture, attention/MoE dispatch, collectives, engine
+arguments, and native dependencies. An upstream change can alter both whether
+a contribution loads and what baseline it must beat.
 
-As of the 2026-07-08 records:
+Therefore a pin bump changes evaluation context. Existing performance evidence
+cannot simply be relabeled with the new version.
 
-- **Static seam canary: GREEN.** All chokepoints intact on 0.5.13.post1
-  (FusedMoE / RadixAttention / SiluAndMul / RMSNorm / all_reduce + the logprob
-  API + ServerArgs).
-- **GPU mechanism validation: DONE — but on other installs, not this pin.** The
-  harness was H100-validated on sglang 0.5.12.post1 (up to gpt-oss-120b), and the
-  MiniMax-M3 records ran the M3-serving sglang branch (the 0.5.13.post1 pin cannot
-  serve M3 — the arena carries its own pin, with a known version-differs warning).
-- **GPU end-to-end re-validation + champion re-baseline of 0.5.13.post1 itself:
-  still pending.** The inline comment in `optima/compat.py` saying so is accurate —
-  do not remove it until the broken-bundle smoke and a champion re-baseline have
-  actually been run on a pod against this pin.
+## What Cacheon depends on upstream
 
-Run the static canary anywhere sglang is importable: `python -m optima.cli compat`.
+The canary is table-driven from the registered seam adapters and adds richer
+checks for the most consequential surfaces:
 
-## Why pinned (the consensus argument)
-
-You **cannot** have validators on different sglang versions. The mechanism, because it
-is *why* the pin is non-negotiable rather than a convenience
-(`docs/SGLANG_TRACKING.md:14-35`):
-
-Multiple validators independently score the **same** miner and each submit a weight
-vector; Bittensor's Yuma consensus penalizes a validator whose weights diverge from
-the stake-weighted median. If validator A runs sglang X and validator B runs sglang Y,
-they measure different throughput and different KL for the **identical** kernel → they
-submit different weights → divergence → validators lose trust/emission and the subnet's
-scoring becomes incoherent. **Identical measurement across validators is a protocol
-requirement**, and that forces a single pinned version.
-
-The sglang version is therefore a **coordinated, pinned subnet parameter**, bumped
-deliberately per "season," not "latest on each box." This is the same consensus
-argument that makes the blessed-base surface (torch/triton/flashinfer/cutlass) a
-pin candidate too — a flashinfer/cutlass skew JITs different kernels → different
-throughput AND numerics → divergent weights → Yuma penalty (`optima/blessed_base.py:1-12`).
-Today the kernel libs are record-only; enforcement ships per-arena.
-
-## What the pin actually locks
-
-The pin sounds like it locks miners to one engine version. It mostly doesn't, and the
-distinction governs what miners can and can't do (`docs/SGLANG_TRACKING.md:37-65`):
-
-- **A miner's submission is a kernel** — Triton/CuteDSL math over raw tensors
-  (`silu(x, out)`). It almost never touches sglang internals, so the **artifact is
-  largely version-agnostic**: the same kernel runs on 0.5.9 or 0.6.x because it
-  operates on tensors, not sglang APIs.
-- **What's pinned to the version is the *evaluation*, not the artifact:**
-  1. the **baseline** the kernel must beat (sglang's own kernel for that op), and
-  2. the **invocation context** — the shapes/dtypes/strides the op is called with,
-     and whether the op is even reached (fusion can route around it).
-
-A version bump **re-measures** a kernel's score (its baseline moved, its rank may
-change) but usually does **not** invalidate the artifact. Only a kernel whose
-speedup depended on version-specific behavior, or whose op ABI actually changed,
-needs a rewrite.
-
-### The insulation layer
-
-Miners code to **Cacheon's slot ABI** (`entry(x, out)`), not to
-`SiluAndMul.forward_cuda`. When sglang changes *how* it invokes an op, Cacheon's
-dispatcher and seam absorb the change — every row in the "what usually breaks" table
-below is fixed in Cacheon code, not in miner code. This holds as long as the op's
-mathematical contract is stable; it breaks only when sglang changes what the op
-fundamentally *is* (e.g. fuses it away) — which is a real product change, so
-re-competing on it is correct.
-
-## The static seam canary (`optima compat`)
-
-`run_checks()` in `optima/compat.py:58` introspects the **installed** sglang — imports
-and signatures only, **no GPU, no model** — and asserts every seam/API we depend on
-still exists. Table-driven from the single seam registry
-(`SEAM_ADAPTERS` in `optima/seams.py:46`): adding a seam there auto-adds the canary,
-the bootstrap watch-list, and the `seam.activate()` install loop — no parallel list to
-keep in sync (`optima/seams.py:1-21`).
-
-The checks cover:
-
-| Check | What it asserts |
-|---|---|
-| `import sglang` | sglang importable; reports `__version__` vs the pin |
-| `seam table: <adapter> (<chokepoint>)` | for each adapter: the target module imports and the chokepoint (`Class.method`, bare module function, or `attr:Name`) is present. Rows whose `requires` package isn't installed (e.g. flashinfer on a CPU box) SKIP-as-ok, so dev/intake boxes stay green (`optima/compat.py:86-93`). |
-| `MultiPlatformOp base present` | the base class our op seams subclass |
-| `seam: SiluAndMul` / `RMSNorm` | op seams: `forward_cuda`/`forward_native` present, `RMSNorm.forward_cuda` has a `residual` param |
-| `seam: RadixAttention` | block seam: `forward` has `{q,k,v,forward_batch}` |
-| `seam: FusedMoE.forward_impl` | MoE waist: `forward_impl` has `{hidden_states, topk_output}` (we patch `forward_impl`, not `forward`, because `.forward` is bypassed under piecewise capture) |
-| `seam: GroupCoordinator.all_reduce` | collective seam: `all_reduce` has `input_` |
-| `Engine.generate logprob API` | `generate` accepts `return_logprob`, `logprob_start_len`, `top_logprobs_num` (we read top-k logprobs for KL) |
-| `ServerArgs accepts our kwargs` | the Engine kwargs we pass (`model_path`, `dtype`, `attention_backend`, `disable_cuda_graph`, `mem_fraction_static`, `enable_deterministic_inference`, `random_seed`, `log_level`) |
-| `blessed-base: <dep>` | records installed torch/triton/flashinfer/cutlass/sgl-kernel/deepgemm versions (record-only until per-arena pins ship) |
-
-A green canary is **necessary but not sufficient** — the runtime smoke test
-("broken kernel still FAILs the gate") is the behavioral confirmation on the pod.
-
-## The weekly CI canary
-
-`.github/workflows/sglang-canary.yml` runs `scripts/check_sglang.py` on a cron
-(`0 9 * * 1` — Mondays 09:00 UTC), plus `workflow_dispatch`. It activates once the
-repo is on GitHub.
-
-The script splits the two signals and **only one fails CI**
-(`scripts/check_sglang.py:58-99`):
-
-| Signal | CI outcome | Rationale |
+| Upstream surface | Why Cacheon needs it | What movement can break |
 |---|---|---|
-| **Broken seam** — a chokepoint we patch moved/changed | **HARD FAIL** (exit 1) | Code-actionable: fix the adapter in `optima/integrations/` (see `optima/seams.py`). |
-| **Newer release** — sglang shipped a version past the pin | **WARNING only** (GitHub annotation, non-failing) | A human bump+re-baseline decision, not a code fix. Failing here would turn the canary red on every sglang release = alert fatigue. |
+| `SiluAndMul` and `RMSNorm` | Narrow component call sites | Argument order, residual semantics, fallback routing |
+| `RadixAttention.forward` | Attention block insertion before sampling | Q/K/V and batch-state translation, graph behavior |
+| `FusedMoE.forward_impl` | MoE waist that survives piecewise capture | Expert inputs, routing outputs, reduction ownership |
+| `GroupCoordinator.all_reduce` | Validator-owned TP collective boundary | Process-group ownership and all-rank behavior |
+| `Engine.generate` logprob API | Trusted KL/quality observation | Top-logprob collection and sealed trajectory schema |
+| `ServerArgs` fields | Deterministic engine launch policy | Model, graph, memory, seed, backend, and logging controls |
+| Blessed native base | FlashInfer/CUTLASS/Triton kernel surface | JIT products, numerics, throughput, validator agreement |
 
-On a CPU CI runner sglang may not build (`sgl-kernel` is GPU-only); the Action installs
-it best-effort (`continue-on-error: true`, `sglang-canary.yml:22-24`), so the release
-check reliably fires everywhere and the full seam check runs on the pod as part of the
-bump process. Until the repo is on GitHub, run it locally on an always-on box
-(`docs/SGLANG_TRACKING.md:196-200`):
+Optional seams may report a skip when their required package is absent on a
+development box. That is not evidence for the engine environment; run the
+canary again inside the exact pinned image where those packages are required.
 
+## Compatibility canary
+
+```bash
+python -m optima.cli compat
 ```
-0 9 * * 1  cd /path/to/optima && .venv/bin/python scripts/check_sglang.py
+
+The canary imports the installed runtime, reports its version, and inspects every
+registered seam. It does not load a model or require a GPU. Importantly, a
+version mismatch is printed as `DIFFERS from pin` but remains an `ok` report;
+the command can still exit zero. Operators and automation must compare the
+reported version with `PINNED_SGLANG` explicitly. A green seam result means the
+expected symbols and signatures remain present; it does not mean behavior or
+performance is unchanged.
+
+### Interpret the output
+
+- **Import or signature FAIL**: the version cannot be used for scoring until a
+  reviewed adapter restores the same semantic boundary.
+- **`DIFFERS from pin` with all checks green**: static compatibility appears
+  intact, but policy still forbids treating the environment as the pinned
+  arena. Fail this condition in deployment automation.
+- **Optional-package SKIP**: that seam was not assessed on this host. It must be
+  exercised in the complete engine environment.
+- **All seams intact**: imports and signatures match; proceed to behavioral
+  negative controls and GPU/model validation.
+
+Capture the complete output with installed package versions and image digest.
+Do not retain only the final “ALL SEAMS INTACT” line; which optional rows were
+skipped matters.
+
+Run the Bittensor SDK canary separately:
+
+```bash
+python -m optima.cli chain-compat
 ```
 
-The script deliberately removes the repo root from `sys.path` before probing the
-installed sglang, else the vendored `sglang/` clone shadows the pip package
-(`scripts/check_sglang.py:50-56`, `WORKLOG.md:1036-1038`).
+This separation prevents an unrelated chain SDK change from being confused
+with an Engine runtime change.
 
-## The bump process (safe + coordinated)
+## Pin-bump procedure
 
-From `docs/SGLANG_TRACKING.md:127-145`:
+1. **Freeze the candidate upstream build.** Record the exact SGLang version,
+   repository revision, base image digest, Torch/CUDA stack, native packages,
+   and supported GPU architectures.
+2. **Run the static canary.** Update seam adapters only where the registered
+   semantic boundary is unchanged. A moved upstream symbol is not permission to
+   widen a slot.
+3. **Run contract tests.** Exercise manifests, target resolution, dispatch,
+   typed outputs, graph replay, collectives, deterministic Engine-tree
+   materialization, qualification schemas, and release verification.
+4. **Run negative controls.** Confirm missing, ambiguous, wrong, graph-unsafe,
+   and sabotage contributions still fail closed or route to the trusted
+   baseline as specified.
+5. **Run real GPU/model qualification controls.** Establish stock stability,
+   B/B′ drift behavior, pristine T grading, worker cleanup, supported topology,
+   and known-good/known-bad candidates under the new exact environment.
+6. **Recalibrate the arena.** Freeze new workload, noise, quality, resource, and
+   timing policy through the normal reviewed arena process. Do not reuse old
+   empirical thresholds by assumption.
+7. **Create new identities.** Runtime, base engine, arena, evaluation stack,
+   native build, and release digests must reflect the bump.
+8. **Publish migration state.** Mark prior crowns/releases by their original
+   pin; do not imply they reproduce on the new one until they do.
 
-1. **Watch releases.** The clone at `optima/sglang` has the upstream remote;
-   `git -C sglang fetch origin --tags` surfaces new tags. (Or watch GitHub releases.)
-2. **Static canary.** In a scratch venv, `uv pip install sglang==<new>`, then
-   `optima compat`. Green is necessary but not sufficient.
-3. **Behavioral smoke (on the pod).** Confirm the seam still *fires*:
-   `python -m optima.cli evaluate <broken-bundle>` or an arena wrapper around it
-   must still **FAIL** the gate, and a faithful bundle must behave. Add `bench`
-   when the arena's benchmark gate is part of the smoke. This is the test that
-   catches what a static canary can't.
-4. **Coordinate + re-baseline.** Update `PINNED_SGLANG`, announce a bump at a block
-   height so **all validators upgrade together**, and **re-baseline the champion** —
-   re-score the reigning champion against the *new* sglang baseline (the baseline
-   moved; a champion's old speedup isn't comparable to challengers scored on the new
-   sglang). A champion recorded under a different pin is flagged stale and must clear
-   the floor margin over current fresh stock to re-establish the title
-   (`optima/commit_reveal.py:420-429`).
-5. **If the canary is RED:** update the single seam table in `optima/seams.py`,
-   the relevant adapter in `optima/integrations/`, and the dispatcher/launcher
-   code (`optima/dispatch.py`, `optima/eval/_launch.py`) if the call signature or
-   engine API changed. Then re-run from step 3.
+## Behavioral proof after the canary
 
-## What usually breaks, and where to fix it
+A pin is ready for authority only after progressively stronger controls:
 
-The seam table is `optima/seams.py:46`; every fix below is in Cacheon code, not miner
-code (`docs/SGLANG_TRACKING.md:148-156`).
+1. a faithful component still passes its registered reference;
+2. a deliberately broken component still fails rather than falling through an
+   unobserved upstream path;
+3. graph capture/replay observes the registered dynamic inputs and outputs;
+4. collective seams activate and complete on every rank at the real world
+   size;
+5. complete stock B/B′ engines remain stable under the arena workload;
+6. candidate C changes only the selected target delta;
+7. pristine T regrades sealed outputs without candidate code present; and
+8. known champions are rebaselined rather than inheriting old speedups.
 
-| sglang change | canary catches it as | fix in |
-|---|---|---|
-| seam class renamed/moved (`SiluAndMul`, `RMSNorm`, `MultiPlatformOp`) | `seam: …` FAIL | the one seam table `optima/seams.py` (bootstrap watch-list, `seam.activate`, and the canary all derive from it) |
-| `forward_cuda` signature change (e.g. residual handling) | `seam: …` detail shows new params | `optima/dispatch.py` dispatcher |
-| Engine / `ServerArgs` API change | `Engine.generate …` / `ServerArgs …` FAIL | `optima/eval/_launch.py`, `EvalConfig` |
-| the plugin/hook framework (`srt/plugins/hook_registry.py`, present since 0.5.12.post1 / PR #21388) is adopted | (canary still green) | optionally swap the `.pth` for the sanctioned `sglang.srt.plugins` entry-point hook — `optima/integrations/sglang_plugin.py` is the shim |
-| compile/graph path imports the swapped kernel by name (0.5.12+ piecewise CUDA graph / torch.compile) | (canary green; the candidate launch crashes `ModuleNotFoundError: optima_kernel_*`) | `optima/sandbox.load_module` registers the kernel in `sys.modules` before exec (`optima/sandbox.py:329`) |
-| seam install races a partially-initialized sglang module on import | (canary green; a caught `optima: failed to install a seam` traceback on every `import sglang`) | `optima/integrations/*` install() guards on the class attribute, not the raising import |
-| Dynamo traces a seam call site (prefill fusion traces `flashinfer_allreduce_residual_rmsnorm`) | (canary green; the dispatcher's function-body imports hard-error under trace) | `_dynamo_compiling()` short-circuits to pure stock during trace (`optima/dispatch.py:509-525`) |
+The broken-bundle control is especially important. A faithful candidate can
+appear green even if the adapter never fired and SGLang silently used its
+baseline. The negative control proves that the intended call path is actually
+under Cacheon's verifier and receipt authority.
 
-## Governance
+## Seam design rule
 
-Choosing the pinned version is a **trust point**: the operator could pin a version that
-favors a particular miner, or be slow to bump and let the base rot. Mitigation
-(`docs/SGLANG_TRACKING.md:159-172`):
+Slot contracts are stable semantic ABIs; SGLang adapters are version-specific
+glue. Keep upstream-specific imports, call translation, and fallback behavior in
+the adapter layer. If the new runtime cannot preserve a target's four
+invariants—validator-owned boundary, upstream-of-sampler position,
+high-precision reference, and untrusted-number exclusion—do not carry that
+target forward unchanged.
 
-- **Now (single operator):** transparency — the pinned version is public and committed
-  as a subnet parameter, so anyone can audit what is being scored against.
-- **Mature state:** validator-voted governance (validators signal the next version;
-  bump when a stake threshold agrees), so no single party controls the substrate.
+## Evidence migration rule
+
+A new pin creates a new runtime digest and therefore new evaluation-stack,
+arena, native-build, and release identities. Historical evidence remains valid
+for the old context; it does not become corrupt, but it cannot authorize the
+new one. Record whether each result is:
+
+- static canary evidence;
+- component/graph/collective evidence;
+- complete-engine qualification evidence; or
+- release build-and-serve evidence.
+
+This prevents a successful import check from being cited as a serving proof,
+or an old H100 champion from being quoted as a current baseline.
+
+## Release implications
+
+An `EngineReleaseDescriptor` binds the SGLang version, upstream revision,
+digest-pinned base image, reproducible Cacheon artifacts, native build, and
+serving policy. Consumers verify those exact identities. Upgrading a running
+deployment means building and signing a new release; it is never an in-place
+package upgrade inside an existing release.
+
+See [Current status](/docs/reference/state-of-record) for which empirical GPU
+proofs exist for the present architecture and which remain outstanding.

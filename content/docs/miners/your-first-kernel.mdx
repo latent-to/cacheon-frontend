@@ -1,235 +1,181 @@
 ---
-title: Your first kernel (20 minutes)
+title: Your first component bundle
 ---
 
-A complete, CPU-only walkthrough. By the end you'll have run a real bundle
-through the local gates (`scan` + `verify`) and seen both a passing and a failing
-kernel. No GPU needed.
+This walkthrough builds a registered singleton proposal and runs the cheap
+developer diagnostics. It needs no GPU. The result is a valid learning bundle,
+not evidence of a competitive win.
 
-## Step 0 — bootstrap
-
-```bash
-git clone https://github.com/latent-to/optima && cd optima
-pip install -e '.[cpu,dev]'   # the `optima` CLI + torch (CPU build) + pytest
-pytest tests/                 # sanity: all green (a few skips are normal)
-```
-
-The `[cpu]` extra pulls a CPU build of torch — the core deliberately leaves
-torch unpinned, because a GPU box takes its torch from the sglang install
-instead (see [GPU setup](/docs/dev/gpu-setup), or the repo's
-[`docs/GPU_SETUP.md`](https://github.com/latent-to/optima/blob/main/docs/GPU_SETUP.md)
-directly). That's it for a CPU loop. (For GPU work later, see
-[Running evals](/docs/validators/running-evals) and
-[Dev environment](/docs/dev/environment).)
-
-## Step 1 — look at the simplest bundle
-
-The `miner_silu_torch` bundle is a complete, valid submission in ~10 lines:
+## 1. Install a development checkout
 
 ```bash
-cat examples/miner_silu_torch/manifest.toml
-cat examples/miner_silu_torch/kernels/silu_and_mul.py
+git clone https://github.com/latent-to/optima.git
+cd optima
+python -m pip install -e '.[cpu,dev]'
 ```
 
-The manifest:
-```toml
-bundle_id   = "example-silu-torch-v1"
-abi_version = "optima-op-abi-v0"
+On a GPU host, install the Torch build matched to the arena's pinned
+CUDA/SGLang environment first, then install Cacheon without replacing it. The
+[GPU setup guide](/docs/dev/gpu-setup) explains the current development
+boundary. The operator's frozen arena image and runtime identities are the
+source of truth for an authoritative environment.
 
-[[ops]]
-slot   = "activation.silu_and_mul"
-source = "kernels/silu_and_mul.py"
-entry  = "silu_and_mul"
+Use `python -m optima.cli` in commands below. It is explicit about the active
+checkout and behaves correctly when engine diagnostics spawn worker processes.
+
+## 2. Copy the CPU example
+
+```bash
+cp -R examples/miner_silu_torch my_silu
 ```
 
-The kernel:
+The committed
+[example bundle](https://github.com/latent-to/optima/tree/main/examples/miner_silu_torch)
+contains a source implementation that fills the supplied output:
+
 ```python
 def silu_and_mul(x, out):
     d = x.shape[-1] // 2
-    gate, up = x[..., :d], x[..., d:]
-    out.copy_(torch.nn.functional.silu(gate) * up)
+    result = torch.nn.functional.silu(x[..., :d].float()).to(x.dtype)
+    out.copy_(result * x[..., d:])
 ```
 
-That's the whole contract: `entry(x, out)` fills `out`, returns nothing. See
-[The kernel ABI](/docs/miners/kernel-abi).
+Replace `my_silu/manifest.toml` with an explicitly targeted manifest:
 
-## Step 2 — run the two local gates
+```toml
+bundle_id = "my-silu-v1"
+abi_version = "optima-op-abi-v0"
+
+[competition]
+target = "activation.silu_and_mul"
+mode = "slot"
+
+[[ops]]
+slot = "activation.silu_and_mul"
+source = "kernels/silu_and_mul.py"
+entry = "silu_and_mul"
+dtypes = ["float32", "bfloat16", "float16"]
+metadata = "metadata/silu_and_mul.json"
+```
+
+The `[competition]` table asks for the registered singleton target. The op row
+supplies its implementation. Those are separate identities even though both
+currently use the string `activation.silu_and_mul`.
+
+## 3. Scan the source tree
 
 ```bash
-# static policy scan (no code execution)
-python -m optima.cli scan examples/miner_silu_torch
-
-# op-correctness vs an fp32 reference, on CPU
-python -m optima.cli verify examples/miner_silu_torch --device cpu --dtype float32
+python -m optima.cli scan my_silu
 ```
 
-`scan` parses the manifest, walks the bundle tree, and AST-scans every `.py`
-against the banned-import/call policy. Real output:
+`scan` checks manifest/path structure and performs the development static-policy
+scan. Fix every reported item. A clean scan does not make code safe or
+crownable; production still fetches, republishes, builds, and runs the proposal
+inside validator-owned isolation.
 
-```
-bundle: example-silu-torch-cpu  abi: optima-op-abi-v0  ops: 1
-  [clean] activation.silu_and_mul <- kernels/silu_and_mul.py
-```
-
-`verify` generates deterministic inputs over the slot's standard shapes, runs
-your kernel into validator-allocated outputs, and compares to the **fp32
-reference** under the slot's `allclose` tolerance. Real output:
-
-```
-[note] some or all of this verify runs on CPU: it checks op-correctness
-only — it does not predict GPU throughput, CUDA-graph capture, or the
-fidelity gates (see docs/GPU_SETUP.md).
-[PASS] activation.silu_and_mul dtype=float32
-  ok  shape={'num_tokens': 3, 'd': 1024} max_abs=0.000e+00 max_rel=0.000e+00
-  ok  shape={'num_tokens': 9, 'd': 1024} max_abs=0.000e+00 max_rel=0.000e+00
-  ok  shape={'num_tokens': 173, 'd': 4096} max_abs=0.000e+00 max_rel=0.000e+00
-  ok  shape={'num_tokens': 5463, 'd': 4096} max_abs=0.000e+00 max_rel=0.000e+00
-  ok  shape={'num_tokens': 446, 'd': 2880} max_abs=0.000e+00 max_rel=0.000e+00
-```
-
-- `max_abs` / `max_rel` are the worst-case absolute and relative error against
-  the fp32 reference, over every element at that shape — `0.000e+00` here
-  because this kernel just calls `torch.nn.functional.silu`, so it's bit-exact
-  against its own reference.
-- Each `shape={...}` line is one jittered `num_tokens` (derived from `--seed`)
-  over one of the slot's standard `d` values — five runs, five token counts,
-  all rolled into the single `[PASS]` verdict.
-- The `[note]` line is the CPU-mode banner: this run proves the kernel's
-  *math* is right, not that it's fast, or that it survives CUDA-graph capture,
-  or that it clears the fidelity gate — those need a GPU (see
-  [GPU setup](/docs/dev/gpu-setup)).
-
-<Callout type="info" title="Always use python -m optima.cli">
-  sglang spawns its scheduler with `mp spawn`, and the `__main__` guard
-  matters. The bare `optima` console-script can wedge under spawn. Use
-  `python -m optima.cli` for everything.
-</Callout>
-
-## Step 3 — make it yours
-
-Copy the bundle and edit the kernel:
+## 4. Verify the callable contract
 
 ```bash
-cp -r examples/miner_silu_torch my_silu
-$EDITOR my_silu/manifest.toml          # change bundle_id to "my-silu-v1"
-$EDITOR my_silu/kernels/silu_and_mul.py
 python -m optima.cli verify my_silu --device cpu --dtype float32
 ```
 
-This is your inner loop: **edit → `verify` → repeat**. No GPU, no cost. The
-verify shapes are jittered per run (from `--seed`) so you can't accidentally
-overfit to fixed shapes.
+This diagnostic constructs validator-owned inputs and poisoned outputs, invokes
+the bundle over the slot's profiles, detects input mutation and incomplete
+writes, and compares the result with the trusted reference. It should end in a
+`PASS` for applicable shapes.
 
-## Step 4 — see a failing kernel
+A CPU pass proves only the local numerical ABI. It does not prove:
 
-The `miner_silu_broken_torch` bundle computes `gate * up` instead of
-`silu(gate) * up` — it drops the SiLU nonlinearity to run faster (the pure-torch
-twin of the Triton `miner_silu_broken`, so the rejection reproduces on a machine
-without a GPU or Triton):
+- CUDA compilation or architecture eligibility;
+- CUDA-graph capture and replay;
+- performance in the incumbent engine stack;
+- serving quality on the arena workload;
+- authoritative qualification or a crown.
 
-```bash
-python -m optima.cli verify examples/miner_silu_broken_torch --device cpu --dtype float32
-```
-
-This FAILS op-correctness. Real output:
-
-```
-[note] some or all of this verify runs on CPU: it checks op-correctness
-only — it does not predict GPU throughput, CUDA-graph capture, or the
-fidelity gates (see docs/GPU_SETUP.md).
-[FAIL] activation.silu_and_mul dtype=float32
-  FAIL shape={'num_tokens': 3, 'd': 1024} max_abs=5.028e+00 max_rel=5.996e+01 ratio=0.0000
-  FAIL shape={'num_tokens': 9, 'd': 1024} max_abs=7.603e+00 max_rel=6.564e+01 ratio=0.0003
-  FAIL shape={'num_tokens': 173, 'd': 4096} max_abs=1.026e+01 max_rel=1.186e+02 ratio=0.0001
-  FAIL shape={'num_tokens': 5463, 'd': 4096} max_abs=1.474e+01 max_rel=2.121e+02 ratio=0.0002
-  FAIL shape={'num_tokens': 446, 'd': 2880} max_abs=1.518e+01 max_rel=1.564e+02 ratio=0.0002
-```
-
-`python -m optima.cli verify` exits with a nonzero code (`2`) on any FAIL, so
-this is CI-scriptable, not just human-read.
-
-- `max_abs`/`max_rel` are orders of magnitude worse than Step 2's
-  `0.000e+00` — dropping the SiLU nonlinearity isn't a small numerical nudge,
-  it's a different function (`gate * up` vs `silu(gate) * up`), so the error
-  scales with the raw gate magnitude.
-- `ratio` (printed only when it drops below `1.0`) is the fraction of elements
-  that landed inside the tolerance band — here it's ~0 at every shape, so
-  almost nothing matched. This is not a borderline precision issue; it's the
-  wrong computation.
-- The kernel's own header comment says why plainly: *"the canonical 'faster by
-  skipping work' cheat, in pure torch so the rejection is observable on a
-  machine without a GPU or Triton... `optima verify` must FAIL this bundle on
-  op-correctness."* Its Triton sibling, `miner_silu_broken`, is blunter about
-  the stakes: *"it changes the model's output distribution. The end-to-end KL
-  gate must reject it."*
-
-There's also `miner_silu_sparse`, which drops SiLU only on every 64th row
-(~1.6%). It's bit-exact on most tokens, so it can sneak past a naive mean-KL
-gate — but the **argmax-disagreement-rate** gate (the fraction of positions
-whose top-1 token flips) catches it: it flips ~4% of tokens here. This is the
-canonical "the adversary the mean gate misses." See
-[Why did my kernel fail?](/docs/miners/diagnostics).
-
-## Step 5 — go to a GPU
-
-When you have a kernel you believe is actually faster, take it to a GPU:
+For an intentional failure, run the committed wrong implementation:
 
 ```bash
-# op-correctness on real shapes/dtypes
+python -m optima.cli verify \
+  examples/miner_silu_broken_torch --device cpu --dtype float32
+```
+
+That bundle computes different math. It should exit nonzero with failed shape
+results. Use it to confirm that your environment is exercising the gate you
+think it is.
+
+## 5. Add a real specialization
+
+Once you replace the Torch body with a Triton, CUDA, or other target-approved
+implementation, declare only the domain you actually support. For example:
+
+```toml
+[[ops]]
+slot = "activation.silu_and_mul"
+variant = "sm90-bf16"
+source = "kernels/silu_sm90.py"
+entry = "silu_and_mul"
+dtypes = ["bfloat16"]
+architectures = ["sm90"]
+metadata = "metadata/silu_sm90.json"
+```
+
+```json
+{
+  "graph_safe": true,
+  "capabilities": {
+    "num_tokens": {"min": 1, "max": 4096}
+  }
+}
+```
+
+An architecture mismatch is N/A, not a pass. A capability domain matching none
+of the verifier's applicable shapes also fails verification. If you add a
+second variant, give every row a unique `variant` and make the domains provably
+disjoint; there is no manifest-order priority.
+
+## 6. Move to the matching GPU environment
+
+First rerun ABI verification on the real dtype and architecture:
+
+```bash
 python -m optima.cli verify my_silu --device cuda --dtype bfloat16
-
-# end-to-end throughput + fidelity (the real gate)
-python -m optima.cli evaluate my_silu --model Qwen/Qwen2.5-1.5B-Instruct \
-    --num-prompts 64 --max-new-tokens 64
-
-# capability floor on a real task
-python -m optima.cli bench my_silu --model Qwen/Qwen2.5-1.5B-Instruct \
-    --benchmarks gsm8k --samples 128
 ```
 
-The setup for the GPU box (CUDA, torch, sglang, the `.pth` seam, `nvcc`+`ninja`,
-`TORCH_CUDA_ARCH_LIST`) is at [GPU setup](/docs/dev/gpu-setup) (provider-agnostic;
-also the repo's
-[`docs/GPU_SETUP.md`](https://github.com/latent-to/optima/blob/main/docs/GPU_SETUP.md))
-and [Dev environment](/docs/dev/environment) (the maintainers' own pod-specific
-notes). The important scoring details (the `B,C,B'` bookend, the noise-derived
-bar, and NO-DECISION — the round is discarded because the bracketing
-baselines disagreed, too noisy to score) are at
-[How scoring works](/docs/validators/scoring).
+For a collective target, use the arena's topology:
 
-## What a scored improvement looks like in the output
+```bash
+python -m optima.cli verify my_collective \
+  --device cuda --dtype bfloat16 --world-size 4 --tp-size 4
+```
 
-When you run `evaluate`, you'll see a verdict line:
+Then use the engine-facing developer diagnostics while iterating:
 
-- **PASS** — faithful AND faster than the bar. This is a scoreable improvement.
-- **FAIL** — either unfaithful (the fidelity or benchmark gate tripped) or not
-  faster (below the bar). Score 0.
-- **NO-DECISION** — the bracketing baselines disagreed too much; the box is too
-  noisy to measure. Re-queue; do not score this round.
+```bash
+python -m optima.cli evaluate my_silu \
+  --model <arena-model> --tp-size <arena-tp> ...
 
-The "bar" is printed at full precision (e.g. `bar 1.038`). It's
-`1 + max(margin, k·noise)` where `noise` is the *measured* spread of your
-bracketing baselines. On a quiet, clock-locked box, sub-1% improvements are resolvable;
-on a noisy rented pod, the bar scales up with the noise.
+python -m optima.cli bench my_silu \
+  --model <arena-model> --tp-size <arena-tp> \
+  --benchmarks <published-benchmark-set> ...
+```
 
-## The realistic loop
+`evaluate` and `bench` are **developer diagnostics, not crown authority**. Their
+flags are intentionally useful for debugging, including candidate-only launch
+changes. An authoritative candidate cannot choose a different evaluation stack;
+the validator binds B, C, B′, T, resources, graph evidence, hidden inputs, and
+calibrated policies itself.
 
-1. **Profile first.** Don't guess where the time goes — measure the decode
-   breakdown on the target arena (nsys). See [Finding a throughput improvement](/docs/miners/finding-a-win).
-2. **Size the lever.** A kernel that's 2× faster on an op that's 1% of wall time
-   is a 1% end-to-end improvement. Size by *wall-time fraction*, not kernel-time sum.
-3. **Concede what the vendor already did.** sglang's silu/rmsnorm are already
-   optimal; you probably won't beat them. The opportunities are in fusion, overlap, and
-   model-specific epilogues.
-4. **Expect incremental gains, not 2×.** A 1.05 × 1.04 × 1.03 stack over several
-   slots compounds, but no single slot should be expected to produce a 2×
-   end-to-end speedup against a tuned vendor kernel.
-5. **Measure, don't reason.** The fidelity gate and the throughput bracket are
-   the truth; your intuition about "this should be faster" is not.
+Never call a graphs-off result a win. `--disable-cuda-graph` is a debugging
+mode that changes the incumbent regime. For a long-prefill target, also make the
+workload genuinely prefill-heavy; repeated prompts with a live radix cache can
+silently turn later iterations into decode/cache-hit measurements.
 
-## Where to go next
+## 7. Decide whether the target is worth pursuing
 
-- **How to actually find something faster:** [Finding a throughput improvement](/docs/miners/finding-a-win).
-- **When your kernel fails:** [Why did my kernel fail?](/docs/miners/diagnostics).
-- **All the example bundles:** [Example bundles](/docs/miners/examples).
-- **Going to production (commit-reveal):** [The chain loop](/docs/validators/chain-loop).
+A correct kernel is the starting line. Profile the full incumbent engine and
+ask whether this exact slot has enough wall-time share for your measured kernel
+gain to matter. Then compare the complete candidate delta against the current
+incumbent stack, not against a convenient stock or standalone baseline.
+
+Continue with [Finding a win](/docs/miners/finding-a-win), [Graph evidence](/docs/miners/graph-safety),
+and [Submitting](/docs/miners/submitting).

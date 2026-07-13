@@ -1,91 +1,175 @@
 ---
-title: Arenas
+title: Arena service types
 ---
 
-An **arena** is the unit of competition: a specific model, run under a specific
-serving configuration, on specific hardware. Cacheon is arena-agnostic by design —
-the slots, the seam, the scoring, and the chain loop are all general — but exactly
-**one arena is active per "season,"** and every validator runs the same arena on
-the same pinned engine so scores are comparable.
+An arena service is the validator-owned admission, screening, and
+qualification-planning boundary for an admitted proposal. The downstream
+qualification and durable controller produce and settle authoritative evidence.
+Public CLI arguments cannot construct the service.
 
-This page is short on purpose. The point is to make the concept a first-class
-thing so that adding a model later is *adding a row*, not rewriting prose. The
-current code does not have a separate `optima/arenas.py` registry; an arena is
-the coordinated bundle of CLI flags, slot profiles, pinned sglang version, and
-operator runbook for a season.
+## Where the boundary sits
 
-## What defines an arena
+```mermaid
+flowchart LR
+    I["Finalized intake + worker publication"] --> B["ArenaCandidateBinding"]
+    B --> S["Five ordered non-crown screens"]
+    S -->|promote| R["ArenaQualificationRequest"]
+    R --> P["Deployment provider"]
+    P --> W["Closed qualification work"]
+    W --> Q["Qualification runner"]
+    Q --> E["Retained typed evidence"]
+    E --> C["Controller regrade + settlement"]
+    S -->|reject / retry / hold| I
+```
 
-| Dimension | Why it matters | Example (M3) |
+The arena service decides whether and how a finalized candidate reaches the
+qualification runner. It does not decide the economic result. This split lets
+deployment code own GPUs, model paths, entropy, hidden judges, and executors
+without letting an arbitrary provider return “crown = true.”
+
+## Closed registry
+
+Production deployment injects an `ArenaServiceRegistry` into the validator
+loop. The registry maps preconfigured arena IDs to typed services. A service
+binds an exact runtime and workload identity, capacity and screen policy,
+qualification-policy digest, and reviewed provider identity. The provider
+returns the closed executor, entropy, hidden-judge, deadline, and plan-factory
+work needed by the qualification runner.
+
+`chain-validate --arena-id <id>` selects an already injected service. Unknown
+IDs fail closed. Without an injected registry, only `--intake-only` is a valid
+public operation. Cacheon deliberately ships no general production
+`ArenaServiceProvider` and no `--eval-cmd` shell escape hatch.
+
+### Manifest anatomy
+
+An `ArenaServiceManifest` is path-free and content-addressed. Its main sections
+are:
+
+| Section | Bound decisions |
+|---|---|
+| `ArenaRuntimeIdentity` | Arena ID; runtime/base/overlay/worker digests; exact model identities; architecture; topology; GPU and TP sizes |
+| `WorkloadMixture` | Prompt-corpus digest and seed scheme; weighted decode and long-prefill regimes; exact serving shapes |
+| `ArenaCapacityPolicy` | Queue depth/age, concurrent screen and qualification limits, cohort size, and retry budgets |
+| `NonCrownScreenPolicy` | Exactly ordered static, build, ABI, graph, and abbreviated-serving stages with timeouts |
+| Qualification/provider digests | Exact qualification policy and reviewed provider implementation identity |
+
+Workload weights sum to one million parts per million and must cover both
+decode and long-prefill. Tensor parallel size cannot exceed the bound GPU
+count. These checks turn “same arena” into a typed identity rather than an
+operator nickname.
+
+## Boundary types
+
+| Type | Role |
+|---|---|
+| `ArenaServiceRegistry` | Closed mapping supplied by deployment code |
+| `ArenaService` | Typed screening and qualification-planning boundary for one arena |
+| `ArenaServiceManifest` | Frozen runtime, workload, capacity, screens, and policy identity |
+| `ArenaCandidateBinding` | Exact qualification reservation, immutable publication, and screen attempt handed to a service |
+| `ArenaScreenReceipt` | Typed results from the five non-crown screening stages |
+| `ArenaQualificationRequest` / `ArenaQualificationWork` | Closed request and provider-returned qualification plan |
+| `ArenaServiceProvider` | Deployment-supplied in-process protocol; no production implementation ships in the repository |
+
+The provider protocol has only two authority-bearing operations:
+
+```python
+def run_screen(manifest, stage, candidate) -> ScreenStageResult: ...
+
+def build_qualification(request) -> ArenaQualificationWork: ...
+```
+
+`ArenaService` checks the provider digest on construction, requires the exact
+requested screen stage back, converts an over-time result to `NO_DECISION`,
+and verifies that qualification work preserves policy digest and finalized
+reservation order. Submission metadata never supplies a Python module or
+entry point for this provider.
+
+Operators should construct these exact types in reviewed deployment code, not
+deserialize arbitrary contributor configuration into service objects. Final
+`PASS`/`FAIL`/`NO_DECISION` authority is represented by qualification evidence
+types, not by a generic arena outcome object.
+
+## What the service owns
+
+- exact runtime, base-engine, model, worker, architecture, and topology identity;
+- the decode/long-prefill workload mixture;
+- queue depth/age, cohort size, active screen/qualification, and retry bounds;
+- the fixed static/build/ABI/graph/abbreviated-serving screens;
+- qualification-policy and provider digests; and
+- a closed qualification plan and its executor/entropy/hidden-judge authorities.
+
+Submissions cannot weaken or select these values.
+
+Durable intake state, evidence reopening, independent reproduction,
+transactional settlement, evaluation-stack transition, and weight publication
+remain separate controller responsibilities. An `ArenaService` cannot crown or
+settle a proposal by returning a screen or plan.
+
+## Admission and capacity
+
+Admission has three typed outcomes before evidence exists:
+
+| Decision | Typical cause | Controller behavior |
 |---|---|---|
-| **Model (+ quantization)** | the fixed graph kernels are swapped into | MiniMax-M3-NVFP4 (`modelopt_fp4`) |
-| **Hardware / topology** | the box the validator controls | 4×B300, tensor-parallel 4 |
-| **Serving config** | the backend stack the baseline runs on | attention `fa4`, MoE `flashinfer_cutlass`, `enable_flashinfer_allreduce_fusion=true` |
-| **Slot profile** | validator-owned per-model facts (activation kind, correctness mode, KL floors) | `swigluoai(1.702, 7.0)` activation; `cosine(0.985)` correctness for NVFP4 experts |
-| **Fidelity mode** | audit vs KL, chosen by whether the stack is launch-deterministic | `audit` (the stack is nondeterministic; rollout-KL gates timing, not fidelity) |
-| **Record regime** | the `NP/MNT/TI/WU` that produces a stable, resolvable tok/s | `NP=256 MNT=256 TI=3 WU=4` |
+| `ADMIT` | Screen/qualification capacity is available | Reserve work under the bound service |
+| `QUEUE` | The relevant active-worker capacity is temporarily full | Preserve finalized priority and retry later |
+| `HOLD` | Queue depth/age, cohort size, or retry budget crosses policy | Stop automatic progress pending operator/policy handling |
 
-The arena is chosen deliberately. A kernel that improves throughput on one arena
-doesn't automatically improve another — different models expose different slot
-surfaces (MoE experts on M3, SSM state on Nemotron, MLA attention on DeepSeek),
-and every speedup is relative to *that* arena's stock baseline.
+Screen and qualification capacities are distinct. A cohort larger than
+`max_cohort_size` is held; a cohort that fits policy but would exceed current
+active qualification capacity is queued. This avoids converting overload into
+candidate failure.
 
-## Why exactly one is active per season
+## Screen receipt derivation
 
-Two reasons:
+The screen receipt must be a canonical prefix of the fixed stage order. Every
+earlier result must be PASS, and the last grade determines the only legal
+decision:
 
-1. **Consensus.** Bittensor's Yuma consensus penalizes a validator whose weight
-   vector diverges from the stake-weighted median. If validators A and B ran
-   different arenas (different models, different sglang pins), they'd measure
-   different throughput for the identical kernel → divergent weights → lost
-   emission. So a single arena + a single `PINNED_SGLANG` are coordinated subnet
-   parameters, bumped together per season. See
-   [sglang pinning](/docs/dev/sglang-tracking).
-2. **Comparability.** A "speedup" is only meaningful against a specific baseline.
-   The arena *is* that baseline, fixed for the season.
+| Terminal stage grade | Receipt decision | Economic meaning |
+|---|---|---|
+| All five PASS | `PROMOTE` | Eligible to request full qualification; no score or crown |
+| First authoritative FAIL | `REJECT` | Candidate failed a registered non-crown gate |
+| `NO_DECISION` within retry budget | `RETRY` | Infrastructure/incomplete authority; try again |
+| `NO_DECISION` after budget | `HOLD` | Automatic retry stops without assigning a loss |
 
-## How a new model gets added
+A provider cannot skip static and report a graph result, reorder stages, attach
+another candidate digest, or promote an incomplete prefix.
 
-An arena is mostly *configuration*, not code:
+## Outcome semantics
 
-1. **Slot profiles** — add a row to `MODEL_PROFILES` in `optima/slots.py` if the
-   model needs a non-default activation, correctness mode, or KL floor (e.g. M3
-   retargets the MoE reference to `swigluoai` and switches to `cosine`). Models
-   with stock activations need no profile at all.
-2. **The serving flags** — the `--model`, `--attention-backend`,
-   `--moe-runner-backend`, `--engine-kwargs-json` set. These are the validator's
-   run config for the season, not miner-facing.
-3. **The fidelity mode** — `audit` by default on launch-nondeterministic stacks
-   (FP4/FP8, eager fa4); `kl` only on arenas where a stock-vs-stock control
-   measures ~0. See [fidelity](/docs/validators/fidelity).
-4. **The record regime** — calibrate `NP/MNT/TI/WU` until the bracketing
-   baselines agree on that hardware. See [running evals](/docs/validators/running-evals).
-5. **A sglang pin** — the engine version all validators agree on for the season.
+`PASS`
+: The run established every registered qualification predicate. A first PASS
+  becomes `reproduction_pending`; it is not a crown.
 
-The slots themselves don't change per arena — they're the
-[narrow waist](/docs/architecture/slot-contract). A new model may *expose* slots
-that didn't matter before (a new attention variant, a different MoE shape), but
-adding those is a validator-side slot-catalog change, not a per-arena thing.
+`FAIL`
+: Authoritative evidence established a candidate defect or failure to clear the
+  registered bar.
 
-## Arenas validated so far
+`NO_DECISION`
+: Infrastructure, drift, incomplete evidence, or another non-candidate
+  condition prevented a valid decision. It must not be rewritten into a loss
+  or a crown.
 
-| Arena | Hardware | Status | Notes |
-|---|---|---|---|
-| **MiniMax-M3-NVFP4** | 4×B300 (TP4) | **Validated end-to-end; submitted kernels surpassed sglang** | first complete case study. See [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study). |
-| Qwen2.5 (0.5B / 1.5B) | single H100 | **Mechanism validated** | the referee fires; no submitted kernel has surpassed sglang here. The default for the [20-min first kernel](/docs/miners/your-first-kernel) walkthrough. |
-| gpt-oss-120b | single H100 | **Mechanism validated** | the largest single-GPU model validated; the MoE seam routes its experts. |
+The controller reopens and regrades retained evidence rather than trusting an
+evaluator's summary text.
 
-Planned / future arenas that are not yet validated as scored Cacheon arenas:
-Nemotron-3-Ultra (SSM/comms), GLM-5.2, DeepSeek-V4 (MLA attention), and others.
-Some of these may already have profiling or prototype folders under
-`experiments/`; they become rows here only after the validator gate chain has
-been run as a scoring arena.
+## Deployment review checklist
 
-## A note on "what Cacheon is for"
+- Construct the registry from a sorted, unique, reviewed arena list.
+- Pin provider code by the digest embedded in each service manifest.
+- Keep model paths, executor handles, entropy sources, and hidden judges inside
+  deployment code; expose only their typed identities at the boundary.
+- Ensure queue snapshots and leases come from the durable single-writer
+  controller rather than process-local counters.
+- Make `run_screen()` produce content-addressed evidence for every returned
+  stage result.
+- Make `build_qualification()` return the exact finalized reservation order,
+  policy digest, deadline, executor, entropy provider, and hidden judge.
+- Test timeout, malformed provider output, retry exhaustion, restart, and
+  unknown-arena cases as fail-closed paths.
+- Operate intake-only when no reviewed provider/registry is available; never
+  replace the missing provider with a shell command assembled from a proposal.
 
-The arena list will grow. Don't read the M3 examples in these docs as "this is
-the M3 subnet" — read them as "the general system, documented through its first
-fully validated instance." The [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study)
-page is deliberately specific because concrete measurements are more useful than
-an abstract template; when a second arena is validated, it should get the same
-treatment alongside it.
+Source: [`optima/arena_service.py`](https://github.com/latent-to/optima/blob/main/optima/arena_service.py).

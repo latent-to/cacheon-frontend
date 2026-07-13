@@ -1,288 +1,138 @@
 ---
-title: Running evals
+title: Running diagnostics
 ---
 
-The three commands a validator (or a miner on their own box) runs against a
-bundle. Each is a layer of the gate chain; run them in order. All of them are
-invoked as `python -m optima.cli` — never `optima` directly — because sglang
-spawns the scheduler with `mp spawn` and the `__main__` guard matters.
+Cacheon exposes three developer-facing checks. They answer different questions and none
+of them is authoritative settlement evidence.
 
-```text
-scan (static)  →  verify (op-correctness, fp32 GT)  →  evaluate (throughput + fidelity)  →  bench (capability, real tasks)
-```
+| Command | Question | Typical environment |
+|---|---|---|
+| `verify` | Does each declared variant satisfy its typed slot ABI and reference checks? | CPU or GPU; spawned worker processes |
+| `evaluate` | On this development setup, how do baseline and candidate throughput and diagnostic fidelity compare? | GPU model launch |
+| `bench` | Does the candidate regress selected task accuracy, KL diagnostics, or noisy throughput? | GPU model launch |
 
-The commands live in `optima/cli.py` (`cmd_verify`, `cmd_evaluate`, `cmd_bench`).
-The engine-launch plumbing and per-call fidelity logic live in
-`optima/eval/_launch.py`, `optima/eval/throughput_kl.py`, and `optima/audit.py`.
-The noise-robust speedup math is in `optima/eval/scoring.py` (documented in
-[scoring.md](/docs/validators/scoring)); the fidelity stack is in [fidelity.md](/docs/validators/fidelity).
+The production path instead uses a registered arena service, complete materialized engine
+trees, no-egress OCI sessions, pristine T, retained evidence, and independent
+reproduction. See [Qualification](/docs/validators/qualification).
 
-<Callout type="info">
-  This page is the *operator's* view. For the first validated arena — the exact
-  flags, the eval-bridge architecture, and what the output looked like — see the
-  [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study).
+<Callout type="warn">
+These commands are for code development and integration. Do not run unknown bundles
+on a machine that lacks an appropriate outer sandbox. `--allow-unsafe-no-isolation`
+explicitly weakens a diagnostic and must never be part of a crownable workflow.
 </Callout>
 
-## Prerequisites (the toolchain gotchas)
+## Op-level verification
 
-These bite silently if you skip them — sglang JIT fails or Triton miscompiles and
-the run "passes" against a broken baseline. From [Dev environment](/docs/dev/environment):
-
-```bash
-export CUDA_HOME=/usr/local/cuda
-export PATH=/usr/local/cuda/bin:$PWD/.venv/bin:$PATH   # sglang JIT needs nvcc + ninja
-export TORCH_CUDA_ARCH_LIST=10.0                        # 9.0 = H100/H200, 10.0 = B200; use the live capability for B300 (often 10.3)
-```
-
-- `CUDA_HOME`, and `nvcc` + `ninja` on `PATH`, are required for sglang/flashinfer
-  JIT builds. Missing them produces a weak/stock baseline and invalid scores.
-- `TORCH_CUDA_ARCH_LIST` must match the target GPU or the JIT compiles for the
-  wrong arch (SASS).
-- Launch with `.venv/bin/python -m optima.cli ...` so the spawn child inherits
-  the right interpreter and env.
-
-## verify — op-correctness (cheap, no model)
-
-Sanity check: does the kernel compute the slot's function at all? Runs the entry
-against an fp32 reference on deterministic inputs, including count-dimension
-jitter and burst/temporal sequences (`optima/verify.py`,
-`optima/verify_collective.py`). The miner module runs in a **fresh spawned
-process** so the trusted CLI never imports it.
+CPU smoke test:
 
 ```bash
-python -m optima.cli verify my_bundle --device cuda --dtype bfloat16
-# collective slot -> distributed verify over `world_size` ranks
-python -m optima.cli verify my_bundle --device cuda --world-size 4
+python -m optima.cli verify ./my_bundle --device cpu --dtype float32
 ```
 
-Exit code 0 = passed, 2 = failed (wrong math / policy scan). This is a necessary
-but not sufficient gate; the load-bearing anti-cheat is the fidelity stack in
-`evaluate`.
-
-## evaluate — throughput + fidelity (the real gate)
-
-The scored regime: three timed launches of the same model — baseline `B`,
-candidate `C`, and trailing bookend baseline `B′` — under **CUDA graphs ON**.
-Audit mode adds one extra untimed eager quality launch before `C`. Graphs-off
-cripples the baseline ~6.5× and is never used for scoring; pass
-`--disable-cuda-graph` only for quick eager debugging.
-
-### Minimal single-GPU run
+GPU verification:
 
 ```bash
-python -m optima.cli evaluate my_bundle \
-    --model Qwen/Qwen2.5-1.5B-Instruct \
-    --num-prompts 64 --max-new-tokens 64
+python -m optima.cli verify ./my_bundle \
+  --device cuda --dtype bfloat16 --seed 17
 ```
 
-### The important flags
-
-| flag | default | what it does |
-|---|---|---|
-| `--model` | (required) | sglang model path. Per-model slot profiles are selected explicitly in `verify --model`; `evaluate` primarily uses this as the engine model path. |
-| `--num-prompts` | `32` | prompts sampled per epoch from a corpus (`optima/eval/prompts.py`). More → more KL positions, more stable timing. |
-| `--max-new-tokens` | `64` | per-prompt decode budget. With `ignore_eos` (default), this is the exact token count every launch emits. |
-| `--fidelity-mode` | `kl` | `kl` = rollout-KL gate (valid only on deterministic-capable arenas); `audit` = in-engine per-call audit + advisory KL (the only sound mode on noisy stacks). See [fidelity.md](/docs/validators/fidelity). |
-| `--audit-rate` | `0.05` | in `audit` mode: fraction of eligible dispatcher calls re-run through the captured stock baseline. |
-| `--speedup-margin` | `0.005` | FLOOR on the required improvement. The actual bar is `1 + max(margin, k·noise)` — the noise term, not this constant, guards an unstable box. |
-| `--ignore-eos` | `on` | force every launch to emit exactly `max_new_tokens` tokens so throughput is a pure per-token latency comparison (no EOS-timing gaming). Keep ON for scoring. |
-| `--timed-iters` | `3` | median-of-K timed passes per launch (`EvalConfig.timed_iters`). |
-| `--warmup-iters` | `2` | untimed heat-soak rounds before the first timed pass. Thermal ramp that lands inside the `B/B′` bookends reads as baseline "noise" and inflates the bar — raise this until the bookends agree. |
-| `--moe-runner-backend` | (auto) | sglang MoE backend (e.g. `triton`, `flashinfer_cutlass`). `--candidate-moe-runner-backend` overrides for the candidate only. |
-| `--engine-kwargs-json` | (none) | JSON object merged into both launches' `sglang.Engine` kwargs; `--candidate-engine-kwargs-json` for candidate only. |
-| `--framework-mode` | off | miner may patch the engine (`setup()`); gate switches from KL to token-match vs the stock baseline. Implies `--isolate`. |
-| `--isolate` | off | run the candidate in a no-egress network namespace (needs root; auto-on with `--framework-mode`). |
-| `--tp-size` | (auto) | tensor-parallel size for multi-GPU. |
-| `--kl-threshold` | `5e-3` | generic KL gate; superseded by a per-slot calibrated value (`SlotSpec.kl_threshold`, e.g. attention `3e-2`) unless `--kl-advisory`. |
-| `--ledger` | (none) | write the machine-readable score row here (used by the chain loop's `--eval-cmd`). Pair with `--hotkey` / `--round`. |
-
-The full flag set, including `--argmax-disagree-rate`, `--p99-kl-threshold`,
-`--attention-backend`, `--disable-custom-all-reduce`, `--mem-fraction`, is in
-`optima/cli.py:840-912`.
-
-### How to read the output
-
-`cmd_evaluate` prints a structured report (`optima/cli.py:457-489`). The lines
-that decide whether a submission gets a nonzero score:
-
-```
-baseline   <tok/s>  (median of K; range min-max, sd)
-candidate  <tok/s>  (median of K; range min-max, sd)
-baseline'  <tok/s>  (trailing bookend; baseline noise <pct>)
-speedup    <x>  (needs >= <bar> = 1 + max(margin, k*noise) -> <verdict>)
-quality    ... -> PASS | FAIL
-SCORE      <crownable speedup, else 0.0>
-```
-
-The `-> verdict` is one of:
-
-- **PASS (noise-confident)** — cleared the bar AND the round was
-  trustworthy.
-- **below the noise-derived bar** — not faster enough; score 0.0.
-- **NO-DECISION (box too noisy / un-bracketed; re-queue, never crown)** — the two
-  baseline reads disagreed by more than `max_noise` (default 10%). Discard the
-  round; do not score it.
-
-In `audit` mode the `quality` line reports the audit verdict (`N audited calls,
-M violations, worst_frac=…`) and prints KL as **ADVISORY**. In `kl` mode the KL
-is the gate. The `SCORE` line is what the ledger records: the crownable speedup,
-or `0.0` if quality failed, the bar wasn't cleared, or the round was a
-NO-DECISION.
-
-### What a validated improvement looks like
-
-The record run for the first submitted kernel that surpassed sglang through
-Cacheon's scorer — on the first arena validated end-to-end (MiniMax-M3-NVFP4 /
-4×B300; see [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study)). The shallow
-`collective.ar_residual_rmsnorm` v6, `NP=256 MNT=256 TI=3 WU=4`, audit mode,
-graphs on:
-
-```
-candidate   10894.0 tok/s
-baseline'   10531.8 tok/s
-speedup       1.044x, required 1.038 -> PASS
-quality       12456 audited calls, 0 violations -> PASS
-SCORE         1.044
-```
-
-The bar `1.038` is `1 + max(0.02, 2 × 1.9% bookend noise)` — the noise term
-dominates, not the floor. The 4.4% speedup is counted because it cleared the
-measured noise and the audit gate. (For the deeper reproduction numbers and the
-eval-bridge architecture used to run it, see
-[MiniMax-M3 case study](/docs/validators/minimax-m3-case-study).)
-
-## bench — capability (real tasks, accuracy-graded)
-
-Throughput on real benchmark prompts, gated by **accuracy** (GSM8K, MMLU,
-long_math). This is the semantic backstop: a kernel that passes slot fidelity but
-makes the model *dumber* on a real task scores zero in a production wrapper.
+Collective slots need the intended rank count:
 
 ```bash
-python -m optima.cli bench my_bundle \
-    --model Qwen/Qwen2.5-1.5B-Instruct \
-    --benchmarks gsm8k --samples 128
+python -m optima.cli verify ./my_collective_bundle \
+  --device cuda --world-size 4 --dtype bfloat16
 ```
 
-Two things to know:
+Use `--model <KEY>` when a validator model profile changes activation or low-bit
+correctness semantics. A context-inapplicable variant is not treated as a successful
+verification.
 
-- `bench` is not the `audit` fidelity path. It has no `--fidelity-mode` and it
-  should be paired with `evaluate --fidelity-mode audit` or a clean-KL
-  `evaluate` run when making a security decision.
-- Accuracy generations **do not** inherit the throughput eval's `ignore_eos`
-  (`capability.py:_sampling_params`). Forcing a model past its answer graded
-  hallucinated self-Q&A — measured at +6.2% absolute on a ~90% model on the M3
-  arena (`docs/FIDELITY.md` §3). So the `tok/s` bench reports is explicitly
-  **noise** (unequal token counts); the throughput authority is `evaluate`.
-- Use `~100–200` samples for a real accuracy floor. `cmd_bench` warns below 100
-  (`optima/cli.py:533-535`): at `n=12` accuracy std is ~12%, which is wider than
-  the tolerance.
+Verification checks all declared variant domains for ambiguity before loading a row. It
+also exercises required graph capture/replay for graph-bound block and collective slots.
+CPU fallback is correctness-only and cannot establish GPU graph coverage.
 
-A benchmark result from the deep M3 validation run (GSM8K, 64 samples):
+## End-to-end throughput diagnostic
 
-```
-baseline 92.2% (59/64), candidate 92.2% (59/64), delta +0.0%  →  no-regression PASS
-```
-
-That `+0.0%` after a graph-capture bug fix (the last-layer veto — see
-[MiniMax-M3 case study](/docs/validators/minimax-m3-case-study)) was the confirmation that the deep
-bundle preserved task behavior in this benchmark.
-
-## Worked example: multi-GPU tensor-parallel
-
-For a model that spans GPUs, set the TP size and the backend stack. This is the
-**first arena validated end-to-end** (MiniMax-M3-NVFP4 / 4×B300) — the concrete
-shape where submitted kernels first surpassed sglang. The flag *pattern* is general; the
-specific values (`fa4`, `flashinfer_cutlass`, `modelopt_fp4`) are this arena's
-serving config. See [Arenas](/docs/reference/arenas) and
-[MiniMax-M3 case study](/docs/validators/minimax-m3-case-study).
+Always point at model bytes controlled by the operator:
 
 ```bash
-python -m optima.cli evaluate my_bundle \
-    --model /models/MiniMax-M3-NVFP4 --tp-size 4 \
-    --attention-backend fa4 --moe-runner-backend flashinfer_cutlass \
-    --mem-fraction 0.90 \
-    --engine-kwargs-json '{"quantization":"modelopt_fp4","page_size":128,"context_length":16384,"chunked_prefill_size":4096,"enable_flashinfer_allreduce_fusion":true,"trust_remote_code":true}' \
-    --num-prompts 256 --max-new-tokens 256 --timed-iters 3 --warmup-iters 4 \
-    --prompt-seed 0 \
-    --fidelity-mode audit --audit-rate 0.05 --no-deterministic \
-    --ledger /tmp/ledger.json --hotkey chain --round 0
+python -m optima.cli evaluate ./my_bundle \
+  --model /models/example-model \
+  --num-prompts 32 \
+  --max-new-tokens 64
 ```
 
-Notes grounded in the M3 validation run:
+The command runs a development baseline/candidate comparison and prints a diagnostic
+score that is explicitly not recorded. Keep CUDA graphs enabled for realistic graph-path
+testing; `--disable-cuda-graph` is a debugging control, not a scoring configuration.
 
-- `--num-prompts 256 --max-new-tokens 256` is the **record regime** — enough
-  tokens to amortize scheduler/launch overhead and get a stable tok/s. Smaller
-  (`NP=32/MNT=128`) reads as noise and was NO-DECISION.
-- `--warmup-iters 4` (above the default 2) was needed to heat-soak the B300s so
-  the thermal ramp didn't land inside the bookends as "baseline noise."
-- `--fidelity-mode audit` is **mandatory** on this arena: rollout-KL on the M3
-  NVFP4 / eager-fa4 stack gates "did timing change," not fidelity (two identical
-  launches score mean_kl 0.81–0.96). See [fidelity.md](/docs/validators/fidelity).
-- `--moe-runner-backend flashinfer_cutlass` is the NVFP4 backend; the candidate
-  can override it. The model key also selects the validator's `swigluoai`
-  activation profile automatically (validator-owned fact).
-- `enable_flashinfer_allreduce_fusion: true` in `--engine-kwargs-json` is what
-  arms the AR-fusion seam the `collective.ar_residual_rmsnorm` slot replaces.
-- Collective slots are verified *distributed* — pass `--world-size` to `verify`
-  matching the arena TP size.
-- `--no-deterministic` because deterministic mode **refuses** the `fa4` backend
-  on this arena — and the audit doesn't need determinism (it compares candidate
-  vs a re-run stock baseline, not two rollouts).
+Useful controls include:
 
-## Gotchas
+- `--tp-size`, backend selections, and engine JSON for the intended development setup;
+- `--timed-iters` and `--warmup-iters` for thermal/noise diagnosis;
+- `--max-running-requests` for a serving-like concurrency bound;
+- `--prompt-seed` for repeatable local investigation; and
+- `--fidelity-mode kl|audit` for the legacy diagnostic quality path described below.
 
-These are grouped: **general** gotchas are truths about the system that apply to
-any arena; **arena-specific** notes are particular to the M3-NVFP4/B300 stack and
-are the kind of thing you'll re-derive once per new arena.
+### Long-prefill diagnostics
 
-### General (system-wide)
+`--input-len` generates deterministic long inputs. The timed iterations replay the same
+prompts, so the radix cache can turn later iterations into decode-only measurements. Pair
+long-prefill testing with a reviewed engine configuration that disables the radix cache:
 
-- **Always `python -m optima.cli`.** Not `optima`, not `python optima/cli.py`.
-  The `mp spawn` scheduler needs the `__main__` guard.
-- **`CUDA_HOME`, `nvcc`, `ninja`, `TORCH_CUDA_ARCH_LIST`.** Missing any → a weak
-  baseline and invalid scores.
-- **Graphs-on is the only regime that counts.** `--disable-cuda-graph` is for
-  quick eager debugging only.
-- **`--warmup-iters` is a heat-soak, not a suggestion.** A single round leaves
-  the documented ±17–32% clock ramp inside the timing window; the ramp then lands
-  in the `B/B′` bookends as "noise" and inflates the bar. Raise it until the
-  bookends agree (the M3 validation run used 4; your arena will differ).
-- **A surprising speedup is usually an artifact.** During the M3 validation run, parallel
-  lanes reported spurious 0.298× / 1.41× numbers (parallel GPU contention). A
-  record run is always isolated, bracketed `B,C,B'`, on a quiet box.
-- **Kill stale GPU processes before launching.** A stale `evaluate` still holding
-  the GPU silently starves the run. `nvidia-smi` + `kill -9` first; verify all
-  GPUs report ~4 MiB idle.
-- **`ignore_eos` stays ON for throughput, OFF (automatically) for accuracy.**
-  Forcing accuracy generations to full budget grades hallucinated ramble.
-- **Per-slot KL thresholds override the generic default** (attention is `3e-2`,
-  not `5e-3`) unless you pass `--kl-advisory`.
-- **The autotune cache is invalid across module swaps.** When you change the
-  kernel module, set `SGLANG_FLASHINFER_AUTOTUNE_CACHE=0` — sglang's startup
-  autotune only profiles its configured backend, never an injected call.
-- **Score-state files must be keyed by content hash, not bundle name.** Content
-  addressing is the invariant; a basename-keyed bridge spun blind on a re-named
-  bundle during the M3 validation run.
+```bash
+python -m optima.cli evaluate ./my_prefill_bundle \
+  --model /models/example-model \
+  --input-len 8192 \
+  --engine-kwargs-json '{"disable_radix_cache": true}'
+```
 
-### Arena-specific (M3-NVFP4 / B300; re-derive per new arena)
+That flag combination remains a development diagnostic; production workload regimes are
+bound by the arena manifest.
 
-- **`--fidelity-mode audit` is mandatory on this stack.** The NVFP4 / eager-fa4
-  backend is launch-nondeterministic (two identical launches score mean_kl
-  0.81–0.96), so rollout-KL gates "did timing change," not fidelity. On a
-  deterministic-capable arena, `--kl` is still valid. See [fidelity.md](/docs/validators/fidelity).
-- **`--no-deterministic` is required.** Deterministic mode **refuses** the `fa4`
-  backend on this arena. The audit doesn't need determinism anyway (it compares
-  candidate vs a re-run stock baseline, not two rollouts).
-- **`--warmup-iters 4`** (above the default 2) was needed to heat-soak the B300s.
-- **`enable_flashinfer_allreduce_fusion: true`** in `--engine-kwargs-json` is what
-  arms the AR-fusion seam the `collective.ar_residual_rmsnorm` slot replaces.
-- **`--moe-runner-backend flashinfer_cutlass`** is the NVFP4 MoE backend; the
-  model key selects the validator's `swigluoai` activation profile automatically.
+## Capability diagnostic
 
-## Where to go next
+```bash
+python -m optima.cli bench ./my_bundle \
+  --model /models/example-model \
+  --benchmarks gsm8k,mmlu \
+  --samples 128
+```
 
-- **The first validated arena record (record regime, eval-bridge, last-layer veto):**
-  [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study).
-- **The speedup math in detail:** [How scoring works](/docs/validators/scoring).
-- **Why audit, not KL, on noisy arenas:** [Fidelity: audit vs KL](/docs/validators/fidelity).
-- **The autonomous loop over a real subnet:** [The chain loop](/docs/validators/chain-loop).
+Small sample counts are smoke tests, not a meaningful accuracy floor. `bench` reports
+baseline/candidate task results, KL diagnostics, and noisy throughput. It does not emit a
+qualification report or evidence set suitable for settlement.
+
+## Diagnostic fidelity modes
+
+`evaluate` retains two legacy development modes:
+
+- `kl` aligns baseline and candidate rollout distributions and checks configured mean,
+  tail, and argmax-disagreement thresholds. It is informative only when repeated stock
+  launches are sufficiently deterministic for that calibration.
+- `audit` runs an extra untimed candidate launch and samples dispatcher calls against an
+  in-engine stock calculation; rollout KL becomes advisory. Because this executes in the
+  candidate engine, it is not the production grading authority.
+
+Framework-mode diagnostics switch to token matching and imply the diagnostic no-egress
+namespace request. They do not authorize engine-wide setup as a registered economic
+target. Cross-cutting proposals belong to the separate discovery lane.
+
+Production fidelity comes from candidate-free pristine T after C is destroyed. See
+[Fidelity and quality authority](/docs/validators/fidelity).
+
+## Interpreting results
+
+- A quality failure is useful development feedback, not a settlement event.
+- A noisy B/C/B′ diagnostic may print `NO-DECISION`; gather better evidence rather than
+  converting it to a win or loss.
+- A local speedup does not establish the registered arena, target identity, graph proof,
+  pristine quality evidence, whole-stack regression, or independent reproduction.
+- A diagnostic pass never changes the SQLite evaluation stack or reward claims.
+
+## Source anchors
+
+- [CLI implementations](https://github.com/latent-to/optima/blob/main/optima/cli.py)
+- [Typed verifier](https://github.com/latent-to/optima/blob/main/optima/verify.py)
+- [Development throughput/KL diagnostic](https://github.com/latent-to/optima/blob/main/optima/eval/throughput_kl.py)
+- [Development capability diagnostic](https://github.com/latent-to/optima/blob/main/optima/eval/capability.py)

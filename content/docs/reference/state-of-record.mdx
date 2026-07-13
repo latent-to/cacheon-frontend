@@ -1,0 +1,255 @@
+---
+title: State of record
+---
+
+This page is the dated evidence ledger for Cacheon. Architecture pages describe intended contracts; this page records what exists, what has been exercised, and what remains unproven.
+
+## Snapshot
+
+Snapshot date: **2026-07-13**
+
+| Item | State |
+|---|---|
+| Repository | [`latent-to/optima`](https://github.com/latent-to/optima) |
+| Branch | `fix/b300-intake-findings` (working branch, three commits ahead of `main`) |
+| Commit | `5325468a38d8f12e603de1219de7e0f50ca1a46f` |
+| Remote publication | No `origin/*` ref contains this working-branch commit at the snapshot; post-main source paths are therefore not linked as public GitHub files yet |
+| Main base | [`990721bc4c6221c4742c1b1827c9aa3048c88628`](https://github.com/latent-to/optima/commit/990721bc4c6221c4742c1b1827c9aa3048c88628), merge of PR #56 |
+| Final changes | Fail-closed CuTe DSL compile admission (`804147c4`), scheduler-process-only candidate loading (`3cff4731`), and shared validator-owned DSL-JIT policy extraction (`5325468a`) |
+| Production Python | 96 files, 62,773 lines under `optima/` |
+| Tests | 92 Python files, 38,539 lines under `tests/` |
+| Main-base complete suite | At `990721bc`: 1,702 passed, 3 skipped, 0 failed |
+| Current working-tree complete suite | At `5325468a`: 1,724 passed, 18 skipped, 0 failed in 52.45 seconds (`PYENV_VERSION=sn120 python -m pytest -q tests`) |
+| Canonical hardening arc | PRs #31–#55, #56's public-key follow-up, then three post-main B300 intake changes on the working branch |
+
+The line counts are a source snapshot, not a quality metric. Both suite rows
+belong to their named commits. The current working-tree suite was rerun while
+updating this page; its skipped tests are reported, not silently treated as
+passes, and the result is not GPU/B300 empirical evidence.
+
+## Post-main B300 intake findings
+
+Three source changes after PR #56 materially refine the current boundary:
+
+1. `804147c4`
+   admits CuTe's `cute.compile(<@cute.jit function>, ...)` form under exact
+   whole-module alias analysis. Only an external, allowlisted `cutlass.cute`
+   alias bound once is eligible; shadowing, rebinding, local vendoring, other
+   `.compile` receivers, and `builtins` access fail closed.
+2. `3cff4731`
+   moves candidate loading out of watched-module activation. `seam.activate()`
+   now arms pass-through adapters but never imports miner code;
+   `load_candidate_bundle()` runs only at positively identified
+   `run_scheduler_process` entry. Detokenizer/output-path children therefore
+   remain candidate-free, and active-member coverage must equal the scheduler
+   rank count exactly.
+3. `5325468a`
+   extracts tracing-JIT admission into the stdlib-only validator-owned
+   `DSL_JIT_ENTRYPOINTS` table in `optima/dsl_jit_policy.py`. The shared policy
+   retains whole-module single-binding and contribution-local shadow checks and
+   also refuses a string/bytes literal as the first positional compile
+   argument. CuTe is the only admitted row; Triton needs no explicit
+   `.compile` carve-out.
+
+These commits are implemented, focused-tested, and included in the current
+working-tree complete suite, but they are not merged into the `main` base named
+above and do not erase the outstanding B300 empirical qualification and
+release-image proofs below.
+
+## Authority order
+
+When sources disagree, use this order:
+
+1. executable code and schemas at the pinned commit;
+2. the [product contract](https://github.com/latent-to/optima/blob/main/docs/PRODUCT_CONTRACT.md) and [slot contract](https://github.com/latent-to/optima/blob/main/docs/SLOT_CONTRACT.md);
+3. retained typed evidence and immutable publications;
+4. this state page and the [changelog](/docs/history/changelog);
+5. older plans, audit snapshots, runbooks, and narrative reports.
+
+In particular, [`REFEREE_HARDENING_SPLIT_PLAN.md`](https://github.com/latent-to/optima/blob/main/docs/REFEREE_HARDENING_SPLIT_PLAN.md) and [`REFEREE_HARDENING_AUDIT.md`](https://github.com/latent-to/optima/blob/main/docs/REFEREE_HARDENING_AUDIT.md) are historical snapshots frozen near PR #39. They are not current completion checklists.
+
+## Current product boundary
+
+The source now implements the product/referee separation:
+
+- Cacheon Engine is represented by `EngineReleaseManifest` and signed release artifacts, without chain runtime dependencies.
+- The referee uses `EvaluationStackManifest`, registered arenas, isolated complete-engine execution, pristine reference quality, two-pass reproduction, transactional settlement, and journaled reward projection.
+- A crown cannot enter a release until `promote_integrated_contribution()` reopens evidence and produces an approved integration record over reviewed source at a reviewed Git commit. The selected payload remains byte-for-byte bound to its crowned digest; only packaging outside that selected closure and later materialization may be normalized.
+- Serving consumes integrated source and signed release identity, never a live proposal URL or chain row.
+
+See [Architecture overview](/docs/architecture/overview), [Product model](/docs/architecture/product-model), and [Release architecture](/docs/architecture/releases).
+
+## Live slot and target surface
+
+The executable slot catalog has **11 slots**:
+
+1. `activation.silu_and_mul`
+2. `norm.rmsnorm`
+3. `attention.sdpa`
+4. `attention.decode`
+5. `attention.msa_block_score`
+6. `attention.msa_prefill_block_score`
+7. `moe.fused_experts`
+8. `moe.fused_experts_reduce`
+9. `collective.all_reduce`
+10. `collective.ar_residual_rmsnorm`
+11. `collective.moe_finalize_ar_rmsnorm`
+
+The target catalog registers each slot as a singleton and also registers the atomic `collective.moe_epilogue.v1` target over the two MoE epilogue collective members. It defines explicit displacement and the compatible MoE first-applicable composition rule.
+
+Source: [`slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py) and [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
+
+One distinction is material: `attention.msa_block_score` has a slot/verifier contract, but its decode-side [`sglang_msa.py`](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_msa.py) integration remains a deliberate non-installing stub until a stable pinned-runtime chokepoint exists. Its prefill sibling has a live adapter.
+
+The source pin is SGLang `0.5.13.post1`. Its static seam canary is green, but
+the GPU end-to-end broken-bundle rejection, faithful-bundle pass, and champion
+rebaseline are pending at this snapshot. `0.5.12.post1` is the last pin with
+complete retained H100 validation. The `compat` command reports, rather than
+fails, a pin mismatch, so automation must compare its printed version with
+`PINNED_SGLANG` explicitly.
+
+## Capability matrix
+
+| Capability | Implemented contract | Validation state at this snapshot | Remaining proof or deployment work |
+|---|---|---|---|
+| Typed slot ABI | Validator-owned outputs, HP/dequant references, graph inputs, op/block/collective verification | Broad unit and integration coverage; historical real-engine seam/gate exercises exist | Requalify real candidates through the final hardened arena path |
+| Target economics | Singleton and atomic identities, overlap/displacement, compatible composition, selected-delta digest | Unit and structural settlement coverage | Calibrate deployed emissions parameters and exercise real crown-backed projection |
+| Stack identity | Strict evaluation/release manifests and exact marginal planning | Deterministic identity, transition, cohort, and rollback tests | Operate long-lived real arena stacks and retained rollbacks |
+| Engine materialization | Closed source/native closure, deterministic namespaces, reopened tree digests | CPU/focused and RTX lifecycle coverage | Final SM103 native products and joined model/topology proof |
+| OCI referee | No-egress workers, read-only roots, bounded mounts/protocol, host timing, device receipts, teardown | Host primitives and B/C/B′ lifecycle exercised on RTX; focused suites green | Full current MiniMax TP4/TP8 B/C/B′/T run on B300/NVLink |
+| Pristine T quality | Candidate-free untimed reference protocol, sealed trajectory grading, causal evidence | Joined structural/reference exercises on RTX | Final arena calibration and real candidate quality evidence |
+| Finalized intake | Finalized order, hardened HTTPS fetch, re-hash, copy disposition, immutable publication, restart | Live testnet finalized fetch/publication/restart exercised | Sustained production provider, operations, and joined real-candidate crown |
+| Arena service | Closed `ArenaServiceRegistry`, five fixed non-crown screens, capacity/retry policy | Implemented and tested through injected in-process registries | No production `ArenaServiceProvider` ships; deployment must supply one |
+| Two-pass settlement | Exact reproduction identity, distinct authority/evidence, lower speedup, transactional update | Structural two-`PASS` crown and restart evidence | Real independent-seed current-path crown on final hardware |
+| Weight publication | Reopen-before-project, saturating credit, overlap suppression, journal/readback states | Live chain dry-run produced `submitted=false` from a structural crown | No real current-schema empirical crown-backed extrinsic |
+| Discovery | Bounded source-patch lane, trusted activation authority, reviewed promotion/bounty model | Joined RTX structural lane exercised; a no-op correctly failed economically | Calibrate bounded pool and operate reviewed promotions |
+| Integration promotion | Crown/evidence reopening, review artifacts, source-at-commit verification, immutable attribution | Unit and focused closure coverage | Apply to a real current-path crown and maintain integrated product source |
+| Signed release | Deterministic source/wheel, model and native seals, SPDX SBOM, provenance, Ed25519, fail-closed runtime | Release slices and full suite green | No actual final image pair has been built and served end to end |
+| Registry/host authorization | Two no-cache builds, Registry-v2 reopening, raw digest equality, signed reproducibility, inspect/seccomp/mount binding | Unit/focused host coverage | Actual registry double-build, digest authorization, TP8 serve, and receipt smoke |
+| Production operations | Typed authority surfaces exist | Development/testnet exercises only | Subnet ownership/stake/permits, hosting, monitoring, backups, rollout, incident and key procedures |
+
+## Hardened-path validation
+
+The final hardening architecture has meaningful structural validation, but not a final empirical performance crown.
+
+### What was exercised
+
+- The exact finalized reveal and publication path was reopened from a live testnet event.
+- A structural candidate completed two independent `PASS` authorities, settled into a generation-1 crown, and reopened correctly after restart.
+- The structural candidate encoded a synthetic **100-parts-per-million** improvement. It was chosen to prove authority, evidence, and state transitions; it was not an empirical accelerator result.
+- A live weight projection ran in dry-run mode and correctly retained `submitted=false`.
+- OCI host primitives, materialized engines, native publication, streaming sessions, B/C/B′ lifecycles, pristine T, causal qualification, discovery, settlement, integration, and release components have focused tests and are covered by the current recorded 1,724-passed/18-skipped/0-failed suite.
+- Release construction validates external Ed25519 trust, deterministic runtime artifacts, exact native/model/tree bindings, canonical SBOM/provenance, fail-closed runtime environment, registry manifest reopening logic, host inspection policy, and serve-receipt coverage in unit or focused tests.
+
+### What this does not prove
+
+The structural proof does not establish a real throughput win, B300 topology behavior, final calibration constants, an actual registry-reproducible image, or successful TP8 serving. It establishes that the authority and persistence machinery can carry an exact two-pass candidate through its state transitions without substituting pre-hardening evidence.
+
+## Historical performance evidence
+
+The following are real measurements from earlier Cacheon paths. They are retained as performance and seam evidence, **not** as crowns produced by the final SQLite/isolated/two-pass/release architecture.
+
+| Date | Candidate and arena | Result | Historical scope |
+|---|---|---|---|
+| 2026-07-07 | Shallow fused AR+residual+RMSNorm on MiniMax-M3-NVFP4, TP4, 4×B300, graphs on | 1.044× first run; 1.049× independent prompt-seed reproduction; zero sampled audit violations | Pre-hardening direct referee path |
+| 2026-07-07 | Deep MoE finalize+AR+residual+RMSNorm bundle on the same arena | 1.074× first run; 1.071× independent reproduction; zero sampled audit violations | Pre-hardening direct referee path |
+| 2026-07-08 | Deep bundle through the then-current public testnet 307 chain loop | 1.072× against a 1.026 bar; score 1.0717; 12,824 sampled calls and zero violations | Historical chain loop before final SQLite intake, isolated authority, and two-pass settlement |
+| 2026-07-10 | MSA prefill block-score bundle, two direct TP4 B300 lanes | 1.115× on the ~148.5k-token lane and 1.205× on the ~255k-token lane; 3,148 and 5,804 audited calls, zero violations | Direct `optima evaluate`; no crown or settlement attempted |
+
+These measurements support the claim that the relevant optimization ideas and seams produced real speedups on the recorded hardware. They do not support the claim that the current hardened evaluator has crowned those artifacts, that current catalog/release identities bind them, or that current emissions may be published from them.
+
+## Current honest nonclaims
+
+At this snapshot, Cacheon does **not** claim any of the following:
+
+- a real B300 candidate has passed the complete final B/C/B′/T path, independent reproduction, settlement, restart, and crown-backed weight publication;
+- the signed release path has built two real registry images with the same raw manifest digest and then served one through the final host/runtime path;
+- a final release has completed TP8 serving and all-rank active/fired/completed receipt verification;
+- a production `ArenaServiceProvider` is included;
+- SM103/CuTe compilation, NVLink/P2P/custom collective behavior, topology calibration, and TP4 half/role swaps are proven for the final path;
+- emissions half-life, discovery lifetime/pool, margins, noise envelopes, or refresh policy are production-calibrated;
+- mainnet operations, hosted artifact durability, monitoring, backups, rollout, and signing-key procedures are complete.
+
+## B300 validation debt
+
+The remaining hardware-specific proof is concentrated rather than architectural. A final B300 campaign must establish:
+
+1. the exact SM103/CuTe and native-artifact build/load identities;
+2. NVLink, P2P, NCCL, custom collective, and fused-epilogue behavior under the registered topology;
+3. graphs-on verification and adversarial graph replay for real candidates;
+4. calibrated B/B′ drift, speed margin, T quality, hidden-task, and retry policies;
+5. concurrent TP4 halves where registered, followed by a role/half swap;
+6. one real candidate through first `PASS`, independent reproduction, settlement, crown restart, and crown-backed weights;
+7. integration of that crowned delta into reviewed source;
+8. an actual signed release, reproducible registry pair, authorized image, TP8 serve, and complete seam receipts.
+
+None of these items requires changing the product boundary. A failure may still expose an implementation defect, but the work is validation of the current architecture rather than permission to reuse a legacy crown.
+
+## Operational caveats
+
+### Executor manager single-writer assumption
+
+The OCI executor's quiescence lock aliases one manager instance's `transaction_lock` ([`oci_backend.py`](https://github.com/latent-to/optima/blob/main/optima/eval/oci_backend.py)). Safety therefore assumes one authoritative executor manager per protected device/resource pool in a process. Constructing independent managers over the same pool would not create a shared lock and is outside the documented operating invariant.
+
+### Evidence-record range
+
+Tracked referee evidence records currently cover PRs #40 through #54. No `pr-0055` or `pr-0056` record exists, and [`check_referee_evidence.py`](https://github.com/latent-to/optima/blob/main/scripts/check_referee_evidence.py) freezes the expected range below 55. Extending the registry requires an explicit schema/range update rather than placing unchecked files beside it.
+
+### Legacy code
+
+Legacy developer and simulator code remains in the tree, including [`eval/_launch.py`](https://github.com/latent-to/optima/blob/main/optima/eval/_launch.py), [`eval/capability.py`](https://github.com/latent-to/optima/blob/main/optima/eval/capability.py), [`eval/throughput_kl.py`](https://github.com/latent-to/optima/blob/main/optima/eval/throughput_kl.py), and [`commit_reveal.py`](https://github.com/latent-to/optima/blob/main/optima/commit_reveal.py). Production authority roots are separated from these paths, but they have not been deleted.
+
+The local simulator commands are `commit`, `reveal`, `ledger`, and `legacy-settle --development-only`. They are not alternate interfaces to production settlement.
+
+## Public command surface
+
+### Miner and developer
+
+```text
+slots
+scan
+verify
+evaluate
+bench
+hash
+compat
+chain-compat
+chain-register
+chain-package
+chain-submit
+chain-status
+```
+
+`verify`, `evaluate`, and `bench` are diagnostic. Production crown authority begins only after finalized chain intake and registered arena qualification.
+
+### Validator and rewards
+
+```text
+chain-validate --intake-only
+chain-validate --arena-id <id>   # requires an injected ArenaServiceRegistry
+set-weights                      # requires explicit economic policy arguments
+```
+
+The standalone CLI cannot synthesize a production arena provider. `set-weights` separates dry-run/reconciliation from genuine publication and never treats an SDK return as confirmation.
+
+### Release operations
+
+```text
+model-provision
+release-verify
+release-context
+```
+
+Release creation and signing are typed build APIs, not a `release-create` CLI command.
+
+## Source map
+
+- [`docs/PRODUCT_CONTRACT.md`](https://github.com/latent-to/optima/blob/main/docs/PRODUCT_CONTRACT.md)
+- [`docs/SLOT_CONTRACT.md`](https://github.com/latent-to/optima/blob/main/docs/SLOT_CONTRACT.md)
+- [`docs/EMISSIONS_POLICY.md`](https://github.com/latent-to/optima/blob/main/docs/EMISSIONS_POLICY.md)
+- [`chain/intake.py`](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py)
+- [`eval/qualification_runner.py`](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_runner.py)
+- [`settlement.py`](https://github.com/latent-to/optima/blob/main/optima/settlement.py)
+- [`release.py`](https://github.com/latent-to/optima/blob/main/optima/release.py)
+- [`release_host.py`](https://github.com/latent-to/optima/blob/main/optima/release_host.py)
+- [`release_runtime.py`](https://github.com/latent-to/optima/blob/main/optima/release_runtime.py)

@@ -1,208 +1,119 @@
 ---
-title: How scoring works
+title: Measurement and decision policy
 ---
 
-This page documents `optima/eval/scoring.py` and the scoring paths in
-`optima/eval/throughput_kl.py`, `optima/eval/capability.py`, and
-`optima/commit_reveal.py`. The math is pure, hardware-independent, and unit-tested
-on CPU — the same functions run unchanged on the pod.
+Production Cacheon does not reduce a proposal to one self-reported score. It derives a
+three-way qualification decision from retained execution, graph, speed, and pristine
+quality evidence, then requires independent reproduction before settlement.
 
-<Callout type="info">
-  Miner-side view of these gates: [../miner-guide/diagnostics.md](/docs/miners/diagnostics).
-</Callout>
+## Screens are not scores
 
-## Why every piece exists: the problem
+Static, build, ABI, graph, and abbreviated-serving screens protect scarce evaluator
+capacity. They may promote, reject, retry, or hold a proposal, but are marked
+non-crownable. Their timings and grades cannot update the evaluation stack.
 
-The validator runs on **rented pods** where `nvidia-smi -lgc` is denied and the
-profiling counters are blocked. Per-launch throughput therefore carries a large
-warmup/thermal/boost component — measured at **±7–17%**, worst-case ~±32% cold
-(`optima/eval/scoring.py` module docstring). That component is a **between-launch
-systematic offset**, not random per-sample noise. Median-of-K *within* a single
-launch cannot remove it: if the baseline launch runs cold and the candidate warm,
-the raw ratio can look faster for reasons unrelated to the kernel.
+## Marginal comparison
 
-The old gate compared one cold baseline to one warm candidate against a hand-picked
-2% margin sitting an order of magnitude *below* that noise. That is the source of
-the project's repeated **phantom speedups**. The current scoring turns raw per-launch
-tok/s into a trustworthy verdict using only what is available without privileged
-clock control.
+For a registered target, the validator constructs:
 
-## The bookended measurement: `B, C, B′`
+- B: the exact frozen incumbent stack;
+- C: that same stack with one registered target replaced; and
+- B′: a second independent launch of the exact incumbent.
 
-`optima/eval/throughput_kl.py:evaluate` measures the baseline both *before* and
-*after* the candidate, so the candidate is bracketed:
+The charged execution rate is recomputed from bounded raw batch evidence. The controller
+fixes prompt batches and token budgets, validates the token numerator, and includes
+registered conditioning and timed intervals. Candidate-reported aggregate throughput is
+not accepted as authority.
+
+The speed estimate is conceptually:
 
 ```text
-B (baseline) → C (candidate) → B′ (baseline')
+speedup = candidate_rate / mean(baseline_before_rate, baseline_after_rate)
+noise   = relative spread of the two baseline rates
+bar     = 1 + max(min_margin, noise_multiplier * noise)
 ```
 
-Each launch runs in its **own fresh process** (`call_in_subprocess`,
-`optima/eval/_launch.py`). Why: sglang + deterministic mode set process-global
-state (torch deterministic algorithms, the cuBLAS workspace, the sampling backend)
-and hold a CUDA context. A second launch in the same driver process inherits that
-state and — observed on gpt-oss-120b in deterministic mode — the candidate launch
-then produces NaN/garbage. A fresh process makes the two baseline reads and the
-candidate read independent, and frees all GPU/host memory between them.
+The exact thresholds come from a frozen `CalibrationManifest` bound to the reference,
+arena, runtime, model, hardware, workload, verifier, and controller distribution. If
+baseline disagreement exceeds the calibrated maximum, the result is `NO_DECISION`.
 
-(The `audit` fidelity mode inserts one more launch — an untimed *quality* launch —
-between `B` and `C`. That one is not part of the timing bookend; see
-[fidelity.md](/docs/validators/fidelity).)
+## Complete qualification decision
 
-## Paired speedup vs the mean
+A candidate can pass only when all required products agree:
 
-Speedup is `candidate / mean(bracketing_baselines)` (`scoring.score_speedup`):
+| Product | Failure meaning |
+|---|---|
+| Execution evidence | Wrong/missing role, launch, device, protocol, or completion |
+| Graph evidence | Missing target member/variant/shape coverage or capture/replay failure |
+| Speed evidence | Below the calibrated bar, or too noisy to decide |
+| Pristine quality evidence | Regression against frozen metric envelopes or hidden work |
+| Identity checks | Evidence does not describe the committed arena, stack, target, or delta |
 
-```python
-base = statistics.fmean(reads)          # reads = [B.tok_per_s, B'.tok_per_s]
-speedup = candidate_read / base
+Attributable violations yield `FAIL`. Infrastructure, missing evidence, stale identity,
+or excessive drift yields `NO_DECISION`. Only complete green evidence yields `PASS`.
+
+## Independent reproduction
+
+The first `PASS` moves the reservation to `reproduction_pending`. A second `PASS` must
+match the economic identity while using distinct authority, attempt, report, and
+selection evidence. The settlement candidate's conservative speedup is:
+
+```text
+settled_speedup = min(primary_speedup, reproduction_speedup)
 ```
 
-Pairing against the **mean** of the two bracketing reads — not the first, not the
-max — means a monotonic ramp across the run (cold → warm, or warm → thermal-throttle)
-partly cancels rather than biasing one side.
+There is no single-pass fast path to a crown.
 
-## `relative_spread` — the per-round noise metric
+## Target-level settlement
 
-`scoring.relative_spread` is a scale-free measure of how much the repeated baseline
-reads disagree:
+Settlement evaluates candidates against one exact incumbent stack. Stale candidates are
+held. Among current registered candidates, deterministic ordering selects the highest
+conservative speedup, using finalized arrival order as the tie-break.
 
-- For ≥3 reads: population stdev / mean (smooth, uses all points).
-- For exactly 2 reads (the default `B, B′` bookend): stdev underestimates, so it
-  uses **range / mean** — the honest worst-case gap between the two bracketing
-  baselines.
-- For &lt;2 reads: `inf` — noise is unmeasurable and the caller must not claim
-  confidence.
+The winning transaction may emit crown, retirement, neutralization, adoption, and stack
+transition events. Atomic targets explicitly displace overlapping singleton targets;
+manifest order and bundle packaging never decide overlap.
 
-This is the per-round, per-box noise floor, measured on the same hardware the
-candidate ran on. It replaces the hand-picked constant.
+Discovery is different: a qualifying discovery may create a bounded bounty event, but it
+does not install a stack manifest or create a standing reward family.
 
-## The bar: `1 + max(margin, k · noise)`
+## Rewards are not equal per slot
 
-```python
-required = 1.0 + max(min_margin, k * noise)
+Each active registered target defines one reward family. Credit is based on reproduced
+marginal improvement and age:
+
+```text
+improvement = speedup_ppm - 1_000_000
+credit      = floor(improvement * half_life / (half_life + age_blocks))
 ```
 
-The candidate must clear `required`. The floor and the noise term are both there,
-but they do different jobs:
+An active atomic target suppresses overlapping singleton families. Packaging,
+integration, and release records do not create additional families. Discovery bounties
+are non-renewable, expire, and share a policy-bounded pool.
 
-- `min_margin` (default **0.005**, the `--speedup-margin` flag) is a floor on the
-  required improvement even on a perfectly stable box. It is deliberately low:
-  kernel improvements can arrive as **stacks of 1–2%** changes, so a 2% floor rejects most
-  of the genuine improvement distribution. On a quiet/clock-locked box (bracket spread
-  measured at 0.013% on 2026-06-15) sub-1% improvements are resolvable.
-- `k` (default **2.0**) is how many noise-widths above 1.0 the speedup must sit
-  (≈ a 2-sigma-ish bar). On a drifting box this term dominates and the floor is
-  irrelevant.
+The final multi-arena projection is exact integer ppm and is built only after every
+active family reopens against current stack and metagraph authority. A stale or missing
+active claim holds the entire projection rather than silently redistributing its share.
 
-The whole point: **the noise term — not the floor — is what guards an unstable
-box.** A constant margin that ignores the box is exactly the old, broken gate.
+Read [Settlement and weights](/docs/validators/settlement-and-weights) for transaction and publication
+details.
 
-## The NO-DECISION verdict
+## What a result means
 
-```python
-confident = len(reads) >= 2 and noise <= max_noise
-passed = confident and speedup >= required
-```
+A crown means: under the registered arena, workload, calibration, and two independent
+attempts, the exact delta improved the exact incumbent with acceptable measured quality.
 
-If the bracketing baselines disagree by more than `max_noise` (default **0.10**),
-`confident = False` and the verdict is **NO-DECISION**. The round is discarded; a
-real subnet re-queues it. **No champion is selected from a number that can't be
-reproduced.** This is the single most important property of the scorer: noise can
-never mint a champion. A NO-DECISION can't even be "almost scoreable" — its score is
-`0.0` regardless of the raw ratio.
+It does not mean:
 
-The constants, summarized:
+- the contribution improves every model, topology, or traffic mix;
+- the measured speedup is a service-level capacity guarantee;
+- the proposal is licensed, maintainable, reviewed, or ready to ship; or
+- a diagnostic `score` printed by `evaluate` or `bench` has economic effect.
 
-| constant | default | role |
-|---|---|---|
-| `min_margin` | `0.005` | floor on required improvement (low; useful improvements can stack at 1–2%) |
-| `k` | `2.0` | noise-widths above 1.0 the speedup must clear |
-| `max_noise` | `0.10` | baseline spread above which the round is untrustworthy (NO-DECISION) |
+## Source anchors
 
-## The throughput measurement itself
-
-Three properties make the tok/s trustworthy:
-
-1. **`ignore_eos` (on by default for throughput).** Every launch emits exactly
-   `max_new_tokens` tokens per prompt, so the token count is **identical** across
-   launches and throughput is a pure per-token latency comparison. A kernel can't
-   inflate tok/s by nudging EOS timing (`EvalConfig.ignore_eos` docstring).
-2. **Driver-known numerator.** The token count comes from the driver process —
-   `len(prompts) * max_new_tokens` — not the scheduler's self-reported
-   `completion_tokens`, which runs in the same process as the miner kernel and
-   isn't trustworthy on its own (`throughput_kl._counted_tokens`). Only
-   `--no-ignore-eos` (a natural-length probe, never for scoring) falls back to the
-   reported count.
-3. **Out-of-process timing + `torch.cuda.synchronize` brackets + median-of-K.** The
-   driver process calls `seam.mark_driver()` before importing sglang, so it never
-   imports the miner module (`_launch.launched_engine`). Each timed pass wraps
-   `engine.generate(...)` in `torch.cuda.synchronize()` on both sides
-   (`_timed_generate`); the launch reports the **median** of `timed_iters` passes
-   (`ModeResult.tok_per_s`), so a single noisy sample can't swing the score.
-
-## The settle mechanics
-
-`commit_reveal.Ledger` turns positive scores into champions and weights.
-
-### Per-slot king-of-the-hill
-
-`Ledger.settle_per_slot` (`optima/commit_reveal.py:453`). There is **one champion
-per slot**. To take a slot's title, a challenger must beat the standing champion by
-the margin:
-
-```python
-threshold = champ.score * (1.0 + margin)          # default margin 0.02
-# but if the champion is stale (recorded under a different sglang pin):
-threshold = 1.0 + margin                          # require a fresh improvement over current stock
-if challenger.score >= threshold: champ = challenger
-```
-
-The recorded `score` is already a noise-confirmed speedup (or `0.0`), so
-a too-noisy or below-bar candidate cannot earn here either. Emission splits **equally
-across slots that have a champion** (`current_weights` for local set-weights;
-`settle_per_slot(...).weights` in the current chain loop): a hotkey holding `k` of
-`n` championed slots earns `k/n`. This pays a specialist who owns one slot instead
-of giving 100% to the single best end-to-end bundle (the winner-take-all starvation
-problem). `settle` (without `--per-slot`) is the single-champion winner-take-all
-baseline.
-
-### The margin
-
-The +2% settle margin (distinct from the 0.5% scoring floor) is what makes a copy
-worthless: a bit-identical copy ties the champion, never clears the margin, and
-earns 0. The only way to earn is to genuinely beat the best.
-
-### Per-slot settle
-
-Each slot is settled independently. A slot with no submission this round keeps its
-standing champion (who still earns emission). The settle reads only `Score`s for the
-current `round_id` that `passed`, filtered to **original** submissions (copies are
-excluded and recorded).
-
-### Staleness flagging
-
-A champion's frozen `score` is a speedup vs the stock kernels of the **sglang pin
-it was recorded under**. After a `PINNED_SGLANG` bump the stock baseline changes, so
-that frozen number is no longer comparable to a challenger measured against the new
-stock. When `current_sglang_version` differs from the champion's
-`sglang_version`, the ledger refuses to let the stale number gate the round:
-`threshold` falls back to `1.0 + margin` (require a fresh improvement over current
-stock), and the slot is added to `stale_slots` so the operator re-baselines the old
-champion (`optima/cli.py:cmd_settle` prints the `⚠ STALE pin — re-baseline` line).
-
-## The end-to-end flow, one round
-
-1. `evaluate` runs the `B, C, B′` launches, computes the verdict, and sets
-   `score = verdict.speedup if (passed_quality and verdict.passed_speedup) else 0.0`
-   (`throughput_kl.evaluate`).
-2. `cmd_evaluate` records `(hotkey, content_hash, round, score, kl_mean, passed,
-   sglang_version, slot)` into the ledger (`Ledger.record_score`).
-3. `Ledger.settle_per_slot(round, margin, current_sglang_version)` applies
-   king-of-the-hill per slot and returns `weights`.
-4. `Ledger.current_weights()` is the local emission-policy helper; the current
-   chain loop pushes the weight vector returned by `settle_per_slot(...)`
-   directly. Treat them as one policy surface and keep them aligned when changing
-   emissions.
-
-For the autonomous version of this loop (fetch → hash-verify → evaluate → settle →
-push weights), see [chain-loop.md](/docs/validators/chain-loop).
+- [Raw speed recomputation](https://github.com/latent-to/optima/blob/main/optima/eval/scoring.py)
+- [Frozen calibration](https://github.com/latent-to/optima/blob/main/optima/eval/calibration.py)
+- [Qualification runner](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_runner.py)
+- [Settlement](https://github.com/latent-to/optima/blob/main/optima/settlement.py)
+- [Economics](https://github.com/latent-to/optima/blob/main/optima/economics.py)

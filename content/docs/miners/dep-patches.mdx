@@ -1,126 +1,66 @@
 ---
-title: Dependency patches (dep_patches)
+title: Dependency patches
 ---
 
-<Callout type="warn" title="Narrow audience — read the scope before investing time">
-  Almost certainly **not** what you want. This is the **deep tier**: a source
-  patch against a pinned dependency (flashinfer), restricted to one collective
-  slot, `collective.moe_finalize_ar_rmsnorm`. Unlike the
-  [override-point](/docs/miners/override-points) base kernel, this mechanism is real and
-  has been scored end-to-end on GPU (it's how the `miner_m3_fused_epilogue_deep`
-  result in the README was realized) — but it's still a narrow path: read past
-  this box only if you're targeting that specific slot and the optimization
-  genuinely requires changing flashinfer's MoE finalize behavior. See
-  "Should you use this?" below before investing the time.
-</Callout>
+A dependency patch is a narrowly allowed source delta against a pinned
+validator dependency. It exists for registered targets whose callable boundary
+depends on a small producer/export change in that dependency.
 
-This is the **deep tier** — for fused-epilogue collective slots where the
-optimization requires changing what the pinned flashinfer C++ source does. A bundle can
-declare a unified diff against a pinned dependency's source; a reviewed,
-validator-shipped patcher applies it to an **overlay copy** (the install is never
-mutated). This is how `collective.moe_finalize_ar_rmsnorm` was realized.
+It is not a framework-mode escape hatch, a way to edit `site-packages`, or a way
+to execute a bundle-supplied installer.
 
-This is an advanced, heavily-restricted path. Most miners will never touch it.
-Read this only if you're targeting one of the deep fused-epilogue collective
-slots.
+## Current policy
 
-## The three validator-owned layers
+The only patchable dependency is currently `flashinfer`. The policy permits
+files matching:
 
-Bundle content decides **nothing** about where a patch lands. Three validator
-layers gate it:
-
-### 1. The allowlist (`optima/dep_policy.py`)
-
-A bundle cannot widen what's patchable. The validator owns `PATCHABLE_DEPS`, a
-dict of `DepPolicy` rows. Each field is a separate restriction — nothing a
-bundle ships can add or widen one:
-
-- **`package`** — the importable package whose site-packages install anchors
-  the patch paths. A patch path like `flashinfer/data/csrc/...` resolves
-  relative to this package's site-root.
-- **`overlay_subtree`** — the subtree (site-root-relative, POSIX) that gets
-  **copied** into the candidate-local overlay. It has to be broad enough that
-  relative `#include`s inside the copied files still resolve — that's why it's
-  the whole `flashinfer/data/csrc` tree, not just the one file a patch touches.
-- **`allowed_globs`** — `fnmatch` patterns for the files a patch may modify or
-  create. Every file a patch touches must live under `overlay_subtree` **and**
-  match one of these globs, or the applier rejects the bundle before doing any
-  work.
-- **`force_jit_modules`** — JIT spec names whose prebuilt AOT `.so` must be
-  bypassed at runtime, so the patched csrc actually gets compiled and loaded
-  instead of being silently shadowed by the prebuilt artifact.
-- **`env_rebind`** — the `(module, attr)` of the dependency's source-root
-  constant to repoint at the overlay. Only safe because it's late-bound at
-  every consumer site in the pinned dependency (by flashinfer's own documented
-  design); rebinding that one constant reroutes every consumer.
-
-Today exactly **one** target is patchable:
-
-```python
-"flashinfer": DepPolicy(
-    package="flashinfer",
-    overlay_subtree="flashinfer/data/csrc",
-    allowed_globs=("flashinfer/data/csrc/fused_moe/*",),
-    force_jit_modules=("fused_moe_103",),
-    env_rebind=("flashinfer.jit.env", "FLASHINFER_CSRC_DIR"),
-)
+```text
+flashinfer/data/csrc/fused_moe/*
 ```
 
-Key restrictions:
+The target catalog currently adds the FlashInfer patch features only to the
+deep `collective.moe_finalize_ar_rmsnorm` singleton target and the
+`collective.moe_epilogue.v1` atomic target. A patch on another registered target
+does not gain permission merely because the manifest parses.
 
-- **C++ source only** (`.cu`/`.cuh`/`.h` under `flashinfer/data/csrc/fused_moe/`).
-  Patching dependency *Python* is **not offered** — it would execute in-process
-  with validator privileges and bypass the sandbox scan.
-- The patch lands in an **overlay copy**, never the shared install.
-- It takes effect through a **JIT rebuild** the validator controls.
+The authoritative allowlist is in
+[dep_policy.py](https://github.com/latent-to/optima/blob/main/optima/dep_policy.py),
+and target feature policy is in
+[target_catalog.py](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
 
-### 2. Strict diff parsing (`optima/deppatch.py`)
+## Declaration
 
-The diff is parsed structurally at manifest load. Only **modifications and
-new-file creations** are allowed. Rejected outright:
-
-- deletions, renames, copies
-- binary hunks
-- `\ No newline at end of file` markers
-
-Application is **byte-exact, no fuzz, no offset search**. A context mismatch
-means the bundle was built against something other than the pinned tree and is
-**refused**. There's no "close enough" — the patch either applies cleanly against
-the pinned source or it doesn't.
-
-### 3. The reviewed patcher (`optima/patchers/apply_dep_patch.py`)
-
-A validator-shipped `rebuild.json` step (the only way patches get applied). It:
-
-1. groups patches by target;
-2. **policy-checks everything first** — hard-rejects on every box if a target is
-   off the allowlist or a file is outside `overlay_subtree` / doesn't match
-   `allowed_globs` (so a bad bundle is rejected before any work, dep installed or
-   not);
-3. copies the policy subtree into a candidate-local overlay keyed by `bundle_id`;
-4. applies the patches to the **copy** with byte-exact context;
-5. writes an `overlay.json` stamp and lands via atomic `os.rename`.
-
-The shared install is never mutated. Concurrent ranks race; losers reuse the
-winner's stamp. Boxes without the dep installed skip materialization (no
-phantom-parity risk).
-
-## How you declare it
-
-In your manifest:
+Add the text diff to the bundle and declare it:
 
 ```toml
 [[dep_patches]]
 target = "flashinfer"
-path   = "patches/moe_epilogue.patch"
+path = "patches/fused_moe_export.patch"
 ```
 
-- `target` must be a simple identifier on the allowlist.
-- `path` is bundle-relative, suffix `.patch` or `.diff`.
-- the patch is validated at manifest/load time, but a reviewed rebuild step is
-  what actually creates the overlay.
+The patch must be UTF-8 unified diff text using canonical dependency-relative
+paths, for example:
 
-Add `rebuild.json` at the bundle root:
+```diff
+--- a/flashinfer/data/csrc/fused_moe/example.cu
++++ b/flashinfer/data/csrc/fused_moe/example.cu
+@@ -10,1 +10,1 @@
+-old_call();
++new_call();
+```
+
+Only modifications and new text files are supported. The parser rejects
+deletions, renames, copies, binary patches, unsafe paths, duplicate file
+sections, malformed hunks, and missing-newline markers. Application is byte
+exact at the declared location: there is no fuzzy context match or offset
+search. A patch prepared against a different dependency revision must fail.
+
+See [deppatch.py](https://github.com/latent-to/optima/blob/main/optima/deppatch.py).
+
+## Rebuild plan
+
+A declared patch also needs the validator-owned patch applier selected in
+`rebuild.json`:
 
 ```json
 {
@@ -130,92 +70,87 @@ Add `rebuild.json` at the bundle root:
 }
 ```
 
-`repo_python` names a validator-shipped patcher under `optima/patchers/`; it is
-not bundle Python. The framework deliberately rejects arbitrary bundle-side
-rebuild scripts.
+If the bundle also declares standalone CUDA extension sources, select the
+approved extension builder too:
 
-Then write a normal unified diff. Because application is byte-exact, generate it
-against the **pinned** flashinfer tree (the one your validator runs), not
-`main`:
-
-```bash
-diff -u flashinfer/data/csrc/fused_moe/original.cu \
-       my_modified/original.cu > patches/moe_epilogue.patch
+```json
+{
+  "steps": [
+    {"type": "repo_python", "path": "apply_dep_patch.py"},
+    {"type": "repo_python", "path": "build_cuda_ext.py"}
+  ]
+}
 ```
 
-## What the runtime does with it
+Those are the only registered rebuild patchers. The parser rejects
+`bundle_python`, arbitrary repository scripts, duplicate patchers, unknown
+fields, and unregistered step types. The validator snapshots each patcher's ID
+and source digest; the bundle chooses a reviewed capability, not executable
+installer code.
 
-In an active candidate rank, the seam's `flashinfer_overlay` integration
-(`optima/integrations/flashinfer_overlay.py`):
+The rebuild contract is implemented in
+[rebuild.py](https://github.com/latent-to/optima/blob/main/optima/rebuild.py).
 
-1. **rebinds** the policy's late-bound source-root constant
-   (`FLASHINFER_CSRC_DIR`) to the overlay's subtree. This is late-bound at all
-   ~280 consumer sites by upstream flashinfer design, so rebinding the constant
-   reroutes every consumer.
-2. **forces JIT** for the policy's module names by overriding `JitSpec.is_aot`
-   to return `False` for `fused_moe_103` (the AOT prebuilt `.so` would otherwise
-   silently shadow the patched csrc).
-3. clears `get_cutlass_fused_moe_module`'s `functools` cache if already
-   consulted.
-4. writes an `overlay` receipt (evidence for the driver).
+## Build and load are separated
 
-## The deep-seam export/consume state machine
+Production does not compile inside the serving process:
 
-For `collective.moe_finalize_ar_rmsnorm`, the dep patch makes flashinfer's MoE
-launcher **skip its in-op finalize** and **export pre-finalize pointers**. The
-validator-owned `optima/moe_export.py` hands those pointers to the miner's deep
-fusion kernel at the deferred call.
+1. The build phase copies the allowed pinned dependency subtree into a private
+   stage, applies the exact patch, inventories the entire overlay, and builds
+   only validator-approved native products.
+2. The publication is content-addressed and made immutable with its complete
+   build identity and provenance.
+3. The isolated engine load phase reopens and validates that publication. It
+   may load the exact artifact but cannot compile, repair, or fall back to an
+   unrecorded JIT product.
 
-The export ABI a bundle's patch implements:
+The combined `all` phase exists only for direct development diagnostics. Its
+local cache is not authoritative evidence.
 
-- `fe_set_skip_finalize(bool)` — arm/disarm.
-- `fe_get_export() -> 9 ints` — `seq, gemm_ptr, row_map_ptr, scales_ptr, tokens,
-  hidden, padded_hidden, top_k, dtype_bits`.
+This split prevents a bundle ID, ambient cache, or mutable shared install from
+selecting what runs. The overlay validation logic is in
+[dep_policy.py](https://github.com/latent-to/optima/blob/main/optima/dep_policy.py),
+and the reviewed applier is
+[apply_dep_patch.py](https://github.com/latent-to/optima/blob/main/optima/patchers/apply_dep_patch.py).
 
-The consume side reconstructs zero-copy views from the exported pointers and
-runs the deep kernel (MoE finalize + AR + add + RMSNorm in one launch).
+## Native source declarations
 
-### The LAST-LAYER VETO
+If your target-approved implementation includes inspectable native source,
+declare every `.cu`/`.cuh` file on the relevant op row:
 
-This is a subtle, load-bearing guard (`optima/moe_export.py`). Upstream
-`minimax_m3` never wires `is_last_layer` to its `LayerCommunicator`, so sglang
-lets the **final** layer defer its AR. That's harmless in stock (the finalize
-already ran in-op). But with skip-finalize armed, the final layer's transform
-would copy **UNFINALIZED** data, and the ptr-keyed consume could never match —
-fatal.
+```toml
+[[ops]]
+slot = "collective.moe_finalize_ar_rmsnorm"
+source = "kernels/finalize.py"
+entry = "moe_finalize_ar_rmsnorm"
+cuda_sources = ["kernels/finalize_sm103.cu"]
+architectures = ["sm103"]
+```
 
-So the export side **vetoes** the last layer: it reads `num_hidden_layers` from
-the model's own `config.json` (never learned from observed forwards — an aborted
-forward would poison a learned count), refuses `pp_size≠1` and speculative
-decoding, and if a layer is the last of a forward pass, it counts a
-`last_layer_veto` and passes through (doesn't arm). Export ABI mismatches and
-buffer reuse are **fail-loud**.
+The builder includes all declared sources in provenance but compiles only the
+variants eligible for the bound architecture. Compiler inputs and dependency
+files are checked against the selected source set and pinned build roots. A
+prebuilt `.so` in the bundle is never an acceptable substitute.
 
-This guard is why the deep bundle was shippable. Without it, the capture would
-crash on the final layer.
+## Development and review checklist
 
-## Should you use this?
+Before proposing a dependency-patch bundle:
 
-Almost certainly **no**, unless:
+- confirm the requested registered target allows both the dependency patch and
+  its rebuild feature;
+- generate the diff against the exact pinned FlashInfer source;
+- keep the change inside the fused-MoE allowlist;
+- declare every native source and architecture;
+- run `scan` and distributed `verify` on the matching environment;
+- inspect graph replay and end-to-end developer diagnostics;
+- review the complete materialized delta, not just the Python shim.
 
-- you're targeting `collective.moe_finalize_ar_rmsnorm` specifically, and
-- the optimization genuinely requires changing flashinfer's MoE finalize behavior.
+The committed
+[atomic stack fixture](https://github.com/latent-to/optima/tree/main/tests/fixtures/stack_fused_epilogue_atomic)
+demonstrates manifest identity, patch declaration, and rebuild selection. Its
+native and Python bodies are deliberately test stubs and do not implement the
+current deep ABI. Treat it as a schema fixture, not a miner kernel template.
 
-For everything else, a normal slot kernel (`entry(..., out)`) or an
-[override point](/docs/miners/override-points) is the right path. The dep_patches tier
-exists because the deep fusion (one kernel for MoE finalize + AR + add + norm)
-can't be expressed without making the launcher skip its in-op finalize — and that
-requires a source patch.
-
-If you do go this route, study the reference: the
-`miner_m3_fused_epilogue_deep` bundle (in `experiments/minimax_m3/bundle/`) is
-the realized example — two ops on one shim module sharing a CUDA source and a
-dep_patch.
-
-## Where to go next
-
-- **The realized example:** `experiments/minimax_m3/bundle/miner_m3_fused_epilogue_deep/`
-  (gitignored/local — on the dev machine).
-- **The validator side:** `optima/moe_export.py`, `optima/dep_policy.py`,
-  `optima/patchers/apply_dep_patch.py`, `optima/integrations/flashinfer_overlay.py`.
-- **The simpler composition path:** [Override points](/docs/miners/override-points).
+If the desired edit is outside this closed policy, submit it through the
+[Discovery lane](/docs/miners/discovery-lane) rather than disguising it as a dependency
+patch.

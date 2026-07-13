@@ -1,171 +1,142 @@
 ---
 title: Architecture overview
-
 ---
 
-This page is the end-to-end mental model. It assumes no prior knowledge of
-Bittensor, sglang, or subnets. If you already know what Cacheon is and want the
-contract-level detail, skip to [The slot contract](/docs/architecture/slot-contract).
+At the highest level, Cacheon is two systems joined by a controlled promotion
+boundary. The market system deliberately separates its subnet control plane
+from its hostile-code referee, so operators interact with three surfaces:
 
-## What problem is Cacheon solving?
+- **Cacheon Engine** is a chain-independent inference-acceleration distribution built on a pinned SGLang substrate.
+- **The subnet** owns finalized proposal ordering, attribution, settlement, and weight publication.
+- **The referee** screens and measures hostile proposals against validator-owned policy and evidence authority.
 
-Inference is the dominant cost of running a modern LLM. A serving engine (we use
-**sglang**) is a large, tuned stack: paged KV-caches, fused attention,
-fused-experts MoE, CUDA graphs, all-reduce fusion. The vendors (NVIDIA, the
-engine authors) tune the obvious kernels. The remaining opportunities are deep,
-narrow, and model-specific — a better fused epilogue for one MoE variant, a
-better compute-comm overlap for one TP shape, a better indexer for one
-sparse-attention block. No single team will find all of them.
+The referee may execute hostile miner artifacts. The engine never serves them
+directly. A measured win becomes a **crown**; a crown becomes shippable only
+after review, integration that preserves the crowned selected payload,
+deterministic packaging outside that selected closure, and release signing.
 
-Cacheon's bet: **open that search to economic incentive.** Pay anyone, anywhere,
-who can write a kernel for one of those narrow ops that is measurably faster than
-what the engine ships, at equal output quality. Aggregate enough validated
-improvements and you have a continuously-improving inference stack — which is
-itself the product (sold as a managed service).
+```mermaid
+flowchart LR
+    M["Miner proposal\nregistered target or discovery"]
+    I["Finalized intake\nfetch, hash, copy disposition"]
+    Q["Isolated referee\nscreens and B/C/B′/T qualification"]
+    C["Crown\nreproduced evidence + attribution"]
+    R["Integration review\nbyte-bound source + tests"]
+    E["Signed Cacheon Engine release\nchain-independent artifact"]
+    S["Managed serving\npinned model and runtime"]
 
-The hard part is not "let people submit kernels." The hard part is **building a
-referee that cannot be cheated**, where "faster" and "still correct" are measured
-by the validator and not reported by the miner.
+    M --> I --> Q --> C --> R --> E --> S
+    Q -->|"transactional target update"| Q
+    C -. "reward projection" .-> W["Chain weights"]
+    W -. "never enters serving" .-> E
+```
 
-## The roles
+This split is the primary architectural constraint. It prevents economic state, mutable miner hosting, and unreviewed proposal code from becoming production dependencies.
 
-| Role | Who | What they do |
+## The core boundaries
+
+Cacheon uses two different units on purpose.
+
+| Boundary | Unit | Why it exists |
 |---|---|---|
-| **Miner** | Anyone with a GPU and kernel skill | Writes a kernel for **one slot**, packages it as a *bundle*, commits it on-chain |
-| **Validator** | The operator(s) running this harness | Fetches bundles, evaluates them on GPUs the validator controls, settles scores, pushes weights |
-| **The chain** | Bittensor | The trust anchor: carries commitments + weights only. Does **not** run kernels |
+| Execution | A complete isolated engine | Candidate Python, native code, engine construction, and serving behavior remain outside the trusted controller. |
+| Attribution | One registered slot, atomic target, or reviewed discovery contribution | A miner proposes only the smallest attributable delta; the validator supplies the incumbent stack around it. |
 
-A miner never touches a validator's GPU directly. They publish a reference; the
-validator does all the compute.
+A candidate can therefore improve an incumbent stack without receiving or repackaging the incumbent contributors' bundles. For example, a new 3% delta can be tested on top of an existing 7% improvement while attribution remains attached only to the new delta.
 
-## The fixed model
+Execution isolation does not imply whole-engine economic ownership. Conversely, narrow economic identity does not require importing candidate code into the controller.
 
-There is one **arena** (model + serving configuration) active per "season." Every
-validator runs the same arena on the same pinned engine, so a kernel's score is
-comparable across validators (this is required by Bittensor's Yuma consensus,
-which penalizes validators whose weights diverge from the stake-weighted
-median). Today's validated arenas include Qwen2.5 (single H100) and
-MiniMax-M3-NVFP4 (4×B300, TP=4).
+## Architectural objects
 
-The arena is the unit of competition. A kernel that improves one model doesn't
-automatically improve another — but the *mechanism* is arena-agnostic.
+Four objects must remain distinct throughout the system:
 
-## The slot: the one thing a miner replaces
+1. A **proposal** is hostile input: a target-scoped delta or a fenced discovery prototype.
+2. A **crown** is retained evidence that the proposal improved one registered arena and target.
+3. An **integrated contribution** is reviewed Cacheon source that preserves the crowned selected payload and is bound to an immutable contribution identity.
+4. An **engine release** is a signed artifact containing the pinned runtime, reviewed stack, model identity, native artifacts, policy inputs, SBOM, and provenance.
 
-A miner does not submit a model, a backend, or an engine. They submit a kernel
-for **one typed slot** — a narrowly-scoped region of the model graph with a fixed
-input/output contract. The validator owns the slot catalog; a miner may only
-target a slot that exists.
+See [Product model](/docs/architecture/product-model) for the authority and lifecycle of each object.
 
-There are three kinds:
+## System map
 
-- **`op`** — a single fused operation. Example: `activation.silu_and_mul`,
-  the MLP activation. The contract is `entry(x, out)` — fill `out`.
-- **`block`** — a wider region fusing several ops behind one tensor boundary.
-  Example: `attention.sdpa` (the whole softmax-attention), `moe.fused_experts`
-  (the expert MLPs behind one `(prepare, forward)` pair).
-- **`collective`** — a slot that spans GPUs. The kernel is handed the process
-  group. Example: `collective.all_reduce`, or `moe.fused_experts_reduce` (the
-  MoE block that *owns* its trailing TP all-reduce, so it can overlap GEMM with
-  comms — ~75% of decode at scale).
+| Area | Responsibility | Principal implementation |
+|---|---|---|
+| Submission ABI | Stable typed replacement boundaries and validator-owned correctness contracts | [`slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py), [`tensor_spec.py`](https://github.com/latent-to/optima/blob/main/optima/tensor_spec.py) |
+| Economic identity | Registered singleton and atomic targets, overlap, displacement, and composition policy | [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py) |
+| Runtime integration | Version-pinned SGLang chokepoints, bootstrap, dispatch, and fallback | [`seams.py`](https://github.com/latent-to/optima/blob/main/optima/seams.py), [`seam.py`](https://github.com/latent-to/optima/blob/main/optima/seam.py), [`dispatch.py`](https://github.com/latent-to/optima/blob/main/optima/dispatch.py) |
+| Stack identity | Content-addressed evaluation and release manifests, exact marginal substitutions, rollback | [`stack_manifest.py`](https://github.com/latent-to/optima/blob/main/optima/stack_manifest.py), [`stack_plan.py`](https://github.com/latent-to/optima/blob/main/optima/stack_plan.py) |
+| Engine construction | Deterministic source closure, namespacing, native build identity, isolated OCI execution | [`engine_tree.py`](https://github.com/latent-to/optima/blob/main/optima/engine_tree.py), [`eval/engine_launch.py`](https://github.com/latent-to/optima/blob/main/optima/eval/engine_launch.py), [`eval/oci_backend.py`](https://github.com/latent-to/optima/blob/main/optima/eval/oci_backend.py) |
+| Qualification | Registered arena policy, staged screens, B/C/B′ timing, pristine T quality, retained evidence | [`arena_service.py`](https://github.com/latent-to/optima/blob/main/optima/arena_service.py), [`eval/qualification_runner.py`](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_runner.py) |
+| Chain authority | Finalized ordering, immutable publication, state transitions, settlement, and weight journal | [`chain/intake.py`](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py), [`settlement.py`](https://github.com/latent-to/optima/blob/main/optima/settlement.py), [`economics.py`](https://github.com/latent-to/optima/blob/main/optima/economics.py) |
+| Product release | Integration review, model sealing, signed artifacts, reproducible container identity, fail-closed serving | [`release.py`](https://github.com/latent-to/optima/blob/main/optima/release.py), [`release_host.py`](https://github.com/latent-to/optima/blob/main/optima/release_host.py), [`release_runtime.py`](https://github.com/latent-to/optima/blob/main/optima/release_runtime.py) |
 
-Ten slots exist today. The full table is at
-[Slot catalog](/docs/reference/slots-table); the contract they all share is at
-[The slot contract](/docs/architecture/slot-contract).
+## Trust model
 
-**The key property:** a slot sits strictly *upstream of the sampler*. Its output
-feeds the residual stream → downstream layers → sampler, all stock. The miner
-only ever fills an output tensor the validator allocated. There is therefore no
-final output to substitute. This is what structurally defeats the "run gibberish,
-fetch the answer from an API" attack — there's no whole-model submission to
-hijack.
+The validator owns policy, identities, workloads, timing, references, output buffers, storage, and state transitions. Candidate code is never trusted to grade itself.
 
-## The seam: how a kernel gets into the running model
+The production referee follows these rules:
 
-The validator runs a **pinned, unmodified sglang**. It never forks sglang and it
-does not mutate the installed wheel. Arena flags such as attention backend,
-MoE backend, tensor parallelism, or FlashInfer AR fusion are validator-owned
-season configuration; they are not a miner-controlled backend menu. A thin piece
-of validator-owned code — the **seam** — is loaded into every Python interpreter
-that sglang spawns (including the child process that actually runs the model),
-and it patches a handful of sglang's internal chokepoints at runtime.
+- the controller never imports candidate Python or native extensions;
+- every timed arm runs as a complete engine in a disposable, no-egress OCI session;
+- the candidate engine cannot choose its incumbent, role, workload, target identity, or evidence schema;
+- B, C, and B′ are timed under a sealed cohort authority;
+- T is pristine, candidate-free, untimed, and used only for semantic quality;
+- infrastructure failure or cohort drift produces `NO_DECISION`, not a loss or crown;
+- settlement reopens retained evidence and requires two independent passing authorities.
 
-When a candidate bundle is being evaluated, the seam routes the slotted op's
-calls to a **dispatcher**. The dispatcher asks the registry "is there a miner
-kernel active for this slot?" If yes, the validator allocates the output tensor
-and calls `impl.entry(x, out)`. If no (baseline run, or the kernel is
-ineligible), the original stock method runs. Fallback is the default; the miner
-kernel is an *opt-in override*, never a wedge.
+The slot boundary adds a second layer of defense: the validator allocates the output and keeps every slot strictly upstream of sampling. See [Slot contract](/docs/architecture/slot-contract).
 
-This is strictly better than a `--attention-backend` flag: it accepts *novel*
-kernels and needs no per-submission reconfigure. The full mechanism — the `.pth`
-bootstrap, the post-import hook, the receipt system — is at
-[The seam](/docs/architecture/seam).
+## Stack model
 
-## The lifecycle of one submission
+The referee, the product, and the semantic reference use separate manifests:
 
-End to end, from a miner's laptop to an on-chain weight:
+- `EvaluationStackManifest` may name hostile crowned proposal artifacts and is valid only inside isolated evaluation.
+- `EngineReleaseManifest` accepts reviewed integrated contributions only and is the serving product identity.
+- `ReferenceManifest` names pristine validator-owned semantic authority used for untimed quality grading.
 
-1. **Write + test locally.** The miner writes a kernel, packages it as a bundle
-   (a directory with a `manifest.toml` + `kernels/`), and runs the cheap local
-   gates: `optima scan` (static policy scan, no code execution) and
-   `optima verify` (op-correctness against an fp32 reference, on CPU). See
-   [Your first kernel](/docs/miners/your-first-kernel).
-2. **Test on a GPU.** The miner runs `python -m optima.cli evaluate`
-   (throughput + fidelity, graphs-on) and, when the arena requires task accuracy,
-   `python -m optima.cli bench`
-   (configured benchmarks such as GSM8K, MMLU, or long_math) on a real GPU. The
-   kernel must be faster than stock *at equal quality* to have any value.
-3. **Commit on-chain.** The miner packages the bundle into a tarball, computes
-   its content hash, and posts `{"v":1,"h":<hash>,"u":<url>}` via the chain's
-   **native timelock commit-reveal**. The URL is drand-encrypted until the reveal
-   block — nobody (validators included) can read it early, so there's no
-   pre-evaluation copy window. The reveal block is the consensus anti-copy
-   priority timestamp.
-4. **The validator loop.** The current loop reads the latest reveal per hotkey,
-   sorted by `(block, hotkey)`, fetches each new bundle (hostile-archive-safe,
-   size-capped), **re-hashes the
-   extracted tree and refuses a mismatch**, fingerprints it for copy detection
-   (copies are demoted, never evaluated), evaluates the original out-of-process
-   through the full gate chain, and records a typed `EvalRecord`.
-5. **Settle.** The ledger runs king-of-the-hill per slot: a challenger takes the
-   title only if it beats the champion by a margin. Emission is split across
-   slots (a specialist who owns one slot earns, not just the single best
-   end-to-end bundle).
-6. **Push weights.** The validator pushes the weight vector on-chain (the SDK
-   auto-routes through drand commit-reveal weights when the subnet enables it).
+All identities are canonical and content-addressed. A candidate arm is the incumbent evaluation stack with one registered target transition. A crown updates the evaluation stack transactionally; it does not mutate an engine release. See [Stacks and manifests](/docs/architecture/stacks).
 
-The full pipeline, with the gate stack, is at
-[Submission lifecycle](/docs/architecture/pipeline).
+## Data plane scope
 
-## Why this design?
+Normal submissions optimize the inference data plane: kernels, quantized GEMMs, attention, MoE, collectives, communication overlap, KV-cache operations, graphs, fused blocks, and bounded execution-adjacent strategies.
 
-Three structural choices do most of the work:
+The service control plane remains upstream of the competition boundary: HTTP and API behavior, authentication, tokenization, request admission, fleet orchestration, autoscaling, observability, and operational lifecycle management are not ordinary miner targets.
 
-1. **The slot is upstream of the sampler.** The miner can't substitute the final
-   output because they never produce it. The attack *relocates* from "fake the
-   output" to "escape the slot abstraction with in-process code" — which is real
-   but is an isolation problem (solvable), not a scoring problem (existential).
-   See [Threat model](/docs/security/threat-model).
-2. **The validator measures everything itself, out-of-process.** The score never
-   trusts a number the miner's code could have produced. Throughput is timed by a
-   driver process that never imports miner code; model-level fidelity is judged
-   by the validator from stock/candidate distributions or the in-engine audit.
-   See
-   [How scoring works](/docs/validators/scoring).
-3. **Cheap correctness and model fidelity are separate gates.** Slot verify is
-   measured against an fp32/dequant reference, so a faster-but-slightly-different
-   kernel can pass the local sanity gate. The stock kernel is the throughput
-   baseline and, depending on fidelity mode, the rollout-KL or audit reference
-   inside the real model.
+Work that cannot yet fit a registered target enters the fenced discovery lane. Discovery can earn a bounded reviewed bounty or be promoted into a new validator-owned target; it does not create an unbounded duplicate reward family.
 
-## Where to go next
+## End-to-end flow
 
-- **The contract itself:** [The slot contract](/docs/architecture/slot-contract) — the four
-  invariants that keep the subnet cheat-resistant.
-- **How injection works:** [The seam](/docs/architecture/seam) — the `.pth` bootstrap and the
-  dispatcher.
-- **The pipeline in detail:** [Submission lifecycle](/docs/architecture/pipeline) — the gate
-  stack from scan to settle.
-- **For miners:** [Miner guide → Start here](/docs/miners/overview).
-- **For validators:** [Validator guide → Overview](/docs/validators/overview).
+The authoritative path is:
+
+1. finalized timelock commit-reveal intake;
+2. hardened fetch, content re-hash, copy disposition, and immutable worker publication;
+3. registered-arena static, build, ABI, graph, and abbreviated-serving screens;
+4. sealed cohort qualification with B/C/B′ timing and pristine T quality;
+5. independent reproduction of the exact candidate identity;
+6. evidence reopening, conservative settlement, and transactional stack update;
+7. journaled reward projection and weight publication;
+8. independent integration review and signed engine release.
+
+Local `verify`, `evaluate`, and `bench` commands are developer diagnostics. They do not mint production crown authority. See [Evaluation pipeline](/docs/architecture/pipeline) for the detailed state machine and [Releases](/docs/architecture/releases) for the ship boundary.
+
+## Design acceptance tests
+
+The architecture is preserving its product boundary when all of the following remain true:
+
+- the latest signed engine can be rebuilt and served without chain access or miner hosting;
+- every candidate is measured as one marginal substitution over the current stack;
+- candidate code stays outside the trusted controller;
+- a whole-system prototype cannot silently acquire a permanent whole-engine reward title;
+- every shipped component resolves to reviewed Cacheon source and immutable attribution;
+- changing the evaluation incumbent cannot mutate a signed release;
+- shipping a reviewed release does not depend on chain availability.
+
+## Further reading
+
+- [Product model](/docs/architecture/product-model)
+- [Stacks and manifests](/docs/architecture/stacks)
+- [Evaluation pipeline](/docs/architecture/pipeline)
+- [SGLang seam](/docs/architecture/seam)
+- [Release architecture](/docs/architecture/releases)
+- [Current state of record](/docs/reference/state-of-record)
+- [Canonical product contract](https://github.com/latent-to/optima/blob/main/docs/PRODUCT_CONTRACT.md)

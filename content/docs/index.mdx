@@ -2,138 +2,92 @@
 title: Introduction
 ---
 
-# Cacheon
+**Miner-fed · validator-proven · chain-independent**
 
-**Cacheon is a Bittensor subnet that pays miners for optimizing LLM inference.**
+# Build faster inference into a product.
 
-Miners submit GPU **kernels** (Triton or CuteDSL) that replace a single,
-tightly-scoped **slot** inside a *fixed* model: an op, a fused block, or a
-cross-GPU collective. A validator swaps each
-submission into the model it controls, runs it, and scores it on **throughput**
-— but only if it passes the **fidelity** gate (the output distribution is still
-correct) and, in production scoring, the arena's **task-accuracy** gate.
-The endgame: a continuously-improving, state-of-the-art inference stack, sold as
-a managed service, driven by economic incentive instead of a single vendor.
+Cacheon turns untrusted GPU optimization proposals into measured contributions and,
+after a separate integration review, signed **Cacheon Engine** releases. SGLang keeps
+the serving control plane. Cacheon improves the inference data plane.
 
-This repo is the **validator harness** — the referee — plus example miner
-submissions. It is not the model, not the inference engine, and not the chain
-itself. It is the machinery that decides whether one kernel is genuinely faster
-than the stock one, at equal quality, on the only regime that counts
-(CUDA-graphs on).
+- [Build a kernel](/docs/miners/overview)
+- [Operate the referee](/docs/validators/overview)
+- [Understand the architecture](/docs/architecture/overview)
 
----
+At the highest level, Cacheon has two systems: the chain-independent product and
+the market that improves it. Operationally, the market side separates the
+subnet control plane from the hostile-code referee, giving readers three
+cooperating surfaces with different trust boundaries.
 
-
-## Useful links
-{/* TODO: confirm links */}
-- [GitHub](https://github.com/latent-to/optima)
-  
-- [Discord](https://discord.com/invite/???)
-- [X](https://x.com/???)
-- [TAO.app subnet page](https://tao.app/subnets/14)
-
-## Who is this site for?
-
-| If you are… | Start here |
+| Surface | What it is |
 |---|---|
-| **A miner** — you write kernels and want to earn | [Miner guide → Start here](miner-guide/overview.md), or [submit on-chain](miner-guide/submitting.md) if your kernel is ready |
-| **A validator / operator** — you run the referee and push weights | [Validator guide → Overview](validator-guide/overview.md), or [Validator guide → First hour](validator-guide/first-hour.md) for the fastest path to a first scored eval |
-| **Trying to understand the design** — how does this stay un-cheatable? | [Architecture → Overview](architecture/overview.md) |
-| **Auditing the security model** | [Security → Threat model](security/threat-model.md) |
-| **Setting up a GPU pod to run evals** | [Dev → GPU setup](dev/gpu-setup.md) (provider-agnostic checklist) |
-| **Wondering how the project grew** | [Project history](history/changelog.md) |
+| [**Cacheon Engine**](/docs/engine/overview) | The chain-independent inference distribution: reviewed source, pinned runtime, sealed model identity, and signed releases. |
+| [**The referee**](/docs/architecture/pipeline) | Isolated, evidence-producing evaluation of one marginal target delta against a validator-owned incumbent stack. |
+| [**The subnet**](/docs/validators/chain-loop) | Finalized proposal ordering, attribution, economic settlement, and weight publication. It is not part of the serving product. |
 
----
+## One idea, four objects
 
-## Why Cacheon exists
+The system keeps four objects deliberately separate:
 
-Inference is the bottleneck for serving LLMs at scale. Latency, memory, and cost decide whether a model is usable in production. Optimization techniques are usually benchmarked in isolation, so objective performance comparisons are impossible.
+```mermaid
+flowchart LR
+  P["Proposal<br/>hostile input"] --> Q["Crown<br/>measured contribution"]
+  Q --> I["Integrated contribution<br/>reviewed source"]
+  I --> R["Engine release<br/>signed product"]
+  Q -. "does not ship automatically" .-> R
+```
 
-Cacheon turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring. Miners write real GPU kernels for well-defined boundaries inside the model. The only thing that matters is making the model faster while keeping its outputs correct.
+A miner submits a **proposal** for one registered target delta, or a bounded discovery
+prototype through the separate discovery ABI. The referee may establish a **crown**
+after two independent passing qualifications. Cacheon maintainers may then turn the
+proposal into an **integrated contribution** after security, provenance,
+compatibility, and maintenance review. Only integrated contributions enter a signed
+**Engine release**. Discovery has review, promotion, or bounded-bounty outcomes; it is
+not another standing target family.
 
-See [Why it matters](/docs/concepts/why-it-matters) for the full problem statement.
+[Learn the product model →](/docs/architecture/product-model)
 
+## Why the architecture is composable
 
-## How the incentive mechanism works
+Every candidate runs as a complete isolated engine, but it is rewarded only for the
+smallest validator-controlled delta it contributes. The authoritative bracket compares:
 
-> A miner replaces *one slot* in a fixed model with a faster kernel; the
-> validator measures throughput and output fidelity itself, out-of-process, and
-> pays the miner only if the kernel is genuinely faster at equal quality.
+- **B** — the exact incumbent evaluation stack;
+- **C** — the same stack with one registered target replaced;
+- **B′** — an independent incumbent bookend; and
+- **T** — a candidate-free pristine reference that grades sealed trajectories after
+  candidate destruction.
 
-Everything else — the slots, the seams, the commit-reveal, the audit, the
-copy-detection — is engineering in service of making that one sentence
-un-cheatable.
+This separates the **execution unit** (a complete disposable engine) from the
+**economic unit** (one singleton target, atomic target, or bounded discovery
+contribution). A new optimization can build on previous wins without repackaging or
+copying them.
 
-## The two key ideas
+[Follow a proposal through the system →](/docs/architecture/pipeline)
 
-1. **The slot.** A miner never submits a whole model, a whole backend, or a whole
-   inference engine. They submit a kernel for **one typed slot** (a single
-   op, a fused block, or a cross-GPU collective) that the validator drops into a
-   fixed place in a fixed model. Because the miner only ever *fills an output
-   tensor the validator allocated* — strictly upstream of the sampler — there is
-   no final output to fake. The "run gibberish, fetch the real answer from an
-   API" attack structurally cannot happen. See
-   [The slot contract](architecture/slot-contract.md).
+## Choose your path
 
-2. **The seam.** The validator never forks the inference engine (sglang). It runs
-   a pinned, unmodified sglang and patches a handful of internal chokepoints
-   *at runtime*, in the spawned process that actually runs the model, so a
-   miner's kernel can be swapped in without reconfiguring anything. Every
-   validator runs the identical pinned engine, so scores are comparable. See
-   [The seam](architecture/seam.md).
+| Goal | Start here |
+|---|---|
+| Write a Triton, CuTeDSL, or Python reference kernel | [Miner guide](/docs/miners/overview) |
+| Validate the repository locally without a GPU | [Local quickstart](/docs/get-started/quickstart) |
+| Deploy intake, an arena provider, and qualification workers | [Validator guide](/docs/validators/overview) |
+| Verify or operate a signed serving artifact | [Cacheon Engine](/docs/engine/overview) |
+| Audit trust boundaries and failure behavior | [Security model](/docs/security/threat-model) |
+| Check what is implemented, measured, and still unproven | [Current status](/docs/reference/state-of-record) |
 
-## What's actually proven
+## Evidence is scoped, not blended
 
-- The **mechanism** is done and validated on real GPUs (H100 up to gpt-oss-120b;
-  4×B300 MiniMax-M3-NVFP4): ten slots across op / block / collective kinds, the
-  runtime-injection seam, op-correctness, bookended throughput, two fidelity
-  modes, a real-task capability gate, commit-reveal + king-of-the-hill, and
-  tamper-resistant timing.
-- The **chain integration** is built, merged (PR #25 and PR #26 both on `main`),
-  and live-validated on the Bittensor testnet (netuid 307, 2026-07-08): a miner
-  committed a bundle via the chain's native timelock commit-reveal, the validator
-  loop discovered it, fetched and re-hashed the artifact, fingerprinted it for
-  copy detection, and drove the full GPU referee out-of-process — no human in the
-  path. It scored the bundle at **1.072× against the noise-derived bar 1.026**
-  (in-engine audit 12,824 sampled calls, 0 violations) — the third independent
-  reproduction of that bundle's speedup.
-  Weights stayed dry-run because subnet 307 (owned by someone else, never
-  start-called) rejects stake, so the validator hotkey never got a permit — a real
-  weight push needs our own subnet.
-- **A submitted optimization has surpassed the pinned sglang baseline.** The first
-  fully validated arena is MiniMax-M3-NVFP4 on 4×B300. In that arena, a fused
-  AR+residual+RMSNorm decode epilogue measured 1.044×, and a deeper MoE-finalize
-  + AR + add + norm fusion measured 1.074×, both through Cacheon's scorer at equal
-  audited fidelity and above the noise-derived bar. The result was reproduced on
-  independent prompt seeds and once through the on-chain loop (the 1.072× above).
-  This is the first case study, not the limit of the system: later arenas such as
-  Nemotron-3-Ultra and DeepSeek-V4 should be added as new arena records.
-  See [Arenas](reference/arenas.md).
+Cacheon has historical B300 performance wins and a completed hardened authority
+implementation. Those are different evidence classes. The historical wins were measured
+through the earlier referee; the hardened path has structural RTX evidence but still
+requires current-path B300 qualification and a real release-image build-and-serve proof.
+The [state of record](/docs/reference/state-of-record) keeps those claims separate.
 
-## What's still in progress
-
-- **Isolation for untrusted miners.** Today the miner's host Python runs in the
-  same process as the scheduler. The static policy scan is a tripwire, not a
-  boundary. Production needs per-eval process + namespaces + no-egress + GPU
-  context isolation. See [Isolation](security/isolation.md).
-- **A real DB behind the Ledger** (it's durable JSON today) and **mainnet
-  economics** (own subnet, staked validator permits, hosted bundle store).
-- **A tiered eval scheduler** (screen cheap, record rarely) for fleet-scale
-  throughput.
-
-The README in the repo is the current state of record; if anything here and it
-disagree, the README wins.
-
----
-
-## A note on how these docs are organized
-
-These docs are structured like a readthedocs site because the repo outgrew being
-understandable from a single file. The deep, committed reference docs still live
-in `docs/` in the repo (`HOW_OPTIMA_WORKS.md`, `SLOT_CONTRACT.md`,
-`MINER_GUIDE.md`, `FIDELITY.md`, `TESTNET.md`, `SUBNET_BLUEPRINT.md`,
-`SGLANG_TRACKING.md`, `DEV_ENVIRONMENT.md`, `SUBMISSION_MODEL.md`). This site is
-a re-organized, cross-linked, human-readable pass over the same material — not a
-replacement. When a page here points at a committed doc for the deep version,
-that's intentional.
-
+<Callout type="info" title="Source of executable truth">
+The [Cacheon source repository](https://github.com/latent-to/optima) owns executable
+contracts, schemas, policies, and evidence verifiers. Content-addressed production
+evidence and immutable publications live in separate operator-owned stores. This
+site owns published explanations, tutorials, and operator guidance. When prose and
+code disagree, the pinned code and its tests take precedence.
+</Callout>

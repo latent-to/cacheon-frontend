@@ -1,210 +1,291 @@
 ---
-title: Submission lifecycle
+title: Evaluation pipeline
 ---
 
-This page traces one submission from a miner's laptop to an on-chain weight, with
-the full gate stack. It's the end-to-end pipeline that the
-[miner guide](/docs/miners/overview) and
-[validator guide](/docs/validators/overview) drill into from each side.
+Cacheon has two evaluation paths with different authority:
 
-## The gate stack
+- the **developer path** helps a miner build and debug a proposal;
+- the **production referee path** can create retained qualification, crown, settlement, and reward state.
 
-From cheap-and-local to expensive-and-authoritative, a submission must clear:
+The developer commands intentionally reuse parts of the ABI and evaluation machinery, but their output is not production crown evidence.
 
-```
-scan ─▶ verify ─▶ [audit / KL] ─▶ benchmark ─▶ timed bracket ─▶ settle
-```
+## Developer path
 
-| Gate | What it checks | Where | Cost |
-|---|---|---|---|
-| **scan** | static policy scan — AST scan of every `.py` for banned imports/calls; binary suffixes fail closed | `optima sandbox.scan_tree` | seconds, CPU, no execution |
-| **verify** | op-level correctness vs **fp32/dequant ground truth** under the slot's `Correctness` policy | `optima verify` / `verify_collective` | seconds, CPU or one GPU |
-| **audit** (or **KL**) | the **fidelity** gate: in-engine audit (re-run stock baseline on clones, compare under slot tolerances) **or** legacy rollout-KL | `optima evaluate --fidelity-mode {audit,kl}` | a GPU launch |
-| **benchmark** | task-accuracy no-regression on configured benchmarks such as **GSM8K**, **MMLU**, or **long_math** | `optima bench` | a GPU launch |
-| **timed bracket** | throughput: `B, C, B'` bookended measurement vs a noise-derived bar | inside `optima evaluate` | three+ GPU launches |
-| **settle** | king-of-the-hill per slot: beat the champion by a margin | `optima settle --per-slot` | trivial, off-chain |
-
-The early gates are *necessary-but-not-sufficient*: `scan` + `verify` are cheap
-sanity checks ("is this even the right function?"). The **load-bearing**
-anti-cheat is the fidelity gate (audit or KL) and the benchmark gate, measured on
-the **real model**. A faster-but-unfaithful kernel scores zero at the fidelity or
-benchmark gate even if it sailed through `verify`.
-
-## Stage 1 — local: write, scan, verify
-
-The miner writes a kernel and packages it as a **bundle** (a directory: see
-[The bundle format](/docs/miners/bundle-format)).
-
-```bash
-# the cheap local gates (no GPU needed)
-python -m optima.cli scan   my_bundle      # static policy scan
-python -m optima.cli verify my_bundle --device cpu --dtype float32   # op-correctness
+```text
+slots -> scan -> verify -> evaluate / bench -> chain-package -> host -> chain-submit -> chain-status
 ```
 
-`scan` parses the manifest, recursively walks the bundle tree, and AST-scans
-every `.py` against a banned-import / banned-call policy (`socket`, `ssl`,
-`subprocess`, `pickle`, `ctypes`, `eval`, `exec`, `__subclasses__`, …). Binary
-suffixes (`.so`, `.pyc`) fail closed. This is a **tripwire for the lazy version**
-of an escape attempt, not a security boundary (see
-[Isolation](/docs/security/isolation)).
+| Step | Purpose | Authority |
+|---|---|---|
+| `slots` | Inspect the live slot ABI | Informational |
+| `scan` | Run static bundle policy checks | Diagnostic |
+| `verify` | Check a single op/block against its trusted reference; collective slots use distributed verification | Diagnostic |
+| `evaluate` | Run a narrow model-level development comparison | Diagnostic |
+| `bench` | Run benchmark-oriented throughput and quality diagnostics | Diagnostic |
+| `chain-package` | Produce the deterministic hosted archive and content identity | Submission preparation |
+| HTTPS host | Make the immutable archive available for validator fetch | Transport only |
+| `chain-submit` | Commit the proposal through timelock commit-reveal | Chain intake |
+| `chain-status` | Inspect submission state | Informational |
 
-`verify` generates deterministic inputs over the slot's standard shapes, runs the
-miner kernel into validator-allocated outputs, and compares to the slot's
-**high-precision reference** under its `Correctness` policy
-(`allclose`/`matched_ratio`/`cosine`/`topk_overlap`). Shapes are **jittered** per
-run from the seed, so a kernel can't hard-code the exact verify shapes. For
-collective slots, `verify_collective` spawns `world_size` ranks and compares
-against a `torch.distributed` reduce of fp32 partials.
+Local measurements are useful for iteration. They do not select a production arena authority, reserve a finalized cohort position, retain authenticated B/C/B′/T evidence, or satisfy independent reproduction.
 
-The miner loops here cheaply: edit → `verify` → repeat. No GPU, no cost. See
-[Your first kernel](/docs/miners/your-first-kernel).
+## Production path at a glance
 
-## Stage 2 — GPU: evaluate + bench
-
-On a GPU, the miner runs the expensive gates:
-
-```bash
-# throughput + fidelity (graphs-on)
-python -m optima.cli evaluate my_bundle --model Qwen/Qwen2.5-1.5B-Instruct \
-    --num-prompts 64 --max-new-tokens 64
-
-# capability floor on a real task
-python -m optima.cli bench my_bundle --model Qwen/Qwen2.5-1.5B-Instruct \
-    --benchmarks gsm8k --samples 128
+```mermaid
+flowchart TD
+    A["Finalized timelock reveal"] --> B["Hardened fetch and immutable publication"]
+    B --> C["Registered arena and target resolution"]
+    C --> D["Non-crown screens"]
+    D -->|"reject"| F["Terminal invalid or attributable failure"]
+    D -->|"advance"| Q["Sealed B/C/B′/T qualification"]
+    D -->|"infrastructure or ambiguous"| N["NO_DECISION / retry"]
+    Q -->|"FAIL"| F
+    Q -->|"NO_DECISION"| N
+    Q -->|"first PASS"| P["reproduction_pending"]
+    P --> R["Independent second qualification"]
+    R -->|"attributable FAIL"| F
+    R -->|"NO_DECISION"| N
+    R -->|"matching PASS"| S["Reopen both evidence roots"]
+    S --> T["Transactional settlement and stack update"]
+    T --> W["Reward projection and journaled weights"]
+    T -. "separate decision" .-> I["Integration review and signed release"]
 ```
 
-The details of how `evaluate` measures throughput and fidelity are at
-[How scoring works](/docs/validators/scoring) and
-[Fidelity](/docs/validators/fidelity). The short version:
+## 1. Finalized intake
 
-- **Throughput** is measured as `B, C, B'` — baseline, candidate, baseline —
-  each in a fresh spawned process, so a monotonic clock ramp across the run
-  partly cancels instead of biasing one side. The candidate is **paired against
-  the mean** of the bracketing baselines. The pass bar is `1 + max(margin,
-  k·noise)` where `noise` is the *measured* relative spread of the baselines —
-  the bar scales with the box's actual noise, not a constant. If the brackets
-  disagree by more than `max_noise`, the round is **NO-DECISION** (do not score,
-  re-queue).
-- **Fidelity** has two modes. `audit` (chosen by the arena for noisy stacks): an
-  extra **untimed eager candidate launch** samples dispatcher calls, clones
-  inputs before the kernel runs, re-runs the stock baseline on the clones, and
-  compares under the slot's own verify tolerances. Pass requires **zero
-  violations AND minimum coverage**. `kl` (the CLI default): rollout-KL of top-k
-  logprobs vs the stock baseline, valid as a hard gate only on arenas where a
-  stock-vs-stock control measures ~0.
+Submissions enter through native timelock commit-reveal. The validator acts only on finalized chain order. Finalized block position and commitment identity establish priority; evaluator network arrival does not.
 
-A kernel that's faster but unfaithful scores `0.0`. A kernel that's faithful but
-not faster reports its raw speedup but does not change weights. A kernel that's
-both faster and faithful, and beats the champion by the margin, becomes the slot
-champion.
+`FinalizedIntakeStore` persists production authority in SQLite. It records finalized observations, fetch state, copy disposition, screen receipts, cohort reservations, qualification attempts, evidence roots, reproduction state, stack transitions, settlement, and weight-publication state.
 
-## Stage 3 — commit on-chain
+State transitions are typed and transactional. The validator does not reconstruct production authority from console output, mutable directories, or a legacy JSON ledger.
 
-When the miner is confident, they commit:
+Principal code: [`chain/intake.py`](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py) and [`chain/validator_loop.py`](https://github.com/latent-to/optima/blob/main/optima/chain/validator_loop.py).
 
-```bash
-# package -> tarball + content hash
-python -m optima.cli chain-package my_bundle --out hosted/bundle.tar.gz
+## 2. Hardened fetch and publication
 
-# host the tarball anywhere fetchable, then commit hash+URL via timelock
-python -m optima.cli chain-submit my_bundle --url https://example.com/bundle.tar.gz \
-    --netuid 307 --network "$NET" --wallet default --hotkey miner
+The submitted URL is transport, not identity. The fetch path:
+
+1. applies the validator's HTTPS and network policy;
+2. writes into validator-private bounded storage;
+3. recomputes the deterministic bundle content hash;
+4. compares it with committed identity;
+5. derives the copy/provenance disposition;
+6. publishes the complete artifact into an immutable, hash-addressed worker namespace;
+7. reopens the publication before any screen or launch consumes it.
+
+Partial downloads, path tricks, changed content, duplicate/malformed archives, and publication mismatches fail closed. Candidate workers receive only immutable publications; they do not fetch miner URLs themselves.
+
+Principal code: [`chain/fetch.py`](https://github.com/latent-to/optima/blob/main/optima/chain/fetch.py), [`chain/payload.py`](https://github.com/latent-to/optima/blob/main/optima/chain/payload.py), and [`bundle_hash.py`](https://github.com/latent-to/optima/blob/main/optima/bundle_hash.py).
+
+## 3. Arena and target resolution
+
+An `ArenaServiceRegistry` maps a public arena identifier to a closed
+`ArenaService`. Its manifest directly binds:
+
+- runtime, base-engine, validator-overlay, worker, model, architecture, GPU,
+  and topology identities;
+- the decode/long-prefill workload mixture and prompt-seed scheme;
+- non-crown screen policy;
+- queue depth/age, cohort size, screen/qualification concurrency, and retry policy;
+- the qualification-policy digest; and
+- the reviewed provider implementation digest.
+
+The target catalog, incumbent and candidate stacks, graph/engine settings,
+calibration, reference, evidence, and quality identities are closed later by
+the promoted candidate bindings and the provider-created typed qualification
+plan. `ArenaService` checks the plan's policy digest and finalized reservation
+order; it does not pretend all of that authority is a field of the service
+manifest itself.
+
+The proposal is resolved against the exact target catalog snapshot. A registered candidate must match its target members and permitted features. Cross-cutting unregistered work is routed through the discovery lane.
+
+The command-line `chain-validate` loop can perform intake alone. Full production qualification requires the operator to inject a real `ArenaServiceRegistry` and select `--arena-id`; the repository does not manufacture a production arena provider from implicit defaults.
+
+Principal code: [`arena_service.py`](https://github.com/latent-to/optima/blob/main/optima/arena_service.py), [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py), and [`stack_plan.py`](https://github.com/latent-to/optima/blob/main/optima/stack_plan.py).
+
+## 4. Non-crown screens
+
+Expensive full-engine qualification is reserved for plausible candidates. The registered arena applies a fixed sequence of non-crownable screens:
+
+1. static policy and manifest resolution;
+2. deterministic source closure and build planning;
+3. typed ABI correctness, including distributed verification for collectives;
+4. graphs-on capture and dynamic-input replay;
+5. abbreviated serving on a small registered workload.
+
+Screens can reject invalid work or advance a promising candidate. They cannot crown it. Infrastructure errors and measurements too ambiguous for an attributable rejection remain retryable rather than being converted into a loss.
+
+## 5. Cohort authority
+
+At an evaluation boundary, the validator freezes:
+
+- one incumbent `EvaluationStackManifest` digest;
+- a finalized chain-ordered set of candidate reservations;
+- one registered arena and target-catalog context;
+- deterministic candidate order derived from committed authority;
+- workload, prompt, seed, role, topology, calibration, and evidence policy.
+
+Each candidate stack is the frozen incumbent with exactly one registered target delta. B and B′ independently materialize the exact incumbent. This prevents background stack updates from changing the comparison midway through a cohort.
+
+The evaluator may amortize B/B′ and one pristine reference lifetime across several candidates, but the retained evidence still binds each C to its exact delta and causal authority.
+
+Principal code: [`eval/qualification_intake.py`](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_intake.py) and [`stack_plan.py`](https://github.com/latent-to/optima/blob/main/optima/stack_plan.py).
+
+## 6. B/C/B′/T qualification
+
+The authoritative bracket has four logical arms.
+
+| Arm | Stack | Timed? | Purpose |
+|---|---|---:|---|
+| B | Exact frozen incumbent | Yes | Opening performance baseline |
+| C | Incumbent plus one exact target delta | Yes | Candidate measurement and sealed trajectory |
+| B′ | Independently launched exact incumbent | Yes | Closing bookend and drift detection |
+| T | Pristine candidate-free reference | No | Teacher-forced semantic quality and hidden tasks |
+
+Native build and timed execution use separate containers. Before a runtime arm
+starts, a disposable, no-GPU/no-network prebuild OCI parses the materialized
+tree, invokes only registered build patchers, and emits a sealed native
+publication. Each complete B/C/B′ runtime OCI then mounts that reopened
+publication read-only. Candidate Python import, engine construction, and
+execution occur only in the runtime's positively identified scheduler ranks;
+runtime ranks may validate and load native products but may never compile or
+repair them. Both stages use read-only roots, bounded mounts and protocols, and
+host-owned cleanup; the trusted controller also owns timing.
+
+After C is destroyed, T grades its sealed trajectory under a separate pristine lifetime. T never contains the candidate and does not compete on speed. Hidden reference work, quality policy, and selected prompt identity are bound into retained evidence.
+
+The host pairs candidate throughput with the B/B′ bookend and applies the registered noise policy. Conceptually:
+
+```text
+paired_speedup = candidate_throughput / mean(B, B′)
+required_bar   = 1 + max(margin_floor, noise_multiplier × measured_noise)
 ```
 
-The on-chain payload is tiny — `{"v":1,"h":<sha256 content hash>,"u":<url>}`,
-≤1024 bytes. It's posted via the chain's **native timelock commit-reveal**
-(`set_reveal_commitment`):
+The exact registered policy, not this explanatory formula, is authoritative.
 
-- The payload is **drand-encrypted until the reveal block** — nobody (validators
-  included) can read the bundle URL before reveal, so there is **no
-  pre-evaluation copy window**.
-- The **reveal block is the consensus anti-copy priority timestamp**. The
-  current loop processes each hotkey's latest reveal, sorted by reveal block;
-  production exact-priority replay should either retain full reveal history or
-  enforce one active submission per hotkey/window.
-- It's **hotkey-signed** — the recurring loop never touches the coldkey.
+Principal code: [`eval/qualification.py`](https://github.com/latent-to/optima/blob/main/optima/eval/qualification.py), [`eval/qualification_runner.py`](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_runner.py), and [`eval/oci_backend.py`](https://github.com/latent-to/optima/blob/main/optima/eval/oci_backend.py).
 
-See [The chain loop](/docs/validators/chain-loop) and
-[Running on testnet](/docs/validators/testnet).
+## 7. Verdict semantics
 
-## Stage 4 — the validator loop
+Qualification has three outcomes:
 
-The validator runs `chain-validate` (a daemon, or `--once` for a single pass):
+### `PASS`
 
+The candidate clears the registered speed, quality, graph, evidence, and whole-stack requirements under a stable cohort authority. A first pass is retained as `reproduction_pending`; it does not settle alone.
+
+### `FAIL`
+
+Complete evidence attributes a policy failure to the candidate under a valid authority. Examples include incorrect output, a quality regression, or a stable speed result below the registered bar.
+
+### `NO_DECISION`
+
+The evaluator cannot make a valid attributable decision. Infrastructure failure, missing evidence, baseline drift, broken cohort invariants, or an invalid reference lifetime must not mint either a crown or a loss. The result retains a failure product and retry policy.
+
+The distinction is load-bearing: treating evaluator failure as candidate failure would let infrastructure state rewrite economic truth.
+
+### Worked lifecycle: retry, reproduce, settle
+
+Consider a hypothetical candidate for one registered singleton target:
+
+1. Intake fixes its finalized priority and immutable publication. It clears all five
+   non-crown screens.
+2. Its first bracket produces valid C work, but B′ drifts outside the frozen noise policy.
+   The attempt is `NO_DECISION`. The proposal remains retryable; it has neither lost nor
+   passed.
+3. A later fresh authority reopens the same candidate identity. B/C/B′ are stable, T
+   accepts the sealed trajectory, and the candidate clears the registered speed bar. The
+   attempt becomes the first `PASS` and state becomes `reproduction_pending`.
+4. A second independently selected authority repeats the exact reproduction identity and
+   also passes. A pass against a newer incumbent or different target specification would
+   not count as this reproduction.
+5. Settlement reopens both evidence roots, takes the lower accepted speedup, revalidates
+   the live target transition, and atomically updates the evaluation stack.
+6. Reward projection can now see the active claim. Product integration remains a separate
+   review; no proposal bytes have entered a release merely because settlement completed.
+
+The values and candidate in this walkthrough are illustrative. The state transitions and
+failure semantics are the important part.
+
+## 8. Independent reproduction
+
+Settlement requires a second `PASS` for the exact same core reproduction
+identity. `SettlementReproductionIdentity` contains exactly the arena digest,
+target ID, selected-delta digest, hotkey, incumbent stack/tree digests, and
+candidate stack/tree digests.
+
+The settlement pair applies additional rules around that core identity. The two
+qualification rows must match the same contribution, reservation, finalized
+priority, manifests, members, and arm, while seven independence fields must all
+differ: qualification authority, plan, attempt, report, selection commitment,
+selection-secret commitment, and selection evidence. Authority therefore does
+**not** belong inside the equal core identity; distinct authority is a separate
+pair constraint.
+
+An attributable second-attempt `FAIL` terminates the proposal. A
+`NO_DECISION` follows the registered bounded retry/hold policy. In either case,
+the retained first pass cannot update the incumbent by itself.
+
+## 9. Settlement
+
+Settlement reopens both evidence roots instead of trusting an in-memory verdict. It verifies:
+
+- both reports are complete `PASS` results;
+- authority and evidence roots are distinct;
+- reproduction identities match exactly;
+- the incumbent and target transition are still current;
+- target overlap, displacement, and composition remain valid;
+- the requested stack update matches the measured candidate.
+
+The conservative settled speedup is the lower accepted speedup from the two passes. The stack transition and settlement evidence are committed transactionally; a partial write cannot expose a half-updated incumbent.
+
+Principal code: [`settlement.py`](https://github.com/latent-to/optima/blob/main/optima/settlement.py).
+
+## 10. Reward projection and weights
+
+Rewards attach to attributable target deltas, not to an argmax whole-engine winner. The registered policy converts relative improvement into credit using a saturating age-aware function:
+
+```text
+improvement_ppm = speedup_ppm - 1_000_000
+credit          = floor(improvement_ppm × h / (h + a))
 ```
-read latest reveals → fetch → re-hash → fingerprint → evaluate → settle → weights
-```
 
-1. **Read latest reveals, sorted by chain order.** `read_revealed_commitments`
-   returns each hotkey's latest revealed payload; the loop decodes each payload
-   (fail-quiet on garbage — chain data is untrusted) and sorts refs by
-   `(block, hotkey)`. The reveal block is the priority signal for the refs the
-   pass sees.
-2. **Idempotence.** For each reveal, skip if `(hotkey, content_hash)` is already
-   in the ledger. Restarts re-derive, don't replay; dead URLs are not refetched.
-3. **Fetch (hostile-archive-safe, size-capped).** `fetch_bundle` streams the
-   tarball (≤64 MiB), extracts it treating the archive as **hostile** (regular
-   files/dirs only — no symlinks/hardlinks/path escapes; ≤4096 members; ≤256 MiB
-   extracted), then **re-hashes the extracted tree and refuses a mismatch** with
-   the committed hash. A miner lying about the hash is rejected and recorded.
-4. **Fingerprint + demote copies.** Four fingerprints are computed
-   (`optima/copy_fingerprint.py`): an exact hash, a reformat-invariant
-   whole-bundle fold, a per-slot reformat-invariant fold, and a per-slot
-   path-independent file-set. The ledger's `reveal` demotes a submission as a
-   **copy** if a different hotkey has an earlier reveal matching on any of these
-   (with per-FILE containment comparison so relocating a stolen body into an
-   imported module doesn't evade auto-demote). Copies are recorded with
-   `dq_reason="copy"` and **never evaluated**.
-5. **Evaluate originals out-of-process.** The loop never imports miner code.
-   Evaluation runs through a pluggable `--eval-cmd` (default: CPU verify-mode
-   plumbing). A production command should run the arena's full gate chain:
-   `evaluate` for throughput/fidelity and `bench` when task accuracy is part of
-   the security policy. Exit 0 = passed the wrapper's gates; a JSON report
-   carries the real score. The result is a typed `EvalRecord`.
-6. **Settle per slot.** `Ledger.settle_per_slot` selects one champion per slot;
-   emission is split equally across slots (a specialist who owns one slot earns,
-   not just the single best end-to-end bundle). A champion on a different
-   `PINNED_SGLANG` is flagged **stale** — its frozen ratio isn't comparable to
-   the current pin's baseline, so the threshold reverts to the floor and a fresh
-   improvement over current stock re-establishes the title.
-7. **Push weights when changed or stale.** The loop caches the last-pushed
-   weight vector and only calls `set_weights` when it changed or has gone stale
-   (re-asserting periodically to avoid the activity cutoff). The SDK auto-routes
-   through drand commit-reveal weights when the subnet enables it.
+Here `h` is the configured half-life scale and `a` is contribution age. Atomic targets suppress overlapping singleton families according to the catalog. Discovery rewards come from a bounded, non-renewable pool or a reviewed promotion decision.
 
-## The ledger
+Weight publication is a separate journaled reconciliation. Intent, pending, held, released, and confirmed states are persisted and reopened. A chain SDK return value does not by itself prove inclusion. Production publication requires current-schema crown evidence; synthetic or legacy rows cannot authorize a real extrinsic.
 
-The off-chain scoring half is the `Ledger` (`optima/commit_reveal.py`) — durable
-JSON with atomic writes (temp + `os.replace`), forward/back-compatible loading
-(unknown keys dropped, missing fields defaulted), and corruption quarantine (a
-damaged file is moved aside, never fatal). It stores commitments, reveals,
-scores, typed `EvalRecord`s, and the per-slot champion map.
+The `set-weights` command requires explicit policy inputs, including half-life, discovery lifetime, discovery pool, and refresh behavior. Numeric choices are deployment policy and require calibration.
 
-Emission policy is intentionally narrow. `Ledger.current_weights()` is the local
-helper used by `optima set-weights`; the chain loop currently pushes the weight
-vector returned by `settle_per_slot(...)` directly after settling. Keep those
-paths aligned when changing emissions. The roadmap is explicit that emissions
-will **not** stay winner-take-all (relative-improvement + time-decay is the
-direction).
+Principal code: [`economics.py`](https://github.com/latent-to/optima/blob/main/optima/economics.py), [`chain/weights.py`](https://github.com/latent-to/optima/blob/main/optima/chain/weights.py), and the [emissions policy](https://github.com/latent-to/optima/blob/main/docs/EMISSIONS_POLICY.md).
 
-## A note on what "the score" means
+## 11. Integration and release
 
-A submission's **score** is its throughput speedup vs the bracketed baseline,
-**but only if every gate passed**. If any gate failed, the score is `0.0`. If the
-round was too noisy to measure (the bracketing baselines disagreed), it's a
-NO-DECISION and the submission is re-queued, not selected. The validator refuses
-to pay emissions on a measurement it cannot reproduce.
+A settled crown may enter integration review, but serving remains a separate state machine. Reviewed source is promoted to an integrated contribution, assembled into an `EngineReleaseManifest`, rematerialized, signed, published, and verified without chain dependencies.
 
-This is why the fidelity redesign matters: on the MiniMax-M3-NVFP4 arena,
-rollout-KL between two *identical* engine launches measured 0.81–0.96 (because
-kernel numerics are batch-variant, batch composition is timing-dependent, and
-autoregression amplifies one-ULP differences). Rollout-KL there would gate "did
-timing change" — exactly what miners are paid to change. The in-engine audit
-replaced it. See [Fidelity](/docs/validators/fidelity).
+See [Release architecture](/docs/architecture/releases). Current implementation and validation limits are tracked in [State of record](/docs/reference/state-of-record).
 
-## Where to go next
+## Operational handoff checklist
 
-- **The deep version of scoring:** [How scoring works](/docs/validators/scoring).
-- **The deep version of fidelity:** [Fidelity](/docs/validators/fidelity).
-- **Operating the chain loop:** [The chain loop](/docs/validators/chain-loop).
-- **For miners, the practical on-ramp:** [Miner guide → Start here](/docs/miners/overview).
+Before treating an attempt as production authority, an operator or reviewer should be
+able to reopen, rather than merely observe, each handoff:
+
+- finalized chain position, commitment, fetched content identity, and immutable worker
+  publication;
+- registered arena, target catalog, incumbent manifest, candidate transition, and screen
+  receipt;
+- B/C/B′ launch identities, raw bounded session evidence, device/cleanup receipts, and
+  the candidate-free T evidence;
+- frozen calibration and the exact policy that maps the raw evidence to the verdict;
+- distinct primary and reproduction authorities over one reproduction identity;
+- transactional settlement events and resulting evaluation-stack digest;
+- reward projection, publication intent, chain submission/readback, and confirmed or held
+  state; and
+- if shipping is proposed, the separate integration records and signed release identity.
+
+Console output, a green local benchmark, one `PASS`, or a successful chain SDK return is
+not a substitute for the corresponding reopenable product.
+
+## Legacy simulation is not production authority
+
+`commit`, `reveal`, `ledger`, and `legacy-settle --development-only` exercise an older local mechanism simulator. They do not write production SQLite qualification, settlement, or weight state. Production operator flow uses `chain-validate` and `set-weights`.
+
+The distinction matters when reading old examples or historical receipts: a successful legacy flow does not demonstrate the current isolated two-pass production path.

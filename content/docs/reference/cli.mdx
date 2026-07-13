@@ -2,504 +2,236 @@
 title: CLI reference
 ---
 
-The `optima` command line drives the whole submission pipeline end to end:
-intake, static scanning, op-correctness, end-to-end throughput + fidelity
-(`kl` or `audit` depending on arena), the commit-reveal scoring ledger, and the
-on-chain validator loop.
-
-The command surface lives in one file, `optima/cli.py` (~1,000 lines). Every
-subcommand is a thin wrapper that orchestrates the subsystem modules under
-`optima/`; the CLI itself owns no state. This page documents all 18
-subcommands, grouped by subsystem.
-
-## Contents
-
-- [Invocation convention](#invocation-convention)
-- [Introspection](#introspection)
-  - [`slots`](#slots) · [`compat`](#compat) · [`chain-compat`](#chain-compat)
-- [Bundle](#bundle)
-  - [`scan`](#scan) · [`verify`](#verify) · [`hash`](#hash)
-- [Evaluation](#evaluation)
-  - [`evaluate`](#evaluate) · [`bench`](#bench)
-- [Commit-reveal local](#commit-reveal-local)
-  - [`commit`](#commit) · [`reveal`](#reveal) · [`ledger`](#ledger) · [`settle`](#settle) · [`set-weights`](#set-weights)
-- [Chain](#chain)
-  - [`chain-register`](#chain-register) · [`chain-package`](#chain-package) · [`chain-submit`](#chain-submit) · [`chain-status`](#chain-status) · [`chain-validate`](#chain-validate)
-- [Exit codes](#exit-codes)
-
----
-
-## Invocation convention
+The CLI exposes three different surfaces: production control-plane operations,
+local contribution tools, and development-only simulations. They share an
+entrypoint but do **not** share authority.
 
 ```bash
-python -m optima.cli <subcommand> [flags]
+python -m optima.cli <command> [options]
+python -m optima.cli <command> --help
 ```
 
-**Always launch via `python -m optima.cli`, never `optima` directly.** sglang's
-engine spawns its scheduler process with `multiprocessing spawn`; the module
-entrypoint keeps the `__main__` guard spawn-safe. The `.pth` bootstrap is still
-what gets Cacheon into every spawned interpreter, but the module form avoids
-console-script/import ambiguity in the parent.
+Using the module form is recommended on GPU hosts because SGLang starts child
+processes. The installed `optima` console script targets the same parser.
 
-The module docstring documents the pipeline mirror and the security posture:
-miner code is imported only in worker/model processes, not in the trusted
-timing driver. That is still only acceptable inside the validator's isolation
-boundary (no network, per-eval GPU context, watchdog). See `optima/sandbox.py`
-— the AST scan is defense-in-depth, not the trust boundary.
+## Command inventory
 
-## Introspection
+| Command | Audience | Authority | Purpose |
+|---|---|---|---|
+| `slots` | all | read-only | Print the live slot ABI |
+| `compat` | operator | diagnostic | Check the installed SGLang seam against the pin |
+| `chain-compat` | operator | diagnostic | Check the installed Bittensor SDK surface without network access |
+| `scan` | contributor | local gate | Parse a bundle and apply static policy |
+| `verify` | contributor | local gate | Check the declared slot contract against a trusted reference |
+| `hash` | contributor | identity | Print the deterministic bundle content hash |
+| `evaluate` | developer | **development diagnostic** | Run the older direct throughput/fidelity harness |
+| `bench` | developer | **development diagnostic** | Run direct task/throughput diagnostics |
+| `chain-package` | contributor | submission | Build the deterministic archive to host |
+| `chain-submit` | contributor | submission | Commit a bundle hash and HTTPS fetch location |
+| `chain-status` | all | read-only | Inspect current subnet and reveal state |
+| `chain-register` | operator | chain mutation | Register a hotkey and run its preflight |
+| `chain-validate` | validator | production | Consume finalized reveals; optionally run an injected arena |
+| `set-weights` | validator | production | Reconcile the journaled global reward projection |
+| `model-provision` | release operator | production | Seal model bytes into a content-addressed external receipt |
+| `release-verify` | release consumer | production | Verify and reopen a signed Engine release |
+| `release-context` | release consumer | production | Produce a deterministic OCI build context from a verified release |
+| `commit`, `reveal`, `ledger` | developer | local simulation | Exercise the legacy local JSON commit/reveal model |
+| `legacy-settle` | developer | **development-only** | Run the old settlement simulation; requires `--development-only` |
 
-These commands read state; they never import miner code, touch a GPU, or hit
-the network.
+<Callout type="warn" title="Know which path you are running">
+`evaluate`, `bench`, and `legacy-settle` are useful diagnostics. They are
+not the production qualification or settlement authority and cannot mint a
+current crown. The hardened path is a registered arena injected into
+`chain-validate`.
+</Callout>
+
+## Local contribution loop
 
 ### `slots`
-
-List the registered op-slot ABI — the slots a miner may target.
 
 ```bash
 python -m optima.cli slots
 ```
 
-Prints each slot id, its `kind` (`op` / `block` / `collective`), and the
-human-readable contract summary. No flags. Source: the `SLOTS` catalog in
-[`optima/slots.py`](/docs/reference/slots-table) (`cmd_slots`, `optima/cli.py:50`). This is
-the live, authoritative list; the [slot catalog](/docs/reference/slots-table) page mirrors
-it in table form.
-
-### `compat`
-
-The sglang seam canary. Introspects the *installed* sglang (imports + signatures
-only, no GPU, no model) and checks every integration point Cacheon patches
-(`SiluAndMul.forward_cuda`, `RadixAttention.forward`, `FusedMoE.forward_impl`,
-the fused-AR epilogue module function, the Engine logprob API, etc.) still
-exists.
-
-```bash
-python -m optima.cli compat   # exit 0 = green, 2 = a seam moved
-```
-
-Run after any sglang bump. A green canary is necessary but not sufficient — the
-behavioral confirmation is "a broken kernel still fails the gate" on the pod.
-Driven by `SEAM_ADAPTERS` in `optima/seams.py`. Source: `cmd_compat`,
-`optima/cli.py:61`; logic in `optima/compat.py` (`PINNED_SGLANG = "0.5.13.post1"`).
-
-### `chain-compat`
-
-The Bittensor SDK canary. Same posture as `compat` but for the chain layer:
-introspects the installed `bittensor` SDK (imports + class attributes +
-signatures, **no network, no wallet, no chain connection**) and verifies the
-weight/commitment/metagraph API Cacheon calls still exists.
-
-```bash
-python -m optima.cli chain-compat
-```
-
-Source: `cmd_chain_compat`, `optima/cli.py:70`; logic in `optima/chain_canary.py`.
-
-## Bundle
-
-The static-intake tier: parse the manifest, scan the source for banned
-constructs, check op-correctness against the high-precision reference. No GPU
-required for `scan` or CPU-mode `verify`.
+Reads the live `SLOTS` registry. It does not import contribution code or require
+a GPU. See the [slot catalog](/docs/reference/slots-table).
 
 ### `scan`
 
-Static policy scan of a bundle. Loads the manifest (data only — no miner code
-executed), then AST-scans every declared op source for banned constructs
-(network, process/FS escape, dynamic code, deserializers, introspection
-escapes). Also runs a recursive vendored-tree guard: any `.py` the per-op
-(entry-only) scan missed, or any undeclared `.cu`/`.so`/stray file, is rejected.
-
 ```bash
-python -m optima.cli scan examples/miner_silu_torch
+python -m optima.cli scan path/to/bundle
 ```
 
-| flag | type | meaning |
-|---|---|---|
-| `bundle` | positional | bundle directory root |
-
-Exit 0 = clean, 2 = violations. Source: `cmd_scan`, `optima/cli.py:235`. The
-allowed-list is computed from the manifest's declared `cuda_sources` and
-`dep_patches` so sanctioned files are not flagged as stray. See
-[`optima/sandbox.py`](/docs/reference/codebase-map) and the [bundle format](/docs/miners/bundle-format).
+Loads `manifest.toml` as data and checks the complete declared tree. A clean AST
+scan is defense in depth; it does not make contribution code trusted.
 
 ### `verify`
 
-Op-correctness — the cheap sanity gate before any end-to-end eval. For each
-declared op: generate deterministic inputs over the slot's standard shapes, run
-the miner entry, run the trusted high-precision reference, compare under the
-slot's [`Correctness`](/docs/reference/slots-table#correctness-modes) policy. Collective
-slots (`kind="collective"`) are routed to distributed verify instead.
-
 ```bash
-python -m optima.cli verify examples/miner_silu_torch --device cpu --dtype float32
-python -m optima.cli verify my_bundle --device cuda --dtype bfloat16
+# CPU sanity check
+python -m optima.cli verify examples/miner_silu_torch \
+  --device cpu --dtype float32
+
+# CUDA slot verification
+python -m optima.cli verify path/to/bundle \
+  --device cuda --dtype bfloat16 --model MiniMax-M3
+
+# Collective verification at the arena topology
+python -m optima.cli verify path/to/bundle \
+  --device cuda --world-size 4
 ```
 
-| flag | default | meaning |
-|---|---|---|
-| `bundle` | positional | bundle directory |
-| `--dtype` | `bfloat16` | `bfloat16` / `float16` / `float32` |
-| `--device` | auto | `cuda` / `cpu` |
-| `--seed` | `0` | RNG seed for input values (anti shape-branch) |
-| `--world-size` | `2` | ranks for distributed verify of collective slots |
-| `--model` | (from metadata) | model key selecting the validator's per-model slot profile (e.g. `MiniMax-M3`) |
+Useful options are `--dtype`, `--device`, `--seed`, `--world-size`, `--tp-size`,
+and `--model`. Verification proves only the registered component contract. It
+does not prove a serving speedup or grant settlement authority.
 
-The miner entry is loaded in a **fresh spawned subprocess** so the trusted CLI
-process never imports miner code (`call_in_subprocess`, `optima/cli.py:366`).
-For `--model`, the per-model profile is validator-owned
-(`slots.MODEL_PROFILES`); the CLI only reads the model *id* from metadata to
-select which profile applies — never thresholds. Source: `cmd_verify`,
-`optima/cli.py:310`.
+### `evaluate` and `bench`
 
-### `hash`
-
-Print a bundle's deterministic content hash. This is the bundle's identity:
-what a commitment binds to and what copy-detection compares.
+Both commands launch direct developer diagnostics and expose many experimental
+knobs. Always inspect their live help:
 
 ```bash
-python -m optima.cli hash my_bundle
+python -m optima.cli evaluate --help
+python -m optima.cli bench --help
 ```
 
-Stable across machines; hashes every regular bundle file after the scanner's
-skip rules remove cache/junk paths. The manifest is just one of those files,
-not a privileged special case. Source: `cmd_hash`, `optima/cli.py:629`; logic
-in `optima/bundle_hash.py`.
+Do not use graphs-off measurements as performance evidence. Do not translate a
+direct diagnostic result into a production PASS, reproduction, or crown.
 
-## Evaluation
+## Submission commands
 
-The GPU tier. These commands launch the same model with identical
-weights/seed/sampler, differing only in whether the miner kernel is enabled,
-and isolate the kernel's effect on throughput and output distribution.
-
-### `evaluate`
-
-End-to-end throughput + KL fidelity on a model. The primary scoring gate.
-Runs a stock baseline, an optional untimed audit quality launch, the candidate,
-and a trailing stock baseline. The candidate is bracketed between two baseline
-reads, and the speedup bar is derived from measured baseline noise.
+### Package and hash
 
 ```bash
-python -m optima.cli evaluate my_bundle --model Qwen/Qwen2.5-1.5B-Instruct \
-    --num-prompts 64 --max-new-tokens 64
+python -m optima.cli chain-package path/to/bundle --out bundle.tar.gz
+python -m optima.cli hash path/to/bundle
 ```
 
-Key flags (see `optima/cli.py:868-951` for the full set):
+Host the archive at a stable **HTTPS** URL. The commitment binds the canonical
+bundle content hash; validators fetch and independently rehash the extracted
+tree.
 
-| flag | default | meaning |
-|---|---|---|
-| `--model` | required | model path for `sglang.Engine` |
-| `--dtype` | `bfloat16` | compute dtype |
-| `--max-new-tokens` | `64` | decode budget per prompt |
-| `--num-prompts` | `32` | prompts per timed pass |
-| `--timed-iters` | `3` | median-of-K timed passes per launch |
-| `--warmup-iters` | `2` | untimed heat-soak rounds before first timed pass |
-| `--speedup-margin` | `0.005` | floor on required improvement; real bar is `1 + max(margin, 2*noise)` |
-| `--prompt-seed` | `0` | prompt sampling seed |
-| `--top-logprobs` | `20` | top-k logprobs collected for KL |
-| `--ignore-eos` / `--no-ignore-eos` | on | force identical token counts (pure latency comparison) |
-| `--kl-threshold` | `5e-3` | dense KL gate; overridden by the slot's calibrated `kl_threshold` |
-| `--kl-advisory` | off | report KL but do not gate on it |
-| `--argmax-disagree-rate` | `0.01` | max fraction of positions whose top token may flip |
-| `--p99-kl-threshold` | none | optional catastrophic-tail gate |
-| `--fidelity-mode` | `kl` | `kl` (rollout-KL) or `audit` (in-engine per-call audit) |
-| `--audit-rate` | `0.05` | `audit` mode: fraction of dispatcher calls audited |
-| `--mem-fraction` | `0.6` | SGLang `mem_fraction_static` |
-| `--no-deterministic` | off | disable deterministic inference request |
-| `--attention-backend` | auto | sglang attention backend (fa3/flashinfer/...) |
-| `--candidate-attention-backend` | none | candidate-only backend override |
-| `--disable-cuda-graph` | off | eager mode — **never score with this** (cripples the baseline) |
-| `--tp-size` | none | tensor-parallel size (multi-GPU) |
-| `--max-running-requests` | none | cap concurrency for a serving-realistic batch |
-| `--moe-runner-backend` | none | sglang MoE backend |
-| `--candidate-moe-runner-backend` | none | candidate-only MoE backend override |
-| `--disable-custom-all-reduce` | off | disable SGLang custom all-reduce for both launches |
-| `--candidate-disable-custom-all-reduce` | none | candidate-only custom all-reduce override |
-| `--framework-mode` | off | miner may `setup()`-patch the engine; gates on token-match |
-| `--token-match-threshold` | `0.99` | framework-mode token-match floor |
-| `--isolate` | off | run candidate in a no-egress net namespace (auto-on with framework-mode) |
-| `--allow-unsafe-no-isolation` | off | development-only escape when no-egress isolation is unavailable |
-| `--engine-kwargs-json` | none | JSON object merged into both Engine kwargs |
-| `--candidate-engine-kwargs-json` | none | JSON object merged into candidate-only Engine kwargs |
-| `--ledger` / `--hotkey` / `--round` | none | optionally record the score into a commit-reveal ledger |
-
-<Callout type="info">
-  The KL gate is **per-slot calibrated**. If the slot sets
-  `kl_threshold` (e.g. attention's `3e-2`), that overrides the generic `5e-3`
-  default unless `--kl-advisory`. The CLI prints which threshold is in effect.
-</Callout>
-
-Source: `cmd_evaluate`, `optima/cli.py:379`; config in `optima/eval/throughput_kl.py`,
-scoring in `optima/eval/scoring.py`, KL in `optima/eval/kl.py`. Exit 0 = quality
-passed, 3 = quality failed.
-
-### `bench`
-
-Capability eval: throughput on real benchmark prompts, gated by task accuracy.
-This is the benchmark half of the production gate; it is separate from
-`evaluate` so operators can choose when to pay the extra benchmark cost.
+### Submit
 
 ```bash
-python -m optima.cli bench my_bundle --model Qwen/Qwen2.5-1.5B-Instruct \
-    --benchmarks gsm8k --samples 128
+python -m optima.cli chain-submit path/to/bundle \
+  --url https://artifacts.example/bundle.tar.gz \
+  --network <network> --netuid <netuid> \
+  --wallet <wallet> --hotkey <miner-hotkey> \
+  --blocks-until-reveal 10
 ```
 
-| flag | default | meaning |
-|---|---|---|
-| `--benchmarks` | `gsm8k` | comma-separated: `gsm8k`, `mmlu`, `long_math` |
-| `--samples` | `32` | problems per benchmark (~100-200 for a real accuracy floor) |
-| `--acc-tolerance` | `0.02` | max allowed accuracy regression per benchmark |
+Use `--dry-run` to construct and print the payload without signing or sending
+it. A submitted commitment is unreadable until its reveal delay elapses; the
+validator acts only on finalized, valid reveals.
 
-Shares the engine-launch flag family with `evaluate`, but not the fidelity
-machinery: there is no `--fidelity-mode audit` path here, and the natural
-benchmark generations are intentionally not forced into the same token budget.
-Use `bench` as the task-accuracy floor and `evaluate --fidelity-mode audit`
-or a clean-KL arena run as the distribution/fidelity gate. Source:
-`cmd_bench`, `optima/cli.py:510`; capability logic in
-`optima/eval/capability.py`, benchmarks in `optima/eval/benchmarks.py`.
-
-<Callout type="info">
-  `--samples` below ~100 makes the accuracy gate noisy (~12% std at
-  n=12). Do not treat a tiny `bench` run as a security decision; it is a smoke
-  test unless paired with a larger sample count and the separate fidelity gate.
-</Callout>
-
-## Commit-reveal local
-
-These commands operate on a local JSON ledger — the off-chain mirror of the
-scoring state, used for development and as the source of weights to push
-on-chain. The on-chain commit-reveal lives under the [chain](#chain) group.
-
-### `commit`
-
-Post a commitment for a bundle (commit phase). Computes the content hash, binds
-it to `(hotkey, salt)` into a commitment, and records it in the ledger with a
-sequence number.
+### Inspect chain state
 
 ```bash
-python -m optima.cli commit my_bundle --hotkey <HK> --salt <RANDOM> --round N
+python -m optima.cli chain-status \
+  --network <network> --netuid <netuid>
 ```
 
-| flag | default | meaning |
-|---|---|---|
-| `bundle` | positional | bundle directory |
-| `--hotkey` | required | miner hotkey identity |
-| `--salt` | required | random secret (keep it; needed to reveal) |
-| `--round` | `0` | round id |
-| `--ledger` | `optima_ledger.json` | ledger path |
+Adding `--wallet` and `--hotkey` reports registration information for that
+identity.
 
-Source: `cmd_commit`, `optima/cli.py:636`; ledger logic in
-`optima/commit_reveal.py`.
-
-### `reveal`
-
-Reveal a previously committed bundle (reveal phase). Re-hashes the bundle,
-checks the commitment matches for this hotkey, and records the reveal. Computes
-four copy-detection fingerprints (exact, reformat-invariant, per-slot, per-file,
-structural) and flags near-copies.
-
-```bash
-python -m optima.cli reveal my_bundle --hotkey <HK> --salt <RANDOM> --round N
-```
-
-Flags identical to `commit`. A reveal whose content matches an earlier commit by
-a different hotkey is flagged a **copy** and earns 0; structural similarity to
-an earlier submission is **advisory** (flagged for review, not auto-demoted).
-Source: `cmd_reveal`, `optima/cli.py:651`; fingerprints in
-`optima/copy_fingerprint.py`.
-
-### `ledger`
-
-Show ledger state: commitment/reveal/score counts and the current champion.
-
-```bash
-python -m optima.cli ledger --ledger optima_ledger.json
-```
-
-| flag | default | meaning |
-|---|---|---|
-| `--ledger` | `optima_ledger.json` | ledger path |
-
-Source: `cmd_ledger`, `optima/cli.py:688`.
-
-### `settle`
-
-Settle a round: apply king-of-the-hill and compute weights. Two modes —
-single-champion (winner-take-all) or per-slot (one champion per slot, emission
-split across slots, pays specialists).
-
-```bash
-python -m optima.cli settle --round N                      # winner-take-all
-python -m optima.cli settle --round N --per-slot           # per-slot champions
-```
-
-| flag | default | meaning |
-|---|---|---|
-| `--round` | `0` | round id |
-| `--margin` | `0.02` | dethrone margin (challenger must beat champion by this) |
-| `--ledger` | `optima_ledger.json` | ledger path |
-| `--per-slot` | off | per-slot championships + emission split |
-
-Reports stale-pin warnings when a champion was recorded under a different
-sglang pin than the current `PINNED_SGLANG`. Source: `cmd_settle`,
-`optima/cli.py:702`.
-
-### `set-weights`
-
-Push the ledger champion's weights on-chain. This is the local **emission-policy
-seam**: the command only relays what `Ledger.current_weights` says — it never
-re-derives winner-take-all. See `optima/cli.py:84-86`.
-
-```bash
-python -m optima.cli set-weights --netuid N --network finney --wallet default --hotkey default
-python -m optima.cli set-weights --netuid N --network finney --per-slot --dry-run
-```
-
-| flag | default | meaning |
-|---|---|---|
-| `--netuid` | required | subnet id |
-| `--network` | `finney` | named network or explicit `wss://` URL |
-| `--wallet` / `--hotkey` | `default` | validator wallet identity |
-| `--per-slot` | off | weights from per-slot championships (matches `settle --per-slot`) |
-| `--dry-run` | off | build + print the `(uids, weights)` payload, do not submit |
-| `--ledger` | `optima_ledger.json` | ledger path |
-
-Source: `cmd_set_weights`, `optima/cli.py:79`.
-
-## Chain
-
-The on-chain tier: miner submission via the chain's native timelock
-commit-reveal, plus the validator loop that fetches, evaluates, and settles.
-
-### `chain-register`
-
-Register this hotkey on a subnet (`burned_register`) and run the preflight
-checks. Needs the coldkey password.
-
-```bash
-python -m optima.cli chain-register --netuid N --network finney
-```
-
-| flag | default | meaning |
-|---|---|---|
-| `--netuid` | required | subnet id |
-| `--network` | required | named network or `wss://` URL |
-| `--wallet` / `--hotkey` | `default` | wallet identity |
-
-Skips registration if already registered. Source: `cmd_chain_register`,
-`optima/cli.py:212`.
-
-### `chain-package`
-
-Pack a bundle directory into a `tar.gz` for hosting and print its content hash.
-The archive is **transport only** — identity is `content_hash` over the
-*extracted directory*, so the same bundle hashes the same however it was
-shipped.
-
-```bash
-python -m optima.cli chain-package my_bundle --out my_bundle.tar.gz
-```
-
-| flag | default | meaning |
-|---|---|---|
-| `bundle` | positional | bundle directory |
-| `--out` | `<bundle>.tar.gz` | archive path |
-
-Source: `cmd_chain_package`, `optima/cli.py:104`; logic in `optima/chain/fetch.py`.
-
-### `chain-submit`
-
-Miner-side on-chain submission. Binds the bundle hash to a fetch URL and
-commits it on chain via timelock commit-reveal. The payload is the tiny JSON
-`{"v":1,"h":<content_hash>,"u":<url>}` — the only thing a miner puts on chain.
-
-```bash
-python -m optima.cli chain-submit my_bundle --url https://.../my_bundle.tar.gz \
-    --netuid N --network finney --wallet default --hotkey default
-python -m optima.cli chain-submit my_bundle --url <URL> --netuid N --network finney --dry-run
-```
-
-| flag | default | meaning |
-|---|---|---|
-| `bundle` | positional | bundle directory |
-| `--url` | required | where the validator fetches the tar.gz |
-| `--netuid` | required | subnet id |
-| `--network` | required | named network or `wss://` URL |
-| `--wallet` / `--hotkey` | `default` | the **miner** hotkey |
-| `--blocks-until-reveal` | `10` | timelock length (payload unreadable until then) |
-| `--dry-run` | off | build + print payload, do not sign or submit |
-
-Refused payloads (e.g. bad hash/URL binding) return exit 2 *before signing*.
-Source: `cmd_chain_submit`, `optima/cli.py:115`; payload in
-`optima/chain/payload.py`, submit in `optima/chain/submit.py`.
-
-### `chain-status`
-
-Subnet snapshot: current block, neuron/permit counts, and revealed submissions.
-
-```bash
-python -m optima.cli chain-status --netuid N --network finney
-```
-
-| flag | default | meaning |
-|---|---|---|
-| `--netuid` / `--network` | required | subnet and network |
-| `--wallet` / `--hotkey` | none | also report this wallet's uid + validator permit |
-
-Lists each revealed commitment (block, hotkey, content-hash prefix, url).
-Source: `cmd_chain_status`, `optima/cli.py:147`.
+## Validator commands
 
 ### `chain-validate`
 
-The validator loop: chain commitments → fetch → evaluate → settle → weights.
-Runs forever with per-pass fault isolation (one bad submission never kills the
-loop), or a single pass with `--once`.
+Intake-only mode is complete and intentionally available without a GPU arena:
 
 ```bash
-python -m optima.cli chain-validate --netuid N --network finney \
-    --wallet default --hotkey default --eval-cmd "ssh gpubox optima-eval.sh {bundle} {report}"
-python -m optima.cli chain-validate --netuid N --network finney --once --dry-run-weights
+python -m optima.cli chain-validate \
+  --network <network> --netuid <netuid> \
+  --intake-only --once
 ```
 
-| flag | default | meaning |
-|---|---|---|
-| `--netuid` / `--network` | required | subnet and network |
-| `--wallet` / `--hotkey` | `default` | the **validator** hotkey |
-| `--ledger` | `chain_ledger.json` | ledger path |
-| `--bundles-dir` | `chain_bundles` | cache for fetched submissions (keyed by content hash) |
-| `--eval-cmd` | verify-mode | command template with `{bundle}` / `{report}` placeholders (exit 0 = passed) |
-| `--eval-device` | `cpu` | verify-mode device |
-| `--eval-timeout` | `3600` | per-submission eval timeout (seconds) |
-| `--margin` | `0.02` | settle dethrone margin |
-| `--interval` | `60` | seconds between passes |
-| `--once` | off | single pass, then exit (prints the pass summary) |
-| `--dry-run-weights` | off | run the full loop but never submit weights |
+It performs finalized ordering, hardened fetch, rehashing, private retention,
+and immutable worker publication. Full qualification additionally requires
+deployment code to inject an `ArenaServiceRegistry` and select its closed
+service with `--arena-id`. A reviewed deployment wrapper calls
+`cmd_chain_validate(args, arena_registry=registry)` (or `run_validator(...)`)
+after constructing that registry. Its operator-facing invocation may retain
+the same arguments:
 
-<Callout type="info">
-  The default `--eval-cmd` is the verify-mode plumbing evaluator — a
-  pass/fail score of 1.0 that never clears the dethrone margin, so local
-  champion-selection plumbing runs with `--margin 0`. Wire `--eval-cmd` to the full GPU gate chain
-  (`evaluate` / `bench`) for real scoring. The CLI prints this warning when no
-  `--eval-cmd` is given (`optima/cli.py:188`).
-  A production template should write `{report}`; a successful command with no
-  report falls back to the legacy plumbing score.
-</Callout>
+```bash
+python -m optima.cli chain-validate \
+  --network <network> --netuid <netuid> \
+  --arena-id <registered-arena>
+```
 
-Source: `cmd_chain_validate`, `optima/cli.py:176`; loop in
-`optima/chain/validator_loop.py`.
+The shell command above is **not sufficient through the stock entrypoint**:
+`python -m optima.cli` has no way to inject the registry and will refuse it.
+The repository does not ship a production `ArenaServiceProvider`, and the
+documentation does not provide a shell callback escape hatch.
 
-## Exit codes
+Storage and loop controls are `--intake-db`, `--private-root`,
+`--publication-root`, `--interval`, and `--once`. These paths contain durable
+authority; back them up and apply the documented permissions.
 
-| code | meaning |
-|---|---|
-| `0` | success (or, for `evaluate`/`bench`, quality gate passed) |
-| `1` | nothing to do (e.g. no known slots, no champion to weight) |
-| `2` | rejected at intake / scan failed / `verify` op-correctness failed / reveal rejected / chain-submit refused / canary red |
-| `3` | `evaluate`/`bench` ran but the end-to-end quality gate failed (does not apply to `verify`, which returns `2` on op-correctness failure) |
+### `set-weights`
 
----
+```bash
+python -m optima.cli set-weights \
+  --network <network> --netuid <netuid> \
+  --half-life-blocks <blocks> \
+  --discovery-lifetime-blocks <blocks> \
+  --discovery-pool-ppm <ppm> \
+  --refresh-blocks <blocks> \
+  --dry-run
+```
 
-Cross-links: the [slot catalog](/docs/reference/slots-table) for what `slots`/`verify` check
-against; the [manifest schema](/docs/reference/manifest-schema) for what `scan` and
-`hash` parse; the [codebase map](/docs/reference/codebase-map) for where each subsystem's
-logic lives. The miner on-ramp is in the [miner guide](/docs/miners/overview).
+The command recomputes a pure global projection from settled state. With
+`--dry-run`, it returns the proposed payload without creating a journal intent
+or submitting. Without `--dry-run`, reconciliation records the intent in the
+SQLite journal and may sign/submit it. An SDK success return leaves the intent
+pending; later chain observation is what confirms it. `--release-hold REASON`
+appends an audited release of a held publication and does not submit it.
+
+## Release commands
+
+### Provision model bytes
+
+```bash
+python -m optima.cli model-provision \
+  /srv/models/model /srv/optima/model-publication \
+  --expected-content-digest <sha256>
+```
+
+The result is an immutable content-addressed tree plus a receipt. `--workers`
+controls hashing parallelism.
+
+### Verify a release
+
+```bash
+python -m optima.cli release-verify /srv/optima/releases/<digest> \
+  --expected-public-key <ed25519-public-key> \
+  --descriptor-digest <expected-digest>
+```
+
+Release verification requires a Cacheon installation with the `release` extra.
+
+The expected public key is an external trust input; accepting a key discovered
+inside the release would not authenticate its signer.
+
+### Materialize a container context
+
+```bash
+python -m optima.cli release-context /srv/optima/releases/<digest> ./context \
+  --expected-public-key <ed25519-public-key> \
+  --descriptor-digest <expected-digest>
+```
+
+This first reopens the complete signed release and then emits a deterministic
+OCI context. Release construction and signing are programmatic APIs; there is
+no public `release-create` command.
+
+## Exit behavior
+
+Most commands return `0` on success and a non-zero code on refusal or failed
+checks. Scripts should rely on the process status and retain structured/durable
+receipts where a command emits them. Human-readable text is not settlement
+evidence.
+
+Source: [`optima/cli.py`](https://github.com/latent-to/optima/blob/main/optima/cli.py).
