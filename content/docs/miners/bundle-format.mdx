@@ -38,15 +38,15 @@ screen or qualification runs.
 
 ### What each file is for
 
-| File | Identity and execution role |
-|---|---|
-| `manifest.toml` | names the proposal ABI, requested target, implementation rows, and paths; it is parsed as data before candidate import |
-| `kernels/*.py` | candidate source loaded only after structural and static-policy gates, and only inside the appropriate worker boundary |
-| `metadata/*.json` | routing eligibility such as graph declaration, model, phase, dtype, topology, and shape domain; it cannot set correctness tolerances or reward policy |
-| declared `.cu`/`.cuh` | inspectable native inputs to a validator-approved rebuild step; never prebuilt output |
-| declared `.patch`/`.diff` | exact source delta for the narrowly allowed pinned dependency surface |
-| `rebuild.json` | selects registered validator-owned build capabilities; it is not a shell script |
-| `README*`, `LICENSE*` | human context and licensing; still identity-bearing bytes, so changing them creates a different content hash |
+| File                      | Identity and execution role                                                                                                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `manifest.toml`           | names the proposal ABI, requested target, implementation rows, and paths; it is parsed as data before candidate import                                |
+| `kernels/*.py`            | candidate source loaded only after structural and static-policy gates, and only inside the appropriate worker boundary                                |
+| `metadata/*.json`         | routing eligibility such as graph declaration, model, phase, dtype, topology, and shape domain; it cannot set correctness tolerances or reward policy |
+| declared `.cu`/`.cuh`     | inspectable native inputs to a validator-approved rebuild step; never prebuilt output                                                                 |
+| declared `.patch`/`.diff` | exact source delta for the narrowly allowed pinned dependency surface                                                                                 |
+| `rebuild.json`            | selects registered validator-owned build capabilities; it is not a shell script                                                                       |
+| `README*`, `LICENSE*`     | human context and licensing; still identity-bearing bytes, so changing them creates a different content hash                                          |
 
 “Source-only” does not mean “only `.py`.” It means that every executable product can be
 derived by a registered builder from visible, identity-bound inputs. A `.so`, wheel,
@@ -113,7 +113,7 @@ The metadata narrows where the row may route:
 {
   "graph_safe": true,
   "capabilities": {
-    "num_tokens": {"min": 1, "max": 4096}
+    "num_tokens": { "min": 1, "max": 4096 }
   }
 }
 ```
@@ -142,19 +142,19 @@ Valid modes are:
 
 Each `[[ops]]` row describes one implementation:
 
-| Field | Meaning |
-|---|---|
-| `slot` | semantic slot implemented by this row |
-| `source` | bundle-relative Python source module |
-| `entry` | callable exported by that module |
-| `variant` | explicit implementation identity; required on every row when a slot has more than one row |
-| `dtypes` | allowed runtime dtypes |
-| `architectures` | allowed canonical GPU architectures such as `sm90` or `sm103` |
-| `metadata` | bundle-relative JSON eligibility metadata |
-| `prepare` | optional load-time weight preparation callable for a slot whose ABI permits it |
-| `setup` | engine-wide setup hook; currently forbidden by every registered target |
-| `base_kernel`, `override_point` | registered override composition fields |
-| `cuda_sources` | declared inspectable `.cu`/`.cuh` inputs to an approved build step |
+| Field                           | Meaning                                                                                   |
+| ------------------------------- | ----------------------------------------------------------------------------------------- |
+| `slot`                          | semantic slot implemented by this row                                                     |
+| `source`                        | bundle-relative Python source module                                                      |
+| `entry`                         | callable exported by that module                                                          |
+| `variant`                       | explicit implementation identity; required on every row when a slot has more than one row |
+| `dtypes`                        | allowed runtime dtypes                                                                    |
+| `architectures`                 | allowed canonical GPU architectures such as `sm90` or `sm103`                             |
+| `metadata`                      | bundle-relative JSON eligibility metadata                                                 |
+| `prepare`                       | optional load-time weight preparation callable for a slot whose ABI permits it            |
+| `setup`                         | engine-wide setup hook; currently forbidden by every registered target                    |
+| `base_kernel`, `override_point` | registered override composition fields                                                    |
+| `cuda_sources`                  | declared inspectable `.cu`/`.cuh` inputs to an approved build step                        |
 
 `bundle_id` must be a simple non-empty identifier, and the component ABI is
 currently exactly `optima-op-abi-v0`.
@@ -174,12 +174,12 @@ Use the `capabilities` object for named specialization predicates:
 {
   "graph_safe": true,
   "capabilities": {
-    "model": {"exact": "MiniMax-M3-NVFP4"},
-    "phase": {"exact": "prefill"},
-    "head_dim": {"exact": 128},
-    "block_size": {"one_of": [64, 128]},
-    "q_len": {"min": 256, "max": 8192},
-    "tp_size": {"exact": 4}
+    "model": { "exact": "MiniMax-M3-NVFP4" },
+    "phase": { "exact": "prefill" },
+    "head_dim": { "exact": 128 },
+    "block_size": { "one_of": [64, 128] },
+    "q_len": { "min": 256, "max": 8192 },
+    "tp_size": { "exact": 4 }
   }
 }
 ```

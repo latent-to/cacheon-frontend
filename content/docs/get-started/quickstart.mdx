@@ -80,15 +80,15 @@ and compares it with the trusted reference.
 On CPU, expect a note that the run checks op correctness only, followed by a variant
 summary and one row per exercised shape. Read the fields this way:
 
-| Output | Interpretation |
-|---|---|
-| `PASS` | every applicable diagnostic shape passed its numerical contract |
-| `FAIL` | at least one applicable shape failed, or the variant/domain preflight was invalid |
-| `N/A` | this variant does not apply to the selected invariant context; no candidate code was invoked for it |
-| `NUMERICAL_PASS` | numerical checks passed but required CUDA-graph proof did not complete |
-| `max_abs`, `max_rel` | worst reported errors; the target's comparator, not either number alone, decides pass/fail |
-| `ratio`, `cos`, `overlap` | the active semantic metric for tolerant, low-bit, or MSA selection contracts |
-| `graph_replays` | successful checked replays; absent on this CPU tutorial |
+| Output                    | Interpretation                                                                                      |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| `PASS`                    | every applicable diagnostic shape passed its numerical contract                                     |
+| `FAIL`                    | at least one applicable shape failed, or the variant/domain preflight was invalid                   |
+| `N/A`                     | this variant does not apply to the selected invariant context; no candidate code was invoked for it |
+| `NUMERICAL_PASS`          | numerical checks passed but required CUDA-graph proof did not complete                              |
+| `max_abs`, `max_rel`      | worst reported errors; the target's comparator, not either number alone, decides pass/fail          |
+| `ratio`, `cos`, `overlap` | the active semantic metric for tolerant, low-bit, or MSA selection contracts                        |
+| `graph_replays`           | successful checked replays; absent on this CPU tutorial                                             |
 
 Individual shape rows can be N/A when a declared domain excludes them. If every bundle
 variant is context-inapplicable, `verify` exits nonzero: “nothing ran” is not correctness
@@ -142,9 +142,9 @@ diagnostics, but they remain non-authoritative.
 
 ## Continue
 
-| If you want to… | Read… |
-|---|---|
-| write your first bundle | [Your first kernel](/docs/miners/your-first-kernel) |
-| prepare a GPU development machine | [GPU setup](/docs/dev/gpu-setup) |
-| understand production qualification | [Qualification](/docs/validators/qualification) |
-| operate finalized intake first | [Deployment readiness](/docs/validators/first-hour) |
+| If you want to…                     | Read…                                               |
+| ----------------------------------- | --------------------------------------------------- |
+| write your first bundle             | [Your first kernel](/docs/miners/your-first-kernel) |
+| prepare a GPU development machine   | [GPU setup](/docs/dev/gpu-setup)                    |
+| understand production qualification | [Qualification](/docs/validators/qualification)     |
+| operate finalized intake first      | [Deployment readiness](/docs/validators/first-hour) |

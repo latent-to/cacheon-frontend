@@ -95,13 +95,13 @@ manifest.
 
 ### Who authorizes what
 
-| Actor or product | Authority | Does not authorize |
-|---|---|---|
-| Two qualification attempts + settlement | The exact crowned target delta and its economic evidence | Shipping, license, maintenance, or security fitness |
-| Integration reviewer | Reviewed source, provenance/license/security/compatibility/test evidence | Release signing or deployment |
-| `IntegrationReviewRecord` | Immutable binding from crown evidence to reviewed source and attribution | Inclusion in every future release |
-| Release manifest owner | Selection of active integrated refs for one product composition | Changing the reviewed source behind a ref |
-| Release signer | Authorization of one exact descriptor and closed artifact set | Trust in a key obtained only from that same release |
+| Actor or product                        | Authority                                                                | Does not authorize                                  |
+| --------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------- |
+| Two qualification attempts + settlement | The exact crowned target delta and its economic evidence                 | Shipping, license, maintenance, or security fitness |
+| Integration reviewer                    | Reviewed source, provenance/license/security/compatibility/test evidence | Release signing or deployment                       |
+| `IntegrationReviewRecord`               | Immutable binding from crown evidence to reviewed source and attribution | Inclusion in every future release                   |
+| Release manifest owner                  | Selection of active integrated refs for one product composition          | Changing the reviewed source behind a ref           |
+| Release signer                          | Authorization of one exact descriptor and closed artifact set            | Trust in a key obtained only from that same release |
 
 ## Release admission checks
 
@@ -127,15 +127,15 @@ keeps unreviewed content out of the serving product.
 
 ## Review outcome matrix
 
-| Finding | Correct outcome |
-|---|---|
-| Evidence is missing or cannot reopen | Block; repair retention/authority, not the review record |
-| Selected payload differs from the crowned digest | New evidence/identity is required |
-| Packaging changes only outside selected closure | Permissible if fully reviewed and bound in the integrated source tree |
-| Contribution is sound but conflicts with the current active stack | Defer, redesign composition policy, or target a later release train |
-| Provenance or license remains ambiguous | Block distribution; a valid crown does not cure rights uncertainty |
-| Fallback hides a selected-path failure | Block until maintained strict-path behavior and tests exist |
-| Review succeeds | Derive an integrated ref; inclusion still requires an explicit release decision |
+| Finding                                                           | Correct outcome                                                                 |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Evidence is missing or cannot reopen                              | Block; repair retention/authority, not the review record                        |
+| Selected payload differs from the crowned digest                  | New evidence/identity is required                                               |
+| Packaging changes only outside selected closure                   | Permissible if fully reviewed and bound in the integrated source tree           |
+| Contribution is sound but conflicts with the current active stack | Defer, redesign composition policy, or target a later release train             |
+| Provenance or license remains ambiguous                           | Block distribution; a valid crown does not cure rights uncertainty              |
+| Fallback hides a selected-path failure                            | Block until maintained strict-path behavior and tests exist                     |
+| Review succeeds                                                   | Derive an integrated ref; inclusion still requires an explicit release decision |
 
 ### Reviewer completion checklist
 

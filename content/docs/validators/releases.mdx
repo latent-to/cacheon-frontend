@@ -216,16 +216,16 @@ Rollback means routing to a previously verified signed release whose image and m
 still authorized. It does not mean starting stock SGLang inside a failed release container
 or loading the last crowned proposal directly.
 
-| Incident | Containment | Recovery requirement |
-|---|---|---|
-| Signature/public-key or descriptor mismatch | Quarantine release tree and context | Obtain expected key/digest from independent rollout authority; never trust embedded key |
-| Model receipt/content mismatch | Do not mount or start | Re-provision exact reviewed bytes or choose another signed release |
-| Source/wheel or image double-build mismatch | Stop publication | Investigate nondeterminism/toolchain; create a new reviewed release if inputs change |
-| Registry label/digest or local inspect mismatch | Remove image from rollout | Pull exact authorized digest and re-verify all host bindings |
-| Seccomp, command, environment, platform, or device-policy mismatch | Refuse container creation/start | Correct deployment to the signed `ServeSpec`; do not weaken checks ad hoc |
-| Missing seam/rank receipt, load failure, or fallback receipt | Mark smoke/rollout failed | Fix integration and cut a new reviewed release when bytes change |
-| Release key suspected compromised | Stop new rollouts under the key | Rotate external trust anchor and re-sign/re-authorize through reviewed procedure |
-| Runtime health regression after valid startup | Route back to a prior verified release | Preserve SLO evidence; integrity success does not block operational rollback |
+| Incident                                                           | Containment                            | Recovery requirement                                                                    |
+| ------------------------------------------------------------------ | -------------------------------------- | --------------------------------------------------------------------------------------- |
+| Signature/public-key or descriptor mismatch                        | Quarantine release tree and context    | Obtain expected key/digest from independent rollout authority; never trust embedded key |
+| Model receipt/content mismatch                                     | Do not mount or start                  | Re-provision exact reviewed bytes or choose another signed release                      |
+| Source/wheel or image double-build mismatch                        | Stop publication                       | Investigate nondeterminism/toolchain; create a new reviewed release if inputs change    |
+| Registry label/digest or local inspect mismatch                    | Remove image from rollout              | Pull exact authorized digest and re-verify all host bindings                            |
+| Seccomp, command, environment, platform, or device-policy mismatch | Refuse container creation/start        | Correct deployment to the signed `ServeSpec`; do not weaken checks ad hoc               |
+| Missing seam/rank receipt, load failure, or fallback receipt       | Mark smoke/rollout failed              | Fix integration and cut a new reviewed release when bytes change                        |
+| Release key suspected compromised                                  | Stop new rollouts under the key        | Rotate external trust anchor and re-sign/re-authorize through reviewed procedure        |
+| Runtime health regression after valid startup                      | Route back to a prior verified release | Preserve SLO evidence; integrity success does not block operational rollback            |
 
 Keep release keys off validator, weight-signer, evaluator, and serving hosts. The current
 double-build API signs its container-reproducibility attestation, so the release/publish
@@ -259,12 +259,11 @@ not imply that `release-context` publishes or deploys anything.
 - Release verification is chain-independent and does not re-adjudicate the crown.
 
 <Callout type="warn" title="Current validation boundary (2026-07-13)">
-The release implementation is unit- and slice-tested, but the retained closure did
-**not** run an actual joined no-cache double OCI build followed by TP8 serving and
-receipt verification. The retained crown used for release-structure proof was a
-synthetic 100-ppm fixture, not an empirical RTX/B300 win. No production arena provider
-ships in the repository. Treat the host and serving sequence above as required future
-operational validation, not a completed performance claim.
+  The release implementation is unit- and slice-tested, but the retained closure did **not** run an
+  actual joined no-cache double OCI build followed by TP8 serving and receipt verification. The
+  retained crown used for release-structure proof was a synthetic 100-ppm fixture, not an empirical
+  RTX/B300 win. No production arena provider ships in the repository. Treat the host and serving
+  sequence above as required future operational validation, not a completed performance claim.
 </Callout>
 
 ## Source anchors

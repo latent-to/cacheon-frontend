@@ -49,10 +49,10 @@ against the same incumbent.
 For an earlier and later delta in the same reward namespace, these comparisons are
 authoritative:
 
-| Match | Automatic result |
-|---|---|
-| Exact selected payload identity | Later delta is a copy |
-| Equal normalized whole-delta identity | Later delta is a copy |
+| Match                                                  | Automatic result      |
+| ------------------------------------------------------ | --------------------- |
+| Exact selected payload identity                        | Later delta is a copy |
+| Equal normalized whole-delta identity                  | Later delta is a copy |
 | Symmetric containment of substantial file fingerprints | Later delta is a copy |
 
 Normalization removes cosmetic Python formatting/comments/docstrings, normalizes
@@ -69,15 +69,15 @@ corrected before economic settlement.
 
 Assume hotkey A finalizes before hotkey B in the same registered reward namespace:
 
-| A and B relationship | Policy result | Reason |
-|---|---|---|
-| Byte-identical selected target payload | B is an automatic copy | Exact selected identity |
-| Same implementation with comments, docstrings, and cosmetic formatting changed | B is an automatic copy when normalized whole-delta identity matches | Cosmetic changes do not create new attributable work |
-| A's substantial implementation copied into B with one unused padding file | B is an automatic copy when symmetric containment matches | Padding cannot hide containment |
-| Similar Python control-flow skeleton but different authoritative delta identities | Advisory review signal only | Structural similarity is intentionally non-dispositive |
-| Both candidates include the same validator-supplied incumbent in their materialized engines | No match from that fact | Incumbent bytes are outside submitted-delta scope |
-| Independently convergent deltas normalize identically | B receives the deterministic later-copy disposition | Automatic identity cannot infer intent; finalized priority resolves the tie |
-| B is a discovery patch while A is a registered component | Compared within their separate namespaces, not collapsed by related purpose | Product kind and reward namespace are identity inputs |
+| A and B relationship                                                                        | Policy result                                                               | Reason                                                                      |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Byte-identical selected target payload                                                      | B is an automatic copy                                                      | Exact selected identity                                                     |
+| Same implementation with comments, docstrings, and cosmetic formatting changed              | B is an automatic copy when normalized whole-delta identity matches         | Cosmetic changes do not create new attributable work                        |
+| A's substantial implementation copied into B with one unused padding file                   | B is an automatic copy when symmetric containment matches                   | Padding cannot hide containment                                             |
+| Similar Python control-flow skeleton but different authoritative delta identities           | Advisory review signal only                                                 | Structural similarity is intentionally non-dispositive                      |
+| Both candidates include the same validator-supplied incumbent in their materialized engines | No match from that fact                                                     | Incumbent bytes are outside submitted-delta scope                           |
+| Independently convergent deltas normalize identically                                       | B receives the deterministic later-copy disposition                         | Automatic identity cannot infer intent; finalized priority resolves the tie |
+| B is a discovery patch while A is a registered component                                    | Compared within their separate namespaces, not collapsed by related purpose | Product kind and reward namespace are identity inputs                       |
 
 Automatic disposition says nothing about whether A will pass qualification. It prevents B
 from acquiring later economic priority for the same attributable bytes; it does not turn A

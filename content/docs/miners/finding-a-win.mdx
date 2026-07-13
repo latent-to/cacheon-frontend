@@ -144,15 +144,15 @@ that never executes has no marginal benefit; overlapping variants are rejected.
 
 Write a small target worksheet before implementation:
 
-| Question | Example answer |
-|---|---|
-| target and active binding | `activation.silu_and_mul` on the operator's published arena generation |
-| critical-path fraction | 8% in graph-on decode at the published concurrency |
-| proposed mechanism | fuse activation/multiply and reduce one global-memory round trip |
-| exact domain | BF16, `sm90`, decode, token counts 1–256 |
-| fallback | incumbent row for every non-matching descriptor |
-| local correctness proof needed | all applicable slot shapes, mutation/output checks, CUDA replays |
-| end-to-end falsifier | no throughput change, B/B′ drift, fallback on material calls, or quality regression |
+| Question                       | Example answer                                                                      |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| target and active binding      | `activation.silu_and_mul` on the operator's published arena generation              |
+| critical-path fraction         | 8% in graph-on decode at the published concurrency                                  |
+| proposed mechanism             | fuse activation/multiply and reduce one global-memory round trip                    |
+| exact domain                   | BF16, `sm90`, decode, token counts 1–256                                            |
+| fallback                       | incumbent row for every non-matching descriptor                                     |
+| local correctness proof needed | all applicable slot shapes, mutation/output checks, CUDA replays                    |
+| end-to-end falsifier           | no throughput change, B/B′ drift, fallback on material calls, or quality regression |
 
 This forces the optimization story to connect all the way from a measured bottleneck to
 a selectable variant. “My kernel is 30% faster” is incomplete until you can state what

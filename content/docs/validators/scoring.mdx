@@ -41,13 +41,13 @@ baseline disagreement exceeds the calibrated maximum, the result is `NO_DECISION
 
 A candidate can pass only when all required products agree:
 
-| Product | Failure meaning |
-|---|---|
-| Execution evidence | Wrong/missing role, launch, device, protocol, or completion |
-| Graph evidence | Missing target member/variant/shape coverage or capture/replay failure |
-| Speed evidence | Below the calibrated bar, or too noisy to decide |
-| Pristine quality evidence | Regression against frozen metric envelopes or hidden work |
-| Identity checks | Evidence does not describe the committed arena, stack, target, or delta |
+| Product                   | Failure meaning                                                         |
+| ------------------------- | ----------------------------------------------------------------------- |
+| Execution evidence        | Wrong/missing role, launch, device, protocol, or completion             |
+| Graph evidence            | Missing target member/variant/shape coverage or capture/replay failure  |
+| Speed evidence            | Below the calibrated bar, or too noisy to decide                        |
+| Pristine quality evidence | Regression against frozen metric envelopes or hidden work               |
+| Identity checks           | Evidence does not describe the committed arena, stack, target, or delta |
 
 Attributable violations yield `FAIL`. Infrastructure, missing evidence, stale identity,
 or excessive drift yields `NO_DECISION`. Only complete green evidence yields `PASS`.

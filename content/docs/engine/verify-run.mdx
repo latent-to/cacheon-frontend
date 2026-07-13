@@ -47,9 +47,8 @@ or replace the mismatched artifact in place; all of those actions destroy the re
 to the signed descriptor.
 
 <Callout type="warn" title="Do not trust an embedded key">
-`release.sig.json` names a public key so signatures can be parsed, but that
-key does not establish its own trust. Always pass the expected public key
-from an independent release channel.
+  `release.sig.json` names a public key so signatures can be parsed, but that key does not establish
+  its own trust. Always pass the expected public key from an independent release channel.
 </Callout>
 
 ## Materialize the OCI context
@@ -181,9 +180,8 @@ not document the serving boundary as non-root until code enforces it.
    current tree in place.
 
 <Callout type="info" title="Operational status">
-These gates are implemented and tested, but the current evidence ledger
-does not claim the final real registry double-build, TP8 serve, and receipt
-smoke have been completed.
+  These gates are implemented and tested, but the current evidence ledger does not claim the final
+  real registry double-build, TP8 serve, and receipt smoke have been completed.
 </Callout>
 
 Serving does not require chain access. A chain outage can delay new proposal
@@ -192,17 +190,17 @@ an already signed release.
 
 ## Failure triage
 
-| Failure point | Meaning | Safe response |
-|---|---|---|
-| Signature/public-key mismatch | The publication is not authorized by the expected trust root | Quarantine it and verify key distribution plus descriptor identity |
-| Inventory, mode, tree, native, or model mismatch | Supplied bytes are incomplete, changed, or from another release | Recover exact content-addressed inputs; never patch the signed tree |
-| Context destination exists | Deterministic emission refuses ambiguous reuse | Verify/delete only through operator-controlled staging policy, then emit to a new absent path |
-| Double builds disagree | Container construction is not reproducible under the claimed procedure | Diagnose build inputs/toolchain; publish no authorization statement |
-| Registry digest/labels differ at authorization | Registry object is not the attested product | Hold deployment and reopen the registry object by digest |
-| Created container fails host-policy inspection | Runtime privileges, mounts, namespaces, command, or environment differ | Destroy before start and correct orchestration policy |
-| Startup verification fails | Container contents/model/active seccomp/signed command are wrong | Container exits fail-closed; retain receipts/log identity and roll back |
-| Smoke has missing `fired`/`completed` or any fallback | The server did not prove the released paths ran on every expected rank | Do not promote even if health/inference probes answered |
-| Device or container cleanup cannot be proven | Operational authority remains ambiguous | Isolate/drain the host before another canary |
+| Failure point                                         | Meaning                                                                | Safe response                                                                                 |
+| ----------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Signature/public-key mismatch                         | The publication is not authorized by the expected trust root           | Quarantine it and verify key distribution plus descriptor identity                            |
+| Inventory, mode, tree, native, or model mismatch      | Supplied bytes are incomplete, changed, or from another release        | Recover exact content-addressed inputs; never patch the signed tree                           |
+| Context destination exists                            | Deterministic emission refuses ambiguous reuse                         | Verify/delete only through operator-controlled staging policy, then emit to a new absent path |
+| Double builds disagree                                | Container construction is not reproducible under the claimed procedure | Diagnose build inputs/toolchain; publish no authorization statement                           |
+| Registry digest/labels differ at authorization        | Registry object is not the attested product                            | Hold deployment and reopen the registry object by digest                                      |
+| Created container fails host-policy inspection        | Runtime privileges, mounts, namespaces, command, or environment differ | Destroy before start and correct orchestration policy                                         |
+| Startup verification fails                            | Container contents/model/active seccomp/signed command are wrong       | Container exits fail-closed; retain receipts/log identity and roll back                       |
+| Smoke has missing `fired`/`completed` or any fallback | The server did not prove the released paths ran on every expected rank | Do not promote even if health/inference probes answered                                       |
+| Device or container cleanup cannot be proven          | Operational authority remains ambiguous                                | Isolate/drain the host before another canary                                                  |
 
 ## Deployment record
 

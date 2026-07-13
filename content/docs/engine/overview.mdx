@@ -59,17 +59,17 @@ rather than trusting modes, filenames, or build logs.
 
 ### How the pieces answer different questions
 
-| Product | Question it answers |
-|---|---|
-| `EngineReleaseManifest` | Which reviewed contribution owns each active target? |
-| Engine-tree digest | Which exact deterministic materialized source tree implements that composition? |
-| Model receipt | Which exact model files are mounted? |
-| Native publication | Which prebuilt architecture-specific products may be loaded? |
-| SBOM and provenance | Which declared inputs and build lineage produced the release artifacts? |
-| `ServeSpec` | Which image, platform, topology, command, environment, and mount contract may run? |
-| Signed descriptor | Who authorized this exact closed set of identities? |
-| Registry reproducibility statement | Did two controlled builds publish the same raw image digest? |
-| Serve receipts | Did every expected slot and tensor-parallel rank activate, fire, and complete in the smoke? |
+| Product                            | Question it answers                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| `EngineReleaseManifest`            | Which reviewed contribution owns each active target?                                        |
+| Engine-tree digest                 | Which exact deterministic materialized source tree implements that composition?             |
+| Model receipt                      | Which exact model files are mounted?                                                        |
+| Native publication                 | Which prebuilt architecture-specific products may be loaded?                                |
+| SBOM and provenance                | Which declared inputs and build lineage produced the release artifacts?                     |
+| `ServeSpec`                        | Which image, platform, topology, command, environment, and mount contract may run?          |
+| Signed descriptor                  | Who authorized this exact closed set of identities?                                         |
+| Registry reproducibility statement | Did two controlled builds publish the same raw image digest?                                |
+| Serve receipts                     | Did every expected slot and tensor-parallel rank activate, fire, and complete in the smoke? |
 
 These products compose; they are not interchangeable. For example, a valid signature
 over a descriptor with a missing model tree still cannot start, and a responsive server

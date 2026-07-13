@@ -46,19 +46,19 @@ Adding an adapter is one table change plus its implementation and tests. Bootstr
 
 The current rows are:
 
-| Adapter | SGLang chokepoint | Served slot or role | Public binding |
-|---|---|---|---|
-| `activation` | `SiluAndMul.forward_cuda` | `activation.silu_and_mul` | Registry-selected |
-| `layernorm` | `RMSNorm.forward_cuda` | `norm.rmsnorm` | Registry-selected |
-| `attention` | `RadixAttention.forward` | `attention.sdpa`, `attention.decode` | `attention` |
-| `moe` | `FusedMoE.forward_impl` | `moe.fused_experts`, `moe.fused_experts_reduce` | `moe` |
-| `collective` | `GroupCoordinator.all_reduce` | `collective.all_reduce` | `collective` |
-| `arfusion` | `flashinfer_allreduce_residual_rmsnorm` | `collective.ar_residual_rmsnorm`; consume side for the deep epilogue | `arfusion` |
-| `defer_gate` | `LayerCommunicator.should_fuse_mlp_allreduce_with_next_layer` | Deep epilogue producer/scoping gate | `arfusion` |
-| `moe_export` | `flashinfer_cutlass_fused_moe` | `collective.moe_finalize_ar_rmsnorm` export wrapper | `arfusion` |
-| `msa_prefill` | `flash_prefill_with_topk_index` | `attention.msa_prefill_block_score` | `msa_prefill` |
-| `scheduler_gate` | `run_scheduler_process` | Positive scheduler-role candidate-load gate; not a slot | None |
-| `flashinfer_overlay` | FlashInfer `JitSpec` attribute | Reviewed dependency-patch consume side; not a slot | None |
+| Adapter              | SGLang chokepoint                                             | Served slot or role                                                  | Public binding    |
+| -------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------- |
+| `activation`         | `SiluAndMul.forward_cuda`                                     | `activation.silu_and_mul`                                            | Registry-selected |
+| `layernorm`          | `RMSNorm.forward_cuda`                                        | `norm.rmsnorm`                                                       | Registry-selected |
+| `attention`          | `RadixAttention.forward`                                      | `attention.sdpa`, `attention.decode`                                 | `attention`       |
+| `moe`                | `FusedMoE.forward_impl`                                       | `moe.fused_experts`, `moe.fused_experts_reduce`                      | `moe`             |
+| `collective`         | `GroupCoordinator.all_reduce`                                 | `collective.all_reduce`                                              | `collective`      |
+| `arfusion`           | `flashinfer_allreduce_residual_rmsnorm`                       | `collective.ar_residual_rmsnorm`; consume side for the deep epilogue | `arfusion`        |
+| `defer_gate`         | `LayerCommunicator.should_fuse_mlp_allreduce_with_next_layer` | Deep epilogue producer/scoping gate                                  | `arfusion`        |
+| `moe_export`         | `flashinfer_cutlass_fused_moe`                                | `collective.moe_finalize_ar_rmsnorm` export wrapper                  | `arfusion`        |
+| `msa_prefill`        | `flash_prefill_with_topk_index`                               | `attention.msa_prefill_block_score`                                  | `msa_prefill`     |
+| `scheduler_gate`     | `run_scheduler_process`                                       | Positive scheduler-role candidate-load gate; not a slot              | None              |
+| `flashinfer_overlay` | FlashInfer `JitSpec` attribute                                | Reviewed dependency-patch consume side; not a slot                   | None              |
 
 Several adapters may share one binding when they implement one semantic product. The shallow AR-fusion consume adapter and both deep producer adapters share `arfusion`; activating only part of that set would violate the protocol.
 
@@ -99,12 +99,12 @@ The controller does not send arbitrary environment variable names across the wor
 
 Inside the engine, each binding maps to one fixed gate:
 
-| Binding | Fixed gate |
-|---|---|
-| `attention` | `OPTIMA_ATTENTION_SEAM` |
-| `arfusion` | `OPTIMA_ARFUSION_SEAM` |
-| `collective` | `OPTIMA_COLLECTIVE_SEAM` |
-| `moe` | `OPTIMA_MOE_SEAM` |
+| Binding       | Fixed gate                |
+| ------------- | ------------------------- |
+| `attention`   | `OPTIMA_ATTENTION_SEAM`   |
+| `arfusion`    | `OPTIMA_ARFUSION_SEAM`    |
+| `collective`  | `OPTIMA_COLLECTIVE_SEAM`  |
+| `moe`         | `OPTIMA_MOE_SEAM`         |
 | `msa_prefill` | `OPTIMA_MSA_PREFILL_SEAM` |
 
 Normalization rejects unknown, duplicated, or non-canonical identifiers. Engine launch then emits the complete fixed seam environment, preventing stale ambient values from arming additional adapters.
@@ -245,23 +245,23 @@ The seam is deliberately pinned-runtime code. An SGLang upgrade requires:
 Optional backend rows declare `requires` packages so CPU/dev environments can skip an unassessable adapter rather than report a false break. Production arenas that depend on that adapter must provide and assess the dependency.
 
 <Callout type="warn" title="Current pin validation status">
-A green import/chokepoint canary is necessary compatibility evidence, not proof that
-the current pin preserves candidate execution and measured performance. Check
-[State of record](/docs/reference/state-of-record) for the dated claim boundary and
-[SGLang compatibility](/docs/dev/sglang-tracking) for the complete validation ladder.
+  A green import/chokepoint canary is necessary compatibility evidence, not proof that the current
+  pin preserves candidate execution and measured performance. Check [State of
+  record](/docs/reference/state-of-record) for the dated claim boundary and [SGLang
+  compatibility](/docs/dev/sglang-tracking) for the complete validation ladder.
 </Callout>
 
 ### Diagnosing a seam failure
 
 Read receipts in lifecycle order instead of treating any single file as success:
 
-| Last trustworthy observation | Likely boundary | What to inspect |
-|---|---|---|
-| No `active` receipt | Bootstrap, watched import, sealed namespace, or registration | Pin, adapter canary, worker role, tree/release digests, scheduler logs |
-| `active`, no `fired` | Eligibility or wrong live chokepoint | Call descriptor, variant domain, topology, workload coverage, adapter firing |
-| `fired`, no `completed` | Candidate execution or post-call validation | Exception, deadline, output storage/layout, rank agreement, device state |
-| `fallback` after selection | Candidate route failed in a non-strict context | Preserve the failure; do not use the run as crown/release-smoke evidence |
-| Full per-rank coverage, quality/speed fails | Seam worked; the contribution did not qualify | Qualification evidence and pristine T report, not bootstrap code |
+| Last trustworthy observation                | Likely boundary                                              | What to inspect                                                              |
+| ------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| No `active` receipt                         | Bootstrap, watched import, sealed namespace, or registration | Pin, adapter canary, worker role, tree/release digests, scheduler logs       |
+| `active`, no `fired`                        | Eligibility or wrong live chokepoint                         | Call descriptor, variant domain, topology, workload coverage, adapter firing |
+| `fired`, no `completed`                     | Candidate execution or post-call validation                  | Exception, deadline, output storage/layout, rank agreement, device state     |
+| `fallback` after selection                  | Candidate route failed in a non-strict context               | Preserve the failure; do not use the run as crown/release-smoke evidence     |
+| Full per-rank coverage, quality/speed fails | Seam worked; the contribution did not qualify                | Qualification evidence and pristine T report, not bootstrap code             |
 
 A common diagnostic mistake is to stop at “the server answered.” Stock fallback can keep
 a server responsive. Authority requires the expected slot-by-rank `active`/`fired`/

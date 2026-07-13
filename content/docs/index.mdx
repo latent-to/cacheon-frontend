@@ -19,11 +19,11 @@ the market that improves it. Operationally, the market side separates the
 subnet control plane from the hostile-code referee, giving readers three
 cooperating surfaces with different trust boundaries.
 
-| Surface | What it is |
-|---|---|
-| [**Cacheon Engine**](/docs/engine/overview) | The chain-independent inference distribution: reviewed source, pinned runtime, sealed model identity, and signed releases. |
-| [**The referee**](/docs/architecture/pipeline) | Isolated, evidence-producing evaluation of one marginal target delta against a validator-owned incumbent stack. |
-| [**The subnet**](/docs/validators/chain-loop) | Finalized proposal ordering, attribution, economic settlement, and weight publication. It is not part of the serving product. |
+| Surface                                        | What it is                                                                                                                    |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| [**Cacheon Engine**](/docs/engine/overview)    | The chain-independent inference distribution: reviewed source, pinned runtime, sealed model identity, and signed releases.    |
+| [**The referee**](/docs/architecture/pipeline) | Isolated, evidence-producing evaluation of one marginal target delta against a validator-owned incumbent stack.               |
+| [**The subnet**](/docs/validators/chain-loop)  | Finalized proposal ordering, attribution, economic settlement, and weight publication. It is not part of the serving product. |
 
 ## One idea, four objects
 
@@ -67,14 +67,14 @@ copying them.
 
 ## Choose your path
 
-| Goal | Start here |
-|---|---|
-| Write a Triton, CuTeDSL, or Python reference kernel | [Miner guide](/docs/miners/overview) |
-| Validate the repository locally without a GPU | [Local quickstart](/docs/get-started/quickstart) |
-| Deploy intake, an arena provider, and qualification workers | [Validator guide](/docs/validators/overview) |
-| Verify or operate a signed serving artifact | [Cacheon Engine](/docs/engine/overview) |
-| Audit trust boundaries and failure behavior | [Security model](/docs/security/threat-model) |
-| Check what is implemented, measured, and still unproven | [Current status](/docs/reference/state-of-record) |
+| Goal                                                        | Start here                                        |
+| ----------------------------------------------------------- | ------------------------------------------------- |
+| Write a Triton, CuTeDSL, or Python reference kernel         | [Miner guide](/docs/miners/overview)              |
+| Validate the repository locally without a GPU               | [Local quickstart](/docs/get-started/quickstart)  |
+| Deploy intake, an arena provider, and qualification workers | [Validator guide](/docs/validators/overview)      |
+| Verify or operate a signed serving artifact                 | [Cacheon Engine](/docs/engine/overview)           |
+| Audit trust boundaries and failure behavior                 | [Security model](/docs/security/threat-model)     |
+| Check what is implemented, measured, and still unproven     | [Current status](/docs/reference/state-of-record) |
 
 ## Evidence is scoped, not blended
 
@@ -85,9 +85,9 @@ requires current-path B300 qualification and a real release-image build-and-serv
 The [state of record](/docs/reference/state-of-record) keeps those claims separate.
 
 <Callout type="info" title="Source of executable truth">
-The [Cacheon source repository](https://github.com/latent-to/optima) owns executable
-contracts, schemas, policies, and evidence verifiers. Content-addressed production
-evidence and immutable publications live in separate operator-owned stores. This
-site owns published explanations, tutorials, and operator guidance. When prose and
-code disagree, the pinned code and its tests take precedence.
+  The [Cacheon source repository](https://github.com/latent-to/optima) owns executable contracts,
+  schemas, policies, and evidence verifiers. Content-addressed production evidence and immutable
+  publications live in separate operator-owned stores. This site owns published explanations,
+  tutorials, and operator guidance. When prose and code disagree, the pinned code and its tests take
+  precedence.
 </Callout>

@@ -28,15 +28,15 @@ cannot simply be relabeled with the new version.
 The canary is table-driven from the registered seam adapters and adds richer
 checks for the most consequential surfaces:
 
-| Upstream surface | Why Cacheon needs it | What movement can break |
-|---|---|---|
-| `SiluAndMul` and `RMSNorm` | Narrow component call sites | Argument order, residual semantics, fallback routing |
-| `RadixAttention.forward` | Attention block insertion before sampling | Q/K/V and batch-state translation, graph behavior |
-| `FusedMoE.forward_impl` | MoE waist that survives piecewise capture | Expert inputs, routing outputs, reduction ownership |
-| `GroupCoordinator.all_reduce` | Validator-owned TP collective boundary | Process-group ownership and all-rank behavior |
-| `Engine.generate` logprob API | Trusted KL/quality observation | Top-logprob collection and sealed trajectory schema |
-| `ServerArgs` fields | Deterministic engine launch policy | Model, graph, memory, seed, backend, and logging controls |
-| Blessed native base | FlashInfer/CUTLASS/Triton kernel surface | JIT products, numerics, throughput, validator agreement |
+| Upstream surface              | Why Cacheon needs it                      | What movement can break                                   |
+| ----------------------------- | ----------------------------------------- | --------------------------------------------------------- |
+| `SiluAndMul` and `RMSNorm`    | Narrow component call sites               | Argument order, residual semantics, fallback routing      |
+| `RadixAttention.forward`      | Attention block insertion before sampling | Q/K/V and batch-state translation, graph behavior         |
+| `FusedMoE.forward_impl`       | MoE waist that survives piecewise capture | Expert inputs, routing outputs, reduction ownership       |
+| `GroupCoordinator.all_reduce` | Validator-owned TP collective boundary    | Process-group ownership and all-rank behavior             |
+| `Engine.generate` logprob API | Trusted KL/quality observation            | Top-logprob collection and sealed trajectory schema       |
+| `ServerArgs` fields           | Deterministic engine launch policy        | Model, graph, memory, seed, backend, and logging controls |
+| Blessed native base           | FlashInfer/CUTLASS/Triton kernel surface  | JIT products, numerics, throughput, validator agreement   |
 
 Optional seams may report a skip when their required package is absent on a
 development box. That is not evidence for the engine environment; run the

@@ -6,12 +6,13 @@ This page answers a different question from the [competition model](/docs/concep
 
 <Callout type="info" title="Status: design of record">
   Parts of this model are target-state, not all built. Where the current code differs, this page
-  describes where Cacheon is going. It is included as a concept so the submission surface makes sense.
+  describes where Cacheon is going. It is included as a concept so the submission surface makes
+  sense.
 </Callout>
 
 ## Why it exists
 
-Cacheon's end goal is not "patches to sglang." It is a portable kernel library (`optima-kernels`): inspectable, composable device code shipped on top of any engine. The subnet is the machine that populates that library. Miners are paid to *create* fast kernels, the validator measures them, and an accepted win drops straight into the library.
+Cacheon's end goal is not "patches to sglang." It is a portable kernel library (`optima-kernels`): inspectable, composable device code shipped on top of any engine. The subnet is the machine that populates that library. Miners are paid to _create_ fast kernels, the validator measures them, and an accepted win drops straight into the library.
 
 That only works if the contribution is **portable IP**. A win expressed as "monkeypatch sglang's `FusedMoE` to call kernel X" is worthless to the library: it evaporates the moment the engine changes. So the submission surface is built around one product axiom and one judgment test, on top of the four cheat-resistance invariants that govern the [slots](/docs/miners/overview).
 
@@ -23,15 +24,15 @@ A kernel is a kernel. Write it against whatever kernel libraries help it win (CU
 
 ## The Win Test
 
-A submission scores **only** if it is *new device code that beats the tuned baseline at equal fidelity*, that is, it created a capability or a speed the baseline did not already have. Three things are explicitly not wins, and the surface makes them non-submittable rather than leaving them to a judge:
+A submission scores **only** if it is _new device code that beats the tuned baseline at equal fidelity_, that is, it created a capability or a speed the baseline did not already have. Three things are explicitly not wins, and the surface makes them non-submittable rather than leaving them to a judge:
 
-| Not a win | Why | Who owns it instead |
-|---|---|---|
-| **Engine config / args** (batch size, TP/EP, backend flags, mem-fraction) | turning a knob is not creating a kernel | the validator runs the model at its best config, which is the fixed baseline |
-| **Integration / rerouting** (wire an existing but unwired faster kernel) | calling code that already exists is not new IP | the validator's adapter; once wired it becomes the new baseline |
-| **Python-level recomposition** (reorder or skip existing launches, no new device code) | nothing to fold into the library | the tuned baseline already does the obvious recompositions |
+| Not a win                                                                              | Why                                            | Who owns it instead                                                          |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Engine config / args** (batch size, TP/EP, backend flags, mem-fraction)              | turning a knob is not creating a kernel        | the validator runs the model at its best config, which is the fixed baseline |
+| **Integration / rerouting** (wire an existing but unwired faster kernel)               | calling code that already exists is not new IP | the validator's adapter; once wired it becomes the new baseline              |
+| **Python-level recomposition** (reorder or skip existing launches, no new device code) | nothing to fold into the library               | the tuned baseline already does the obvious recompositions                   |
 
-This is enforced by construction. The miner surface admits only device source bound to a typed slot or override-point. There is no manifest field for engine config, and the baseline kernel is validator-owned and shipped **tuned**. So the only way to move the score is to write device code that beats the tuned baseline, which is exactly "created what wasn't there." The bar is *new code that improves*, not *from-scratch everything*.
+This is enforced by construction. The miner surface admits only device source bound to a typed slot or override-point. There is no manifest field for engine config, and the baseline kernel is validator-owned and shipped **tuned**. So the only way to move the score is to write device code that beats the tuned baseline, which is exactly "created what wasn't there." The bar is _new code that improves_, not _from-scratch everything_.
 
 ## The contribution unit
 
@@ -43,7 +44,7 @@ The library ships a parametric base kernel with declared, typed **override-point
 
 ### 2. Whole kernel at a slot (the higher ceiling)
 
-The miner writes the entire kernel for a boundary: a from-scratch attention block, a novel MoE kernel, and crucially the **compute-comm fused block** (`moe.fused_experts_reduce`, the experts block that owns its trailing all-reduce). This tier is where the durable wins live, fusion across the GEMM and communication seam, roughly 75% of decode at scale. Overrides *augment* a base; whole kernels *create* one. Both are first-class.
+The miner writes the entire kernel for a boundary: a from-scratch attention block, a novel MoE kernel, and crucially the **compute-comm fused block** (`moe.fused_experts_reduce`, the experts block that owns its trailing all-reduce). This tier is where the durable wins live, fusion across the GEMM and communication seam, roughly 75% of decode at scale. Overrides _augment_ a base; whole kernels _create_ one. Both are first-class.
 
 ### 3. New format / codec
 

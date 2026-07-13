@@ -15,17 +15,17 @@ The developer commands intentionally reuse parts of the ABI and evaluation machi
 slots -> scan -> verify -> evaluate / bench -> chain-package -> host -> chain-submit -> chain-status
 ```
 
-| Step | Purpose | Authority |
-|---|---|---|
-| `slots` | Inspect the live slot ABI | Informational |
-| `scan` | Run static bundle policy checks | Diagnostic |
-| `verify` | Check a single op/block against its trusted reference; collective slots use distributed verification | Diagnostic |
-| `evaluate` | Run a narrow model-level development comparison | Diagnostic |
-| `bench` | Run benchmark-oriented throughput and quality diagnostics | Diagnostic |
-| `chain-package` | Produce the deterministic hosted archive and content identity | Submission preparation |
-| HTTPS host | Make the immutable archive available for validator fetch | Transport only |
-| `chain-submit` | Commit the proposal through timelock commit-reveal | Chain intake |
-| `chain-status` | Inspect submission state | Informational |
+| Step            | Purpose                                                                                              | Authority              |
+| --------------- | ---------------------------------------------------------------------------------------------------- | ---------------------- |
+| `slots`         | Inspect the live slot ABI                                                                            | Informational          |
+| `scan`          | Run static bundle policy checks                                                                      | Diagnostic             |
+| `verify`        | Check a single op/block against its trusted reference; collective slots use distributed verification | Diagnostic             |
+| `evaluate`      | Run a narrow model-level development comparison                                                      | Diagnostic             |
+| `bench`         | Run benchmark-oriented throughput and quality diagnostics                                            | Diagnostic             |
+| `chain-package` | Produce the deterministic hosted archive and content identity                                        | Submission preparation |
+| HTTPS host      | Make the immutable archive available for validator fetch                                             | Transport only         |
+| `chain-submit`  | Commit the proposal through timelock commit-reveal                                                   | Chain intake           |
+| `chain-status`  | Inspect submission state                                                                             | Informational          |
 
 Local measurements are useful for iteration. They do not select a production arena authority, reserve a finalized cohort position, retain authenticated B/C/B′/T evidence, or satisfy independent reproduction.
 
@@ -135,12 +135,12 @@ Principal code: [`eval/qualification_intake.py`](https://github.com/latent-to/op
 
 The authoritative bracket has four logical arms.
 
-| Arm | Stack | Timed? | Purpose |
-|---|---|---:|---|
-| B | Exact frozen incumbent | Yes | Opening performance baseline |
-| C | Incumbent plus one exact target delta | Yes | Candidate measurement and sealed trajectory |
-| B′ | Independently launched exact incumbent | Yes | Closing bookend and drift detection |
-| T | Pristine candidate-free reference | No | Teacher-forced semantic quality and hidden tasks |
+| Arm | Stack                                  | Timed? | Purpose                                          |
+| --- | -------------------------------------- | -----: | ------------------------------------------------ |
+| B   | Exact frozen incumbent                 |    Yes | Opening performance baseline                     |
+| C   | Incumbent plus one exact target delta  |    Yes | Candidate measurement and sealed trajectory      |
+| B′  | Independently launched exact incumbent |    Yes | Closing bookend and drift detection              |
+| T   | Pristine candidate-free reference      |     No | Teacher-forced semantic quality and hidden tasks |
 
 Native build and timed execution use separate containers. Before a runtime arm
 starts, a disposable, no-GPU/no-network prebuild OCI parses the materialized

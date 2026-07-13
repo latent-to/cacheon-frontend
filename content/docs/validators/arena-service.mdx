@@ -13,13 +13,13 @@ model path, workload, or qualification factory.
 
 `ArenaServiceManifest` contains five content-bound parts:
 
-| Part | Bound facts |
-|---|---|
-| Runtime | Arena ID; runtime, base engine, validator overlay, worker distribution, model revision/manifest/content, architecture, topology, GPU count, tensor-parallel size |
-| Workload | Prompt corpus, seed scheme, weighted regimes, exact serving shapes |
-| Capacity | Queue depth/age, concurrent screens and qualifications, cohort size, retry budgets |
-| Screens | Exact ordered non-crownable screen policy |
-| Provider and qualification policy | Reviewed provider digest and qualification-policy digest |
+| Part                              | Bound facts                                                                                                                                                      |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime                           | Arena ID; runtime, base engine, validator overlay, worker distribution, model revision/manifest/content, architecture, topology, GPU count, tensor-parallel size |
+| Workload                          | Prompt corpus, seed scheme, weighted regimes, exact serving shapes                                                                                               |
+| Capacity                          | Queue depth/age, concurrent screens and qualifications, cohort size, retry budgets                                                                               |
+| Screens                           | Exact ordered non-crownable screen policy                                                                                                                        |
+| Provider and qualification policy | Reviewed provider digest and qualification-policy digest                                                                                                         |
 
 The manifest digest is the service identity. A provider object is accepted only when its
 declared digest matches the manifest and it implements the typed interface.
@@ -94,11 +94,11 @@ speed and evaluator arrival order must not replace finalized chain order.
 
 The decisions have deliberately different queue effects:
 
-| Decision | Controller behavior | Priority consequence |
-|---|---|---|
-| `admit` | Starts one screen or admitted cohort | Finalized order is retained |
-| `queue` | Stops selecting further work for this pass | Work stays in its current durable lane |
-| `hold` | Moves affected work to an operator-visible hold | Work cannot advance until reviewed |
+| Decision | Controller behavior                             | Priority consequence                   |
+| -------- | ----------------------------------------------- | -------------------------------------- |
+| `admit`  | Starts one screen or admitted cohort            | Finalized order is retained            |
+| `queue`  | Stops selecting further work for this pass      | Work stays in its current durable lane |
+| `hold`   | Moves affected work to an operator-visible hold | Work cannot advance until reviewed     |
 
 At screen admission, reaching maximum queue depth or maximum queue age holds the current
 reservation; reaching active-screen capacity queues it. At qualification admission, an
@@ -129,14 +129,14 @@ entry points or submission metadata.
 `build_qualification` is the most security-sensitive join. Its returned
 `ArenaQualificationWork` must contain:
 
-| Field | Operational responsibility |
-|---|---|
-| `factory` | Rebuilds the frozen registered/discovery causal plan and preserves the exact promoted reservation order |
-| `executor` | Runs untrusted complete-engine roles under the reviewed OCI authority |
-| `entropy_provider` | Reveals post-commit selection entropy without exposing the private selection secret early |
-| `hidden_judge` | Performs the registered hidden task work outside candidate authority |
-| `deadline` | Absolute controller deadline, not a candidate-supplied timeout |
-| `qualification_policy_digest` | Must equal the service manifest's registered policy digest |
+| Field                         | Operational responsibility                                                                              |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `factory`                     | Rebuilds the frozen registered/discovery causal plan and preserves the exact promoted reservation order |
+| `executor`                    | Runs untrusted complete-engine roles under the reviewed OCI authority                                   |
+| `entropy_provider`            | Reveals post-commit selection entropy without exposing the private selection secret early               |
+| `hidden_judge`                | Performs the registered hidden task work outside candidate authority                                    |
+| `deadline`                    | Absolute controller deadline, not a candidate-supplied timeout                                          |
+| `qualification_policy_digest` | Must equal the service manifest's registered policy digest                                              |
 
 The controller independently checks the factory reservations, initializes or reopens the
 exact incumbent evaluation stack, marks every cohort member `qualifying`, runs and reopens

@@ -182,13 +182,13 @@ path.
 
 Move upward only after the lower layer is green:
 
-| Layer | Required observation | Still does not prove |
-|---|---|---|
-| Component `verify` | Registered reference and graph replay for exercised cases | Model integration or speedup |
-| Direct `evaluate` / `bench` | Model can load and the seam can improve a diagnostic workload | Isolation, crown authority, independent reproduction |
-| Arena screen | Static/build/ABI/graph/abbreviated-serving gates all promote | B/C/B′ drift, T quality, settlement |
-| Qualification PASS | Exact marginal complete-engine delta clears all registered gates | Crown until independent reproduction |
-| Two-pass settlement | Reopened matching evidence creates a crown | Integration safety or release readiness |
+| Layer                       | Required observation                                             | Still does not prove                                 |
+| --------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------- |
+| Component `verify`          | Registered reference and graph replay for exercised cases        | Model integration or speedup                         |
+| Direct `evaluate` / `bench` | Model can load and the seam can improve a diagnostic workload    | Isolation, crown authority, independent reproduction |
+| Arena screen                | Static/build/ABI/graph/abbreviated-serving gates all promote     | B/C/B′ drift, T quality, settlement                  |
+| Qualification PASS          | Exact marginal complete-engine delta clears all registered gates | Crown until independent reproduction                 |
+| Two-pass settlement         | Reopened matching evidence creates a crown                       | Integration safety or release readiness              |
 
 Keep direct diagnostic results because they are useful engineering evidence,
 but label them as such. Do not copy their speedup into the current state of
@@ -196,15 +196,15 @@ record as if it came from the hardened qualification path.
 
 ## Common failures
 
-| Symptom | Check |
-|---|---|
-| Torch cannot see CUDA | Driver, wheel CUDA version, container device wiring |
-| `nvcc` is missing | Install/mount the matching toolkit; set `CUDA_HOME` |
-| `compat` reports a moved seam | Confirm exact SGLang pin; follow the bump process rather than patching around it |
-| Scheduler cannot import Cacheon | Install editable package in the same environment and use module invocation |
-| Collective hangs | Rank/world-size agreement, visible devices, topology, and clean prior processes |
-| Graph path falls back | Capability metadata, `graph_safe`, static allocations, host syncs, dynamic-input contract |
-| Baselines drift | Stop scoring; inspect thermals, clocks, competing processes, device cleanup, and arena conditioning |
+| Symptom                         | Check                                                                                               |
+| ------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Torch cannot see CUDA           | Driver, wheel CUDA version, container device wiring                                                 |
+| `nvcc` is missing               | Install/mount the matching toolkit; set `CUDA_HOME`                                                 |
+| `compat` reports a moved seam   | Confirm exact SGLang pin; follow the bump process rather than patching around it                    |
+| Scheduler cannot import Cacheon | Install editable package in the same environment and use module invocation                          |
+| Collective hangs                | Rank/world-size agreement, visible devices, topology, and clean prior processes                     |
+| Graph path falls back           | Capability metadata, `graph_safe`, static allocations, host syncs, dynamic-input contract           |
+| Baselines drift                 | Stop scoring; inspect thermals, clocks, competing processes, device cleanup, and arena conditioning |
 
 Source: [`optima/compat.py`](https://github.com/latent-to/optima/blob/main/optima/compat.py),
 [`optima/verify.py`](https://github.com/latent-to/optima/blob/main/optima/verify.py), and

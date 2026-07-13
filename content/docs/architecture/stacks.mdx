@@ -32,13 +32,13 @@ The release manifest is not mutated when the referee crowns a proposal. It chang
 
 The reference does not compete on speed and is not the incumbent B′. This prevents an untrusted incumbent from becoming its own correctness oracle.
 
-| Property | Evaluation stack | Engine release stack | Reference |
-|---|---:|---:|---:|
-| Hostile proposal entries allowed | Yes | No | No |
-| Bound to one arena | Yes | No | Quality profile |
-| Timed | B/C/B′ | Release checks only | Never |
-| Can update after a crown | Transactionally | No | No |
-| Can be served as product | No | Yes, after signed publication | No |
+| Property                         | Evaluation stack |          Engine release stack |       Reference |
+| -------------------------------- | ---------------: | ----------------------------: | --------------: |
+| Hostile proposal entries allowed |              Yes |                            No |              No |
+| Bound to one arena               |              Yes |                            No | Quality profile |
+| Timed                            |           B/C/B′ |           Release checks only |           Never |
+| Can update after a crown         |  Transactionally |                            No |              No |
+| Can be served as product         |               No | Yes, after signed publication |              No |
 
 ## Canonical identity
 
@@ -58,11 +58,11 @@ Canonical digest construction lives in [`stack_identity.py`](https://github.com/
 
 These three identities answer different questions and should appear together in an audit:
 
-| Identity | Answers | Changes when |
-|---|---|---|
-| Stack manifest digest | Which semantic contributions and catalog are selected? | A target entry, runtime/base identity, arena context, or catalog snapshot changes |
-| Engine-tree digest | Which exact deterministic materialized files were emitted? | Selected source closure, namespace rewriting, rebuild plan, or emitted inventory changes |
-| Launch identity | Which exact engine was executed? | Tree, native publication, model, image, topology, graph mode, workload, or role changes |
+| Identity              | Answers                                                    | Changes when                                                                             |
+| --------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Stack manifest digest | Which semantic contributions and catalog are selected?     | A target entry, runtime/base identity, arena context, or catalog snapshot changes        |
+| Engine-tree digest    | Which exact deterministic materialized files were emitted? | Selected source closure, namespace rewriting, rebuild plan, or emitted inventory changes |
+| Launch identity       | Which exact engine was executed?                           | Tree, native publication, model, image, topology, graph mode, workload, or role changes  |
 
 Equal stack digests are not enough to claim equal execution if launch inputs differ. Equal
 tree digests are not enough if a different model, native publication, or topology ran.
@@ -205,14 +205,14 @@ If validation, persistence, or readback fails, the old stack remains authoritati
 
 ### Failure behavior
 
-| Failure | Resulting authority |
-|---|---|
-| Candidate tree cannot be reopened | No valid C arm; qualification does not begin or returns `NO_DECISION` according to stage policy |
-| B and B′ do not reopen the same incumbent | Cohort authority is invalid; no candidate in the affected comparison can be crowned |
-| Catalog changed after a qualification | Retained evidence remains historical, but it cannot be replayed as a transition against the new catalog by name alone |
-| Second pass names a different reproduction identity | The pair is not settleable |
-| Current incumbent changed before settlement | Transition is replanned/revalidated; stale evidence does not overwrite the live stack |
-| Database transaction or evidence readback fails | The previous stack remains current and reward projection is held |
+| Failure                                             | Resulting authority                                                                                                   |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Candidate tree cannot be reopened                   | No valid C arm; qualification does not begin or returns `NO_DECISION` according to stage policy                       |
+| B and B′ do not reopen the same incumbent           | Cohort authority is invalid; no candidate in the affected comparison can be crowned                                   |
+| Catalog changed after a qualification               | Retained evidence remains historical, but it cannot be replayed as a transition against the new catalog by name alone |
+| Second pass names a different reproduction identity | The pair is not settleable                                                                                            |
+| Current incumbent changed before settlement         | Transition is replanned/revalidated; stale evidence does not overwrite the live stack                                 |
+| Database transaction or evidence readback fails     | The previous stack remains current and reward projection is held                                                      |
 
 An operator should never “repair” these cases by editing a manifest digest or copying a
 directory into the expected path. The mismatch is the evidence that the attempted state

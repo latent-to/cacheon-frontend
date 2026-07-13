@@ -165,8 +165,8 @@ export default function HowItWorks() {
         <p className="border-border/40 text-base2 text-secondary mt-2 border-t pt-6 text-center font-sans leading-[1.65]">
           Throughput comes from two launches of the same model, baseline (stock kernels) and
           candidate (your kernel), so the delta is attributable to the one slot. Fidelity is scored
-          separately with KL and benchmark accuracy. Both relative to the same pinned sglang baseline
-          on the same hardware.
+          separately with KL and benchmark accuracy. Both relative to the same pinned sglang
+          baseline on the same hardware.
         </p>
       </div>
     </section>

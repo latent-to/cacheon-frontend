@@ -64,9 +64,7 @@ A declared patch also needs the validator-owned patch applier selected in
 
 ```json
 {
-  "steps": [
-    {"type": "repo_python", "path": "apply_dep_patch.py"}
-  ]
+  "steps": [{ "type": "repo_python", "path": "apply_dep_patch.py" }]
 }
 ```
 
@@ -76,8 +74,8 @@ approved extension builder too:
 ```json
 {
   "steps": [
-    {"type": "repo_python", "path": "apply_dep_patch.py"},
-    {"type": "repo_python", "path": "build_cuda_ext.py"}
+    { "type": "repo_python", "path": "apply_dep_patch.py" },
+    { "type": "repo_python", "path": "build_cuda_ext.py" }
   ]
 }
 ```

@@ -5,20 +5,20 @@ title: Running diagnostics
 Cacheon exposes three developer-facing checks. They answer different questions and none
 of them is authoritative settlement evidence.
 
-| Command | Question | Typical environment |
-|---|---|---|
-| `verify` | Does each declared variant satisfy its typed slot ABI and reference checks? | CPU or GPU; spawned worker processes |
-| `evaluate` | On this development setup, how do baseline and candidate throughput and diagnostic fidelity compare? | GPU model launch |
-| `bench` | Does the candidate regress selected task accuracy, KL diagnostics, or noisy throughput? | GPU model launch |
+| Command    | Question                                                                                             | Typical environment                  |
+| ---------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `verify`   | Does each declared variant satisfy its typed slot ABI and reference checks?                          | CPU or GPU; spawned worker processes |
+| `evaluate` | On this development setup, how do baseline and candidate throughput and diagnostic fidelity compare? | GPU model launch                     |
+| `bench`    | Does the candidate regress selected task accuracy, KL diagnostics, or noisy throughput?              | GPU model launch                     |
 
 The production path instead uses a registered arena service, complete materialized engine
 trees, no-egress OCI sessions, pristine T, retained evidence, and independent
 reproduction. See [Qualification](/docs/validators/qualification).
 
 <Callout type="warn">
-These commands are for code development and integration. Do not run unknown bundles
-on a machine that lacks an appropriate outer sandbox. `--allow-unsafe-no-isolation`
-explicitly weakens a diagnostic and must never be part of a crownable workflow.
+  These commands are for code development and integration. Do not run unknown bundles on a machine
+  that lacks an appropriate outer sandbox. `--allow-unsafe-no-isolation` explicitly weakens a
+  diagnostic and must never be part of a crownable workflow.
 </Callout>
 
 ## Op-level verification

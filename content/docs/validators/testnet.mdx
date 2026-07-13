@@ -8,21 +8,21 @@ It does not claim that the repository ships a turnkey production arena provider.
 Testnet validates chain integration; it does not magically make off-chain GPU evidence or
 release operations authoritative. Keep the plane boundaries explicit:
 
-| Plane | Testnet can exercise | Still supplied off chain |
-|---|---|---|
-| Submission | Registration, commit/reveal, finality, canonical event order | Stable HTTPS archive origin |
-| Intake | Finalized history, reservation, fetch, re-hash, publication, restart | Validator-owned storage and policy |
-| Arena | Selection of a registered arena ID after injection | Production provider, worker fleet, prompts, topology, calibration |
-| Qualification | Persistence/settlement joins when a real provider executes them | B/C/B′/T GPU execution and retained evidence |
-| Emissions | Live metagraph/readback and dry-run projection | Genuine crown, approved policy values, signer operations |
-| Release | Nothing inherently chain-hosted | Integration review, release key, registry, build and serving fleet |
+| Plane         | Testnet can exercise                                                 | Still supplied off chain                                           |
+| ------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Submission    | Registration, commit/reveal, finality, canonical event order         | Stable HTTPS archive origin                                        |
+| Intake        | Finalized history, reservation, fetch, re-hash, publication, restart | Validator-owned storage and policy                                 |
+| Arena         | Selection of a registered arena ID after injection                   | Production provider, worker fleet, prompts, topology, calibration  |
+| Qualification | Persistence/settlement joins when a real provider executes them      | B/C/B′/T GPU execution and retained evidence                       |
+| Emissions     | Live metagraph/readback and dry-run projection                       | Genuine crown, approved policy values, signer operations           |
+| Release       | Nothing inherently chain-hosted                                      | Integration review, release key, registry, build and serving fleet |
 
 ## What is on chain
 
 A miner commits one canonical payload:
 
 ```json
-{"v":1,"h":"<64 lowercase hex SHA-256>","u":"https://host/bundle.tar.gz"}
+{ "v": 1, "h": "<64 lowercase hex SHA-256>", "u": "https://host/bundle.tar.gz" }
 ```
 
 The payload is limited to 1024 UTF-8 bytes and posted through the chain's native timelock
@@ -240,18 +240,18 @@ Passing only the first two bullets proves intake, not a launch-ready validator.
 
 ## Failure triage
 
-| Symptom | Check |
-|---|---|
-| Payload refused before signing | HTTPS URL, lowercase 64-hex hash generation, payload size |
-| Reveal not visible | Timelock, finality, endpoint/netuid, hotkey registration |
-| Fetch rejected | DNS/global routing, TLS certificate, redirect chain, archive limits, committed hash |
-| Reservation held | Store reason, retry count, controller restart, queue/arena capacity |
-| No qualification | `--intake-only`, or missing injected registry/provider |
-| Weight projection refused | No genuine crown, incomplete/stale family, metagraph change, held publication journal |
-| Database ownership error | Another validator pass or signer owns the exclusive store; coordinate, never remove the lock |
-| `pending` weight publication persists | Wait until retry block, inspect authoritative readback, preserve the journal |
-| Weight publication becomes `held` | Audit projection/readback/signer state; append a reasoned release only after review |
-| Release smoke missing receipts | This is off-chain release validation; stop rollout rather than treating testnet intake as proof |
+| Symptom                               | Check                                                                                           |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Payload refused before signing        | HTTPS URL, lowercase 64-hex hash generation, payload size                                       |
+| Reveal not visible                    | Timelock, finality, endpoint/netuid, hotkey registration                                        |
+| Fetch rejected                        | DNS/global routing, TLS certificate, redirect chain, archive limits, committed hash             |
+| Reservation held                      | Store reason, retry count, controller restart, queue/arena capacity                             |
+| No qualification                      | `--intake-only`, or missing injected registry/provider                                          |
+| Weight projection refused             | No genuine crown, incomplete/stale family, metagraph change, held publication journal           |
+| Database ownership error              | Another validator pass or signer owns the exclusive store; coordinate, never remove the lock    |
+| `pending` weight publication persists | Wait until retry block, inspect authoritative readback, preserve the journal                    |
+| Weight publication becomes `held`     | Audit projection/readback/signer state; append a reasoned release only after review             |
+| Release smoke missing receipts        | This is off-chain release validation; stop rollout rather than treating testnet intake as proof |
 
 Never “fix” a test by editing SQLite rows, weakening HTTPS, or treating
 `NO_DECISION` as a candidate failure.

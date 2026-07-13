@@ -50,13 +50,13 @@ Paths are relative to the bundle and must resolve to regular contained files.
 
 ## Top-level fields
 
-| Field | Required | Meaning |
-|---|---:|---|
-| `bundle_id` | yes | Human-readable bundle identifier; not the content identity |
-| `abi_version` | yes | Must equal `optima-op-abi-v0` |
-| `[competition]` | recommended | Explicit requested target and `slot`/`atomic` mode |
-| `[[ops]]` | yes | One or more implementation rows |
-| `[[dep_patches]]` | no | Declared text patches for a validator-approved dependency lane |
+| Field             |    Required | Meaning                                                        |
+| ----------------- | ----------: | -------------------------------------------------------------- |
+| `bundle_id`       |         yes | Human-readable bundle identifier; not the content identity     |
+| `abi_version`     |         yes | Must equal `optima-op-abi-v0`                                  |
+| `[competition]`   | recommended | Explicit requested target and `slot`/`atomic` mode             |
+| `[[ops]]`         |         yes | One or more implementation rows                                |
+| `[[dep_patches]]` |          no | Declared text patches for a validator-approved dependency lane |
 
 The canonical bundle hash, not `bundle_id`, is the proposal's content identity.
 
@@ -75,10 +75,10 @@ and qualification use digest-bound content.
 
 ### Competition table
 
-| Field | Values |
-|---|---|
-| `target` | A validator-registered target ID |
-| `mode` | `slot` or `atomic`; `system` parses only for legacy migration |
+| Field    | Values                                                        |
+| -------- | ------------------------------------------------------------- |
+| `target` | A validator-registered target ID                              |
+| `mode`   | `slot` or `atomic`; `system` parses only for legacy migration |
 
 The table is a request, not policy. Intake resolves it against the frozen
 [target catalog](/docs/reference/target-catalog) and complete observed feature set. The
@@ -88,20 +88,20 @@ competitive bundles should declare `[competition]` explicitly.
 
 ## Operation rows
 
-| Field | Required | Meaning |
-|---|---:|---|
-| `slot` | yes | Registered execution slot |
-| `source` | yes | Python source module within the bundle |
-| `entry` | yes | Entry callable name |
-| `variant` | conditional | Capability variant; required on every row when a slot repeats |
-| `prepare` | no | Weight-preparation callable for a registered prepare/forward ABI |
-| `setup` | development only | Legacy parser/direct-framework diagnostic hook; every registered component target forbids it |
-| `dtypes` | no | Declared dtype capability domain; an empty array adds no dtype restriction |
-| `architectures` | no | Declared architecture capability domain; an empty array adds no architecture restriction |
-| `metadata` | no | Eligibility/capability JSON within the bundle |
-| `base_kernel` | no | Validator-owned base-kernel identifier for an override submission |
-| `override_point` | no | Typed hole in that base; requires `base_kernel` |
-| `cuda_sources` | no | Inspectable `.cu`/`.cuh` inputs for a reviewed builder |
+| Field            |         Required | Meaning                                                                                      |
+| ---------------- | ---------------: | -------------------------------------------------------------------------------------------- |
+| `slot`           |              yes | Registered execution slot                                                                    |
+| `source`         |              yes | Python source module within the bundle                                                       |
+| `entry`          |              yes | Entry callable name                                                                          |
+| `variant`        |      conditional | Capability variant; required on every row when a slot repeats                                |
+| `prepare`        |               no | Weight-preparation callable for a registered prepare/forward ABI                             |
+| `setup`          | development only | Legacy parser/direct-framework diagnostic hook; every registered component target forbids it |
+| `dtypes`         |               no | Declared dtype capability domain; an empty array adds no dtype restriction                   |
+| `architectures`  |               no | Declared architecture capability domain; an empty array adds no architecture restriction     |
+| `metadata`       |               no | Eligibility/capability JSON within the bundle                                                |
+| `base_kernel`    |               no | Validator-owned base-kernel identifier for an override submission                            |
+| `override_point` |               no | Typed hole in that base; requires `base_kernel`                                              |
+| `cuda_sources`   |               no | Inspectable `.cu`/`.cuh` inputs for a reviewed builder                                       |
 
 Unknown operation fields are retained for observation. They do not grant a
 capability; complete feature resolution can reject a bundle that asks for more
@@ -181,16 +181,16 @@ A bundle cannot choose:
 
 ## Failure diagnosis
 
-| Error class | Typical cause | Fix the right layer |
-|---|---|---|
-| TOML/required-field error | Missing `[[ops]]`, wrong ABI string, invalid identifier | Correct manifest syntax |
-| Path error | Absolute path, `..` escape, missing file, unsafe symlink | Keep every declared input as a regular contained file |
-| Duplicate-slot error | Multiple rows without explicit unique variants | Name every variant and make domains disjoint |
-| Competition error | Unknown target, wrong `slot`/`atomic` mode, legacy `system` title | Choose a registered target from validator output |
-| Feature-admission error | CUDA, patch, override, setup, or extra capability outside target policy | Remove the feature or choose the registered lane |
-| Static scan error | Forbidden import/operation or uninspectable tree content | Rewrite the source; scanning is not a sandbox exception list |
-| Verification error | Callable/signature/output/reference mismatch | Debug the registered tensor and correctness contract |
-| Qualification failure | Complete engine misses timing, drift, quality, fidelity, or resource gates | Inspect retained arena evidence; do not relabel the outcome |
+| Error class               | Typical cause                                                              | Fix the right layer                                          |
+| ------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| TOML/required-field error | Missing `[[ops]]`, wrong ABI string, invalid identifier                    | Correct manifest syntax                                      |
+| Path error                | Absolute path, `..` escape, missing file, unsafe symlink                   | Keep every declared input as a regular contained file        |
+| Duplicate-slot error      | Multiple rows without explicit unique variants                             | Name every variant and make domains disjoint                 |
+| Competition error         | Unknown target, wrong `slot`/`atomic` mode, legacy `system` title          | Choose a registered target from validator output             |
+| Feature-admission error   | CUDA, patch, override, setup, or extra capability outside target policy    | Remove the feature or choose the registered lane             |
+| Static scan error         | Forbidden import/operation or uninspectable tree content                   | Rewrite the source; scanning is not a sandbox exception list |
+| Verification error        | Callable/signature/output/reference mismatch                               | Debug the registered tensor and correctness contract         |
+| Qualification failure     | Complete engine misses timing, drift, quality, fidelity, or resource gates | Inspect retained arena evidence; do not relabel the outcome  |
 
 ## Pre-submission checklist
 

@@ -48,9 +48,7 @@ Each receipt is exact-schema JSON with:
   "type": "optima.model-provision",
   "schema_version": 1,
   "content_digest": "<sha256>",
-  "files": [
-    {"path": "config.json", "size": 123, "sha256": "<sha256>"}
-  ]
+  "files": [{ "path": "config.json", "size": 123, "sha256": "<sha256>" }]
 }
 ```
 
@@ -64,14 +62,14 @@ Assume the same model is copied from `/srv/models/rev-a` to `/mnt/models/rev-a` 
 changing a byte. Both trees produce the same content digest because the host root is not
 part of identity. These changes do produce a new identity or rejection:
 
-| Change | Result |
-|---|---|
-| Move an unchanged complete tree to another host path | Same content digest |
-| Change one weight byte, config byte, filename, or relative path | New content digest |
-| Add a cache, lock file, or downloader sidecar | New content digest; keep such state outside the root |
-| Replace a regular file with a symlink or hard link | Rejected |
-| Mutate a file while the inventory is being read | Rejected as an unstable tree |
-| Put the published receipt inside the model root | Self-changing input; operationally invalid |
+| Change                                                          | Result                                               |
+| --------------------------------------------------------------- | ---------------------------------------------------- |
+| Move an unchanged complete tree to another host path            | Same content digest                                  |
+| Change one weight byte, config byte, filename, or relative path | New content digest                                   |
+| Add a cache, lock file, or downloader sidecar                   | New content digest; keep such state outside the root |
+| Replace a regular file with a symlink or hard link              | Rejected                                             |
+| Mutate a file while the inventory is being read                 | Rejected as an unstable tree                         |
+| Put the published receipt inside the model root                 | Self-changing input; operationally invalid           |
 
 The receipt does not say that the model is accurate, licensed, safe, or compatible with a
 particular release. Those decisions belong to model governance and the release descriptor.

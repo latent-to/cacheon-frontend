@@ -46,7 +46,7 @@ export function Mermaid({ chart }: { chart: string }) {
 
   return (
     <div
-      className="my-4 flex justify-center [&_svg]:max-w-full [&_svg]:h-auto"
+      className="my-4 flex justify-center [&_svg]:h-auto [&_svg]:max-w-full"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   )

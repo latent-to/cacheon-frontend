@@ -30,23 +30,23 @@ evaluation-stack manifest merely by passing.
 
 There are three nested identities to keep straight:
 
-| Identity | What it fixes | Why it matters |
-|---|---|---|
-| Reservation | Finalized arrival, hotkey, publication, target members, submitted delta | Prevents a later file tree or miner from inheriting the attempt |
+| Identity                | What it fixes                                                                                   | Why it matters                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Reservation             | Finalized arrival, hotkey, publication, target members, submitted delta                         | Prevents a later file tree or miner from inheriting the attempt     |
 | Qualification authority | Frozen source/plan, candidate order, selection commitment, arena/calibration/runtime identities | Prevents the evaluator from changing the experiment after admission |
-| Reproduction identity | Arena, target, delta, hotkey, and exact incumbent/candidate stack and tree digests | Defines what the second independent PASS must reproduce |
+| Reproduction identity   | Arena, target, delta, hotkey, and exact incumbent/candidate stack and tree digests              | Defines what the second independent PASS must reproduce             |
 
 Paths are not identities. Moving the same publication or evidence store does not change
 the content digests, while rebuilding “equivalent” source under new bytes does.
 
 ## The four logical arms
 
-| Arm | Purpose | Trust status |
-|---|---|---|
-| B | First independent launch of the exact frozen incumbent | Timed isolated engine; may contain hostile incumbent contributions |
-| C | Same stack with one exact candidate delta | Timed isolated engine; hostile |
-| B′ | Second independent incumbent launch | Timed isolated engine; may contain hostile incumbent contributions |
-| T | Candidate-free pristine reference | Untimed quality authority; no proposal contributions |
+| Arm | Purpose                                                | Trust status                                                       |
+| --- | ------------------------------------------------------ | ------------------------------------------------------------------ |
+| B   | First independent launch of the exact frozen incumbent | Timed isolated engine; may contain hostile incumbent contributions |
+| C   | Same stack with one exact candidate delta              | Timed isolated engine; hostile                                     |
+| B′  | Second independent incumbent launch                    | Timed isolated engine; may contain hostile incumbent contributions |
+| T   | Candidate-free pristine reference                      | Untimed quality authority; no proposal contributions               |
 
 B and B′ measure drift around C. The host owns role assignment, timers, protocol frames,
 device checks, deadlines, and teardown. A candidate engine never chooses which role it is
@@ -137,11 +137,11 @@ converted to zero reward for convenience.
 
 The evidence-to-verdict mapping is fail closed:
 
-| Observation | Decision | Example |
-|---|---|---|
-| Complete, bound, and green across every required product | `PASS` | C clears calibrated speed bar; graph and pristine quality pass |
-| Complete attributable violation of a frozen candidate requirement | `FAIL` | Wrong output, graph replay failure, or measured quality regression |
-| Authority incomplete, stale, unreopenable, too noisy, timed out, or infrastructurally invalid | `NO_DECISION` | Missing evidence bytes, baseline drift, controller/worker failure |
+| Observation                                                                                   | Decision      | Example                                                            |
+| --------------------------------------------------------------------------------------------- | ------------- | ------------------------------------------------------------------ |
+| Complete, bound, and green across every required product                                      | `PASS`        | C clears calibrated speed bar; graph and pristine quality pass     |
+| Complete attributable violation of a frozen candidate requirement                             | `FAIL`        | Wrong output, graph replay failure, or measured quality regression |
+| Authority incomplete, stale, unreopenable, too noisy, timed out, or infrastructurally invalid | `NO_DECISION` | Missing evidence bytes, baseline drift, controller/worker failure  |
 
 An unexpected exception is not evidence of candidate guilt. The intake projection turns
 recognized plan, runner, and raw-speed authority failures into typed failure products and
@@ -164,15 +164,15 @@ lower of the two measured speedups.
 More precisely, the pair must keep the contribution identity equal while all seven
 independence fields differ:
 
-| Must match | Must differ |
-|---|---|
-| Lane, arena, reservation and finalized order | Qualification authority digest |
-| Hotkey, target, members, selected delta | Qualification plan digest |
-| Arm and incumbent/candidate stack + tree digests | Attempt artifact digest |
-| Incumbent and candidate manifests (registered lane) | Qualification report digest |
-| Discovery proposal identity (discovery lane) | Selection commitment digest |
-|  | Selection-secret commitment digest |
-|  | Selection evidence digest |
+| Must match                                          | Must differ                        |
+| --------------------------------------------------- | ---------------------------------- |
+| Lane, arena, reservation and finalized order        | Qualification authority digest     |
+| Hotkey, target, members, selected delta             | Qualification plan digest          |
+| Arm and incumbent/candidate stack + tree digests    | Attempt artifact digest            |
+| Incumbent and candidate manifests (registered lane) | Qualification report digest        |
+| Discovery proposal identity (discovery lane)        | Selection commitment digest        |
+|                                                     | Selection-secret commitment digest |
+|                                                     | Selection evidence digest          |
 
 After the first PASS, the same reservation goes through the five non-crown screens again
 in the reproduction lane. Only the second PASS creates a `SettlementCandidate`. Before
@@ -202,16 +202,16 @@ report digest.
 
 ## Qualification incident handling
 
-| Incident | Required disposition |
-|---|---|
-| Candidate engine exceeds deadline or violates protocol with attributable evidence | Grade under the frozen requirement; `FAIL` only when attribution is complete |
-| Worker, Docker, GPU, driver, or evidence publication failure | `NO_DECISION`; repair infrastructure and use bounded retry |
-| B/B′ drift exceeds calibration | `NO_DECISION`; do not increase the candidate's denominator or tune the bar after seeing C |
-| Candidate survives past the pre-T quiescence proof | Abort authority; never launch T into the contaminated lifetime |
-| T identity/session mismatch | `NO_DECISION`; T cannot be replaced with B′ or a candidate-side audit |
-| One member poisons a registered cohort | Preserve cohort failure digest and execute the stored bisection groups |
-| First PASS evidence root lost | No reproduction or settlement; restore exact bytes or hold |
-| Reproduction differs in contribution identity or reuses any independence digest | Reject the pair; it is not an independent reproduction |
+| Incident                                                                          | Required disposition                                                                      |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Candidate engine exceeds deadline or violates protocol with attributable evidence | Grade under the frozen requirement; `FAIL` only when attribution is complete              |
+| Worker, Docker, GPU, driver, or evidence publication failure                      | `NO_DECISION`; repair infrastructure and use bounded retry                                |
+| B/B′ drift exceeds calibration                                                    | `NO_DECISION`; do not increase the candidate's denominator or tune the bar after seeing C |
+| Candidate survives past the pre-T quiescence proof                                | Abort authority; never launch T into the contaminated lifetime                            |
+| T identity/session mismatch                                                       | `NO_DECISION`; T cannot be replaced with B′ or a candidate-side audit                     |
+| One member poisons a registered cohort                                            | Preserve cohort failure digest and execute the stored bisection groups                    |
+| First PASS evidence root lost                                                     | No reproduction or settlement; restore exact bytes or hold                                |
+| Reproduction differs in contribution identity or reuses any independence digest   | Reject the pair; it is not an independent reproduction                                    |
 
 Never rerun only the favorable arm, splice evidence from different authorities, or lower
 a threshold after seeing the outcome. A fresh attempt must be a complete, newly bound

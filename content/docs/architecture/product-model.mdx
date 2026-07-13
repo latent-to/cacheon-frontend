@@ -28,12 +28,12 @@ candidate, and absent from the current production release without contradiction.
 
 ## Four objects, four authorities
 
-| Object | Contents | Authority | May enter production? |
-|---|---|---|---|
-| Proposal | A miner-supplied target delta or discovery prototype | Hostile input identified by finalized intake and content digests | No |
-| Crown | Reopened evidence that the proposal improved one arena and attributable target | Referee qualification, independent reproduction, and settlement | Not by itself |
-| Integrated contribution | Reviewed source and tests that preserve the crowned selected payload, with immutable contributor identity | Source control and integration review | Yes, as release input |
-| Engine release | Pinned upstream runtime plus a canonical reviewed stack and sealed release inputs | Signed release descriptor and publication | Yes |
+| Object                  | Contents                                                                                                  | Authority                                                        | May enter production? |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------- |
+| Proposal                | A miner-supplied target delta or discovery prototype                                                      | Hostile input identified by finalized intake and content digests | No                    |
+| Crown                   | Reopened evidence that the proposal improved one arena and attributable target                            | Referee qualification, independent reproduction, and settlement  | Not by itself         |
+| Integrated contribution | Reviewed source and tests that preserve the crowned selected payload, with immutable contributor identity | Source control and integration review                            | Yes, as release input |
+| Engine release          | Pinned upstream runtime plus a canonical reviewed stack and sealed release inputs                         | Signed release descriptor and publication                        | Yes                   |
 
 No step may silently substitute one object for another:
 
@@ -107,11 +107,11 @@ economic transition and integration record describe only B's registered delta.
 
 The product model is reflected directly in manifest types:
 
-| Manifest | May contain hostile proposal code? | Arena-bound? | Used for timing? | Used for serving? |
-|---|---:|---:|---:|---:|
-| `EvaluationStackManifest` | Yes | Yes | Yes | No |
-| `EngineReleaseManifest` | No; integrated contributions only | No | Release validation only | Yes |
-| `ReferenceManifest` | No; validator-owned | Quality profile-bound | No | No |
+| Manifest                  | May contain hostile proposal code? |          Arena-bound? |        Used for timing? | Used for serving? |
+| ------------------------- | ---------------------------------: | --------------------: | ----------------------: | ----------------: |
+| `EvaluationStackManifest` |                                Yes |                   Yes |                     Yes |                No |
+| `EngineReleaseManifest`   |  No; integrated contributions only |                    No | Release validation only |               Yes |
+| `ReferenceManifest`       |                No; validator-owned | Quality profile-bound |                      No |                No |
 
 The evaluation stack is an economic hill-climb state. The release manifest is a product state. The reference manifest is semantic authority. A crown can transactionally update the first; only reviewed promotion and signing can create a new instance of the second. See [Stacks and manifests](/docs/architecture/stacks).
 

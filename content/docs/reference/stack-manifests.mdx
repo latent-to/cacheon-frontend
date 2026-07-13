@@ -7,11 +7,11 @@ manifest types. They are deliberately not interchangeable.
 
 ## The three questions they answer
 
-| Manifest | Question | Proposal source? | Arena identity? | Timed? |
-|---|---|---:|---:|---:|
-| `EvaluationStackManifest` | What complete incumbent does this arena evaluate? | allowed | yes | as B/B′ |
-| `EngineReleaseManifest` | What reviewed set may be materialized and shipped? | rejected | no | serving policy is separate |
-| `ReferenceManifest` | What pristine candidate-free engine grades sealed trajectories? | rejected | yes, with reference identities | no |
+| Manifest                  | Question                                                        | Proposal source? |                Arena identity? |                     Timed? |
+| ------------------------- | --------------------------------------------------------------- | ---------------: | -----------------------------: | -------------------------: |
+| `EvaluationStackManifest` | What complete incumbent does this arena evaluate?               |          allowed |                            yes |                    as B/B′ |
+| `EngineReleaseManifest`   | What reviewed set may be materialized and shipped?              |         rejected |                             no | serving policy is separate |
+| `ReferenceManifest`       | What pristine candidate-free engine grades sealed trajectories? |         rejected | yes, with reference identities |                         no |
 
 An evaluation stack and a release stack may name similar semantic
 improvements, but equality of intent is not equality of identity. The former
@@ -159,16 +159,16 @@ selected crowned payload under the current contract.
 
 ## Common rejection cases
 
-| Symptom | Meaning |
-|---|---|
-| Unknown field during reopen | The object does not match the exact current schema |
-| Catalog digest and snapshot disagree | The supplied context is inconsistent or forged |
-| Entry key differs from `ref.target_id` | The mapping tries to relabel a contribution |
-| Target-spec digest differs | Qualification used another semantic contract |
-| Overlapping active targets | Catalog displacement/composition was not applied canonically |
-| Proposal reference in a release manifest | Hostile evaluation content crossed the serving boundary |
-| Integration record missing or mismatched | Reviewed-source authority is incomplete |
-| Runtime/base/arena context mismatch | The stack is being reopened under a different environment |
+| Symptom                                  | Meaning                                                      |
+| ---------------------------------------- | ------------------------------------------------------------ |
+| Unknown field during reopen              | The object does not match the exact current schema           |
+| Catalog digest and snapshot disagree     | The supplied context is inconsistent or forged               |
+| Entry key differs from `ref.target_id`   | The mapping tries to relabel a contribution                  |
+| Target-spec digest differs               | Qualification used another semantic contract                 |
+| Overlapping active targets               | Catalog displacement/composition was not applied canonically |
+| Proposal reference in a release manifest | Hostile evaluation content crossed the serving boundary      |
+| Integration record missing or mismatched | Reviewed-source authority is incomplete                      |
+| Runtime/base/arena context mismatch      | The stack is being reopened under a different environment    |
 
 Treat these as identity failures, not migration hints. The safe response is to
 construct a new typed object through the appropriate transition and retain the

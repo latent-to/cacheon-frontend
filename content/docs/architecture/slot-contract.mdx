@@ -41,29 +41,29 @@ A feature that cannot preserve all four invariants is not a core slot. It must u
 
 The live catalog supports three kinds. Kind changes the breadth and capability of the boundary, not the trust model.
 
-| Kind | Boundary | Additional requirement |
-|---|---|---|
-| `op` | One fused operation | Standard typed input/output verification |
-| `block` | Several operations behind one bounded tensor contract | Explicit graph-safe behavior and end-to-end qualification |
+| Kind         | Boundary                                                       | Additional requirement                                                                                  |
+| ------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `op`         | One fused operation                                            | Standard typed input/output verification                                                                |
+| `block`      | Several operations behind one bounded tensor contract          | Explicit graph-safe behavior and end-to-end qualification                                               |
 | `collective` | A cross-rank operation or block that owns a communication step | Distributed verification, canonical live ABI, terminal all-rank selection, and end-to-end qualification |
 
 ## Current catalog
 
 The current API contains **11 slots**.
 
-| Slot | Kind | Entry point | Semantic boundary |
-|---|---|---|---|
-| `activation.silu_and_mul` | `op` | `silu_and_mul` | Gated MLP activation product |
-| `norm.rmsnorm` | `op` | `rmsnorm` | RMS normalization; residual addition remains outside |
-| `attention.sdpa` | `block` | `attention` | Scaled dot-product attention core |
-| `attention.decode` | `block` | `attention_decode` | Paged decode-attention boundary |
-| `attention.msa_block_score` | `block` | `msa_block_score` | MSA decode block-score sheet; validator owns top-k selection |
-| `attention.msa_prefill_block_score` | `block` | `msa_prefill_block_score` | MSA chunked-prefill block-score sheet; validator owns top-k selection |
-| `moe.fused_experts` | `block` | `fused_experts` | Prepared MoE expert execution |
-| `moe.fused_experts_reduce` | `collective` | `fused_experts_reduce` | Prepared MoE experts plus owned trailing reduce |
-| `collective.all_reduce` | `collective` | `all_reduce` | Cross-rank sum into a validator-owned output |
-| `collective.ar_residual_rmsnorm` | `collective` | `ar_residual_rmsnorm` | Fused all-reduce, residual add, and RMSNorm |
-| `collective.moe_finalize_ar_rmsnorm` | `collective` | `moe_finalize_ar_rmsnorm` | Deep MoE finalize, all-reduce, residual, and RMSNorm boundary |
+| Slot                                 | Kind         | Entry point               | Semantic boundary                                                     |
+| ------------------------------------ | ------------ | ------------------------- | --------------------------------------------------------------------- |
+| `activation.silu_and_mul`            | `op`         | `silu_and_mul`            | Gated MLP activation product                                          |
+| `norm.rmsnorm`                       | `op`         | `rmsnorm`                 | RMS normalization; residual addition remains outside                  |
+| `attention.sdpa`                     | `block`      | `attention`               | Scaled dot-product attention core                                     |
+| `attention.decode`                   | `block`      | `attention_decode`        | Paged decode-attention boundary                                       |
+| `attention.msa_block_score`          | `block`      | `msa_block_score`         | MSA decode block-score sheet; validator owns top-k selection          |
+| `attention.msa_prefill_block_score`  | `block`      | `msa_prefill_block_score` | MSA chunked-prefill block-score sheet; validator owns top-k selection |
+| `moe.fused_experts`                  | `block`      | `fused_experts`           | Prepared MoE expert execution                                         |
+| `moe.fused_experts_reduce`           | `collective` | `fused_experts_reduce`    | Prepared MoE experts plus owned trailing reduce                       |
+| `collective.all_reduce`              | `collective` | `all_reduce`              | Cross-rank sum into a validator-owned output                          |
+| `collective.ar_residual_rmsnorm`     | `collective` | `ar_residual_rmsnorm`     | Fused all-reduce, residual add, and RMSNorm                           |
+| `collective.moe_finalize_ar_rmsnorm` | `collective` | `moe_finalize_ar_rmsnorm` | Deep MoE finalize, all-reduce, residual, and RMSNorm boundary         |
 
 Run `optima slots` against the installed code for the human-readable live list.
 The command prints multi-line summaries rather than a JSON/structured schema;
@@ -207,15 +207,15 @@ This keeps experimentation possible without widening every ordinary submission's
 
 ## Failure behavior by phase
 
-| Phase | Example | Required behavior |
-|---|---|---|
-| Manifest resolution | Unknown slot, ambiguous variant, stale contract digest | Reject before candidate execution |
-| Pre-selection live routing | Shape or topology is outside a registered variant | Use the stock path when policy permits; do not count a candidate firing |
-| Selected non-collective call | Candidate raises, corrupts output identity, or violates layout | In strict qualification, invalidate the candidate execution; a silent stock retry cannot produce crown evidence |
-| Selected collective call | One rank fails after all-rank candidate selection | Abort the candidate engine; rank-local fallback is unsafe |
-| Graph replay | Output reflects capture-time input after a declared dynamic tensor changes | Fail graph verification/screening |
-| End-to-end quality | Per-slot numerics pass but sealed trajectory regresses | Fail under pristine T quality authority |
-| Infrastructure | Worker, device, or evidence authority cannot establish a valid result | `NO_DECISION`, not an attributable candidate loss |
+| Phase                        | Example                                                                    | Required behavior                                                                                               |
+| ---------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Manifest resolution          | Unknown slot, ambiguous variant, stale contract digest                     | Reject before candidate execution                                                                               |
+| Pre-selection live routing   | Shape or topology is outside a registered variant                          | Use the stock path when policy permits; do not count a candidate firing                                         |
+| Selected non-collective call | Candidate raises, corrupts output identity, or violates layout             | In strict qualification, invalidate the candidate execution; a silent stock retry cannot produce crown evidence |
+| Selected collective call     | One rank fails after all-rank candidate selection                          | Abort the candidate engine; rank-local fallback is unsafe                                                       |
+| Graph replay                 | Output reflects capture-time input after a declared dynamic tensor changes | Fail graph verification/screening                                                                               |
+| End-to-end quality           | Per-slot numerics pass but sealed trajectory regresses                     | Fail under pristine T quality authority                                                                         |
+| Infrastructure               | Worker, device, or evidence authority cannot establish a valid result      | `NO_DECISION`, not an attributable candidate loss                                                               |
 
 This distinction explains why “fallback exists” and “the candidate qualifies” are
 different statements. Fallback can preserve availability in a non-strict serving or

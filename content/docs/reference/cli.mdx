@@ -16,33 +16,32 @@ processes. The installed `optima` console script targets the same parser.
 
 ## Command inventory
 
-| Command | Audience | Authority | Purpose |
-|---|---|---|---|
-| `slots` | all | read-only | Print the live slot ABI |
-| `compat` | operator | diagnostic | Check the installed SGLang seam against the pin |
-| `chain-compat` | operator | diagnostic | Check the installed Bittensor SDK surface without network access |
-| `scan` | contributor | local gate | Parse a bundle and apply static policy |
-| `verify` | contributor | local gate | Check the declared slot contract against a trusted reference |
-| `hash` | contributor | identity | Print the deterministic bundle content hash |
-| `evaluate` | developer | **development diagnostic** | Run the older direct throughput/fidelity harness |
-| `bench` | developer | **development diagnostic** | Run direct task/throughput diagnostics |
-| `chain-package` | contributor | submission | Build the deterministic archive to host |
-| `chain-submit` | contributor | submission | Commit a bundle hash and HTTPS fetch location |
-| `chain-status` | all | read-only | Inspect current subnet and reveal state |
-| `chain-register` | operator | chain mutation | Register a hotkey and run its preflight |
-| `chain-validate` | validator | production | Consume finalized reveals; optionally run an injected arena |
-| `set-weights` | validator | production | Reconcile the journaled global reward projection |
-| `model-provision` | release operator | production | Seal model bytes into a content-addressed external receipt |
-| `release-verify` | release consumer | production | Verify and reopen a signed Engine release |
-| `release-context` | release consumer | production | Produce a deterministic OCI build context from a verified release |
-| `commit`, `reveal`, `ledger` | developer | local simulation | Exercise the legacy local JSON commit/reveal model |
-| `legacy-settle` | developer | **development-only** | Run the old settlement simulation; requires `--development-only` |
+| Command                      | Audience         | Authority                  | Purpose                                                           |
+| ---------------------------- | ---------------- | -------------------------- | ----------------------------------------------------------------- |
+| `slots`                      | all              | read-only                  | Print the live slot ABI                                           |
+| `compat`                     | operator         | diagnostic                 | Check the installed SGLang seam against the pin                   |
+| `chain-compat`               | operator         | diagnostic                 | Check the installed Bittensor SDK surface without network access  |
+| `scan`                       | contributor      | local gate                 | Parse a bundle and apply static policy                            |
+| `verify`                     | contributor      | local gate                 | Check the declared slot contract against a trusted reference      |
+| `hash`                       | contributor      | identity                   | Print the deterministic bundle content hash                       |
+| `evaluate`                   | developer        | **development diagnostic** | Run the older direct throughput/fidelity harness                  |
+| `bench`                      | developer        | **development diagnostic** | Run direct task/throughput diagnostics                            |
+| `chain-package`              | contributor      | submission                 | Build the deterministic archive to host                           |
+| `chain-submit`               | contributor      | submission                 | Commit a bundle hash and HTTPS fetch location                     |
+| `chain-status`               | all              | read-only                  | Inspect current subnet and reveal state                           |
+| `chain-register`             | operator         | chain mutation             | Register a hotkey and run its preflight                           |
+| `chain-validate`             | validator        | production                 | Consume finalized reveals; optionally run an injected arena       |
+| `set-weights`                | validator        | production                 | Reconcile the journaled global reward projection                  |
+| `model-provision`            | release operator | production                 | Seal model bytes into a content-addressed external receipt        |
+| `release-verify`             | release consumer | production                 | Verify and reopen a signed Engine release                         |
+| `release-context`            | release consumer | production                 | Produce a deterministic OCI build context from a verified release |
+| `commit`, `reveal`, `ledger` | developer        | local simulation           | Exercise the legacy local JSON commit/reveal model                |
+| `legacy-settle`              | developer        | **development-only**       | Run the old settlement simulation; requires `--development-only`  |
 
 <Callout type="warn" title="Know which path you are running">
-`evaluate`, `bench`, and `legacy-settle` are useful diagnostics. They are
-not the production qualification or settlement authority and cannot mint a
-current crown. The hardened path is a registered arena injected into
-`chain-validate`.
+  `evaluate`, `bench`, and `legacy-settle` are useful diagnostics. They are not the production
+  qualification or settlement authority and cannot mint a current crown. The hardened path is a
+  registered arena injected into `chain-validate`.
 </Callout>
 
 ## Local contribution loop

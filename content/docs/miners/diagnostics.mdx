@@ -10,11 +10,11 @@ each stage has different identity and evidence.
 
 Cacheon uses three qualification grades:
 
-| Decision | Meaning | Miner response |
-|---|---|---|
-| `PASS` | the bound evidence passed this stage | continue; one qualification PASS is still only `reproduction_pending` |
-| `FAIL` | the candidate or its declared applicability violated a requirement | change the proposal and submit a new content identity |
-| `NO_DECISION` | authority, infrastructure, conditioning, drift, or evidence was insufficient for a safe verdict | preserve the proposal identity and wait/retry under operator policy |
+| Decision      | Meaning                                                                                         | Miner response                                                        |
+| ------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `PASS`        | the bound evidence passed this stage                                                            | continue; one qualification PASS is still only `reproduction_pending` |
+| `FAIL`        | the candidate or its declared applicability violated a requirement                              | change the proposal and submit a new content identity                 |
+| `NO_DECISION` | authority, infrastructure, conditioning, drift, or evidence was insufficient for a safe verdict | preserve the proposal identity and wait/retry under operator policy   |
 
 `NO_DECISION` is not a weak pass, and `FAIL` is not converted to a zero-scored
 candidate. Non-crown screens use equivalent `pass`, `fail`, and `no_decision`
@@ -24,21 +24,21 @@ grades to derive promote, reject, retry, or hold.
 
 The production SQLite state machine currently exposes these statuses:
 
-| Status | What it means |
-|---|---|
-| `reserved` | finalized reveal admitted and waiting for a fetch lease |
-| `fetching` | HTTPS fetch/extract/hash/publication work is active |
-| `transport_retry` | transient transport failure is eligible for another fetch attempt |
-| `published` | immutable worker publication and selected-delta identity exist; waiting for primary screens |
-| `screening` | the registered arena service is running the ordered non-crown screen prefix |
-| `promoted` | every non-crown screen passed; waiting to enter qualification |
-| `qualifying` | one authority-bound B/C/B′/T attempt is active |
-| `reproduction_pending` | one complete PASS is retained; a fresh independent screen/qualification pass is still required |
-| `qualified` | two consistent independent PASS attempts are retained; settlement is separate |
-| `no_decision` | retryable qualification evidence/failure product was retained |
-| `held` | automatic progress stopped under retry, capacity, or safety policy; operator action is required |
-| `failed` | terminal invalid/rejected/failed candidate |
-| `expired` | terminal queue-age expiry |
+| Status                 | What it means                                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------------------------- |
+| `reserved`             | finalized reveal admitted and waiting for a fetch lease                                         |
+| `fetching`             | HTTPS fetch/extract/hash/publication work is active                                             |
+| `transport_retry`      | transient transport failure is eligible for another fetch attempt                               |
+| `published`            | immutable worker publication and selected-delta identity exist; waiting for primary screens     |
+| `screening`            | the registered arena service is running the ordered non-crown screen prefix                     |
+| `promoted`             | every non-crown screen passed; waiting to enter qualification                                   |
+| `qualifying`           | one authority-bound B/C/B′/T attempt is active                                                  |
+| `reproduction_pending` | one complete PASS is retained; a fresh independent screen/qualification pass is still required  |
+| `qualified`            | two consistent independent PASS attempts are retained; settlement is separate                   |
+| `no_decision`          | retryable qualification evidence/failure product was retained                                   |
+| `held`                 | automatic progress stopped under retry, capacity, or safety policy; operator action is required |
+| `failed`               | terminal invalid/rejected/failed candidate                                                      |
+| `expired`              | terminal queue-age expiry                                                                       |
 
 These transitions are implemented in
 [intake.py](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py).
@@ -62,16 +62,16 @@ domains but is still not the intake resolver.
 
 Common failures and fixes:
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| unsupported ABI | `abi_version` is not `optima-op-abi-v0` | update the bundle to the active component ABI |
-| unsafe/missing path | absolute path, traversal, symlink, or undeclared file | make every declaration bundle-relative and source-only |
-| competition mode mismatch | `slot`/`atomic` assertion disagrees with catalog | select the exact registered target and mode |
-| target members differ | op rows do not implement the complete registered delta | use the exact singleton member or all atomic members |
-| feature not allowed | `setup`, dependency patch, rebuild, override, CUDA source, or unknown extra is outside policy | remove it or use a target/lane that explicitly permits it |
-| incomplete feature evidence | intake could not independently observe the rebuild feature set | use only registered rebuild declarations and complete source inventory |
-| duplicate slot requires variants | repeated rows omit explicit unique `variant` | name every variant |
-| overlapping domains | two variants can route the same live call | make capability domains provably disjoint |
+| Symptom                          | Likely cause                                                                                  | Fix                                                                    |
+| -------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| unsupported ABI                  | `abi_version` is not `optima-op-abi-v0`                                                       | update the bundle to the active component ABI                          |
+| unsafe/missing path              | absolute path, traversal, symlink, or undeclared file                                         | make every declaration bundle-relative and source-only                 |
+| competition mode mismatch        | `slot`/`atomic` assertion disagrees with catalog                                              | select the exact registered target and mode                            |
+| target members differ            | op rows do not implement the complete registered delta                                        | use the exact singleton member or all atomic members                   |
+| feature not allowed              | `setup`, dependency patch, rebuild, override, CUDA source, or unknown extra is outside policy | remove it or use a target/lane that explicitly permits it              |
+| incomplete feature evidence      | intake could not independently observe the rebuild feature set                                | use only registered rebuild declarations and complete source inventory |
+| duplicate slot requires variants | repeated rows omit explicit unique `variant`                                                  | name every variant                                                     |
+| overlapping domains              | two variants can route the same live call                                                     | make capability domains provably disjoint                              |
 
 A missing `[competition]` may still resolve for a narrow legacy singleton case,
 but do not rely on that for new submissions.
@@ -80,15 +80,15 @@ but do not rely on that for new submissions.
 
 The point at which output stops identifies the layer:
 
-| Last output | What has actually happened | Next check |
-|---|---|---|
-| TOML/path exception before the bundle summary | manifest parsing or declared-path validation stopped | syntax, required fields, identifier spelling, file existence, relative path containment |
-| bundle summary plus `[VIOLATIONS]` | the manifest loaded, but one declared or recursive-tree source policy failed | every printed file/line and any undeclared executable material |
-| clean `scan`, then `invalid or ambiguous variant domain` in `verify` | static source is clean, but metadata/manifest eligibility cannot register deterministically | JSON types, canonical values, manifest/metadata intersection, variant overlap |
-| `[SKIP] ... not a known slot` | this checkout has no such slot contract | active validator version and slot name; a skip is not evidence |
-| every row N/A and `no bundle variant is applicable` | domains registered, but no row matched the selected invariant context | dtype, architecture, model, phase, topology, and required descriptor fields |
-| per-shape `FAIL` | candidate ran for an applicable shape and failed its ABI/comparator | shape-specific math, output ownership, mutation, stride, metric detail |
-| `NUMERICAL_PASS` with `graph=NOT_VERIFIED` | eager math passed but required capture/replay proof did not | graph phase and failure class, not numerical tolerance |
+| Last output                                                          | What has actually happened                                                                  | Next check                                                                              |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| TOML/path exception before the bundle summary                        | manifest parsing or declared-path validation stopped                                        | syntax, required fields, identifier spelling, file existence, relative path containment |
+| bundle summary plus `[VIOLATIONS]`                                   | the manifest loaded, but one declared or recursive-tree source policy failed                | every printed file/line and any undeclared executable material                          |
+| clean `scan`, then `invalid or ambiguous variant domain` in `verify` | static source is clean, but metadata/manifest eligibility cannot register deterministically | JSON types, canonical values, manifest/metadata intersection, variant overlap           |
+| `[SKIP] ... not a known slot`                                        | this checkout has no such slot contract                                                     | active validator version and slot name; a skip is not evidence                          |
+| every row N/A and `no bundle variant is applicable`                  | domains registered, but no row matched the selected invariant context                       | dtype, architecture, model, phase, topology, and required descriptor fields             |
+| per-shape `FAIL`                                                     | candidate ran for an applicable shape and failed its ABI/comparator                         | shape-specific math, output ownership, mutation, stride, metric detail                  |
+| `NUMERICAL_PASS` with `graph=NOT_VERIFIED`                           | eager math passed but required capture/replay proof did not                                 | graph phase and failure class, not numerical tolerance                                  |
 
 Run `scan` separately even though `verify` repeats recursive policy checks. The separate
 command gives the cheapest no-import result; `verify` then tests domain registration and

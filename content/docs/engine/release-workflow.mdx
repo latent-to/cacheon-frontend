@@ -15,14 +15,14 @@ authorized registry digest.
 
 ## Roles and handoffs
 
-| Role | Receives | Produces | Must not silently choose |
-|---|---|---|---|
-| Integration/release reviewer | Crown-linked review records and reviewed source | Approved integrated refs and release composition | Signing key or deployment target |
-| Reproducible builder | Frozen source/model/native/policy inputs | Canonical descriptor and deterministic artifacts | Different dependency/runtime versions |
-| Release signer | Reviewed descriptor digest and signing policy | Ed25519 signature | New bytes after approval |
-| Publisher | Signed descriptor plus complete payload inventory | Digest-addressed reopened publication | An embedded key as trust root |
-| Container publisher | Verified context and target repository/platform | Matching double-build digest and signed reproducibility statement | Mutable tag as final identity |
-| Deployment operator | External public key, expected descriptors/digests, model | Authorized canary and retained receipts | Runtime repairs to a signed release |
+| Role                         | Receives                                                 | Produces                                                          | Must not silently choose              |
+| ---------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------- |
+| Integration/release reviewer | Crown-linked review records and reviewed source          | Approved integrated refs and release composition                  | Signing key or deployment target      |
+| Reproducible builder         | Frozen source/model/native/policy inputs                 | Canonical descriptor and deterministic artifacts                  | Different dependency/runtime versions |
+| Release signer               | Reviewed descriptor digest and signing policy            | Ed25519 signature                                                 | New bytes after approval              |
+| Publisher                    | Signed descriptor plus complete payload inventory        | Digest-addressed reopened publication                             | An embedded key as trust root         |
+| Container publisher          | Verified context and target repository/platform          | Matching double-build digest and signed reproducibility statement | Mutable tag as final identity         |
+| Deployment operator          | External public key, expected descriptors/digests, model | Authorized canary and retained receipts                           | Runtime repairs to a signed release   |
 
 ## Required inputs
 
@@ -97,14 +97,14 @@ published = publish_release(
 )
 ```
 
-| Input group | Must already establish |
-|---|---|
-| Release manifest and integration records | Integrated-only active target set with exact review coverage |
-| Engine tree | Deterministic materialization whose stack digest equals the release manifest |
-| Model provisioning | Exact path-independent regular-file inventory and approved model identities |
-| Native build/publication | Build spec bound to the Engine tree and reopened architecture-specific artifacts |
-| Reference/calibration/seccomp bytes | Canonical reviewed policy objects, not caller-generated approximations |
-| Upstream/SGLang/serve identities | Exact revision, pin, base image, platform, model mount, TP size, arguments, and bounded environment |
+| Input group                              | Must already establish                                                                              |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Release manifest and integration records | Integrated-only active target set with exact review coverage                                        |
+| Engine tree                              | Deterministic materialization whose stack digest equals the release manifest                        |
+| Model provisioning                       | Exact path-independent regular-file inventory and approved model identities                         |
+| Native build/publication                 | Build spec bound to the Engine tree and reopened architecture-specific artifacts                    |
+| Reference/calibration/seccomp bytes      | Canonical reviewed policy objects, not caller-generated approximations                              |
+| Upstream/SGLang/serve identities         | Exact revision, pin, base image, platform, model mount, TP size, arguments, and bounded environment |
 
 Production code should keep construction, signing, and publication as separate
 reviewed steps even when a test fixture performs them sequentially.
@@ -168,10 +168,9 @@ model/native identities, upstream identities, and serving specification.
 ## Publication checklist
 
 <Callout type="info" title="Implemented workflow, pending final operational proof">
-The typed release, registry, authorization, runtime, and receipt gates are
-implemented and covered by focused/full-suite tests. The current state of
-record does not claim an actual reproducible registry image pair followed
-by final TP8 serving and receipt verification.
+  The typed release, registry, authorization, runtime, and receipt gates are implemented and covered
+  by focused/full-suite tests. The current state of record does not claim an actual reproducible
+  registry image pair followed by final TP8 serving and receipt verification.
 </Callout>
 
 - Rebuild from a clean, exact source revision.
@@ -188,16 +187,16 @@ by final TP8 serving and receipt verification.
 
 ## Failure behavior
 
-| Failure | Required response |
-|---|---|
-| Missing or extra integration review | Reject release preparation; do not drop the unmatched target |
-| First and second source/wheel products differ | Stop and diagnose nondeterminism before signing |
-| Native publication or model receipt no longer reopens | Stop; recover the exact input or construct a new release identity |
-| Signature verifies only with the key embedded in the release | Untrusted until an externally obtained expected key verifies it |
-| Destination digest directory exists but differs | Treat as corruption/collision; never overwrite in place |
-| Two container builds produce different raw manifests | Do not issue reproducibility authorization |
-| Image verifies but host policy differs from signed `ServeSpec` | Do not start the container |
-| Canary answers but receipts show fallback/missing rank coverage | Do not promote; responsiveness is not activation proof |
+| Failure                                                         | Required response                                                 |
+| --------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Missing or extra integration review                             | Reject release preparation; do not drop the unmatched target      |
+| First and second source/wheel products differ                   | Stop and diagnose nondeterminism before signing                   |
+| Native publication or model receipt no longer reopens           | Stop; recover the exact input or construct a new release identity |
+| Signature verifies only with the key embedded in the release    | Untrusted until an externally obtained expected key verifies it   |
+| Destination digest directory exists but differs                 | Treat as corruption/collision; never overwrite in place           |
+| Two container builds produce different raw manifests            | Do not issue reproducibility authorization                        |
+| Image verifies but host policy differs from signed `ServeSpec`  | Do not start the container                                        |
+| Canary answers but receipts show fallback/missing rank coverage | Do not promote; responsiveness is not activation proof            |
 
 An aborted release attempt leaves the previous signed publication authoritative. Repairing
 inputs should create a newly prepared and signed descriptor, not a hand-edited release

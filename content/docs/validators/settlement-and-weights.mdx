@@ -69,15 +69,15 @@ tie-break.
 
 The hash-chained event journal can contain:
 
-| Event | Meaning |
-|---|---|
-| `HOLD` | Candidate cannot advance against this incumbent or lost a conflict |
-| `CROWN` | Passing marginal contribution is recognized |
-| `RETIREMENT` | Previous contribution at the target is superseded |
-| `NEUTRALIZATION` | An overlapping target is displaced by explicit catalog policy |
-| `ADOPTION` | New contribution is inserted into the evaluation stack |
-| `STACK_TRANSITION` | Incumbent stack/tree advances atomically |
-| `DISCOVERY_BOUNTY` | Qualified discovery receives bounded bounty treatment only |
+| Event              | Meaning                                                            |
+| ------------------ | ------------------------------------------------------------------ |
+| `HOLD`             | Candidate cannot advance against this incumbent or lost a conflict |
+| `CROWN`            | Passing marginal contribution is recognized                        |
+| `RETIREMENT`       | Previous contribution at the target is superseded                  |
+| `NEUTRALIZATION`   | An overlapping target is displaced by explicit catalog policy      |
+| `ADOPTION`         | New contribution is inserted into the evaluation stack             |
+| `STACK_TRANSITION` | Incumbent stack/tree advances atomically                           |
+| `DISCOVERY_BOUNTY` | Qualified discovery receives bounded bounty treatment only         |
 
 The SQLite store leases an economically unblocked cohort, reopens the exact evidence and
 current stack, and applies the event journal, stack transition, candidate dispositions,
@@ -176,13 +176,13 @@ journal intent. A real submission requires at least one genuine current-schema c
 
 Real publication is fail-closed and journaled:
 
-| State | Meaning |
-|---|---|
-| `intent` | Exact projection persisted before the SDK call |
-| `pending` | Submission attempted, but authoritative chain confirmation is absent |
+| State       | Meaning                                                                                                                             |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `intent`    | Exact projection persisted before the SDK call                                                                                      |
+| `pending`   | Submission attempted, but authoritative chain confirmation is absent                                                                |
 | `confirmed` | The exact recipient set, normalized values within the fixed verifier tolerance, and a sufficiently new `last_update` were read back |
-| `held` | Authority changed, deadline expired, readback diverged, or post-submit state is unavailable |
-| `released` | Operator appended an audited release of a retained hold |
+| `held`      | Authority changed, deadline expired, readback diverged, or post-submit state is unavailable                                         |
+| `released`  | Operator appended an audited release of a retained hold                                                                             |
 
 An SDK return value—even `submitted=True`—is not confirmation. The reconciler refreshes
 the metagraph immediately, maps recipients to current UIDs, reads current validator
@@ -242,18 +242,18 @@ authority before deciding whether a new intent is valid.
 
 ## Failure and recovery matrix
 
-| Condition | Safe outcome | Recovery |
-|---|---|---|
-| Earlier overlapping reservation unresolved | Candidate remains settlement-pending | Resolve earlier finalized work; do not reorder or delete it |
-| Candidate names old incumbent | `HOLD` event / stale-incumbent disposition | A fresh qualification must target the current stack |
-| Lease expires or store/journal head advances | Commit aborts; expired lease returns pending | Reopen authority and obtain a new lease generation |
-| Either PASS evidence root cannot reopen | No settlement and no reward projection | Restore exact content-addressed bytes or retain hold |
-| Transaction fails mid-plan | SQLite rollback; no partial events/claims/stack | Diagnose, then rerun against unchanged authority |
-| Active claim hotkey leaves metagraph | Entire projection refused | Resolve validator-set policy; never redistribute implicitly |
-| SDK says submitted, readback absent | `pending`, then `held` at deadline | Inspect chain/extrinsic; preserve journal and append reviewed release if appropriate |
-| Post-submit chain authority unavailable | Immediate `held` | Restore authoritative reads before release/retry |
-| Previously confirmed vector changes | `held` | Treat as an incident; compare chain history and signer activity |
-| Emissions parameters differ from bound policy | Projection refused | Use the consensus-approved bound policy or migrate authority explicitly |
+| Condition                                     | Safe outcome                                    | Recovery                                                                             |
+| --------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Earlier overlapping reservation unresolved    | Candidate remains settlement-pending            | Resolve earlier finalized work; do not reorder or delete it                          |
+| Candidate names old incumbent                 | `HOLD` event / stale-incumbent disposition      | A fresh qualification must target the current stack                                  |
+| Lease expires or store/journal head advances  | Commit aborts; expired lease returns pending    | Reopen authority and obtain a new lease generation                                   |
+| Either PASS evidence root cannot reopen       | No settlement and no reward projection          | Restore exact content-addressed bytes or retain hold                                 |
+| Transaction fails mid-plan                    | SQLite rollback; no partial events/claims/stack | Diagnose, then rerun against unchanged authority                                     |
+| Active claim hotkey leaves metagraph          | Entire projection refused                       | Resolve validator-set policy; never redistribute implicitly                          |
+| SDK says submitted, readback absent           | `pending`, then `held` at deadline              | Inspect chain/extrinsic; preserve journal and append reviewed release if appropriate |
+| Post-submit chain authority unavailable       | Immediate `held`                                | Restore authoritative reads before release/retry                                     |
+| Previously confirmed vector changes           | `held`                                          | Treat as an incident; compare chain history and signer activity                      |
+| Emissions parameters differ from bound policy | Projection refused                              | Use the consensus-approved bound policy or migrate authority explicitly              |
 
 The journal and settlement tables are evidence. Back them up with SQLite-aware tooling,
 monitor WAL/disk health, and test restoration with evidence roots present. Never repair an

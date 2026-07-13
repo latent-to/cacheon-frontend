@@ -16,13 +16,13 @@ These are **inference-time** constraints. Cacheon treats inference optimization 
 
 A modern inference stack is a stack of GPU kernels, and each one is a place where throughput is won or lost:
 
-| Boundary        | What runs there                                              | Why it matters                          |
-| --------------- | ----------------------------------------------------------- | --------------------------------------- |
-| **Activation**  | fused SiLU/SwiGLU and gate-up projections in the MLP        | Hot elementwise op on every token       |
-| **Normalization** | RMSNorm before attention and MLP                          | Fires on every layer of every model     |
-| **Attention**   | prefill and decode attention over paged KV                  | Dominates long-context prefill and decode |
-| **MoE**         | fused experts (routing, grouped GEMM, SwiGLU)               | The compute waist of mixture-of-experts models |
-| **Collectives** | tensor-parallel all-reduce and all-to-all                  | Comms-bound at TP/EP scale, ~32–43% of GPU time at decode |
+| Boundary          | What runs there                                      | Why it matters                                            |
+| ----------------- | ---------------------------------------------------- | --------------------------------------------------------- |
+| **Activation**    | fused SiLU/SwiGLU and gate-up projections in the MLP | Hot elementwise op on every token                         |
+| **Normalization** | RMSNorm before attention and MLP                     | Fires on every layer of every model                       |
+| **Attention**     | prefill and decode attention over paged KV           | Dominates long-context prefill and decode                 |
+| **MoE**           | fused experts (routing, grouped GEMM, SwiGLU)        | The compute waist of mixture-of-experts models            |
+| **Collectives**   | tensor-parallel all-reduce and all-to-all            | Comms-bound at TP/EP scale, ~32–43% of GPU time at decode |
 
 Engines like sglang, vLLM, and TensorRT-LLM each make different tradeoffs across these boundaries, and their kernels are already heavily tuned. No single team has tried every combination or every GPU. Cacheon creates an incentive to search this space in the open, one typed boundary at a time.
 

@@ -144,15 +144,15 @@ cannot qualify or settle while `--intake-only` is set.
 
 Interpret the one-pass summary by stage:
 
-| Counter | Meaning |
-|---|---|
-| `seen` | Newly read finalized reveal records, including invalid payload dispositions |
-| `reserved` | New rows durably placed in canonical priority order |
-| `published` | New hash-verified immutable worker publications |
-| `copies` | Later authoritative submitted-delta copies demoted against an earlier miner |
-| `rejected` | Terminal attributable intake failures |
-| `held` | Work requiring operator or bounded retry disposition |
-| `screens`, `decisions`, `settlements` | Disabled in intake-only mode |
+| Counter                               | Meaning                                                                     |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| `seen`                                | Newly read finalized reveal records, including invalid payload dispositions |
+| `reserved`                            | New rows durably placed in canonical priority order                         |
+| `published`                           | New hash-verified immutable worker publications                             |
+| `copies`                              | Later authoritative submitted-delta copies demoted against an earlier miner |
+| `rejected`                            | Terminal attributable intake failures                                       |
+| `held`                                | Work requiring operator or bounded retry disposition                        |
+| `screens`, `decisions`, `settlements` | Disabled in intake-only mode                                                |
 
 Run the identical command a second time. With no newly finalized reveals, it should not
 refetch or republish the same arrival. That checks the finalized cursor and idempotent

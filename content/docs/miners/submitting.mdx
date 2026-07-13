@@ -129,7 +129,7 @@ Check that the printed `content_hash` equals the package result. The payload is
 canonical JSON with exactly three fields:
 
 ```json
-{"v":1,"h":"<64-lowercase-hex>","u":"https://.../my_bundle.tar.gz"}
+{ "v": 1, "h": "<64-lowercase-hex>", "u": "https://.../my_bundle.tar.gz" }
 ```
 
 The production payload cap is 1,024 bytes. A refused dry run has not signed or
@@ -173,7 +173,7 @@ The authoritative path is staged:
 3. It republishes an immutable worker-readable tree and fingerprints the
    selected delta.
 4. Target resolution and the `static → build → ABI → graph → abbreviated
-   serving` non-crown screens run through a registered arena service.
+serving` non-crown screens run through a registered arena service.
 5. A promoted candidate receives a complete isolated B/C/B′/T qualification
    attempt.
 6. One PASS moves the proposal to `reproduction_pending`. It has **not** crowned.

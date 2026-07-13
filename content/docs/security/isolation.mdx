@@ -81,14 +81,14 @@ The native publication is inventoried, size-bounded, sealed, and reopened before
 
 The runtime container receives only:
 
-| Mount/resource | Access |
-|---|---|
-| Exact sealed model tree | Read-only at `/optima/input/model` |
-| Materialized engine tree | Read-only at `/optima/engine-tree` |
-| Reopened native artifact publication | Read-only under `/optima/native-artifacts` |
-| Lease-scoped runtime cache | Writable private tmpfs at `/optima/runtime-cache` |
-| `/tmp` and shared memory | Bounded private ephemeral storage |
-| GPUs | Only the physical devices bound by trusted launch identity |
+| Mount/resource                       | Access                                                     |
+| ------------------------------------ | ---------------------------------------------------------- |
+| Exact sealed model tree              | Read-only at `/optima/input/model`                         |
+| Materialized engine tree             | Read-only at `/optima/engine-tree`                         |
+| Reopened native artifact publication | Read-only under `/optima/native-artifacts`                 |
+| Lease-scoped runtime cache           | Writable private tmpfs at `/optima/runtime-cache`          |
+| `/tmp` and shared memory             | Bounded private ephemeral storage                          |
+| GPUs                                 | Only the physical devices bound by trusted launch identity |
 
 Runtime controls include no network, read-only root, private IPC, dropped capabilities,
 no-new-privileges, reviewed seccomp, non-root UID/GID, CPU/memory/PID/nofile/core limits,
@@ -135,16 +135,16 @@ fails as infrastructure authority; it must not become a candidate `PASS` or `FAI
 
 ### Failure behavior
 
-| Failure | Security interpretation | Qualification behavior |
-|---|---|---|
-| Prebuild requests GPU/network/model or an undeclared mount | Policy violation or malformed launch | Reject before execution |
-| Native output inventory changes after publication | Tampering or unstable build product | Reopen fails; runtime must not receive it |
-| Candidate misses a deadline or exhausts a bound | Hostile/buggy behavior or resource pressure | Teardown under the registered attribution/retry policy; infrastructure ambiguity is `NO_DECISION` |
-| Runtime emits malformed/oversized protocol data | Hostile protocol behavior | Bound/reject input and destroy the session |
-| One selected collective rank fails | Peers may already be in communication | Abort the complete candidate engine; never rank-local fallback |
-| T receives a candidate contribution/native publication | Broken pristine-reference authority | Reject T and return no valid quality decision |
-| Container disappears before ownership/cleanup proof | Lifecycle race or external interference | `NO_DECISION`; recover leases and inspect the host |
-| GPU remains busy or reset cannot be proven | Possible residue or driver failure | Drain/isolate device or host before reuse |
+| Failure                                                    | Security interpretation                     | Qualification behavior                                                                            |
+| ---------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Prebuild requests GPU/network/model or an undeclared mount | Policy violation or malformed launch        | Reject before execution                                                                           |
+| Native output inventory changes after publication          | Tampering or unstable build product         | Reopen fails; runtime must not receive it                                                         |
+| Candidate misses a deadline or exhausts a bound            | Hostile/buggy behavior or resource pressure | Teardown under the registered attribution/retry policy; infrastructure ambiguity is `NO_DECISION` |
+| Runtime emits malformed/oversized protocol data            | Hostile protocol behavior                   | Bound/reject input and destroy the session                                                        |
+| One selected collective rank fails                         | Peers may already be in communication       | Abort the complete candidate engine; never rank-local fallback                                    |
+| T receives a candidate contribution/native publication     | Broken pristine-reference authority         | Reject T and return no valid quality decision                                                     |
+| Container disappears before ownership/cleanup proof        | Lifecycle race or external interference     | `NO_DECISION`; recover leases and inspect the host                                                |
+| GPU remains busy or reset cannot be proven                 | Possible residue or driver failure          | Drain/isolate device or host before reuse                                                         |
 
 ## Static scanning and Python subprocesses
 

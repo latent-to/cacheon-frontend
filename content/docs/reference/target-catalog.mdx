@@ -34,20 +34,20 @@ that digest is insufficient to reopen historical authority.
 The `target-catalog.v1` policy contains the 11 singleton slot targets plus one
 atomic target:
 
-| Target | Kind | Members / effect |
-|---|---|---|
-| `activation.silu_and_mul` | slot | Same-named slot |
-| `norm.rmsnorm` | slot | Same-named slot |
-| `attention.sdpa` | slot | Same-named slot |
-| `attention.decode` | slot | Same-named slot |
-| `attention.msa_block_score` | slot | Same-named slot |
-| `attention.msa_prefill_block_score` | slot | Same-named slot |
-| `moe.fused_experts` | slot | Experts without ownership of the trailing reduction |
-| `moe.fused_experts_reduce` | slot | Experts plus their trailing reduction |
-| `collective.all_reduce` | slot | Same-named slot |
-| `collective.ar_residual_rmsnorm` | slot | Same-named slot |
-| `collective.moe_finalize_ar_rmsnorm` | slot | Same-named slot |
-| `collective.moe_epilogue.v1` | atomic | Owns both fused collective epilogue members below |
+| Target                               | Kind   | Members / effect                                    |
+| ------------------------------------ | ------ | --------------------------------------------------- |
+| `activation.silu_and_mul`            | slot   | Same-named slot                                     |
+| `norm.rmsnorm`                       | slot   | Same-named slot                                     |
+| `attention.sdpa`                     | slot   | Same-named slot                                     |
+| `attention.decode`                   | slot   | Same-named slot                                     |
+| `attention.msa_block_score`          | slot   | Same-named slot                                     |
+| `attention.msa_prefill_block_score`  | slot   | Same-named slot                                     |
+| `moe.fused_experts`                  | slot   | Experts without ownership of the trailing reduction |
+| `moe.fused_experts_reduce`           | slot   | Experts plus their trailing reduction               |
+| `collective.all_reduce`              | slot   | Same-named slot                                     |
+| `collective.ar_residual_rmsnorm`     | slot   | Same-named slot                                     |
+| `collective.moe_finalize_ar_rmsnorm` | slot   | Same-named slot                                     |
+| `collective.moe_epilogue.v1`         | atomic | Owns both fused collective epilogue members below   |
 
 The atomic target owns and displaces both
 `collective.ar_residual_rmsnorm` and

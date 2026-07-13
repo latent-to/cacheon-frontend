@@ -14,10 +14,10 @@ bundle is still hostile proposal material. It is not a production release, and t
 serving fleet never needs chain access or a miner-hosted URL.
 
 <Callout type="info">
-The public `optima chain-validate` command can run finalized **intake only**. Full
-screening and qualification require deployment code to inject a trusted
-`ArenaServiceRegistry` and select `--arena-id`. This repository defines the typed
-interface and enforcement logic; it does not ship a production arena provider.
+  The public `optima chain-validate` command can run finalized **intake only**. Full screening and
+  qualification require deployment code to inject a trusted `ArenaServiceRegistry` and select
+  `--arena-id`. This repository defines the typed interface and enforcement logic; it does not ship
+  a production arena provider.
 </Callout>
 
 ## Deployment topology
@@ -83,15 +83,15 @@ The current validator path is deliberately staged:
 
 One reservation therefore crosses three different kinds of state:
 
-| Phase | Durable state or product | Who may advance it |
-|---|---|---|
-| Arrival | Finalized cursor and `reserved` row | Intake controller |
-| Transport | `fetching` → `transport_retry`, `failed`, or `published` | Intake controller |
-| Screening | `screening` → `promoted`, retry lane, `failed`, or `held` | Registered arena service through the controller |
+| Phase         | Durable state or product                                                       | Who may advance it                                          |
+| ------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Arrival       | Finalized cursor and `reserved` row                                            | Intake controller                                           |
+| Transport     | `fetching` → `transport_retry`, `failed`, or `published`                       | Intake controller                                           |
+| Screening     | `screening` → `promoted`, retry lane, `failed`, or `held`                      | Registered arena service through the controller             |
 | Qualification | `qualifying` → `reproduction_pending`, `qualified`, `failed`, or `no_decision` | Qualification authority plus transactional store projection |
-| Settlement | Leased candidate, event journal, stack generation, active claims | Pure planner plus SQLite transaction |
-| Emissions | Projection and append-only publication journal | Separate weight reconciler |
-| Shipping | Integration record and signed release | Release authority, never the settlement loop |
+| Settlement    | Leased candidate, event journal, stack generation, active claims               | Pure planner plus SQLite transaction                        |
+| Emissions     | Projection and append-only publication journal                                 | Separate weight reconciler                                  |
+| Shipping      | Integration record and signed release                                          | Release authority, never the settlement loop                |
 
 `FAIL` and `NO_DECISION` are intentionally different. `FAIL` is an attributable terminal
 candidate disposition under a frozen rule. `NO_DECISION` means the validator lacks fair,
@@ -104,30 +104,30 @@ Read [The chain loop](/docs/validators/chain-loop), [Arena service](/docs/valida
 
 ## Authorities that must stay separate
 
-| Authority | Owns | Must not trust |
-|---|---|---|
-| Chain intake controller | Finalized order, reservations, private fetch, publication, durable state | Network arrival order, miner paths, mutable hosted bytes |
-| Arena service | Runtime/model/topology/workload identity, capacity, screens, qualification-plan construction | Submission-provided module paths or commands |
-| OCI execution controller | Engine roles, mounts, deadlines, device observations, protocol, teardown | Candidate process, candidate clocks, candidate quality claims |
-| Pristine reference T | Untimed teacher-forced quality evidence | Candidate C or incumbent B′ as grading oracle |
-| Settlement store | Paired reproductions, target transitions, reward claims | A single passing report or stale incumbent identity |
-| Weight signer | Wallet, live metagraph, publication journal, chain readback | An SDK “submitted” return value as confirmation |
-| Release authority | Integration review, model seal, release key, deterministic artifacts | A crown as automatic permission to ship |
+| Authority                | Owns                                                                                         | Must not trust                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Chain intake controller  | Finalized order, reservations, private fetch, publication, durable state                     | Network arrival order, miner paths, mutable hosted bytes      |
+| Arena service            | Runtime/model/topology/workload identity, capacity, screens, qualification-plan construction | Submission-provided module paths or commands                  |
+| OCI execution controller | Engine roles, mounts, deadlines, device observations, protocol, teardown                     | Candidate process, candidate clocks, candidate quality claims |
+| Pristine reference T     | Untimed teacher-forced quality evidence                                                      | Candidate C or incumbent B′ as grading oracle                 |
+| Settlement store         | Paired reproductions, target transitions, reward claims                                      | A single passing report or stale incumbent identity           |
+| Weight signer            | Wallet, live metagraph, publication journal, chain readback                                  | An SDK “submitted” return value as confirmation               |
+| Release authority        | Integration review, model seal, release key, deterministic artifacts                         | A crown as automatic permission to ship                       |
 
 ## Operator surfaces
 
-| Task | Supported surface |
-|---|---|
-| Inspect slot and SDK compatibility | `optima slots`, `optima compat`, `optima chain-compat` |
-| Package and submit a proposal | `optima chain-package`, `optima chain-submit` |
-| Inspect chain state | `optima chain-status` |
-| Run production-safe public intake | `optima chain-validate --intake-only` |
-| Run full referee service | Deployment code calling `run_validator(...)` with an injected registry/provider |
-| Reconcile rewards | `optima set-weights` in a separate control-plane process |
-| Seal model bytes | `optima model-provision` |
-| Verify a signed release | `optima release-verify` |
-| Materialize a release build context | `optima release-context` |
-| Construct, sign, publish, or start a release | Reviewed programmatic APIs; no public construction CLI is bundled |
+| Task                                         | Supported surface                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------- |
+| Inspect slot and SDK compatibility           | `optima slots`, `optima compat`, `optima chain-compat`                          |
+| Package and submit a proposal                | `optima chain-package`, `optima chain-submit`                                   |
+| Inspect chain state                          | `optima chain-status`                                                           |
+| Run production-safe public intake            | `optima chain-validate --intake-only`                                           |
+| Run full referee service                     | Deployment code calling `run_validator(...)` with an injected registry/provider |
+| Reconcile rewards                            | `optima set-weights` in a separate control-plane process                        |
+| Seal model bytes                             | `optima model-provision`                                                        |
+| Verify a signed release                      | `optima release-verify`                                                         |
+| Materialize a release build context          | `optima release-context`                                                        |
+| Construct, sign, publish, or start a release | Reviewed programmatic APIs; no public construction CLI is bundled               |
 
 `optima verify`, `optima evaluate`, and `optima bench` are developer diagnostics.
 They are useful before submission and during integration, but their output is not a
@@ -157,14 +157,14 @@ operations, not log rotation.
 
 Use the authority boundary to decide who absorbs a failure:
 
-| Failure | Economic treatment | Operator action |
-|---|---|---|
-| Invalid payload, committed-hash mismatch, unsafe archive, attributable screen/qualification violation | Candidate `FAIL` | Retain reason/evidence; no automatic retry |
-| DNS/TLS timeout, publication storage fault, controller crash, excessive baseline drift, missing evidence authority | `NO_DECISION`, retry, or `held` | Repair validator infrastructure, then use the bounded retry/release path |
-| Queue or cohort capacity exceeded | Queue while within policy; otherwise `held` | Add capacity or review the registered bounds; never reorder by fetch completion |
-| Settlement incumbent or journal head changed | Abort/hold; no partial transaction | Reopen current authority and re-plan |
-| Weight readback missing or divergent | Publication `held` | Preserve journal, audit chain state, append an explicit release only after review |
-| Release verification or serve receipt failure | No rollout | Quarantine artifact/image; do not fall back silently to stock serving |
+| Failure                                                                                                            | Economic treatment                          | Operator action                                                                   |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- | --------------------------------------------------------------------------------- |
+| Invalid payload, committed-hash mismatch, unsafe archive, attributable screen/qualification violation              | Candidate `FAIL`                            | Retain reason/evidence; no automatic retry                                        |
+| DNS/TLS timeout, publication storage fault, controller crash, excessive baseline drift, missing evidence authority | `NO_DECISION`, retry, or `held`             | Repair validator infrastructure, then use the bounded retry/release path          |
+| Queue or cohort capacity exceeded                                                                                  | Queue while within policy; otherwise `held` | Add capacity or review the registered bounds; never reorder by fetch completion   |
+| Settlement incumbent or journal head changed                                                                       | Abort/hold; no partial transaction          | Reopen current authority and re-plan                                              |
+| Weight readback missing or divergent                                                                               | Publication `held`                          | Preserve journal, audit chain state, append an explicit release only after review |
+| Release verification or serve receipt failure                                                                      | No rollout                                  | Quarantine artifact/image; do not fall back silently to stock serving             |
 
 The JSON `commit`, `reveal`, `ledger`, and `legacy-settle --development-only` commands
 remain local simulation tools. They do not describe production economics.
