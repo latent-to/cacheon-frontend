@@ -5,7 +5,7 @@ title: SGLang seam
 The seam connects Cacheon's stable slot ABI to version-pinned SGLang internals. It is intentionally split into two layers:
 
 - [`slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py) defines the stable miner-facing semantic contract;
-- `optima/seams.py` defines the SGLang-specific adapters that must be reviewed whenever the runtime pin moves. The current scheduler-gate row is on the post-main working branch pinned in [State of record](/docs/reference/state-of-record).
+- `optima/seams.py` defines the SGLang-specific adapters that must be reviewed whenever the runtime pin moves.
 
 Slots are the narrow waist. Adapters are replaceable glue.
 
@@ -90,8 +90,8 @@ children stay pass-through and never emit an `active` receipt.
 SGLang versions that expose a plugin framework also have an [`sglang_plugin.py`](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_plugin.py) shim. The `.pth` bootstrap remains the general spawn-safe path across the supported pin.
 
 Principal code: [`bootstrap.py`](https://github.com/latent-to/optima/blob/main/optima/bootstrap.py),
-plus post-main working-tree paths `optima/seam.py` and
-`optima/integrations/sglang_scheduler_gate.py` at the snapshot commit.
+[`seam.py`](https://github.com/latent-to/optima/blob/main/optima/seam.py), and
+[`integrations/sglang_scheduler_gate.py`](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_scheduler_gate.py).
 
 ## Closed activation vocabulary
 
@@ -201,6 +201,11 @@ The deep epilogue crosses three SGLang points but remains one semantic path:
 All three adapters share the `arfusion` binding. The state machine rejects stale, mismatched, or incorrectly scoped exports, and it vetoes an unsafe final-layer defer based on model-owned layer count.
 
 The deep target may require a FlashInfer dependency overlay. That overlay is not an arbitrary runtime patch: a validator-shipped patcher applies an allowed source diff to a copied source tree during the reviewed build phase, the native artifact is sealed, and the `flashinfer_overlay` adapter redirects only registered late-bound JIT inputs. The installed dependency tree is not edited in place.
+
+FlashInfer dependency overlays build each logical architecture in a separate hermetic
+child because architecture selection is import-time state; runtime installs only the row
+for the active device. During autotuning, both the deep producer and the fused-epilogue
+consumer remain stock so a candidate cannot influence tactic selection.
 
 Principal code: [`moe_export.py`](https://github.com/latent-to/optima/blob/main/optima/moe_export.py), [`dep_policy.py`](https://github.com/latent-to/optima/blob/main/optima/dep_policy.py), and [`patchers/apply_dep_patch.py`](https://github.com/latent-to/optima/blob/main/optima/patchers/apply_dep_patch.py).
 

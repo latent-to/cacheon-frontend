@@ -74,15 +74,17 @@ copying them.
 | Deploy intake, an arena provider, and qualification workers | [Validator guide](/docs/validators/overview)      |
 | Verify or operate a signed serving artifact                 | [Cacheon Engine](/docs/engine/overview)           |
 | Audit trust boundaries and failure behavior                 | [Security model](/docs/security/threat-model)     |
-| Check what is implemented, measured, and still unproven     | [Current status](/docs/reference/state-of-record) |
+| Check what is implemented, measured, and still unproven     | [State of record](/docs/reference/state-of-record) |
 
 ## Evidence is scoped, not blended
 
-Cacheon has historical B300 performance wins and a completed hardened authority
-implementation. Those are different evidence classes. The historical wins were measured
-through the earlier referee; the hardened path has structural RTX evidence but still
-requires current-path B300 qualification and a real release-image build-and-serve proof.
-The [state of record](/docs/reference/state-of-record) keeps those claims separate.
+A passing test, an empirical qualification, and a deployable release are different
+evidence classes, and Cacheon does not let a strong result in one class stand in for
+another. The strongest retained performance authority is a real B200 blockscore
+qualification with independently reproduced PASSes and a settled crown; the checked-out
+branch is separately not release-ready, since clean-wheel import, provider-specific
+native proof, and closed serving-argument authorization remain open. The
+[state of record](/docs/reference/state-of-record) keeps those claims separate.
 
 <Callout type="info" title="Source of executable truth">
   The [Cacheon source repository](https://github.com/latent-to/optima) owns executable contracts,

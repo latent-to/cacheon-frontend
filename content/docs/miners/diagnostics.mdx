@@ -250,12 +250,11 @@ Quality problems:
 
 - required fidelity/task metric regresses: candidate FAIL;
 - stock/reference drift overlaps the calibrated boundary: `NO_DECISION`;
-- pristine T or raw evidence cannot reopen: authority/infrastructure failure;
-- a local `bench` pass differs: local benchmark flags and prompts are not the
-  bound reference policy.
+- pristine T or raw evidence cannot reopen: authority/infrastructure failure.
 
-`evaluate` and `bench` explicitly print diagnostic, non-authoritative results.
-They are for reproducing mechanisms, not contesting a retained validator grade.
+There is no local command that reproduces or contests a retained validator
+grade; `scan` and `verify` are the complete local contribution loop, and
+neither one measures throughput or fidelity.
 
 ## 8. Reproduction
 

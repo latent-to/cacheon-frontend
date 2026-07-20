@@ -75,6 +75,23 @@ These products compose; they are not interchangeable. For example, a valid signa
 over a descriptor with a missing model tree still cannot start, and a responsive server
 with fallback receipts has not proved that the released optimization executed.
 
+## Native and dependency artifacts
+
+Two kinds of prebuilt native product ride inside a release, and they answer different
+questions. A [sealed direct artifact](/docs/architecture/direct-artifacts) is a
+provider-specific CUBIN compiled from reviewed CuTe factory code under a measured
+compile profile; the release build pipeline must reopen its provider-specific index,
+profile, and observed-ABI evidence rather than treating the generic native publication
+binding as sufficient proof. A FlashInfer dependency overlay is a different case: because
+architecture selection is import-time state, the hermetic build produces one artifact per
+logical architecture in a separate child, and the runtime installs only the row for the
+active device.
+
+Release admission for a direct-artifact target additionally requires the serving
+environment to derive its CuTe compile-profile digest from the signed native build
+specification and propagate it unchanged into the engine process; missing or mismatched
+propagation must fail closed rather than silently falling back to a JIT or stock path.
+
 ## Serving boundary
 
 The Engine owns inference execution: registered kernels and blocks, attention,
@@ -108,13 +125,17 @@ A consumer does not need to trust the release directory's filename or the regist
 
 1. Obtain the expected public key and descriptor digest through an independent trusted
    channel.
-2. Reopen the publication and verify every descriptor-bound artifact and integration.
-3. Materialize a deterministic context, build twice, and authorize the common immutable
-   registry digest.
+2. Reopen the publication and verify every descriptor-bound artifact and integration,
+   including provider-specific native proof for any sealed direct artifact.
+3. Materialize a deterministic context, build twice, authenticate that each registry
+   readback is the output of its corresponding builder invocation, and authorize the
+   common immutable registry digest.
 4. Mount the exact provisioned model and create a container whose inspected host policy
-   matches the signed serving specification.
-5. Start a canary, exercise it, and require complete positive seam receipts with no
-   `load_failed` or `fallback` result.
+   matches the signed serving specification, with effective serving arguments and
+   management routes closed to the signed policy.
+5. Start a canary, exercise it, and require complete positive seam receipts bound to this
+   release and session, with no `load_failed` or `fallback` result and, for sealed direct
+   artifacts, full per-rank `aot_loaded`/`aot_invoked` coverage.
 6. Promote or roll back by immutable release/image identity. Never repair the signed tree
    or replace a file in place.
 

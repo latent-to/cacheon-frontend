@@ -167,14 +167,13 @@ When learning a type, search for both its successful construction and its
 rejection tests. The negative cases usually reveal which fields are security
 inputs rather than descriptive metadata.
 
-## Legacy and diagnostic paths
+## No local qualification path
 
-Some older simulator and direct-evaluation modules remain useful for tests and
-development. In particular, `commit_reveal.py` and the local `commit`,
-`reveal`, `ledger`, and `legacy-settle --development-only` commands do not back
-the production SQLite controller. Likewise, `eval/_launch.py` and direct
-`evaluate`/`bench` flows are not alternate qualification authorities. Start
-from the validator loop and qualification runner when auditing production.
+The local JSON commit/reveal/ledger simulator, its `legacy-settle` companion,
+and the direct `evaluate`/`bench` diagnostics have been removed from the
+source tree. There is no local command that backs the production SQLite
+controller or grants qualification authority. Start from the validator loop
+and qualification runner when auditing production.
 
 Tests are organized under `tests/` by the same boundaries. Contract tests are
 often the clearest executable examples because they build exact typed objects

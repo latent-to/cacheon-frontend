@@ -122,9 +122,8 @@ T  = separately defined pristine quality reference
 ```
 
 Changing a backend, graph flag, prompt mix, topology, or engine option only in C
-does not measure a component delta. The local `evaluate` CLI exposes such flags
-for diagnosis, but authoritative qualification binds all four arms from the
-validator's stack and reference manifests.
+does not measure a component delta. Authoritative qualification binds all four
+arms from the validator's stack and reference manifests.
 
 The repository implementations are
 [`stack_plan.py`](https://github.com/latent-to/optima/blob/main/optima/stack_plan.py)
@@ -165,13 +164,13 @@ fraction of which arena path it replaces and how often the domain routes.
    graph replay where available.
 3. Microbenchmark the exact callable to understand the mechanism, not to claim
    end-to-end speedup.
-4. Trace the complete incumbent and candidate developer launches.
-5. Run graph-on `evaluate` with matched controls and inspect B/C/B′ drift.
-6. Run the relevant `bench`/quality diagnostics.
-7. Repeat across fresh processes, seeds, and conditioning until the effect is
+4. Trace the complete incumbent and candidate developer launches by reading
+   the qualification runner and stack-plan construction, since there is no
+   local command that reproduces them.
+5. Repeat across fresh processes, seeds, and conditioning until the effect is
    larger than normal variance.
 
-Steps 1–7 are miner-side diagnostics. Only finalized, isolated, identity-bound,
+Steps 1–5 are miner-side diagnostics. Only finalized, isolated, identity-bound,
 independently reproduced validator qualification can crown the proposal.
 
 ## Interpret local outcomes correctly

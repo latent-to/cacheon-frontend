@@ -163,36 +163,23 @@ registered seam, completed it, and produced the expected output. A rank-local
 fallback would diverge the collective, so the candidate engine must abort
 rather than continue with mixed implementations.
 
-## Direct model diagnostics
-
-`evaluate` and `bench` are development diagnostics. Use their live `--help`
-and keep CUDA graphs enabled for performance work. Run them only on a disposable
-host appropriate for candidate code:
-
-```bash
-python -m optima.cli evaluate path/to/bundle \
-  --model <model-path> --tp-size <n>
-```
-
-Production qualification uses complete B/C/B′ engines and pristine T through
-an injected arena service; no direct command-line result substitutes for that
-path.
-
 ## From component proof to arena proof
 
-Move upward only after the lower layer is green:
+There is no local command that loads a candidate inside the full engine and
+measures throughput or fidelity; `scan` and `verify` are the complete local
+contribution loop. Move upward only after `verify` is green:
 
 | Layer                       | Required observation                                             | Still does not prove                                 |
 | --------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------- |
 | Component `verify`          | Registered reference and graph replay for exercised cases        | Model integration or speedup                         |
-| Direct `evaluate` / `bench` | Model can load and the seam can improve a diagnostic workload    | Isolation, crown authority, independent reproduction |
 | Arena screen                | Static/build/ABI/graph/abbreviated-serving gates all promote     | B/C/B′ drift, T quality, settlement                  |
 | Qualification PASS          | Exact marginal complete-engine delta clears all registered gates | Crown until independent reproduction                 |
 | Two-pass settlement         | Reopened matching evidence creates a crown                       | Integration safety or release readiness              |
 
-Keep direct diagnostic results because they are useful engineering evidence,
-but label them as such. Do not copy their speedup into the current state of
-record as if it came from the hardened qualification path.
+Production qualification uses complete B/C/B′ engines and pristine T through
+an injected arena service; no local command-line result substitutes for that
+path. Do not copy a `verify` result into the current state of record as if it
+came from the hardened qualification path.
 
 ## Common failures
 

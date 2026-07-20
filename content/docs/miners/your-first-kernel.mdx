@@ -148,27 +148,15 @@ python -m optima.cli verify my_collective \
   --device cuda --dtype bfloat16 --world-size 4 --tp-size 4
 ```
 
-Then use the engine-facing developer diagnostics while iterating:
+There is no local command that loads the candidate inside the full engine and
+measures throughput or fidelity; `scan` and `verify` are the complete local
+contribution loop. **Neither one is crown authority.** An authoritative
+candidate cannot choose a different evaluation stack; the validator binds B,
+C, B′, T, resources, graph evidence, hidden inputs, and calibrated policies
+itself at the registered arena boundary.
 
-```bash
-python -m optima.cli evaluate my_silu \
-  --model <arena-model> --tp-size <arena-tp> ...
-
-python -m optima.cli bench my_silu \
-  --model <arena-model> --tp-size <arena-tp> \
-  --benchmarks <published-benchmark-set> ...
-```
-
-`evaluate` and `bench` are **developer diagnostics, not crown authority**. Their
-flags are intentionally useful for debugging, including candidate-only launch
-changes. An authoritative candidate cannot choose a different evaluation stack;
-the validator binds B, C, B′, T, resources, graph evidence, hidden inputs, and
-calibrated policies itself.
-
-Never call a graphs-off result a win. `--disable-cuda-graph` is a debugging
-mode that changes the incumbent regime. For a long-prefill target, also make the
-workload genuinely prefill-heavy; repeated prompts with a live radix cache can
-silently turn later iterations into decode/cache-hit measurements.
+Never call a graphs-off `verify` result a win. `--disable-cuda-graph` is a
+debugging mode that changes the incumbent regime.
 
 ## 7. Decide whether the target is worth pursuing
 

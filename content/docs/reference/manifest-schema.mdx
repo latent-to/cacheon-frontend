@@ -103,6 +103,13 @@ competitive bundles should declare `[competition]` explicitly.
 | `override_point` |               no | Typed hole in that base; requires `base_kernel`                                              |
 | `cuda_sources`   |               no | Inspectable `.cu`/`.cuh` inputs for a reviewed builder                                       |
 
+A separate `[[ops.aot_exports]]` table declares one or more sealed direct-artifact
+execution steps for the registered `cutlass.cute.cubin.v1` provider, and
+`[[ops.artifact_resources]]` declares the validator-allocated storage such a step may
+use. These fields follow their own closed schema rather than the operation-row fields
+above; see [Sealed direct artifacts](/docs/architecture/direct-artifacts) for the
+manifest execution model, device ABI, and storage lifecycle they admit.
+
 Unknown operation fields are retained for observation. They do not grant a
 capability; complete feature resolution can reject a bundle that asks for more
 than its target admits.

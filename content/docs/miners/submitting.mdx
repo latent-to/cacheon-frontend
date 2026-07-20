@@ -234,12 +234,13 @@ Use the operator's designated status surface rather than assuming absence from
 A crown remains separate from source integration and a Cacheon Engine release.
 Submitting does not cause the validator to publish miner code as a release.
 
-## Do not use the legacy local ledger as production
+## No local production path
 
-The top-level `commit`, `reveal`, `ledger`, and `legacy-settle` commands operate
-the development JSON simulation. They are useful for tests and demonstrations,
-but they do not create finalized chain intake, production qualification,
-transactional settlement, or weights.
+The local JSON commit/reveal/ledger simulator and its `legacy-settle`
+companion have been removed from the source tree. There is no local command
+that creates finalized chain intake, production qualification, transactional
+settlement, or weights; only `chain-submit`, `chain-validate`, and
+`set-weights` do.
 
 If the proposal stalls or fails, map its reported lifecycle state through
 [Diagnostics](/docs/miners/diagnostics).

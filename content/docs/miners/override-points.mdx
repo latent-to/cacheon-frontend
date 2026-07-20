@@ -99,9 +99,9 @@ for CuTe's function-object tracing API; it does not permit string-to-code
 compilation or `builtins.compile`. Triton's lazy `@triton.jit` launch path does
 not need an explicit `.compile` admission.
 
-The current admission logic is pinned in the post-main working-tree paths
-`optima/dsl_jit_policy.py` and `optima/engine_tree.py` at the commit named in
-[State of record](/docs/reference/state-of-record).
+The current admission logic is pinned in
+[`optima/dsl_jit_policy.py`](https://github.com/latent-to/optima/blob/main/optima/dsl_jit_policy.py)
+and [`optima/engine_tree.py`](https://github.com/latent-to/optima/blob/main/optima/engine_tree.py).
 
 The exact device ABI belongs to the registered point. For the current point,
 `alpha_val` is the per-expert quantization/dequantization value; activation

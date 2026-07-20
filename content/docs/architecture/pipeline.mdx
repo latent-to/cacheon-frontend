@@ -12,16 +12,14 @@ The developer commands intentionally reuse parts of the ABI and evaluation machi
 ## Developer path
 
 ```text
-slots -> scan -> verify -> evaluate / bench -> chain-package -> host -> chain-submit -> chain-status
+slots -> scan -> verify -> chain-package -> host -> chain-submit -> chain-status
 ```
 
 | Step            | Purpose                                                                                              | Authority              |
 | --------------- | ---------------------------------------------------------------------------------------------------- | ---------------------- |
-| `slots`         | Inspect the live slot ABI                                                                            | Informational          |
-| `scan`          | Run static bundle policy checks                                                                      | Diagnostic             |
+| `slots`         | Inspect the registered slot ABI                                                                      | Informational          |
+| `scan`          | Run recursive static bundle policy checks                                                            | Diagnostic             |
 | `verify`        | Check a single op/block against its trusted reference; collective slots use distributed verification | Diagnostic             |
-| `evaluate`      | Run a narrow model-level development comparison                                                      | Diagnostic             |
-| `bench`         | Run benchmark-oriented throughput and quality diagnostics                                            | Diagnostic             |
 | `chain-package` | Produce the deterministic hosted archive and content identity                                        | Submission preparation |
 | HTTPS host      | Make the immutable archive available for validator fetch                                             | Transport only         |
 | `chain-submit`  | Commit the proposal through timelock commit-reveal                                                   | Chain intake           |
@@ -163,6 +161,8 @@ required_bar   = 1 + max(margin_floor, noise_multiplier × measured_noise)
 
 The exact registered policy, not this explanatory formula, is authoritative.
 
+A candidate may fill its target through a [sealed direct artifact](/docs/architecture/direct-artifacts) instead of ordinary Python: a validator-owned prebuild compiles it to CUBIN before the timed arm starts, and qualification additionally requires `aot_loaded`, `aot_invoked`, and `completed` receipts with no fallback before the run can count.
+
 Principal code: [`eval/qualification.py`](https://github.com/latent-to/optima/blob/main/optima/eval/qualification.py), [`eval/qualification_runner.py`](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_runner.py), and [`eval/oci_backend.py`](https://github.com/latent-to/optima/blob/main/optima/eval/oci_backend.py).
 
 ## 7. Verdict semantics
@@ -282,10 +282,7 @@ able to reopen, rather than merely observe, each handoff:
 - if shipping is proposed, the separate integration records and signed release identity.
 
 Console output, a green local benchmark, one `PASS`, or a successful chain SDK return is
-not a substitute for the corresponding reopenable product.
-
-## Legacy simulation is not production authority
-
-`commit`, `reveal`, `ledger`, and `legacy-settle --development-only` exercise an older local mechanism simulator. They do not write production SQLite qualification, settlement, or weight state. Production operator flow uses `chain-validate` and `set-weights`.
-
-The distinction matters when reading old examples or historical receipts: a successful legacy flow does not demonstrate the current isolated two-pass production path.
+not a substitute for the corresponding reopenable product. There is no local command that
+grants qualification or settlement authority; the older local JSON commit/reveal/ledger
+simulator and its `legacy-settle` companion have been removed from the source tree, and
+production operator flow uses only `chain-validate` and `set-weights`.

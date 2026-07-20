@@ -23,6 +23,15 @@ externally trusted key + expected descriptor
 Each step authenticates a different boundary. Skipping from a valid release directory to
 `docker run <tag>` drops the registry, host-policy, and activation proofs.
 
+<Callout type="error" title="Verification primitives are not rollout authority">
+  The commands and APIs below authenticate individual boundaries. Rollout additionally
+  requires clean runtime-wheel import, signed native-profile propagation, closed
+  effective SGLang arguments and management routes, authenticated builder-output
+  binding, and release/session-bound execution receipts. If any product is absent, stop
+  before authorization or start. The dated [State of record](/docs/reference/state-of-record) records the pinned implementation's
+  completed and blocked gates.
+</Callout>
+
 ## Reopen and verify
 
 ```bash
@@ -71,13 +80,16 @@ and emits a frozen deterministic context containing:
 No chain endpoint, wallet, proposal URL, or private signing material enters the
 context.
 
-## Build and deploy
+## Implemented host primitives
 
-The closed host workflow is programmatic:
+The host module exposes these programmatic primitives:
 
 1. `publish_container_twice()` reopens the context, runs two no-cache BuildKit
    builds, pushes them under distinct temporary tags, reopens both Registry-v2
-   manifests, requires one raw digest, and signs that common identity.
+   manifests, requires one raw digest, and signs that common registry identity. A
+   production implementation must additionally authenticate that each readback is
+   the result emitted by its corresponding builder invocation. The function's
+   current return value does not supply that builder-output binding.
 2. `authorize_release_container()` binds the signed statement and reopened
    registry image to independently supplied public-key, release-descriptor,
    platform, repository, and image-digest expectations.
@@ -89,9 +101,12 @@ The closed host workflow is programmatic:
    directory for `verify_serve_receipts()`; `destroy()` force-removes the
    container and volumes.
 
-A compact handoff looks like this. Values prefixed with `approved_` must come
-from the deployment's independent trust and rollout records; do not derive
-them from the registry object you are trying to authorize.
+The following composition is useful for integration testing of those primitives.
+It is not a production authorization recipe: before executing it on a release
+path, deployment orchestration must add the missing builder-output, clean-wheel,
+effective-argument, management-route, native-profile, and receipt-session gates.
+Values prefixed with `approved_` must come from independent trust and rollout
+records; do not derive them from the registry object being authorized.
 
 ```python
 from optima.release import verify_serve_receipts
@@ -142,29 +157,37 @@ finally:
     handle.destroy()
 ```
 
-The code intentionally leaves the smoke function and rollout approval step to
-deployment orchestration. Neither is an authority that `release_host.py` can
-manufacture on its own. If any operation before `try` fails after container
-creation, `create_release_container()` performs best-effort cleanup; after it
-returns a handle, the caller owns the guaranteed `destroy()` path.
+The code intentionally leaves every missing gate, the smoke function, and rollout
+approval to deployment orchestration. `release_host.py` cannot manufacture those
+authorities. In particular, the shown `receipt_proof` checks coverage in a
+directory; it does not bind the receipt frames to this descriptor/session or
+check direct-artifact AOT coverage. If any operation before `try` fails after
+container creation, `create_release_container()` performs best-effort cleanup;
+after it returns a handle, the caller owns the guaranteed `destroy()` path.
 
-The current host contract requires a read-only root, all capabilities dropped,
+The host contract requires a read-only root, all capabilities dropped,
 `no-new-privileges`, reviewed seccomp, a read-only model bind, a 16 GiB
 `/tmp` tmpfs (`nosuid,nodev,noexec`), 32 GiB shared memory, host IPC, host
 networking, and the exact signed entrypoint/arguments/environment. It requests
 all GPUs visible to that host boundary and verifies Docker's `Count=-1`; outer
 scheduling must expose only the intended device pool.
 
+Host networking also exposes the server's management surface. Release
+authorization must disable or authenticate every management route; successful
+image/argument inspection alone does not provide that control.
+
 Unlike the candidate referee, the serving container is intentionally not
-no-egress. The current host verifier also does not enforce `Config.User` or add
+no-egress. The host verifier also does not enforce `Config.User` or add
 a Dockerfile `USER`; base-image and release review must own that decision. Do
 not document the serving boundary as non-root until code enforces it.
 
-## Startup and rollback
+## Production startup and rollback contract
+
+Perform this sequence only after the [release acceptance checklist](/docs/engine/release-workflow#publication-checklist) and the dated [State of record](/docs/reference/state-of-record) show that every required gate is implemented and retained:
 
 1. Verify the release and context from immutable storage.
-2. Produce and authenticate the reproducible registry identity through the
-   closed host APIs above.
+2. Produce the reproducible registry identity through the closed host APIs and
+   authenticate each registry object against its corresponding builder output.
 3. Confirm model content and image digests before scheduling.
 4. Create, inspect, and start a canary with the signed arguments and exact host
    policy.
@@ -172,16 +195,24 @@ not document the serving boundary as non-root until code enforces it.
 6. Copy the fresh receipt directory and run
    `verify_serve_receipts()` against the reopened release. It requires
    `active`, `fired`, and `completed` coverage for every released slot and TP
-   rank, with no `load_failed` or `fallback` receipt.
-7. Promote by immutable descriptor/image identity and retain the resulting
-   `ServeReceiptVerification` digest.
+   rank, with no `load_failed` or `fallback` receipt. Independently require the
+   input frames to bind this release descriptor and serve-session identity. For
+   a release with sealed direct artifacts, require per-rank `aot_loaded` and
+   `aot_invoked` coverage as well; the current generic verifier does not
+   enforce either additional condition.
+7. Promote by immutable descriptor/image identity only after every external
+   and typed gate succeeds. Retain the bound receipt product; an unbound
+   `ServeReceiptVerification` digest is not promotion authority.
 8. Destroy the canary; roll back by selecting a previously verified release,
    never by mutating the
    current tree in place.
 
-<Callout type="info" title="Operational status">
-  These gates are implemented and tested, but the current evidence ledger does not claim the final
-  real registry double-build, TP8 serve, and receipt smoke have been completed.
+<Callout type="warn" title="Operational proof requirement">
+  Unit and slice tests do not authorize rollout. The release must retain a clean-wheel
+  import/entrypoint proof, provider-specific native authority, authenticated builder
+  outputs, closed serving arguments and management routes, a serve smoke at the approved
+  topology, and descriptor/session-bound receipts (including AOT coverage when
+  applicable). See [State of record](/docs/reference/state-of-record) for completed evidence.
 </Callout>
 
 Serving does not require chain access. A chain outage can delay new proposal

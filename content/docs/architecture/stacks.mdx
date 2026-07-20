@@ -70,6 +70,24 @@ Conversely, a proposal tree and a reviewed release tree can preserve the same cr
 selected payload while differing in reviewed packaging and therefore having different
 tree identities.
 
+### Direct-artifact identity across the stack
+
+A contribution that uses a [sealed direct artifact](/docs/architecture/direct-artifacts)
+adds identities at every layer above rather than replacing them:
+
+| Layer                  | What the direct artifact contributes                                                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| Selected contribution    | The canonical `optima.direct-artifact-execution.v1` declaration digest                             |
+| Stack manifest digest    | Included through the selected-delta digest of the target it fills                                  |
+| Engine-tree digest       | The manifest's export declarations, not the compiled CUBIN bytes                                    |
+| Launch identity          | The reopened native build spec, compile profile, and sealed CUBIN publication digest                |
+
+Two trees can share a stack digest and a tree digest while still requiring separately
+reopened native publications, because compilation happens after materialization in a
+disposable prebuild rather than being baked into the emitted source tree. See
+[Runtime selection and evidence](/docs/architecture/direct-artifacts#runtime-selection-and-evidence)
+for the receipts that close that gap.
+
 ## Exact marginal substitution
 
 The validator derives a candidate arm from the frozen incumbent. A valid registered-target arm changes exactly one target transition.

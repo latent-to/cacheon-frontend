@@ -2,9 +2,11 @@
 title: CLI reference
 ---
 
-The CLI exposes three different surfaces: production control-plane operations,
-local contribution tools, and development-only simulations. They share an
-entrypoint but do **not** share authority.
+The CLI is a thin operator and contributor surface over Cacheon's typed APIs. A
+command's output has only the authority listed here; human-readable output is not a
+qualification, settlement, or release receipt. The local contribution loop is `scan`
+plus `verify` — there is no local command that grants qualification or settlement
+authority.
 
 ```bash
 python -m optima.cli <command> [options]
@@ -16,32 +18,30 @@ processes. The installed `optima` console script targets the same parser.
 
 ## Command inventory
 
-| Command                      | Audience         | Authority                  | Purpose                                                           |
-| ---------------------------- | ---------------- | -------------------------- | ----------------------------------------------------------------- |
-| `slots`                      | all              | read-only                  | Print the live slot ABI                                           |
-| `compat`                     | operator         | diagnostic                 | Check the installed SGLang seam against the pin                   |
-| `chain-compat`               | operator         | diagnostic                 | Check the installed Bittensor SDK surface without network access  |
-| `scan`                       | contributor      | local gate                 | Parse a bundle and apply static policy                            |
-| `verify`                     | contributor      | local gate                 | Check the declared slot contract against a trusted reference      |
-| `hash`                       | contributor      | identity                   | Print the deterministic bundle content hash                       |
-| `evaluate`                   | developer        | **development diagnostic** | Run the older direct throughput/fidelity harness                  |
-| `bench`                      | developer        | **development diagnostic** | Run direct task/throughput diagnostics                            |
-| `chain-package`              | contributor      | submission                 | Build the deterministic archive to host                           |
-| `chain-submit`               | contributor      | submission                 | Commit a bundle hash and HTTPS fetch location                     |
-| `chain-status`               | all              | read-only                  | Inspect current subnet and reveal state                           |
-| `chain-register`             | operator         | chain mutation             | Register a hotkey and run its preflight                           |
-| `chain-validate`             | validator        | production                 | Consume finalized reveals; optionally run an injected arena       |
-| `set-weights`                | validator        | production                 | Reconcile the journaled global reward projection                  |
-| `model-provision`            | release operator | production                 | Seal model bytes into a content-addressed external receipt        |
-| `release-verify`             | release consumer | production                 | Verify and reopen a signed Engine release                         |
-| `release-context`            | release consumer | production                 | Produce a deterministic OCI build context from a verified release |
-| `commit`, `reveal`, `ledger` | developer        | local simulation           | Exercise the legacy local JSON commit/reveal model                |
-| `legacy-settle`              | developer        | **development-only**       | Run the old settlement simulation; requires `--development-only`  |
+| Command            | Audience         | Authority                | Purpose                                                                   |
+| ------------------- | ---------------- | -------------------------- | -------------------------------------------------------------------------- |
+| `slots`             | all              | read-only                  | Print the registered slot ABI                                             |
+| `compat`            | operator         | diagnostic                 | Check the installed SGLang seam surface against the pin                   |
+| `chain-compat`      | operator         | diagnostic                 | Check the installed Bittensor SDK surface without chain access            |
+| `scan`              | contributor      | local gate                 | Parse a bundle and apply recursive static policy                          |
+| `verify`            | contributor      | local gate                 | Check declared slot behavior against validator-owned references           |
+| `chain-package`     | contributor      | packaging                  | Build a canonical archive and print its content hash                      |
+| `chain-submit`      | contributor      | chain mutation              | Commit a bundle hash and HTTPS fetch location through timelock reveal      |
+| `chain-status`      | all              | read-only                  | Inspect public subnet, registration, and reveal state                     |
+| `chain-register`    | operator         | chain mutation             | Burn-register a hotkey and run the SDK preflight                          |
+| `chain-validate`    | validator        | production intake          | Consume finalized reveals; a deployment may inject qualification services |
+| `set-weights`       | validator        | production control plane   | Reconcile the journaled global reward projection                          |
+| `model-provision`   | release operator | production artifact        | Seal model bytes into a content-addressed publication and receipt         |
+| `release-verify`    | release consumer | production verification    | Reopen a signed Engine release under an externally trusted key            |
+| `release-context`   | release consumer | production build input     | Materialize a deterministic OCI context from a verified release           |
 
-<Callout type="warn" title="Know which path you are running">
-  `evaluate`, `bench`, and `legacy-settle` are useful diagnostics. They are not the production
-  qualification or settlement authority and cannot mint a current crown. The hardened path is a
-  registered arena injected into `chain-validate`.
+<Callout type="warn" title="No local qualification path">
+  There is no local command that grants qualification or settlement authority. Complete engine
+  qualification begins at the deployment-injected arena boundary. The direct evaluator, benchmark
+  command, standalone hash command, and the local JSON commit/reveal/ledger simulator have been
+  removed from the source tree; they are not an alternate production interface, and older examples
+  referencing `evaluate`, `bench`, `hash`, `commit`, `reveal`, `ledger`, or `legacy-settle` no
+  longer apply to the current checkout.
 </Callout>
 
 ## Local contribution loop
@@ -84,31 +84,17 @@ Useful options are `--dtype`, `--device`, `--seed`, `--world-size`, `--tp-size`,
 and `--model`. Verification proves only the registered component contract. It
 does not prove a serving speedup or grant settlement authority.
 
-### `evaluate` and `bench`
-
-Both commands launch direct developer diagnostics and expose many experimental
-knobs. Always inspect their live help:
-
-```bash
-python -m optima.cli evaluate --help
-python -m optima.cli bench --help
-```
-
-Do not use graphs-off measurements as performance evidence. Do not translate a
-direct diagnostic result into a production PASS, reproduction, or crown.
-
 ## Submission commands
 
-### Package and hash
+### Package
 
 ```bash
 python -m optima.cli chain-package path/to/bundle --out bundle.tar.gz
-python -m optima.cli hash path/to/bundle
 ```
 
-Host the archive at a stable **HTTPS** URL. The commitment binds the canonical
-bundle content hash; validators fetch and independently rehash the extracted
-tree.
+Building the archive also prints its canonical content hash. Host the archive
+at a stable **HTTPS** URL. The commitment binds that hash; validators fetch and
+independently rehash the extracted tree.
 
 ### Submit
 

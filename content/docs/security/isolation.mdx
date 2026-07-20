@@ -169,9 +169,10 @@ children never import candidate code or write an `active` receipt; exact
 active-member coverage must equal the expected scheduler rank count.
 
 `verify` uses fresh spawned workers so the CLI process does not import normal candidate
-entry code. `evaluate` and `bench` load candidate code in model workers and can request a
-diagnostic no-egress network namespace. These are development properties, not a substitute
-for the production OCI, mount, device, evidence, and cleanup authority.
+entry code. It is a development property, not a substitute for the production OCI,
+mount, device, evidence, and cleanup authority. The direct engine-facing evaluator and
+benchmark commands that previously loaded candidate code in model workers with an
+optional diagnostic no-egress namespace have been removed from the source tree.
 
 ## Serving releases are a different boundary
 
@@ -224,4 +225,4 @@ See [Threat model](/docs/security/threat-model) and [Evidence and replay](/docs/
 - [OCI process leases](https://github.com/latent-to/optima/blob/main/optima/eval/oci_process.py)
 - [OCI runtime backend](https://github.com/latent-to/optima/blob/main/optima/eval/oci_backend.py)
 - [Reference session](https://github.com/latent-to/optima/blob/main/optima/eval/oci_reference_session.py)
-- Scheduler-only candidate load gate: post-main working-tree path `optima/integrations/sglang_scheduler_gate.py`
+- [Scheduler-only candidate load gate](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_scheduler_gate.py)
