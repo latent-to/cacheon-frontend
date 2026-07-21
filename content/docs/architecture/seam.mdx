@@ -5,7 +5,8 @@ title: SGLang seam
 The seam connects Cacheon's stable slot ABI to version-pinned SGLang internals. It is intentionally split into two layers:
 
 - [`slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py) defines the stable miner-facing semantic contract;
-- `optima/seams.py` defines the SGLang-specific adapters that must be reviewed whenever the runtime pin moves.
+- [`seams.py`](https://github.com/latent-to/optima/blob/main/optima/seams.py) defines the SGLang-specific adapter registry that must be reviewed whenever the runtime pin moves;
+- [`seam.py`](https://github.com/latent-to/optima/blob/main/optima/seam.py) and the [`scheduler_gate` adapter](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_scheduler_gate.py) enforce activation and scheduler-only candidate loading.
 
 Slots are the narrow waist. Adapters are replaceable glue.
 
@@ -62,7 +63,9 @@ The current rows are:
 
 Several adapters may share one binding when they implement one semantic product. The shallow AR-fusion consume adapter and both deep producer adapters share `arfusion`; activating only part of that set would violate the protocol.
 
-The catalog can contain a verified slot before the pinned runtime exposes a safe live chokepoint. `attention.msa_block_score` currently has a slot and verifier contract, while [`sglang_msa.py`](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_msa.py) deliberately refuses installation until a stable decode-side MSA chokepoint is registered. The prefill sibling has a live adapter and appears in the table.
+The catalog can contain a verified slot before the pinned runtime exposes a safe live
+chokepoint. `attention.msa_block_score` has a slot and verifier contract, while [`sglang_msa.py`](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_msa.py) refuses installation unless a stable decode-side MSA chokepoint is registered. The
+prefill sibling has an installed adapter and appears in the table.
 
 ## Bootstrap across spawned processes
 
@@ -202,11 +205,6 @@ All three adapters share the `arfusion` binding. The state machine rejects stale
 
 The deep target may require a FlashInfer dependency overlay. That overlay is not an arbitrary runtime patch: a validator-shipped patcher applies an allowed source diff to a copied source tree during the reviewed build phase, the native artifact is sealed, and the `flashinfer_overlay` adapter redirects only registered late-bound JIT inputs. The installed dependency tree is not edited in place.
 
-FlashInfer dependency overlays build each logical architecture in a separate hermetic
-child because architecture selection is import-time state; runtime installs only the row
-for the active device. During autotuning, both the deep producer and the fused-epilogue
-consumer remain stock so a candidate cannot influence tactic selection.
-
 Principal code: [`moe_export.py`](https://github.com/latent-to/optima/blob/main/optima/moe_export.py), [`dep_policy.py`](https://github.com/latent-to/optima/blob/main/optima/dep_policy.py), and [`patchers/apply_dep_patch.py`](https://github.com/latent-to/optima/blob/main/optima/patchers/apply_dep_patch.py).
 
 ## Graph behavior
@@ -249,10 +247,10 @@ The seam is deliberately pinned-runtime code. An SGLang upgrade requires:
 
 Optional backend rows declare `requires` packages so CPU/dev environments can skip an unassessable adapter rather than report a false break. Production arenas that depend on that adapter must provide and assess the dependency.
 
-<Callout type="warn" title="Current pin validation status">
-  A green import/chokepoint canary is necessary compatibility evidence, not proof that the current
+<Callout type="warn" title="Pin-validation boundary">
+  A green import/chokepoint canary is necessary compatibility evidence, not proof that a
   pin preserves candidate execution and measured performance. Check [State of
-  record](/docs/reference/state-of-record) for the dated claim boundary and [SGLang
+  record](/docs/reference/state-of-record) for completed evidence and [SGLang
   compatibility](/docs/dev/sglang-tracking) for the complete validation ladder.
 </Callout>
 

@@ -51,9 +51,9 @@ it but may not create a private group or let only some ranks fall back.
 
 <Callout type="info" title="Registered does not always mean installed">
   `attention.msa_block_score` has a complete slot and verifier contract, but its decode-side SGLang
-  adapter is deliberately non-installing until the pinned runtime exposes a stable, auditable
-  chokepoint. Its prefill sibling has a live adapter. See [Current
-  status](/docs/reference/state-of-record).
+  adapter refuses installation unless the pinned runtime exposes a stable, auditable registered
+  chokepoint. Its prefill sibling has an installed adapter. See [State of
+  record](/docs/reference/state-of-record) for validated coverage.
 </Callout>
 
 ## Kinds
@@ -109,9 +109,9 @@ validator refreshes registered dynamic inputs and poisons outputs between
 replays before comparing against fresh trusted references.
 
 An implementation that cannot establish graph safety is not silently credited
-for work the baseline performs. `attention.decode` currently has an
-eager gather form; a paged-direct graph-safe form is the intended stronger
-boundary.
+for work the baseline performs. The `attention.decode` eager gather form does
+not establish the paged-direct graph-safe boundary required for graph-qualified
+coverage.
 
 ### Graph failure examples
 

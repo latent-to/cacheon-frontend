@@ -62,9 +62,11 @@ The disposable prebuild container receives:
 - one lease-scoped writable staging mount.
 
 It receives no network, GPU, model, home directory, wallet, Docker socket, or ambient host
-mount. Candidate files are parsed as data, and only validator-registered rebuild patchers
-may run in the build phase. The host never imports candidate Python or loads the produced
-native object.
+mount. The top-level prebuild parses candidate files as data and invokes only
+validator-registered rebuild patchers. A registered sealed-direct-artifact patcher may
+start a further bounded compiler child, import the declared candidate factory there, and
+call it under the closed compile-request/profile ABI. The host never imports candidate
+Python or loads the produced native object.
 
 Prebuild container controls include:
 
@@ -148,11 +150,13 @@ fails as infrastructure authority; it must not become a candidate `PASS` or `FAI
 
 ## Static scanning and Python subprocesses
 
-Source scanning remains useful defense in depth. It rejects known-dangerous syntax and
-recursively covers declared source, CUDA sources, patches, and vendored tree content.
-But scanning cannot prove arbitrary code safe, especially generated native code.
+Source scanning remains useful defense in depth. It applies the Python AST policy to every
+declared and vendored `.py` file. Manifest-declared CUDA sources and dependency patches are
+recognized as separate reviewed-build tiers; they are not Python-AST scanned. The tree
+guard rejects undeclared executable files, binary artifacts, and symlinks. None of these
+checks proves arbitrary code safe, especially generated native code.
 
-The current scanner admits the required CuTe DSL form `cute.compile(...)` only
+The scanner admits the required CuTe DSL form `cute.compile(...)` only
 when the receiver is bound exactly once by a plain absolute alias of the
 allowlisted external `cutlass.cute` module and the first positional argument is
 not a string/bytes literal. Rebinding, shadowing, a second import, or a
@@ -168,11 +172,10 @@ wrapped scheduler-process entry. Detokenizer/output-path and other manager
 children never import candidate code or write an `active` receipt; exact
 active-member coverage must equal the expected scheduler rank count.
 
-`verify` uses fresh spawned workers so the CLI process does not import normal candidate
-entry code. It is a development property, not a substitute for the production OCI,
-mount, device, evidence, and cleanup authority. The direct engine-facing evaluator and
-benchmark commands that previously loaded candidate code in model workers with an
-optional diagnostic no-egress namespace have been removed from the source tree.
+Component verification uses fresh spawned workers so the CLI process does not import
+normal candidate entry code. Developer model launches may load candidate code in model
+workers and may add a diagnostic no-egress namespace. Those properties do not substitute
+for the production OCI, mount, device, evidence, and cleanup authority.
 
 ## Serving releases are a different boundary
 

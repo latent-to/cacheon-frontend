@@ -54,11 +54,19 @@ remain blockers; a later fast result cannot jump them. The default lease is 30 b
 Expiry returns it to pending with a higher lease generation, preventing a worker holding
 the old lease from committing.
 
-Immediately before commit, the controller refreshes the finalized clock. Inside the
-transaction the store verifies that the lease has not expired, the incumbent stack and
-event-journal head have not advanced, economic blockers have not changed, both retained
-evidence products are still byte-identical, and the plan exactly equals a freshly
-recomputed plan. Any disagreement aborts the transaction.
+The controller reads a fresh finalized height immediately before requesting each lease
+and refuses a regressed clock. It refreshes the height again immediately before commit.
+Inside the transaction the store verifies that the lease has not expired, the incumbent
+stack and event-journal head have not advanced, economic blockers have not changed, both
+retained evidence products are still byte-identical, and the plan exactly equals a
+freshly recomputed plan. Any disagreement aborts the transaction. A pass with no pending
+settlement work does not make these extra finalized-height reads.
+
+Lease expiry is not arena retirement. Intake reservations have explicit `release_hold`
+and minimum-age `expire` transitions, but no automatic TTL and no typed transition that
+retires an entire arena. Held state can continue to block later overlapping work until an
+operator completes an evidence-preserving reservation disposition; deleting rows is not
+a recovery mechanism.
 
 ## Deterministic plan
 
@@ -93,8 +101,10 @@ The event journal is append-only and digest chained. Event types have distinct j
   catalog, not manifest order.
 - `ADOPTION` and `STACK_TRANSITION` record the exact new evaluation manifest/tree and
   advance its generation together.
-- `HOLD` records a stale-incumbent candidate or a deterministic conflict loser without
-  mutating the stack.
+- `HOLD` records stale rows and every current registered non-winner without mutating the
+  stack: stale-incumbent rows use `stale_incumbent`, overlapping losers use
+  `conflict_lost`, and non-overlapping current losers use `incumbent_advanced` because the
+  winning transition advanced the shared incumbent.
 - `DISCOVERY_BOUNTY` creates only the bounded discovery claim; it has no stack transition.
 
 Do not infer event meaning from a miner bundle name or the final row status. Reopen the
@@ -106,8 +116,8 @@ Every active registered target defines one family. A singleton target owns its s
 atomic target owns its complete member set and suppresses explicitly overlapping
 singleton families while active.
 
-Credit comes from independently reproduced marginal improvement, expressed in integer
-parts per million:
+Credit comes from marginal improvement accepted by a two-PASS pair satisfying the seven
+digest-distinctness checks, expressed in integer parts per million:
 
 ```text
 improvement = speedup_ppm - 1_000_000
@@ -118,6 +128,12 @@ credit      = floor(improvement * half_life_blocks
 This reciprocal decay reaches half the original credit after one half-life. Retired or
 neutralized contributions receive no standing credit. Engine-stack packaging,
 integration, and release do not create additional reward families.
+
+`speedup_ppm` is `floor(conservative_decimal_speedup × 1_000_000)`. Settlement initializes
+the standing claim's `crowned_block` from the proposal's finalized submission block, not
+from settlement time, so delayed qualification does not reset reward age. Discovery
+claims use the same finalized submission block as `awarded_block` for their bounded
+lifetime.
 
 ## Discovery bounties
 
@@ -142,6 +158,16 @@ then binds:
 If an active family is stale, incompatible, missing, unreopenable, or assigned to a
 hotkey absent from the metagraph, the complete projection is held. Its share is never
 silently redistributed.
+
+The bound chain observations are not one block-atomic substrate snapshot.
+`WeightProjection` retains the projection-time effective block, metagraph digest,
+recipient vector, and state identities. The reconciler performs validator-weight and
+later confirmation reads through separate SDK calls while the chain may move.
+`WeightPublicationRecord` retains only the projection digest, status chain,
+submission/retry/reveal/confirmation blocks, `confirmed_last_update`, and reason; it does
+not serialize the pre/post readback vectors or a post-read metagraph digest/hash. The
+projection digest authenticates the desired vector and projection inputs, not the later
+observations used to compare or confirm it.
 
 Projection is global across every retained arena, not “one `set-weights` call per
 target.” The builder requires a catalog for every evaluation stack, reopens the evidence
@@ -184,11 +210,13 @@ Real publication is fail-closed and journaled:
 | `held`      | Authority changed, deadline expired, readback diverged, or post-submit state is unavailable                                         |
 | `released`  | Operator appended an audited release of a retained hold                                                                             |
 
-An SDK return value—even `submitted=True`—is not confirmation. The reconciler refreshes
-the metagraph immediately, maps recipients to current UIDs, reads current validator
-weights, persists intent before signing, and confirms only when the chain has
-the exact recipient set, each normalized value is within the fixed
-`2e-5` relative/absolute verifier tolerance, and `last_update` is new enough.
+The chain helper checks the SDK response's `success` field (or the older tuple form), so
+a call may return without raising and still report `submitted=False`. Even
+`submitted=True` is not confirmation. The reconciler refreshes the metagraph immediately,
+maps recipients to current UIDs, reads current validator weights, persists intent before
+signing, and confirms only when the chain has the exact recipient set, each normalized
+value is within the fixed `2e-5` relative/absolute verifier tolerance, and `last_update`
+is new enough.
 
 The normal state transitions are:
 
@@ -208,8 +236,16 @@ stateDiagram-v2
 
 `pending` is a valid unresolved result, not success. Before its retry block, another run
 only observes it. At or after the deadline, absent matching readback becomes `held` rather
-than blindly resubmitting. If an unresolved record belongs to a different newly computed
-projection, that conflict also becomes held.
+than blindly resubmitting.
+
+On every non-dry public invocation, `set-weights` first constructs the current
+projection, then reopens the exact retained projection named by an `intent` or `pending`
+journal head. It resumes that immutable vector across later chain heads when chain scope,
+netuid, and signer authority still match; a restart cannot replace an in-flight vector
+merely because a newly computed head would produce different weights. An authority
+mismatch fails closed. A direct caller that bypasses this resume step and presents a
+different projection to the low-level reconciler receives a retained hold rather than a
+silent replacement.
 
 The reconciler can record a preexisting chain match as `confirmed` without submitting.
 Conversely, it refuses a real submission when `crown_count` is zero, when the wallet
@@ -242,18 +278,22 @@ authority before deciding whether a new intent is valid.
 
 ## Failure and recovery matrix
 
-| Condition                                     | Safe outcome                                    | Recovery                                                                             |
-| --------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Earlier overlapping reservation unresolved    | Candidate remains settlement-pending            | Resolve earlier finalized work; do not reorder or delete it                          |
-| Candidate names old incumbent                 | `HOLD` event / stale-incumbent disposition      | A fresh qualification must target the current stack                                  |
-| Lease expires or store/journal head advances  | Commit aborts; expired lease returns pending    | Reopen authority and obtain a new lease generation                                   |
-| Either PASS evidence root cannot reopen       | No settlement and no reward projection          | Restore exact content-addressed bytes or retain hold                                 |
-| Transaction fails mid-plan                    | SQLite rollback; no partial events/claims/stack | Diagnose, then rerun against unchanged authority                                     |
-| Active claim hotkey leaves metagraph          | Entire projection refused                       | Resolve validator-set policy; never redistribute implicitly                          |
-| SDK says submitted, readback absent           | `pending`, then `held` at deadline              | Inspect chain/extrinsic; preserve journal and append reviewed release if appropriate |
-| Post-submit chain authority unavailable       | Immediate `held`                                | Restore authoritative reads before release/retry                                     |
-| Previously confirmed vector changes           | `held`                                          | Treat as an incident; compare chain history and signer activity                      |
-| Emissions parameters differ from bound policy | Projection refused                              | Use the consensus-approved bound policy or migrate authority explicitly              |
+| Condition                                                                                                                                 | Safe outcome                                                          | Recovery                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Earlier overlapping reservation unresolved                                                                                                 | Candidate remains settlement-pending                                   | Resolve earlier finalized work; do not reorder or delete it                                                                      |
+| Candidate names old incumbent                                                                                                              | `HOLD` event / stale-incumbent disposition                             | A fresh qualification must target the current stack                                                                              |
+| Lease expires or store/journal head advances                                                                                               | Commit aborts; expired lease returns pending                           | Reopen authority and obtain a new lease generation                                                                               |
+| Either PASS evidence root cannot reopen                                                                                                    | No settlement and no reward projection                                 | Restore exact content-addressed bytes or retain hold                                                                             |
+| Transaction fails mid-plan                                                                                                                 | SQLite rollback; no partial events/claims/stack                        | Diagnose, then rerun against unchanged authority                                                                                 |
+| Active claim hotkey leaves metagraph                                                                                                       | Entire projection refused                                              | Resolve validator-set policy; never redistribute implicitly                                                                      |
+| Initial projection is stale, post-read is unavailable, block/`last_update` chronology is impossible, or recipient/vector readback differs | Projection is rejected or publication is held                          | Refresh authority and reconcile again; do not infer a general membership-churn comparison that the reconciler does not perform  |
+| SDK returns an unsuccessful response without raising                                                                                       | `submitted=False`; authoritative readback still governs the journal    | Inspect the response and chain state; do not convert lack of an exception into success                                          |
+| SDK says submitted, readback absent                                                                                                        | `pending`, then `held` at deadline                                     | Inspect chain/extrinsic; preserve journal and append reviewed release if appropriate                                             |
+| Post-submit chain authority unavailable                                                                                                    | Immediate `held`                                                       | Restore authoritative reads before release/retry                                                                                 |
+| Previously confirmed vector changes                                                                                                        | `held`                                                                  | Treat as an incident; compare chain history and signer activity                                                                  |
+| Emissions parameters differ from bound policy                                                                                              | Projection refused                                                     | Use the consensus-approved bound policy or migrate authority explicitly                                                          |
+| Held reservation has no disposition                                                                                                        | It remains durable and may keep blocking later work                    | Preserve and monitor it; use audited `release_hold` or minimum-age `expire`, never silent deletion                               |
+| Arena must be retired as an authority domain                                                                                               | No generic transition is available                                     | Define and implement a reviewed typed arena-retirement policy before changing economic authority                                |
 
 The journal and settlement tables are evidence. Back them up with SQLite-aware tooling,
 monitor WAL/disk health, and test restoration with evidence roots present. Never repair an

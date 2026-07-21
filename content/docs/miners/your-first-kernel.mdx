@@ -148,15 +148,25 @@ python -m optima.cli verify my_collective \
   --device cuda --dtype bfloat16 --world-size 4 --tp-size 4
 ```
 
-There is no local command that loads the candidate inside the full engine and
-measures throughput or fidelity; `scan` and `verify` are the complete local
-contribution loop. **Neither one is crown authority.** An authoritative
-candidate cannot choose a different evaluation stack; the validator binds B,
-C, B′, T, resources, graph evidence, hidden inputs, and calibrated policies
-itself at the registered arena boundary.
+Then follow the canonical
+[performance-development procedure](/docs/validators/running-evals#performance-development)
+in an environment matching the published arena contract. No repository command
+materializes the incumbent/candidate engines for this local experiment. Bracket the
+candidate with identical incumbent runs:
 
-Never call a graphs-off `verify` result a win. `--disable-cuda-graph` is a
-debugging mode that changes the incumbent regime.
+```text
+B  -> C -> B′
+speedup = candidate_rate / mean(baseline_before_rate, baseline_after_rate)
+```
+
+Keep the arena's CUDA-graph state, topology, model, dtype, workload, and charged-work
+definition fixed. Reject a result when B/B′ drift is comparable to the claimed gain.
+For a long-prefill target, make the workload genuinely prefill-heavy; repeated prompts
+with a live radix cache can silently turn later iterations into decode/cache-hit work.
+
+This local bracket is a performance hypothesis, not crown authority. The validator binds
+B, C, B′, pristine T, resources, graph evidence, hidden inputs, and calibrated policies,
+then requires a separately bound reproduction.
 
 ## 7. Decide whether the target is worth pursuing
 

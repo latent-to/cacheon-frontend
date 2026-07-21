@@ -29,7 +29,7 @@ The resulting target-spec digest travels with proposals, stack entries,
 qualification evidence, integration records, and releases. A target ID without
 that digest is insufficient to reopen historical authority.
 
-## Current targets
+## Registered targets
 
 The `target-catalog.v1` policy contains the 11 singleton slot targets plus one
 atomic target:
@@ -56,10 +56,10 @@ active alongside the atomic target. This prevents one semantic change from
 creating duplicate permanent reward titles.
 
 Catalog registration defines identity and admission; it does not by itself
-prove that a serving seam is live. In particular, the
-`attention.msa_block_score` decode-side integration is currently a deliberate
-non-installing stub pending a stable pinned-runtime chokepoint. See
-[State of record](/docs/reference/state-of-record).
+prove that a serving seam is installed. The `attention.msa_block_score`
+decode-side integration is non-installing unless the pinned runtime exposes a
+stable registered chokepoint. See [State of record](/docs/reference/state-of-record)
+for validated adapter coverage.
 
 ## Resolution
 

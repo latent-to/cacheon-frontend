@@ -264,10 +264,10 @@ The exact final structural proof used a synthetic 100-ppm candidate to exercise 
 
 Changes: [PR #55](https://github.com/latent-to/optima/pull/55) and [PR #56](https://github.com/latent-to/optima/pull/56). The latter only clarified that the value embedded in the container context is an Ed25519 public verification key.
 
-## 2026-07-13 — B300 intake findings after main
+## 2026-07-13 — CuTe admission and scheduler-role loading
 
-Three focused changes landed on the `fix/b300-intake-findings` working branch after
-the PR #56 main snapshot:
+The initial B300 intake work added three boundaries that were later included in
+PR #59:
 
 - `804147c4` admitted
   CuTe's function-object `cute.compile(...)` idiom under conservative
@@ -283,10 +283,58 @@ the PR #56 main snapshot:
   refuses a string/bytes literal as the first positional argument; CuTe remains
   the sole admitted entry and Triton requires no explicit `.compile` row.
 
-These are current working-tree contracts, not merged pull requests or commits
-reachable from an `origin/*` ref at this snapshot. Focused regressions and the
-current 1,724-passed/18-skipped/0-failed suite are green; the final B300 joined
-qualification remains a separate evidence claim.
+These changes were prerequisites for the later sealed direct-artifact path; they did not
+by themselves make runtime CuTe host objects an acceptable crown surface.
+
+## 2026-07-13 to 2026-07-15 — Sealed direct artifacts
+
+The artifact boundary gained a closed provider registry and the authoritative
+`cutlass.cute.cubin.v1` provider. Candidate factory code executes in a GPU-hidden,
+no-network prebuild child. The retained product is an exact-architecture CUDA ELF CUBIN
+plus validator-reconstructed call, launch, resource, specialization, and lifecycle
+authority.
+
+The runtime binds complete physical kernel inventories to logical exports by ordinal
+after rank-local CUDA and group initialization. Validator-owned materialization covers
+pointer/scalar parameters, packed fields, CUDA 13 TMA descriptors, distinct CUTLASS and
+CuTe FastDivmod representations, launch geometry, optional clusters, streams, generated
+resources, and teardown. PTX, host objects, shared libraries, candidate launch callbacks,
+and runtime JIT inputs are outside the provider contract.
+
+Ledger-attested B300 TP4 blockscore runs reached complete 4/4 load, invocation, and
+completion with zero fallback; the pod-local receipts were not retained. The subsequent
+TP4 B200 joined qualification retained primary and reproduction PASSes at 1.0561× and
+1.0487× on the charged basis. Settlement used 1.0487×, committed a generation-1 crown,
+and reopened it after restart. The run proves the blockscore direct-CUBIN lane, not
+arbitrary direct-artifact collectives.
+
+Changes: [PR #59](https://github.com/latent-to/optima/pull/59), including `368727f6` through `93dfb182` and their validation follow-ups.
+
+## 2026-07-15 — Chain reconciliation and executable-surface trim
+
+Finalized-height refresh now precedes settlement leasing and commit. Raw reveal history
+decoding is bounded and requires event/storage equality. Failed extrinsics report
+`submitted=false`, and a retained pending weight intent can be reopened across later
+heads without resubmission.
+
+The superseded local JSON commit/reveal simulator and direct evaluator/benchmark surface
+were removed. The public local contribution loop is `scan` plus `verify`; complete-engine
+speed and quality remain registered-arena authorities.
+
+Changes: `5afdf2e2`, `1796fc24`, `a52712ef`, `e9ac2f30`, `030d619c`, and `28d8ff29`; the trim reached `main` through PR #58.
+
+## 2026-07-16 — Shared strict validation and core wheel smoke
+
+The `refactor/strict-validation-kernel` branch centralizes canonical digest, integer,
+identifier, exact-field, duplicate-key, CUDA-driver-integer, and environment-flag checks
+in `optima/_strict.py`. Calling modules retain their own exception types, grammars, and
+bounds. Most authority digests now reject the all-zero placeholder; digest computation is
+unchanged.
+
+A follow-up adds `_strict.py` to the serving-wheel allowlist and exercises selected core
+imports from a clean extracted wheel. The broader manifest/direct-artifact runtime closure
+is still absent, so the release gate must expand from that core smoke to every
+manifest-reachable serving entrypoint before the branch is release-ready.
 
 ## Corrections and retractions
 
@@ -321,14 +369,17 @@ The live slot catalog contains 11 slots, not 10. `attention.msa_prefill_block_sc
 | Transactional settlement and emissions                                        | #54            | `084fb8d7`                         |
 | Arena, independent reproduction, integration, release                         | #55            | `b218190d`                         |
 | Public-key CodeQL clarification                                               | #56            | `990721bc`                         |
-| Post-main CuTe admission, scheduler-only load gate, and shared DSL-JIT policy | Working branch | `804147c4`, `3cff4731`, `5325468a` |
+| Direct CUBIN provider, B300/B200 intake fixes, chain reconciliation           | #59            | `93fe837b`                         |
+| Legacy simulator and evaluator removal                                        | #58 (including the stacked trim) | `6d7e92ef`               |
+| Shared strict validation and core wheel-import regression                     | Branch-only    | `4c3eba59`, `7c171d30`, `f8be20a4` |
 
 ## Current interpretation
 
-The history resolves into three layers:
+The history resolves into four layers:
 
 1. early mechanism work established slots, seams, quality gates, collectives, and live chain transport;
 2. historical B300 runs demonstrated that shallow, deep, and MSA-prefill optimizations could produce real speedups;
-3. the July hardening rebuilt authority so those ideas can be evaluated marginally, reproduced independently, settled transactionally, integrated as reviewed source, and shipped without chain dependencies.
+3. the July hardening rebuilt authority so those ideas can be evaluated marginally, reproduced independently, and settled transactionally; and
+4. the direct-artifact provider exercised that authority for blockscore while preserving a separate integration and release gate.
 
-Only the third layer defines current crown and release authority. See [State of record](/docs/reference/state-of-record) for the remaining validation debt and [Architecture overview](/docs/architecture/overview) for the stable model.
+Only retained current-schema qualification defines crown authority, and a crown still does not define release authority. See [State of record](/docs/reference/state-of-record) for the remaining validation debt and [Architecture overview](/docs/architecture/overview) for the stable model.

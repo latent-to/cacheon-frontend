@@ -129,14 +129,15 @@ Read [The chain loop](/docs/validators/chain-loop), [Arena service](/docs/valida
 | Materialize a release build context          | `optima release-context`                                                        |
 | Construct, sign, publish, or start a release | Reviewed programmatic APIs; no public construction CLI is bundled               |
 
-`optima verify`, `optima evaluate`, and `optima bench` are developer diagnostics.
-They are useful before submission and during integration, but their output is not a
-crown, a settlement record, or weight authority. See [Running diagnostics](/docs/validators/running-evals).
+`scan` and `verify` are contributor diagnostics. Contributor-controlled matched A/B
+profiling is useful before submission and during integration, but its output is not a
+crown, a settlement record, or weight authority. See
+[Contributor profiling](/docs/validators/running-evals).
 
 ## Durable state
 
-Production referee state lives in `FinalizedIntakeStore`, not the legacy JSON ledger.
-The store binds its database to a chain genesis hash and netuid, records finalized
+Production referee state lives in `FinalizedIntakeStore`. The store binds its database to
+a chain genesis hash and netuid, records finalized
 priority, and carries each reservation through fetch, screening, qualification,
 reproduction, settlement, and weight-publication state. WAL mode, full synchronous
 writes, a process lock, and explicit restart recovery make partially completed work
@@ -166,8 +167,8 @@ Use the authority boundary to decide who absorbs a failure:
 | Weight readback missing or divergent                                                                               | Publication `held`                          | Preserve journal, audit chain state, append an explicit release only after review |
 | Release verification or serve receipt failure                                                                      | No rollout                                  | Quarantine artifact/image; do not fall back silently to stock serving             |
 
-The JSON `commit`, `reveal`, `ledger`, and `legacy-settle --development-only` commands
-remain local simulation tools. They do not describe production economics.
+Developer-local state and profiler output do not describe production economics and cannot
+replace any durable intake, qualification, settlement, or weight-publication product.
 
 ## What the implementation does not claim
 

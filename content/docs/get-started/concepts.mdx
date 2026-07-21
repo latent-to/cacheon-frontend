@@ -156,12 +156,13 @@ oracle and prevents chain state from leaking into deployment.
 
 ## Authority levels
 
-Cacheon exposes useful developer commands that do not create crowns:
+Cacheon exposes contributor diagnostics that do not create crowns:
 
-- `scan` checks static policy without loading a bundle; and
-- `verify` compares a slot implementation with its trusted reference.
+- `scan` checks static policy without loading a bundle;
+- `verify` compares a slot implementation with its trusted reference; and
+- contributor-controlled matched A/B profiling can investigate full-engine behavior and
+  throughput without producing validator evidence.
 
-There is no local command that grants qualification or settlement authority.
 Production authority begins only after finalized intake, immutable publication, a closed
 arena service, isolated qualification, retained evidence, and independent reproduction.
 See [Proposal to release](/docs/architecture/pipeline) for the complete sequence.

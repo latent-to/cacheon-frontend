@@ -9,16 +9,15 @@ depends on a small producer/export change in that dependency.
 It is not a framework-mode escape hatch, a way to edit `site-packages`, or a way
 to execute a bundle-supplied installer.
 
-## Current policy
+## Registered dependency-patch policy
 
-The only patchable dependency is currently `flashinfer`. The policy permits
-files matching:
+The dependency-patch allowlist admits only `flashinfer` files matching:
 
 ```text
 flashinfer/data/csrc/fused_moe/*
 ```
 
-The target catalog currently adds the FlashInfer patch features only to the
+The target catalog grants the FlashInfer patch features only to the
 deep `collective.moe_finalize_ar_rmsnorm` singleton target and the
 `collective.moe_epilogue.v1` atomic target. A patch on another registered target
 does not gain permission merely because the manifest parses.
@@ -80,8 +79,9 @@ approved extension builder too:
 }
 ```
 
-Those are the only registered rebuild patchers. The parser rejects
-`bundle_python`, arbitrary repository scripts, duplicate patchers, unknown
+Those are the registered dependency-patch rebuild patchers. The same closed registry also
+contains `build_cute_cubin.py` (`optima.build-cute-cubin.v1`) for the sealed
+direct-artifact provider; it is not a dependency-patch installer. The parser rejects `bundle_python`, arbitrary repository scripts, duplicate patchers, unknown
 fields, and unregistered step types. The validator snapshots each patcher's ID
 and source digest; the bundle chooses a reviewed capability, not executable
 installer code.
@@ -147,7 +147,7 @@ The committed
 [atomic stack fixture](https://github.com/latent-to/optima/tree/main/tests/fixtures/stack_fused_epilogue_atomic)
 demonstrates manifest identity, patch declaration, and rebuild selection. Its
 native and Python bodies are deliberately test stubs and do not implement the
-current deep ABI. Treat it as a schema fixture, not a miner kernel template.
+production deep ABI. Treat it as a schema fixture, not a miner kernel template.
 
 If the desired edit is outside this closed policy, submit it through the
 [Discovery lane](/docs/miners/discovery-lane) rather than disguising it as a dependency

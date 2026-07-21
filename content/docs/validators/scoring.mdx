@@ -20,10 +20,12 @@ For a registered target, the validator constructs:
 - C: that same stack with one registered target replaced; and
 - B′: a second independent launch of the exact incumbent.
 
-The charged execution rate is recomputed from bounded raw batch evidence. The controller
-fixes prompt batches and token budgets, validates the token numerator, and includes
-registered conditioning and timed intervals. Candidate-reported aggregate throughput is
-not accepted as authority.
+During execution, the controller fixes prompt batches and token budgets, validates
+bounded batch frames and token numerators, and constructs charged rates that include
+registered conditioning and timed intervals. The durable `SpeedWitness` retains three
+aggregate `ChargedExecutionRate` rows; reopen recomputes tokens/second and the frozen
+decision from their counts and intervals, not from raw session frames.
+Candidate-reported aggregate throughput is never accepted as authority.
 
 The speed estimate is conceptually:
 
@@ -64,11 +66,19 @@ settled_speedup = min(primary_speedup, reproduction_speedup)
 
 There is no single-pass fast path to a crown.
 
-## Target-level settlement
+Here "independent" means the seven required authority, plan, attempt, report,
+commitment, secret-commitment, and selection-evidence digests differ. It does not by
+itself prove separate operators, hosts, or infrastructure failure domains.
 
-Settlement evaluates candidates against one exact incumbent stack. Stale candidates are
-held. Among current registered candidates, deterministic ordering selects the highest
-conservative speedup, using finalized arrival order as the tie-break.
+## Settlement cohort over one incumbent authority
+
+The store leases one economically unblocked group sharing a qualification authority and
+one exact incumbent stack. Stale candidates are held. Across all current registered rows
+in that leased group—even rows for non-overlapping targets—the planner selects one
+winner by conservative speedup and uses finalized arrival order as the tie-break. The
+shared incumbent advances once, so every other current row is held for a fresh
+qualification against the new stack rather than treated as an independent per-target
+argmax.
 
 The winning transaction may emit crown, retirement, neutralization, adoption, and stack
 transition events. Atomic targets explicitly displace overlapping singleton targets;
@@ -87,6 +97,11 @@ improvement = speedup_ppm - 1_000_000
 credit      = floor(improvement * half_life / (half_life + age_blocks))
 ```
 
+`speedup_ppm` is the floor of the conservative Decimal speedup multiplied by 1,000,000.
+Standing-claim age begins at the proposal's finalized submission block, which settlement
+stores as `crowned_block`; discovery lifetime likewise begins at that submission block
+via `awarded_block`. Qualification or settlement delay never resets reward age.
+
 An active atomic target suppresses overlapping singleton families. Packaging,
 integration, and release records do not create additional families. Discovery bounties
 are non-renewable, expire, and share a policy-bounded pool.
@@ -100,15 +115,16 @@ details.
 
 ## What a result means
 
-A crown means: under the registered arena, workload, calibration, and two independent
-attempts, the exact delta improved the exact incumbent with acceptable measured quality.
+A crown means: under the registered arena, workload, calibration, and two attempts
+meeting the seven digest-distinctness checks, the exact delta improved the exact
+incumbent with acceptable measured quality.
 
 It does not mean:
 
 - the contribution improves every model, topology, or traffic mix;
 - the measured speedup is a service-level capacity guarantee;
 - the proposal is licensed, maintainable, reviewed, or ready to ship; or
-- a diagnostic `score` printed by `evaluate` or `bench` has economic effect.
+- any score produced outside registered, retained qualification has economic effect.
 
 ## Source anchors
 

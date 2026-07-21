@@ -20,6 +20,12 @@ A slot may replace a bounded data-plane region, but it may not control final log
 
 For selection-style slots, the candidate fills an intermediate score sheet and the validator-owned tail performs the selection. This preserves the same property: the candidate never supplies the final selected output by assertion.
 
+MSA keeps runtime selection width separate from verification policy. The live engine's
+top-k controls the stock selection tail. `SlotSpec.correctness.top_k` only fixes the
+width used when the verifier compares the highest-scoring blocks for overlap; equality
+between those values is not a routing condition. The candidate always implements the
+score-sheet boundary, not a miner-selected top-k operation.
+
 ### 3. Correctness uses trusted high-precision ground truth
 
 Per-slot verification compares candidate output with a validator-owned fp32 or dequantized reference, never with the stock kernel as semantic truth. A faster implementation may use different reductions or low-precision arithmetic, so each slot selects an appropriate registered metric:
@@ -64,11 +70,6 @@ The current API contains **11 slots**.
 | `collective.all_reduce`              | `collective` | `all_reduce`              | Cross-rank sum into a validator-owned output                          |
 | `collective.ar_residual_rmsnorm`     | `collective` | `ar_residual_rmsnorm`     | Fused all-reduce, residual add, and RMSNorm                           |
 | `collective.moe_finalize_ar_rmsnorm` | `collective` | `moe_finalize_ar_rmsnorm` | Deep MoE finalize, all-reduce, residual, and RMSNorm boundary         |
-
-Runtime MSA `topk` controls downstream block selection, while the slot correctness
-`top_k` used by `attention.msa_block_score` and `attention.msa_prefill_block_score` is
-only the verifier's overlap width. The two are not the same knob: changing the verifier's
-`top_k` tolerance does not change which blocks the live engine actually selects.
 
 Run `optima slots` against the installed code for the human-readable live list.
 The command prints multi-line summaries rather than a JSON/structured schema;
@@ -176,6 +177,11 @@ See [Graph safety](/docs/miners/graph-safety) for bundle-facing guidance.
 A slot may expose several implementation variants for disjoint, validator-observable capability domains such as dtype, shape, compute capability, or topology. Variants do not create new reward units: all rows for one semantic slot resolve to one singleton target.
 
 Eligibility is evaluated before candidate selection. Unknown capability fields, overlapping ambiguous variants, unsupported topology, and missing prerequisites fail closed or route to stock according to the registered pre-selection policy. The miner cannot introduce a new capability vocabulary through manifest extras.
+
+Runtime-owned tuning phases are also outside candidate eligibility. While FlashInfer is
+profiling autotuner tactics, both the deep MoE producer seam and its fused-epilogue
+consumer use the stock path. Candidate code cannot affect tactic selection, and those
+calls do not establish candidate firing evidence.
 
 ## Atomic targets and composition
 

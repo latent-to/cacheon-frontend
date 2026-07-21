@@ -46,7 +46,7 @@ python -m optima.cli scan examples/miner_silu_torch
 `scan` parses the manifest and applies the recursive static policy. A clean scan is an
 admission signal, not a sandbox and not correctness evidence.
 
-A clean example currently looks like this:
+Expected output for the clean example:
 
 ```text
 bundle: example-silu-torch-cpu  abi: optima-op-abi-v0  ops: 1
@@ -137,8 +137,8 @@ The quickstart did not exercise:
 - release construction and serving.
 
 Those boundaries require validator-owned hardware, runtime identities, policies, and
-evidence stores. There is no local command that substitutes for them; `scan` and `verify`
-remain the complete local contribution loop.
+evidence stores. Developer GPU experiments remain non-authoritative regardless of their
+local output.
 
 ## Continue
 

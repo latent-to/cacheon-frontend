@@ -68,29 +68,37 @@ rather than trusting modes, filenames, or build logs.
 | SBOM and provenance                | Which declared inputs and build lineage produced the release artifacts?                     |
 | `ServeSpec`                        | Which image, platform, topology, command, environment, and mount contract may run?          |
 | Signed descriptor                  | Who authorized this exact closed set of identities?                                         |
-| Registry reproducibility statement | Did two controlled builds publish the same raw image digest?                                |
-| Serve receipts                     | Did every expected slot and tensor-parallel rank activate, fire, and complete in the smoke? |
+| Registry reproducibility statement | Did two reopened registry manifests expose the same raw image digest and required labels?   |
+| Serve receipts                     | Did the supplied receipt set report active, fired, and completed coverage for every expected slot and tensor-parallel rank? |
 
 These products compose; they are not interchangeable. For example, a valid signature
 over a descriptor with a missing model tree still cannot start, and a responsive server
 with fallback receipts has not proved that the released optimization executed.
+The production authority must additionally bind both registry readbacks to their
+controlled builder invocations, bind smoke receipts to the exact release and serving
+session, and require direct-AOT load/invocation evidence when the release declares it.
+Those causal bindings are not established by the registry or receipt primitives alone.
 
 ## Native and dependency artifacts
 
-Two kinds of prebuilt native product ride inside a release, and they answer different
-questions. A [sealed direct artifact](/docs/architecture/direct-artifacts) is a
-provider-specific CUBIN compiled from reviewed CuTe factory code under a measured
-compile profile; the release build pipeline must reopen its provider-specific index,
-profile, and observed-ABI evidence rather than treating the generic native publication
-binding as sufficient proof. A FlashInfer dependency overlay is a different case: because
-architecture selection is import-time state, the hermetic build produces one artifact per
-logical architecture in a separate child, and the runtime installs only the row for the
-active device.
+Architecture coverage is explicit rather than inferred from the machine that performed
+the build. The FlashInfer dependency-patch path publishes one sealed overlay containing
+the validator-declared `sm100` and `sm103` fused-MoE modules. FlashInfer captures its CUDA
+architecture list in import-time state, so each module is compiled in a separate hermetic
+child interpreter whose environment is fixed before any FlashInfer import; the parent
+build process never imports FlashInfer. The build child compiles but does not load the
+module. At engine startup, the installer selects only the row matching the current device
+and refuses an architecture that the publication does not cover.
 
-Release admission for a direct-artifact target additionally requires the serving
-environment to derive its CuTe compile-profile digest from the signed native build
-specification and propagate it unchanged into the engine process; missing or mismatched
-propagation must fail closed rather than silently falling back to a JIT or stock path.
+This multi-architecture dependency overlay is distinct from a sealed direct artifact: it
+patches a closed dependency subtree and publishes exact prebuilt dependency modules,
+while a direct artifact is admitted through its registered provider, slot ABI, compile
+profile, resource plan, and launch plan.
+
+FlashInfer autotuning is a runtime-owned phase. While its tactic profiler is active, both
+the deep MoE producer and the fused-epilogue consumer stay on the stock path. A reviewed
+or candidate implementation cannot influence tactic selection, and autotuner calls do
+not count as proof that a Cacheon seam fired.
 
 ## Serving boundary
 
@@ -125,17 +133,13 @@ A consumer does not need to trust the release directory's filename or the regist
 
 1. Obtain the expected public key and descriptor digest through an independent trusted
    channel.
-2. Reopen the publication and verify every descriptor-bound artifact and integration,
-   including provider-specific native proof for any sealed direct artifact.
-3. Materialize a deterministic context, build twice, authenticate that each registry
-   readback is the output of its corresponding builder invocation, and authorize the
-   common immutable registry digest.
+2. Reopen the publication and verify every descriptor-bound artifact and integration.
+3. Materialize a deterministic context, build twice, and authorize the common immutable
+   registry digest.
 4. Mount the exact provisioned model and create a container whose inspected host policy
-   matches the signed serving specification, with effective serving arguments and
-   management routes closed to the signed policy.
-5. Start a canary, exercise it, and require complete positive seam receipts bound to this
-   release and session, with no `load_failed` or `fallback` result and, for sealed direct
-   artifacts, full per-rank `aot_loaded`/`aot_invoked` coverage.
+   matches the signed serving specification.
+5. Start a canary, exercise it, and require complete positive seam receipts with no
+   `load_failed` or `fallback` result.
 6. Promote or roll back by immutable release/image identity. Never repair the signed tree
    or replace a file in place.
 

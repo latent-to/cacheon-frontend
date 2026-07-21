@@ -76,7 +76,7 @@ The provider protocol has only two authority-bearing operations:
 ```python
 def run_screen(manifest, stage, candidate) -> ScreenStageResult: ...
 
-def build_qualification(request) -> ArenaQualificationWork: ...
+def build_qualification(request, state=None) -> ArenaQualificationWork: ...
 ```
 
 `ArenaService` checks the provider digest on construction, requires the exact
@@ -114,12 +114,17 @@ Admission has three typed outcomes before evidence exists:
 | -------- | ------------------------------------------------------------ | -------------------------------------------------------- |
 | `ADMIT`  | Screen/qualification capacity is available                   | Reserve work under the bound service                     |
 | `QUEUE`  | The relevant active-worker capacity is temporarily full      | Preserve finalized priority and retry later              |
-| `HOLD`   | Queue depth/age, cohort size, or retry budget crosses policy | Stop automatic progress pending operator/policy handling |
+| `HOLD`   | Queue depth/age or cohort size crosses admission policy | Stop automatic progress pending operator/policy handling |
 
 Screen and qualification capacities are distinct. A cohort larger than
 `max_cohort_size` is held; a cohort that fits policy but would exceed current
 active qualification capacity is queued. This avoids converting overload into
 candidate failure.
+
+Retry exhaustion is post-evidence policy, not an admission input. After a screen or
+qualification produces `NO_DECISION`, `retry_disposition()` returns the separate
+`PromotionDecision.RETRY` while the lane-specific attempt is below budget, otherwise
+`PromotionDecision.HOLD`.
 
 ## Screen receipt derivation
 
@@ -158,7 +163,9 @@ evaluator's summary text.
 ## Deployment review checklist
 
 - Construct the registry from a sorted, unique, reviewed arena list.
-- Pin provider code by the digest embedded in each service manifest.
+- Independently attest the reviewed installed provider bytes/configuration to the
+  `provider_digest` embedded in each service manifest. `ArenaService` compares that digest
+  with the provider object's self-declared value; the type boundary is not byte attestation.
 - Keep model paths, executor handles, entropy sources, and hidden judges inside
   deployment code; expose only their typed identities at the boundary.
 - Ensure queue snapshots and leases come from the durable single-writer

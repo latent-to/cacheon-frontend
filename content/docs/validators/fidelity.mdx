@@ -6,13 +6,13 @@ Cacheon uses different quality checks at different stages. Confusing them create
 security error: a useful development diagnostic is not necessarily safe as a grading
 oracle.
 
-## The three layers
+## The quality layers
 
-| Layer                                      | Purpose                                                                | Crown authority?                           |
-| ------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------ |
-| Typed slot verification                    | Fast ABI, output-layout, numerical, applicability, and graph preflight | No                                         |
-| `evaluate` / `bench` KL or in-engine audit | Developer feedback and integration diagnosis                           | No                                         |
-| Pristine T over sealed B/C/B′ trajectories | Candidate-free, retained production quality evidence                   | Yes, as one required part of qualification |
+| Layer                                               | Purpose                                                                | Crown authority?                           |
+| --------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------ |
+| Typed slot verification                             | Fast ABI, output-layout, numerical, applicability, and graph preflight | No                                         |
+| Contributor-controlled model A/B or in-engine audit | Development feedback and integration diagnosis                         | No                                         |
+| Pristine T over sealed B/C/B′ trajectories          | Candidate-free, retained production quality evidence                   | Yes, as one required part of qualification |
 
 ## Slot verification
 
@@ -24,20 +24,19 @@ requires graph evidence where applicable.
 This catches many broken kernels cheaply, but it samples a finite contract. It cannot by
 itself establish end-to-end model behavior or serving quality.
 
-## Development KL and audit modes
+## Development quality evidence
 
-`optima evaluate --fidelity-mode kl` compares aligned rollout distributions. Mean KL is
-not the only diagnostic: configured tail and argmax-disagreement checks help expose sparse
-corruption. KL is interpretable only when stock-vs-stock variation is within the setup's
-calibration; launch nondeterminism can otherwise dominate the signal.
+Engine developers may compare aligned rollout distributions, task behavior, and sampled
+dispatcher calls while integrating a contribution. KL-like measurements are interpretable
+only when stock-vs-stock variation is within the setup's calibration; launch
+nondeterminism can otherwise dominate the signal. Tail and argmax-disagreement measures
+help expose sparse corruption that a mean alone can hide.
 
-`--fidelity-mode audit` adds an untimed candidate launch that samples live dispatcher
-calls and compares them with an in-engine stock calculation. This is valuable for
-debugging nondeterministic stacks, but the candidate process contains the audit machinery
-and cannot be the final authority against a hostile engine.
-
-Framework-mode diagnostics use token matching and request diagnostic no-egress isolation.
-They do not make engine-wide setup a registered target and do not produce a crown.
+An in-engine audit samples live candidate calls and compares them with a stock
+calculation. It is valuable for debugging nondeterministic stacks, but the candidate
+process contains the audit machinery and cannot grade a hostile engine. Framework-mode
+token matching has the same limitation. These checks are engineering tools, not a
+registered target or crown authority.
 
 ## Pristine T
 
@@ -88,8 +87,8 @@ identity, and reproduction evidence.
   mathematical proof.
 - Calibration is specific to the registered runtime, model, hardware, and workload and
   must be redone when those identities change.
-- Diagnostic KL/audit output is useful evidence for engineers but has no settlement
-  effect.
+- Contributor-controlled KL, task, or audit output is useful evidence for engineers but
+  has no settlement effect.
 - Passing fidelity does not establish license, security review, or release readiness.
 
 See [Evidence and replay](/docs/security/evidence) for how raw quality products are

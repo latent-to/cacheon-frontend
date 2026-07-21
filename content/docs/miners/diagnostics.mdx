@@ -184,7 +184,7 @@ Common causes are host synchronization, data-dependent Python branching,
 capture-time compilation/allocation, stale pointers, partial replay writes, or
 collective ordering changes. `graph_safe: true` is only a declaration.
 
-Do not “fix” graph failure by using `evaluate --disable-cuda-graph`; that changes
+Do not “fix” graph failure by disabling CUDA graphs in a local profile; that changes
 the serving regime. See [Graph evidence](/docs/miners/graph-safety).
 
 ## 5. Chain payload, fetch, and publication
@@ -250,11 +250,13 @@ Quality problems:
 
 - required fidelity/task metric regresses: candidate FAIL;
 - stock/reference drift overlaps the calibrated boundary: `NO_DECISION`;
-- pristine T or raw evidence cannot reopen: authority/infrastructure failure.
+- referenced pristine-T identity or raw quality artifact cannot reopen:
+  authority/infrastructure failure;
+- a contributor-controlled quality check differs: local flags and prompts are not the
+  bound reference policy.
 
-There is no local command that reproduces or contests a retained validator
-grade; `scan` and `verify` are the complete local contribution loop, and
-neither one measures throughput or fidelity.
+Contributor-controlled matched A/B profiling can reproduce a mechanism, but it cannot
+contest a retained validator grade or create qualification authority.
 
 ## 8. Reproduction
 

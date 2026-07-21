@@ -64,7 +64,7 @@ development checks appropriate to the target:
 
 ```bash
 python -m optima.cli scan my_bundle
-python -m optima.cli verify my_bundle --device cuda --dtype bfloat16 ...
+python -m optima.cli verify my_bundle --device cuda --dtype bfloat16
 ```
 
 Inspect the tree for credentials, caches, generated binaries, model data,
@@ -87,9 +87,9 @@ if it changes while the hosted archive does not, the validator will reject the
 fetch as a content mismatch.
 
 For extra confidence, extract the hosted object into a clean temporary location and run
-`chain-package` or the bundle hash on that extracted root. The wrapper directory and gzip
-encoding are not the identity; the sorted relative paths and file bytes are. Never
-“refresh” a stable URL with revised content after committing the old hash.
+`chain-package` against that root, then compare its printed content hash. The wrapper
+directory and gzip encoding are not the identity; the sorted relative paths and file bytes
+are. Never “refresh” a stable URL with revised content after committing the old hash.
 
 ## 3. Host over stable public HTTPS
 
@@ -234,13 +234,12 @@ Use the operator's designated status surface rather than assuming absence from
 A crown remains separate from source integration and a Cacheon Engine release.
 Submitting does not cause the validator to publish miner code as a release.
 
-## No local production path
+## Production authority boundary
 
-The local JSON commit/reveal/ledger simulator and its `legacy-settle`
-companion have been removed from the source tree. There is no local command
-that creates finalized chain intake, production qualification, transactional
-settlement, or weights; only `chain-submit`, `chain-validate`, and
-`set-weights` do.
+The supported submission path is `chain-package` followed by `chain-submit`. Finalized
+chain intake, SQLite qualification state, transactional settlement, and journaled weight
+publication are separate validator authorities. No local ledger or contributor-side
+score can create those records.
 
 If the proposal stalls or fails, map its reported lifecycle state through
 [Diagnostics](/docs/miners/diagnostics).

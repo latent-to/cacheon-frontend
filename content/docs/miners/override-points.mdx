@@ -10,9 +10,9 @@ serving integration remain validator-owned.
 This is an advanced composition mechanism, not permission to patch arbitrary
 engine code.
 
-## Current scope and status
+## Registered capability
 
-There is currently one implemented override-point identity:
+The override registry defines one override-point identity:
 
 ```text
 moe.fused_experts/gemm1_epilogue
@@ -22,19 +22,19 @@ It selects the `gemm1_epilogue` hole in the validator-owned
 `nvfp4_moe_megakernel` base. The registry and composition code are in
 [override.py](https://github.com/latent-to/optima/blob/main/optima_kernels/override.py).
 
-The status matters:
+Its support boundary is explicit:
 
 - manifest parsing, point lookup, composition, and the dense/CPU reference path
   are implemented and tested;
-- the GPU `nvfp4_moe_megakernel.run` path is currently a stub that raises
-  `NotImplementedError`;
-- therefore the committed example is useful for ABI development but cannot
-  establish a GPU crown through this base today.
+- the validator-owned GPU `nvfp4_moe_megakernel.run` path raises
+  `NotImplementedError`; and
+- therefore the committed example supports ABI development but is not eligible
+  for GPU qualification through this base.
 
 See the explicit status in
 [nvfp4_megakernel.py](https://github.com/latent-to/optima/blob/main/optima_kernels/moe/nvfp4_megakernel.py).
-Do not quote provenance measurements embedded in example metadata as results of
-the current override bundle.
+Provenance measurements embedded in example metadata are not evidence produced by
+the override bundle.
 
 ## Bundle declaration
 
@@ -94,16 +94,16 @@ cute` or the equivalent absolute `from cutlass import cute`. Rebinding or
 shadowing the alias, importing it twice, using another module's `.compile`,
 vendoring a local `cutlass` package, or passing a string/bytes literal as the
 first positional argument fails closed. The validator-owned
-`DSL_JIT_ENTRYPOINTS` table contains only CuTe today. The exception exists only
+`DSL_JIT_ENTRYPOINTS` table admits only CuTe. The exception exists only
 for CuTe's function-object tracing API; it does not permit string-to-code
 compilation or `builtins.compile`. Triton's lazy `@triton.jit` launch path does
 not need an explicit `.compile` admission.
 
-The current admission logic is pinned in
-[`optima/dsl_jit_policy.py`](https://github.com/latent-to/optima/blob/main/optima/dsl_jit_policy.py)
-and [`optima/engine_tree.py`](https://github.com/latent-to/optima/blob/main/optima/engine_tree.py).
+The authoritative admission logic is
+[`dsl_jit_policy.py`](https://github.com/latent-to/optima/blob/main/optima/dsl_jit_policy.py)
+and [`engine_tree.py`](https://github.com/latent-to/optima/blob/main/optima/engine_tree.py).
 
-The exact device ABI belongs to the registered point. For the current point,
+The exact device ABI belongs to the registered point. For this point,
 `alpha_val` is the per-expert quantization/dequantization value; activation
 parameters such as a sigmoid gain are distinct values. Mixing those two
 meanings is a correctness bug.

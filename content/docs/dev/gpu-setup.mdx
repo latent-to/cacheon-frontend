@@ -2,8 +2,9 @@
 title: GPU setup
 ---
 
-This page prepares a contributor or maintainer GPU host for verification and
-direct diagnostics. It is not a production arena deployment recipe. Production
+This page prepares a contributor or maintainer GPU host for component
+verification and performance development. It is not a production arena
+deployment recipe. Production
 candidate execution additionally requires the isolated worker and injected
 arena boundaries in the [validator guide](/docs/validators/first-hour).
 
@@ -163,23 +164,34 @@ registered seam, completed it, and produced the expected output. A rank-local
 fallback would diverge the collective, so the candidate engine must abort
 rather than continue with mixed implementations.
 
+## Complete-engine performance development
+
+Cacheon deliberately exposes no local qualification command. Contributors may profile
+and A/B the complete serving engine on a disposable host appropriate for candidate code,
+using the published arena contract as the environment specification. Keep the model,
+runtime, topology, graph mode, workload, and charged-work basis fixed; measure the
+candidate between two incumbent runs and distrust a delta smaller than baseline drift.
+The canonical [performance-development procedure](/docs/validators/running-evals#performance-development) defines the required inputs and local result record; no repository command materializes
+this complete-engine bracket.
+
+Production qualification constructs complete B/C/B′ engines and a candidate-free
+pristine T session through an injected arena service. A contributor-controlled model run
+cannot substitute for that authority.
+
 ## From component proof to arena proof
 
-There is no local command that loads a candidate inside the full engine and
-measures throughput or fidelity; `scan` and `verify` are the complete local
-contribution loop. Move upward only after `verify` is green:
+Move upward only after the lower layer is green:
 
-| Layer                       | Required observation                                             | Still does not prove                                 |
-| --------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------- |
-| Component `verify`          | Registered reference and graph replay for exercised cases        | Model integration or speedup                         |
-| Arena screen                | Static/build/ABI/graph/abbreviated-serving gates all promote     | B/C/B′ drift, T quality, settlement                  |
-| Qualification PASS          | Exact marginal complete-engine delta clears all registered gates | Crown until independent reproduction                 |
-| Two-pass settlement         | Reopened matching evidence creates a crown                       | Integration safety or release readiness              |
+| Layer                      | Required observation                                                                                                              | Still does not prove                                                           |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Component `verify`         | Registered reference and graph replay for exercised cases                                                                         | Model integration or speedup                                                   |
+| Local complete-engine A/B  | Model can load and the selected delta can improve the matched workload                                                            | Validator isolation, hidden quality, crown authority, independent reproduction |
+| Arena screen                | Static/build/ABI/graph/abbreviated-serving gates all promote                                                                      | B/C/B′ drift, T quality, settlement                                            |
+| Qualification PASS          | Exact marginal complete-engine delta clears all registered gates                                                                  | Crown until independent reproduction                                           |
+| Two matching PASSes         | Candidate is eligible for cohort settlement; the current registered cohort winner may be crowned while another valid pair is held | Integration safety or release readiness                                        |
 
-Production qualification uses complete B/C/B′ engines and pristine T through
-an injected arena service; no local command-line result substitutes for that
-path. Do not copy a `verify` result into the current state of record as if it
-came from the hardened qualification path.
+Keep local A/B results as engineering evidence, labeled with their exact environment and
+denominator. Do not treat them as qualification evidence.
 
 ## Common failures
 

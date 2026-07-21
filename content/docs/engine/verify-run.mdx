@@ -117,7 +117,8 @@ from optima.release_host import (
     publish_container_twice,
 )
 
-# Build twice, reopen both Registry-v2 manifests, require one digest, and sign it.
+# Integration composition only. The caller must separately authenticate that each
+# registry readback came from its corresponding builder output.
 signed_build = publish_container_twice(
     context_root,
     repository=repository,

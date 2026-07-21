@@ -6,8 +6,8 @@ Qualification asks a narrow question: does one exact submitted delta improve one
 evaluation stack, in one registered arena, at acceptable quality?
 
 The production answer comes from a causal B/C/B′/T protocol executed by a trusted host
-controller. It does not come from `optima evaluate`, an in-engine self-audit, a miner
-report, or an arbitrary evaluator command.
+controller. It does not come from a local diagnostic launch, an in-engine self-audit, a
+miner report, or an arbitrary evaluator command.
 
 ## Identities before execution
 
@@ -98,19 +98,23 @@ bookends and one pristine reference lifetime where the policy permits. This is a
 operational optimization, not a semantic relaxation:
 
 - every C remains one exact marginal delta;
-- candidate ordering is derived from post-commit entropy;
-- the selection receipt covers the exact chosen prompts/tasks and ordering;
+- candidate ordering is sealed in finalized cohort/plan order before entropy is observed;
+- post-commit entropy selects the hidden prompt/task work, and the selection receipt binds
+  that choice without reordering candidates;
 - drift outside calibration produces `NO_DECISION`; and
 - retained evidence must still support each candidate independently.
 
 The contract does not require four cold model loads per chain reveal. It requires the
 evidence represented by the four arms to remain causally and cryptographically separable.
 
-For registered cohorts, an infrastructure failure before a complete attempt produces
-`NO_DECISION` for every affected reservation and a persisted bisection plan. Subsequent
-passes halve the cohort to isolate a poisoning or resource-sensitive candidate in
-logarithmic retry groups. A per-candidate `NO_DECISION` after a complete shared attempt is
-requeued individually. Neither mechanism changes finalized arrival order.
+For registered cohorts, a recognized cohort-level factory, runner, raw-speed,
+outer-session, or OCI-backend failure that the intake boundary normalizes into a
+qualification failure product produces `NO_DECISION` for every affected reservation and a
+persisted bisection plan. Subsequent passes halve the cohort to isolate a poisoning or
+resource-sensitive candidate in logarithmic retry groups. A per-candidate `NO_DECISION` after a complete shared attempt is requeued individually. Other provider, controller, or
+evidence-publication exceptions abort the pass and recover through controller
+restart/hold handling rather than this typed batch product. Neither mechanism changes
+finalized arrival order.
 
 ## Gates and three-way decisions
 
@@ -174,44 +178,70 @@ independence fields differ:
 |                                                     | Selection-secret commitment digest |
 |                                                     | Selection evidence digest          |
 
+"Independent" in this state-machine contract means those seven digest distinctions. The
+schema does not attest that the attempts used different operators, hosts, organizations,
+or infrastructure failure domains; a deployment that requires those properties must bind
+and audit them separately.
+
 After the first PASS, the same reservation goes through the five non-crown screens again
 in the reproduction lane. Only the second PASS creates a `SettlementCandidate`. Before
 settlement, the store requires exactly two retained qualification rows, reopens both
-evidence roots, confirms both dispositions still carry PASS authority, and binds a new
+attempt references from their recorded store roots, confirms both dispositions still
+carry PASS authority, and binds a new
 settlement-evidence receipt. The slower passing speedup is used even if the primary was
 faster.
 
 ## Reopen and regrade
 
-The final report is derived from retained raw artifacts and calibration manifests. The
-system can reopen those products, verify their hashes and identities, and rederive graph,
-speed, and quality decisions. A summary JSON line without its evidence is not authority.
+Full regrade requires more than the persisted attempt reference. The caller must
+reconstruct the exact `CausalQualificationInput`, including prepared plans, candidate
+authorities, graph/calibration references and requirements, runtime policy, reference
+authority, and commitment. SQLite's authority manifest and `CohortQualificationAttempt`
+bind identities but do not embed that complete private provider/plan object. Settlement
+restart authenticates attempt bytes and stored PASS dispositions; it does not invoke the
+full causal regrader.
+
+The final report is derived from the serialized attempt, referenced graph/quality
+artifacts, and calibration manifests. Reopen can regrade graph and raw quality evidence.
+Speed regrading uses the retained `SpeedWitness`: three aggregate B/C/B′
+`ChargedExecutionRate` rows containing launch/session identities and
+conditioning/timed/charged token counts and intervals. It recomputes rates and the frozen
+speed decision from those aggregates; it does not reconstruct them from raw session
+frames. A summary JSON line without these typed products is not authority.
 
 See [Evidence and replay](/docs/security/evidence) for retention and audit requirements.
 
-An authoritative attempt is not one file. The retained closure includes the authority
-manifest, selected plan and commitment/entropy receipts, B/C/B′ lifecycle and device
-receipts, graph or discovery-execution evidence, raw charged-speed batches, pristine T
-session exchanges, raw quality products, per-candidate reports, and the enclosing attempt
-artifact. Settlement keeps references to both complete attempt roots.
+An authoritative attempt is not one headline. Durable authority includes the authority
+manifest; selected plan and commitment/entropy/selection receipts; referenced graph or
+discovery-execution evidence; the aggregate speed witness; the pristine-T execution
+witness and raw quality artifact/binding; per-candidate reports; and the enclosing attempt
+artifact. Settlement keeps references to both attempt roots.
+
+The live outer session validates richer B/C/B′ protocol frames, lifecycle order, device
+state, and cleanup before constructing that attempt. Those raw frames and per-arm device
+samples are not serialized into `CohortQualificationAttempt`. The aggregate speed witness
+must not be documented as raw batch retention or as proof that a later audit can replay the
+original timing frames.
 
 Reopening verifies hashes and expected bindings before grading. If the attempt artifact
-reopens but a referenced raw product does not, authority is still incomplete. Operators
-must retain the complete evidence graph and test restores, not merely archive the final
-report digest.
+reopens but a referenced graph, calibration, or raw quality product does not, authority is
+still incomplete. Operators must retain every referenced evidence-store object and test
+restores, not merely archive the final report digest. If policy requires raw B/C/B′ frame
+replay, the attempt schema must first be extended to retain and bind those products.
 
 ## Qualification incident handling
 
-| Incident                                                                          | Required disposition                                                                      |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Candidate engine exceeds deadline or violates protocol with attributable evidence | Grade under the frozen requirement; `FAIL` only when attribution is complete              |
-| Worker, Docker, GPU, driver, or evidence publication failure                      | `NO_DECISION`; repair infrastructure and use bounded retry                                |
-| B/B′ drift exceeds calibration                                                    | `NO_DECISION`; do not increase the candidate's denominator or tune the bar after seeing C |
-| Candidate survives past the pre-T quiescence proof                                | Abort authority; never launch T into the contaminated lifetime                            |
-| T identity/session mismatch                                                       | `NO_DECISION`; T cannot be replaced with B′ or a candidate-side audit                     |
-| One member poisons a registered cohort                                            | Preserve cohort failure digest and execute the stored bisection groups                    |
-| First PASS evidence root lost                                                     | No reproduction or settlement; restore exact bytes or hold                                |
-| Reproduction differs in contribution identity or reuses any independence digest   | Reject the pair; it is not an independent reproduction                                    |
+| Incident                                                                             | Required disposition                                                                                                                                     |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Candidate engine exceeds deadline or violates protocol with attributable evidence    | Grade under the frozen requirement; `FAIL` only when attribution is complete                                                                             |
+| Recognized worker, Docker, GPU, driver, plan, runner, or raw-speed authority failure | `NO_DECISION`; repair infrastructure and use bounded retry                                                                                               |
+| Evidence-store publication failure                                                   | Abort the pass; recovery holds an interrupted `qualifying` row as `controller_restart_during_qualifying` rather than manufacturing a typed `NO_DECISION` |
+| B/B′ drift exceeds calibration                                                       | `NO_DECISION`; do not increase the candidate's denominator or tune the bar after seeing C                                                                |
+| Candidate survives past the pre-T quiescence proof                                   | Abort authority; never launch T into the contaminated lifetime                                                                                           |
+| T identity/session mismatch                                                          | `NO_DECISION`; T cannot be replaced with B′ or a candidate-side audit                                                                                     |
+| One member poisons a registered cohort                                               | Preserve cohort failure digest and execute the stored bisection groups                                                                                    |
+| First PASS evidence root lost                                                        | No reproduction or settlement; restore exact bytes or hold                                                                                                |
+| Reproduction differs in contribution identity or reuses any independence digest      | Reject the pair; it is not an independent reproduction                                                                                                    |
 
 Never rerun only the favorable arm, splice evidence from different authorities, or lower
 a threshold after seeing the outcome. A fresh attempt must be a complete, newly bound
@@ -227,9 +257,9 @@ qualification under the registered policy.
   against GPU, driver, kernel, or container-runtime compromise.
 - A crown records measurement and attribution. It does not satisfy integration, license,
   provenance, maintainability, or release review.
-- The current repository does not ship the production provider that constructs this work
-  for a real arena. Its retained structural two-PASS closure fixture is not an empirical
-  GPU crown or a current production calibration.
+- Deployment must supply a reviewed production provider that constructs this work for the
+  registered arena. Structural two-PASS fixtures can test the authority path but cannot
+  establish an empirical GPU crown or production calibration.
 
 Next: [Settlement and weights](/docs/validators/settlement-and-weights).
 

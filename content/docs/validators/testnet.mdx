@@ -22,17 +22,18 @@ release operations authoritative. Keep the plane boundaries explicit:
 A miner commits one canonical payload:
 
 ```json
-{ "v": 1, "h": "<64 lowercase hex SHA-256>", "u": "https://host/bundle.tar.gz" }
+{"v":1,"h":"<64 lowercase hex SHA-256>","u":"https://host/bundle.tar.gz"}
 ```
 
 The payload is limited to 1024 UTF-8 bytes and posted through the chain's native timelock
 commit-reveal interface. The validator uses finalized reveal event order as priority.
 Proposal bytes, evaluation evidence, stack state, and release artifacts remain off chain.
 
-The reveal event's finalized `(block, block hash, event index, event subindex, hotkey,
-content hash)` becomes the reservation identity and priority. `chain-status` can show
-revealed commitments before the validator has accepted them as finalized history; wait
-for finality rather than using display order or local arrival time as authority.
+Priority is the finalized `(block, event index, event subindex, hotkey, content hash)`
+arrival key. The reservation identity is a separate canonical digest that also binds the
+block hash, URL, and finalized-payload digest. `chain-status` can show revealed
+commitments before the validator has accepted them as finalized history; wait for
+finality rather than using display order or local arrival time as authority.
 
 ## Prerequisites
 
@@ -165,9 +166,9 @@ validation requires reviewed Python deployment code to inject a registry/provide
 select the arena. See [Arena service](/docs/validators/arena-service) and
 [Qualification](/docs/validators/qualification).
 
-Do not resurrect the removed `--eval-cmd`, `--ledger`, `--margin`,
-`--dry-run-weights`, wallet, or hotkey flags on `chain-validate`. They do not exist in the
-current production path.
+`chain-validate` accepts only its documented intake and arena controls. External
+evaluator commands, scoring policy, chain-signing credentials, and weight publication
+belong to separate authorities and must not be added to the intake service definition.
 
 With an injected deployment registry, the same testnet loop may screen, qualify, retain a
 two-PASS pair, and settle. That does not move B/C/B′/T on chain: the chain supplies arrival
@@ -194,15 +195,19 @@ optima set-weights \
   --dry-run
 ```
 
-Dry run refreshes live authority and prints/reconciles the projection without creating a
-publication intent. An empty intake-only test database cannot be turned into weights by
-supplying arbitrary CLI values.
+Dry run refreshes live authority and computes the projection without creating a
+publication intent. Stable CLI output reports the projection digest, dry-run status,
+chain-match result, and `submitted=False`; it does not emit the projected UID/weight
+vector or every projection input. An empty intake-only test database cannot be turned
+into weights by supplying arbitrary CLI values.
 
 The dry run still opens the exclusive SQLite authority and reads a live metagraph. Stop or
 coordinate the validator loop so it does not own the database at that moment. Preserve
-the projected digest, effective block/hash, membership digest, policy digest, stack
-generations, and output vector. `status=dry_run` and `submitted=false` are the expected
-non-emitting result.
+the printed projection digest and status. If an operational audit also requires the
+effective block and hash, membership and policy digests, stack generations, or output
+vector, capture the typed projection and its inputs through reviewed programmatic
+instrumentation; the stock CLI does not serialize those fields to stdout.
+`status=dry_run` and `submitted=False` are the expected non-emitting result.
 
 A real weight test is a materially different operation: it requires a genuine crown,
 persists journal intent before signing, and may submit a hotkey extrinsic. Do not remove
@@ -210,18 +215,21 @@ persists journal intent before signing, and may submit a hotkey extrinsic. Do no
 confirmation; the exact recipient set, fixed-tolerance normalized values, and a
 sufficiently new chain `last_update` are required.
 
-## What the retained testnet proof established
+## Evidence scope
 
-The 2026-07-13 closure record retained a real finalized testnet reveal through strict
-HTTPS fetch, committed-tree re-hash, registered-target resolution, immutable publication,
-and restart with zero new work. It also retained a live metagraph-backed weight dry run
-with no extrinsic.
+Executing this runbook authorizes only the products that are successfully retained and
+reopened. Do not infer a stronger boundary from testnet connectivity:
 
-The later generation-1 crown/reproduction portion was explicitly structural and used a
-synthetic 100-ppm fixture. It was not a current empirical GPU win. The actual joined OCI
-double-build/TP8 serving proof was not run, and the repository still ships no production
-`ArenaServiceProvider`. These are commissioning obligations, not details hidden behind a
-CLI flag.
+| Retained product                                                                            | What it can establish                                                                                                                             | What it cannot establish                                                                                                                                          |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Finalized reveal, committed-tree re-hash, immutable publication, and restart reconciliation | Chain intake, proposal identity, and durable cursor behavior                                                                                       | GPU qualification, settlement, or release readiness                                                                                                               |
+| Metagraph-backed weight dry run                                                              | Projection construction against live chain state without an extrinsic                                                                              | Signing, submission, inclusion, or confirmation                                                                                                                   |
+| Structural two-pass fixture                                                                  | State-machine transitions, independence checks, evidence reopening, and settlement plumbing                                                        | Empirical GPU speedup, production calibration, or arena-provider readiness                                                                                        |
+| Builder-authenticated reproducible OCI pair plus release/session-bound serving receipts     | Release-image identity and execution through the approved serving seams for that exact session; include AOT coverage for sealed direct artifacts | Qualification authority unless the separate B/C/B′/T evidence also exists; clean-wheel, native-provider, and effective-policy gates remain separate prerequisites |
+
+The [state of record](/docs/reference/state-of-record) identifies which of these evidence
+products have been completed. Deployment must supply and commission its production arena
+provider independently of the command-line intake path.
 
 ## Testnet exit criteria
 

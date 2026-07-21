@@ -132,18 +132,19 @@ and [Discovery lane](/docs/miners/discovery-lane).
 
 ## Your development loop
 
-The local CLI gives you useful diagnostics:
+The local CLI provides static and component diagnostics:
 
 ```bash
 python -m optima.cli scan my_bundle
 python -m optima.cli verify my_bundle --device cuda --dtype bfloat16
 ```
 
-These commands help find manifest, ABI, correctness, and graph problems. They
-do **not** reproduce crown authority: a local run
-does not possess the finalized intake record, validator stack manifest, hidden
-inputs, calibrated policies, immutable publications, isolated service, or
-second independent qualification attempt.
+These commands find manifest, static-policy, ABI, correctness, routing, and graph
+problems. Profile and bracket serving performance in an environment matching the
+published arena contract. Neither the CLI checks nor a contributor-controlled A/B run
+reproduces crown authority: local work does not possess the finalized intake record,
+validator stack manifest, hidden inputs, calibrated policies, immutable publications,
+isolated service, or second independent qualification attempt.
 
 Use this guide in order:
 

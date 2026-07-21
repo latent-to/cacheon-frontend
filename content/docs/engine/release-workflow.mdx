@@ -48,13 +48,10 @@ Freeze and independently reopen:
 - a `ServeSpec` with digest-pinned base image, platform, model mount, TP size,
   canonical arguments, and bounded environment.
 
-The serving specification cannot override validator-owned model or TP flags and
-rejects dangerous environment keys. Release authorization must prove that the
-effective SGLang argument vector cannot override validator-owned model, TP,
-loader, network, or management policy through exact flags, aliases,
-abbreviations, duplicates, or configuration indirection. Environment keys
-require the same closed treatment. Exact-name filtering alone is
-insufficient.
+Release authorization must prove that the effective SGLang argument vector cannot
+override validator-owned model, TP, loader, network, or management policy through exact
+flags, aliases, abbreviations, duplicates, or configuration indirection. Environment
+keys require the same closed treatment. Exact-name filtering alone is insufficient.
 
 ## Construction sequence
 

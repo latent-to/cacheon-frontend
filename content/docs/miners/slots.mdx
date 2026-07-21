@@ -40,9 +40,16 @@ manifest; it does not require the Python function itself to be named `entry`.
 | `collective.moe_finalize_ar_rmsnorm` | collective | `entry(gemm_out, row_map, scales, residual, weight, eps, out_norm, out_residual, group)` | finalized/reduced residual and normalized output                               |
 
 The two MSA slots output **scores**, not selected indices or attended values.
-Their target contracts grade the validator-owned top-k result. The prefill slot
-is a distinct long-prefill boundary and its canonical live descriptor is eager;
-do not assume a decode optimization exercises it.
+The production engine's runtime top-k controls the validator-owned selection tail.
+`SlotSpec.correctness.top_k` is a separate verification parameter: it selects the
+width of the score-sheet overlap comparison (the registered width is eight blocks),
+but does not configure production selection or gate whether the score kernel
+routes. A runtime call may therefore use a different top-k while the candidate
+still fills the complete score sheet and the stock tail applies the engine's
+value.
+
+The prefill slot is a distinct long-prefill boundary and its canonical live
+descriptor is eager; do not assume a decode optimization exercises it.
 
 Registration and live installation are also different facts. The
 `attention.msa_block_score` decode contract is registered and CPU-verifiable, but its
