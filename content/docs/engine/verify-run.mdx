@@ -24,12 +24,12 @@ Each step authenticates a different boundary. Skipping from a valid release dire
 `docker run <tag>` drops the registry, host-policy, and activation proofs.
 
 <Callout type="error" title="Verification primitives are not rollout authority">
-  The commands and APIs below authenticate individual boundaries. Rollout additionally
-  requires clean runtime-wheel import, signed native-profile propagation, closed
-  effective SGLang arguments and management routes, authenticated builder-output
-  binding, and release/session-bound execution receipts. If any product is absent, stop
-  before authorization or start. The dated [State of record](/docs/reference/state-of-record) records the pinned implementation's
-  completed and blocked gates.
+  The commands and APIs below authenticate individual boundaries. Rollout additionally requires
+  clean runtime-wheel import, signed native-profile propagation, closed effective SGLang arguments
+  and management routes, authenticated builder-output binding, and release/session-bound execution
+  receipts. If any product is absent, stop before authorization or start. The dated [State of
+  record](/docs/reference/state-of-record) records the pinned implementation's completed and blocked
+  gates.
 </Callout>
 
 ## Reopen and verify
@@ -210,10 +210,10 @@ Perform this sequence only after the [release acceptance checklist](/docs/engine
 
 <Callout type="warn" title="Operational proof requirement">
   Unit and slice tests do not authorize rollout. The release must retain a clean-wheel
-  import/entrypoint proof, provider-specific native authority, authenticated builder
-  outputs, closed serving arguments and management routes, a serve smoke at the approved
-  topology, and descriptor/session-bound receipts (including AOT coverage when
-  applicable). See [State of record](/docs/reference/state-of-record) for completed evidence.
+  import/entrypoint proof, provider-specific native authority, authenticated builder outputs, closed
+  serving arguments and management routes, a serve smoke at the approved topology, and
+  descriptor/session-bound receipts (including AOT coverage when applicable). See [State of
+  record](/docs/reference/state-of-record) for completed evidence.
 </Callout>
 
 Serving does not require chain access. A chain outage can delay new proposal

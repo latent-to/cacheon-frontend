@@ -18,16 +18,16 @@ The provider registry is an immutable validator table. It has no manifest or
 plugin registration API. The registered table contains one provider:
 
 | Property              | Registered value              |
-| ---------------------- | ------------------------------ |
-| Provider ID            | `cutlass.cute.cubin.v1`        |
-| Artifact kind          | `cuda_cubin`                   |
-| Binding ABI            | `cuda_driver_params.v1`        |
-| Build phase            | `oci_prebuild_only`            |
-| Load phase             | `isolated_engine_worker_only`  |
-| Reviewed patcher       | `optima.build-cute-cubin.v1`   |
-| Rebuild feature        | `rebuild:build_cute_cubin`     |
-| Publication directory  | `cute_cubin`                   |
-| Qualification status   | authoritative and crownable    |
+| --------------------- | ----------------------------- |
+| Provider ID           | `cutlass.cute.cubin.v1`       |
+| Artifact kind         | `cuda_cubin`                  |
+| Binding ABI           | `cuda_driver_params.v1`       |
+| Build phase           | `oci_prebuild_only`           |
+| Load phase            | `isolated_engine_worker_only` |
+| Reviewed patcher      | `optima.build-cute-cubin.v1`  |
+| Rebuild feature       | `rebuild:build_cute_cubin`    |
+| Publication directory | `cute_cubin`                  |
+| Qualification status  | authoritative and crownable   |
 
 A target must admit both `aot:cutlass.cute.cubin.v1` and `rebuild:build_cute_cubin`.
 An unknown provider, an unregistered build feature, or a provider that is not both
@@ -205,15 +205,15 @@ ordinal.
 The device plan is a data program. At each invocation Cacheon constructs the CUDA
 parameter frame from the live slot call. Its closed parameter primitives are:
 
-| Primitive                    | Validator action                                                                                          |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `pointer`                     | Projects a device pointer from an admitted semantic binding                                                  |
-| `scalar`                      | Evaluates a checked expression and packs an exact scalar type                                                 |
-| `packed_struct`                | Zeroes the ABI frame, then writes declared scalar, pointer, or bounded static fields at checked offsets      |
-| `tma_descriptor`               | Encodes a versioned 128-byte tensor map from an admitted tensor and checked dimension expressions            |
-| `cutlass_fast_divmod_i32_v1`   | Constructs the fixed 12-byte CUTLASS FastDivmod representation                                                |
-| `cute_fast_divmod_i32_v1`      | Constructs the fixed 12-byte CuTe FastDivmod representation                                                   |
-| `group_handle`                 | Projects a provider-authorized native handle or peer-pointer table                                            |
+| Primitive                    | Validator action                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `pointer`                    | Projects a device pointer from an admitted semantic binding                                             |
+| `scalar`                     | Evaluates a checked expression and packs an exact scalar type                                           |
+| `packed_struct`              | Zeroes the ABI frame, then writes declared scalar, pointer, or bounded static fields at checked offsets |
+| `tma_descriptor`             | Encodes a versioned 128-byte tensor map from an admitted tensor and checked dimension expressions       |
+| `cutlass_fast_divmod_i32_v1` | Constructs the fixed 12-byte CUTLASS FastDivmod representation                                          |
+| `cute_fast_divmod_i32_v1`    | Constructs the fixed 12-byte CuTe FastDivmod representation                                             |
+| `group_handle`               | Projects a provider-authorized native handle or peer-pointer table                                      |
 
 Checked expressions can use bounded arithmetic over live tensor dimensions,
 strides, element counts, and admitted scalars. Candidate pointer construction,
@@ -229,11 +229,11 @@ when one is declared, or on a validator-constructed default-stream handle.
 declaration names a dtype, power-of-two alignment, bounded shape, lifetime, and
 optional scope. The prefix fixes the lifetime:
 
-| Name prefix    | Required lifetime | Meaning                                                                                                                 |
-| --------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `workspace.*`   | `call`               | Logical call-local scratch; uninitialized storage may be cached and reused for the same plan/execution/group/shape key |
-| `prepared.*`    | `prepared`           | Produced by `prepare`, then consumed by `run`                                                                          |
-| `state.*`       | `engine`             | Persistent state owned by one engine artifact entry                                                                    |
+| Name prefix   | Required lifetime | Meaning                                                                                                                |
+| ------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `workspace.*` | `call`            | Logical call-local scratch; uninitialized storage may be cached and reused for the same plan/execution/group/shape key |
+| `prepared.*`  | `prepared`        | Produced by `prepare`, then consumed by `run`                                                                          |
+| `state.*`     | `engine`          | Persistent state owned by one engine artifact entry                                                                    |
 
 The default scope is `rank_local`. `group_ipc` is declaratively available only
 for persistent `prepared` or `engine` resources; call-local group IPC is
@@ -277,11 +277,11 @@ Selection is fail-closed:
 
 Execution authority requires three evidence layers:
 
-| Receipt        | Emission point                                                       |
-| ---------------- | ------------------------------------------------------------------------ |
-| `aot_loaded`     | All exports for the slot/variant were reopened, admitted, and bound      |
-| `aot_invoked`    | The validator-generated entry returned successfully at least once        |
-| `completed`      | The normal registered seam completed for the slot on that member         |
+| Receipt       | Emission point                                                      |
+| ------------- | ------------------------------------------------------------------- |
+| `aot_loaded`  | All exports for the slot/variant were reopened, admitted, and bound |
+| `aot_invoked` | The validator-generated entry returned successfully at least once   |
+| `completed`   | The normal registered seam completed for the slot on that member    |
 
 The completion gate requires identical active slot coverage across all
 scheduler members, full per-member AOT load and invocation coverage for AOT

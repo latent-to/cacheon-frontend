@@ -165,17 +165,17 @@ selected crowned payload under the current contract.
 
 ## Common rejection cases
 
-| Symptom                                  | Meaning                                                      |
-| ---------------------------------------- | ------------------------------------------------------------ |
-| Unknown field during reopen              | The object does not match the exact current schema           |
-| Catalog digest and snapshot disagree     | The supplied context is inconsistent or forged               |
+| Symptom                                               | Meaning                                                                 |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- |
+| Unknown field during reopen                           | The object does not match the exact current schema                      |
+| Catalog digest and snapshot disagree                  | The supplied context is inconsistent or forged                          |
 | Artifact-provider registry or registry digest differs | Native admission/build/load policy belongs to another catalog authority |
-| Entry key differs from `ref.target_id`   | The mapping tries to relabel a contribution                  |
-| Target-spec digest differs               | Qualification used another semantic contract                 |
-| Overlapping active targets               | Catalog displacement/composition was not applied canonically |
-| Proposal reference in a release manifest | Hostile evaluation content crossed the serving boundary      |
-| Integration record missing or mismatched | Reviewed-source authority is incomplete                      |
-| Runtime/base/arena context mismatch      | The stack is being reopened under a different environment    |
+| Entry key differs from `ref.target_id`                | The mapping tries to relabel a contribution                             |
+| Target-spec digest differs                            | Qualification used another semantic contract                            |
+| Overlapping active targets                            | Catalog displacement/composition was not applied canonically            |
+| Proposal reference in a release manifest              | Hostile evaluation content crossed the serving boundary                 |
+| Integration record missing or mismatched              | Reviewed-source authority is incomplete                                 |
+| Runtime/base/arena context mismatch                   | The stack is being reopened under a different environment               |
 
 Treat these as identity failures, not migration hints. The safe response is to
 construct a new typed object through the appropriate transition and retain the

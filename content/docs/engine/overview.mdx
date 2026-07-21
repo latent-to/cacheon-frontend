@@ -59,16 +59,16 @@ rather than trusting modes, filenames, or build logs.
 
 ### How the pieces answer different questions
 
-| Product                            | Question it answers                                                                         |
-| ---------------------------------- | ------------------------------------------------------------------------------------------- |
-| `EngineReleaseManifest`            | Which reviewed contribution owns each active target?                                        |
-| Engine-tree digest                 | Which exact deterministic materialized source tree implements that composition?             |
-| Model receipt                      | Which exact model files are mounted?                                                        |
-| Native publication                 | Which prebuilt architecture-specific products may be loaded?                                |
-| SBOM and provenance                | Which declared inputs and build lineage produced the release artifacts?                     |
-| `ServeSpec`                        | Which image, platform, topology, command, environment, and mount contract may run?          |
-| Signed descriptor                  | Who authorized this exact closed set of identities?                                         |
-| Registry reproducibility statement | Did two reopened registry manifests expose the same raw image digest and required labels?   |
+| Product                            | Question it answers                                                                                                         |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `EngineReleaseManifest`            | Which reviewed contribution owns each active target?                                                                        |
+| Engine-tree digest                 | Which exact deterministic materialized source tree implements that composition?                                             |
+| Model receipt                      | Which exact model files are mounted?                                                                                        |
+| Native publication                 | Which prebuilt architecture-specific products may be loaded?                                                                |
+| SBOM and provenance                | Which declared inputs and build lineage produced the release artifacts?                                                     |
+| `ServeSpec`                        | Which image, platform, topology, command, environment, and mount contract may run?                                          |
+| Signed descriptor                  | Who authorized this exact closed set of identities?                                                                         |
+| Registry reproducibility statement | Did two reopened registry manifests expose the same raw image digest and required labels?                                   |
 | Serve receipts                     | Did the supplied receipt set report active, fired, and completed coverage for every expected slot and tensor-parallel rank? |
 
 These products compose; they are not interchangeable. For example, a valid signature

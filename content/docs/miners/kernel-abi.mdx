@@ -83,10 +83,10 @@ the typed binding before prebuild and again when reopening sealed state.
 The complete direct ABI has three parts:
 
 | Layer            | Declared by the bundle                                               | Owned at runtime by the validator                                                             |
-| ----------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Semantic call     | Ordered projections of registered slot resources                       | Live tensors, scalars, stream, group, and output ownership                                       |
-| Artifact storage  | Bounded `workspace.*`, `prepared.*`, and `state.*` rows                 | Allocation, address, scope, budget, and lifecycle                                                |
-| Device launch     | Complete logical kernels, parameter widths, and ordered launch plans   | Physical CUBIN admission, parameter packing, TMA/FastDivmod construction, launch, and cleanup    |
+| ---------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Semantic call    | Ordered projections of registered slot resources                     | Live tensors, scalars, stream, group, and output ownership                                    |
+| Artifact storage | Bounded `workspace.*`, `prepared.*`, and `state.*` rows              | Allocation, address, scope, budget, and lifecycle                                             |
+| Device launch    | Complete logical kernels, parameter widths, and ordered launch plans | Physical CUBIN admission, parameter packing, TMA/FastDivmod construction, launch, and cleanup |
 
 Device parameters are a closed set: exact scalars, admitted pointers, packed
 structs with checked non-overlapping fields, 128-byte TMA descriptors,

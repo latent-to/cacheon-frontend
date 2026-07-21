@@ -143,21 +143,21 @@ Valid modes are:
 
 Each `[[ops]]` row describes one implementation:
 
-| Field                           | Meaning                                                                                   |
-| ------------------------------- | ----------------------------------------------------------------------------------------- |
-| `slot`                          | semantic slot implemented by this row                                                     |
-| `source`                        | bundle-relative Python source module                                                      |
-| `entry`                         | callable exported by that module                                                          |
-| `variant`                       | explicit implementation identity; required on every row when a slot has more than one row |
-| `dtypes`                        | allowed runtime dtypes                                                                    |
-| `architectures`                 | allowed canonical GPU architectures such as `sm90` or `sm103`                             |
-| `metadata`                      | bundle-relative JSON eligibility metadata                                                 |
-| `prepare`                       | optional load-time weight preparation callable for a slot whose ABI permits it            |
-| `setup`                         | engine-wide setup hook; currently forbidden by every registered target                    |
-| `base_kernel`, `override_point` | registered override composition fields                                                    |
-| `cuda_sources`                  | declared inspectable `.cu`/`.cuh` inputs to an approved build step                        |
+| Field                           | Meaning                                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `slot`                          | semantic slot implemented by this row                                                                   |
+| `source`                        | bundle-relative Python source module                                                                    |
+| `entry`                         | callable exported by that module                                                                        |
+| `variant`                       | explicit implementation identity; required on every row when a slot has more than one row               |
+| `dtypes`                        | allowed runtime dtypes                                                                                  |
+| `architectures`                 | allowed canonical GPU architectures such as `sm90` or `sm103`                                           |
+| `metadata`                      | bundle-relative JSON eligibility metadata                                                               |
+| `prepare`                       | optional load-time weight preparation callable for a slot whose ABI permits it                          |
+| `setup`                         | engine-wide setup hook; currently forbidden by every registered target                                  |
+| `base_kernel`, `override_point` | registered override composition fields                                                                  |
+| `cuda_sources`                  | declared inspectable `.cu`/`.cuh` inputs to an approved build step                                      |
 | `aot_exports`                   | sealed compiler exports, semantic bindings, specializations, lifecycle steps, and complete device plans |
-| `artifact_resources`            | miner-named but validator-allocated workspace, prepared storage, or engine state          |
+| `artifact_resources`            | miner-named but validator-allocated workspace, prepared storage, or engine state                        |
 
 `bundle_id` must be a simple non-empty identifier, and the component ABI is
 currently exactly `optima-op-abi-v0`.

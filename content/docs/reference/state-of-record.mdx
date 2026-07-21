@@ -11,19 +11,19 @@ deployable release are different evidence classes.
 
 Snapshot date: **2026-07-16**
 
-| Item                              | Value                                                                                                                                                |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Repository                        | [`latent-to/optima`](https://github.com/latent-to/optima)                                                                                           |
-| Documentation target               | Local `codex/audit-gpu-readiness-20260716` at `f8be20a43708efd830b7b1dae88f00ffaf532ad5`                                                            |
-| Remote publication                 | No `origin/*` ref contains the target commit at the snapshot time                                                                                    |
-| Main base                          | [`6d7e92ef9be058821a7cc8cb37aa872cf3af0b68`](https://github.com/latent-to/optima/commit/6d7e92ef9be058821a7cc8cb37aa872cf3af0b68), merge of PR #58  |
-| Branch relation                    | Four local commits ahead of `main`                                                                                                                   |
-| Delta from the prior docs pin      | 29 commits; 154 files; +25,690/−5,639 lines                                                                                                          |
-| Production Python                  | 108 files, 76,233 lines under `optima/`                                                                                                              |
-| Tests                              | 95 Python files, 45,181 lines under `tests/`                                                                                                         |
-| Complete local suite               | 1,951 passed, 19 skipped, 0 failed in 55.55 seconds (`PYENV_VERSION=sn120 python -m pytest -q tests`)                                                |
-| SGLang source pin                  | `0.5.13.post1` in `optima/compat.py`                                                                                                                  |
-| Bittensor raw-reveal storage ABI   | `10.3.2` in `optima/chain_canary.py`                                                                                                                  |
+| Item                             | Value                                                                                                                                              |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository                       | [`latent-to/optima`](https://github.com/latent-to/optima)                                                                                          |
+| Documentation target             | Local `codex/audit-gpu-readiness-20260716` at `f8be20a43708efd830b7b1dae88f00ffaf532ad5`                                                           |
+| Remote publication               | No `origin/*` ref contains the target commit at the snapshot time                                                                                  |
+| Main base                        | [`6d7e92ef9be058821a7cc8cb37aa872cf3af0b68`](https://github.com/latent-to/optima/commit/6d7e92ef9be058821a7cc8cb37aa872cf3af0b68), merge of PR #58 |
+| Branch relation                  | Four local commits ahead of `main`                                                                                                                 |
+| Delta from the prior docs pin    | 29 commits; 154 files; +25,690/−5,639 lines                                                                                                        |
+| Production Python                | 108 files, 76,233 lines under `optima/`                                                                                                            |
+| Tests                            | 95 Python files, 45,181 lines under `tests/`                                                                                                       |
+| Complete local suite             | 1,951 passed, 19 skipped, 0 failed in 55.55 seconds (`PYENV_VERSION=sn120 python -m pytest -q tests`)                                              |
+| SGLang source pin                | `0.5.13.post1` in `optima/compat.py`                                                                                                               |
+| Bittensor raw-reveal storage ABI | `10.3.2` in `optima/chain_canary.py`                                                                                                               |
 
 Line counts describe the pinned tree; they are not quality metrics. The suite result is a
 local CPU/non-empirical validation of this checkout. Skips are reported explicitly, and
@@ -42,13 +42,13 @@ When sources disagree, apply this order:
 
 The evidence that proves one layer cannot be substituted for another:
 
-| Evidence                        | Establishes                                                | Does not establish                                            |
-| --------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------- |
-| Unit/focused suite                | Implemented invariants under test fixtures                  | Real GPU behavior or production operations                        |
-| `scan` / `verify`                 | Static policy and exercised component contract              | Model throughput, pristine quality, or settlement                 |
-| One qualification PASS            | Registered B/C/B′/T decision under one authority             | Crown or release readiness                                        |
-| Two independently bound PASSes    | Settlement eligibility for the exact contribution/context    | Integration or serving authorization                               |
-| Signed release verification       | Descriptor, artifact, model, and signature consistency       | Reproducible registry build or successful production serving      |
+| Evidence                       | Establishes                                               | Does not establish                                           |
+| ------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------ |
+| Unit/focused suite             | Implemented invariants under test fixtures                | Real GPU behavior or production operations                   |
+| `scan` / `verify`              | Static policy and exercised component contract            | Model throughput, pristine quality, or settlement            |
+| One qualification PASS         | Registered B/C/B′/T decision under one authority          | Crown or release readiness                                   |
+| Two independently bound PASSes | Settlement eligibility for the exact contribution/context | Integration or serving authorization                         |
+| Signed release verification    | Descriptor, artifact, model, and signature consistency    | Reproducible registry build or successful production serving |
 
 ## Implemented surface
 
@@ -72,12 +72,12 @@ The evidence that proves one layer cannot be substituted for another:
 
 The executable catalog contains 11 slots and one registered atomic target:
 
-| Kind       | Registered identifiers                                                                                                       |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Op         | `activation.silu_and_mul`, `norm.rmsnorm`                                                                                     |
-| Block      | `attention.sdpa`, `attention.decode`, `attention.msa_block_score`, `attention.msa_prefill_block_score`, `moe.fused_experts`   |
-| Collective | `moe.fused_experts_reduce`, `collective.all_reduce`, `collective.ar_residual_rmsnorm`, `collective.moe_finalize_ar_rmsnorm`  |
-| Atomic     | `collective.moe_epilogue.v1` over the two MoE epilogue collective members                                                     |
+| Kind       | Registered identifiers                                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Op         | `activation.silu_and_mul`, `norm.rmsnorm`                                                                                   |
+| Block      | `attention.sdpa`, `attention.decode`, `attention.msa_block_score`, `attention.msa_prefill_block_score`, `moe.fused_experts` |
+| Collective | `moe.fused_experts_reduce`, `collective.all_reduce`, `collective.ar_residual_rmsnorm`, `collective.moe_finalize_ar_rmsnorm` |
+| Atomic     | `collective.moe_epilogue.v1` over the two MoE epilogue collective members                                                   |
 
 Every slot has a singleton target. The atomic target declares displacement and compatible
 composition explicitly. `attention.msa_block_score` has a verifier contract but no
@@ -133,31 +133,31 @@ JSON ledger, and standalone hash command are absent from this source tree. See
 
 ## Validation matrix
 
-| Area                       | Implemented contract                                                                                             | Retained evidence                                                                   | Limit at this snapshot                                                                                                                                                       |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Bundle and target intake   | Canonical content identity, strict extraction, recursive scan, target resolution, immutable publication          | Full suite; live testnet intake/restart evidence                                     | Archive PAX/GNU metadata expansion is not included in all resource accounting                                                                                               |
-| Component verification     | Typed outputs, trusted references, variant routing, graph replay, distributed collective checks                  | Full suite and earlier GPU controls                                                  | `verify` is diagnostic; candidate code and its local comparator share a worker process                                                                                      |
-| Direct CUBIN provider      | Closed provider, exact compile profile, hermetic child, sealed CUBIN, ordinal ABI, validator-owned launch        | Ledger-attested B300 TP4 blockscore load/invoke/complete; retained B200 joined run   | B300 receipts were lost with the pod; arbitrary direct collectives are not empirically proven                                                                               |
-| OCI qualification          | No-egress prebuild/runtime/reference sessions, B/C/B′/T roles, host timing, device receipts, teardown             | Retained B200 primary and reproduction PASSes                                        | No fresh run binds the empirical result to current HEAD; full regrade also requires a reconstructed private `CausalQualificationInput` not embedded in the attempt/SQLite  |
-| Quality authority          | Candidate-free pristine T, sealed trajectories, frozen calibration, retained raw products                        | B200 joined qualification evidence                                                   | In-engine slot audit is not a universal crown gate; minimum external-quality policy is arena-specific                                                                       |
-| Settlement                 | Exact pair identity, distinct authorities/evidence, lower speedup, transactional generation update                | B200 generation-1 crown and restart proof                                            | Held reservations require audited `release_hold` or minimum-age `expire`; no typed arena-retirement API exists                                                              |
-| Chain intake               | Finalized ordering, bounded reveal decoding, strict storage/event equality, retained-only internal processing    | Public testnet 307 intake and restart evidence                                       | Retained-only mode is programmatic; no public CLI flag exists                                                                                                                |
-| Weight publication         | Reopen-before-project, intent journal, failed-extrinsic truthfulness, pending-intent resume across heads          | Real subnet-307 projection submitted                                                 | Final timelock reveal/readback is not independently confirmed; metagraph observations are not block-atomic                                                                  |
-| Arena deployment           | Closed `ArenaServiceRegistry`, fixed non-crown screens, capacity and retry policy                                 | In-process and campaign-specific providers                                           | The repository ships no production `ArenaServiceProvider`                                                                                                                    |
-| Integration                | Crown reopening and exact source/payload/review binding                                                          | Unit and focused tests                                                               | No retained B200 crown has been promoted into maintained integrated source                                                                                                  |
-| Release                    | Deterministic runtime artifacts, model/native seals, SBOM, provenance, Ed25519, registry and serve types          | Unit/focused tests only                                                              | Serving-wheel closure, provider-specific native admission, and end-to-end registry/serve authority remain incomplete                                                        |
-| Operations                 | Typed state and recovery surfaces                                                                                 | Development and testnet exercises                                                    | Mainnet ownership, stake/permits, hosting, backup, monitoring, rollout, and key custody remain deployment work                                                              |
+| Area                     | Implemented contract                                                                                          | Retained evidence                                                                  | Limit at this snapshot                                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bundle and target intake | Canonical content identity, strict extraction, recursive scan, target resolution, immutable publication       | Full suite; live testnet intake/restart evidence                                   | Archive PAX/GNU metadata expansion is not included in all resource accounting                                                                                             |
+| Component verification   | Typed outputs, trusted references, variant routing, graph replay, distributed collective checks               | Full suite and earlier GPU controls                                                | `verify` is diagnostic; candidate code and its local comparator share a worker process                                                                                    |
+| Direct CUBIN provider    | Closed provider, exact compile profile, hermetic child, sealed CUBIN, ordinal ABI, validator-owned launch     | Ledger-attested B300 TP4 blockscore load/invoke/complete; retained B200 joined run | B300 receipts were lost with the pod; arbitrary direct collectives are not empirically proven                                                                             |
+| OCI qualification        | No-egress prebuild/runtime/reference sessions, B/C/B′/T roles, host timing, device receipts, teardown         | Retained B200 primary and reproduction PASSes                                      | No fresh run binds the empirical result to current HEAD; full regrade also requires a reconstructed private `CausalQualificationInput` not embedded in the attempt/SQLite |
+| Quality authority        | Candidate-free pristine T, sealed trajectories, frozen calibration, retained raw products                     | B200 joined qualification evidence                                                 | In-engine slot audit is not a universal crown gate; minimum external-quality policy is arena-specific                                                                     |
+| Settlement               | Exact pair identity, distinct authorities/evidence, lower speedup, transactional generation update            | B200 generation-1 crown and restart proof                                          | Held reservations require audited `release_hold` or minimum-age `expire`; no typed arena-retirement API exists                                                            |
+| Chain intake             | Finalized ordering, bounded reveal decoding, strict storage/event equality, retained-only internal processing | Public testnet 307 intake and restart evidence                                     | Retained-only mode is programmatic; no public CLI flag exists                                                                                                             |
+| Weight publication       | Reopen-before-project, intent journal, failed-extrinsic truthfulness, pending-intent resume across heads      | Real subnet-307 projection submitted                                               | Final timelock reveal/readback is not independently confirmed; metagraph observations are not block-atomic                                                                |
+| Arena deployment         | Closed `ArenaServiceRegistry`, fixed non-crown screens, capacity and retry policy                             | In-process and campaign-specific providers                                         | The repository ships no production `ArenaServiceProvider`                                                                                                                 |
+| Integration              | Crown reopening and exact source/payload/review binding                                                       | Unit and focused tests                                                             | No retained B200 crown has been promoted into maintained integrated source                                                                                                |
+| Release                  | Deterministic runtime artifacts, model/native seals, SBOM, provenance, Ed25519, registry and serve types      | Unit/focused tests only                                                            | Serving-wheel closure, provider-specific native admission, and end-to-end registry/serve authority remain incomplete                                                      |
+| Operations               | Typed state and recovery surfaces                                                                             | Development and testnet exercises                                                  | Mainnet ownership, stake/permits, hosting, backup, monitoring, rollout, and key custody remain deployment work                                                            |
 
 ## Empirical qualification evidence
 
 The strongest retained performance authority is the joined blockscore qualification on a
 TP4 arena hosted by an 8×B200 system:
 
-| Field                          | Primary | Reproduction |
-| -------------------------------- | ------- | ------------ |
-| Charged-basis speedup            | 1.0561× | 1.0487×      |
-| Timed-section-only diagnostic    | 1.0932× | 1.0866×      |
-| Qualification decision           | PASS    | PASS         |
+| Field                         | Primary | Reproduction |
+| ----------------------------- | ------- | ------------ |
+| Charged-basis speedup         | 1.0561× | 1.0487×      |
+| Timed-section-only diagnostic | 1.0932× | 1.0866×      |
+| Qualification decision        | PASS    | PASS         |
 
 Settlement accepted the pair after all seven required authority/evidence digests differed,
 used the lower value, **1.0487×**, and committed a generation-1 crown. Restart reopening

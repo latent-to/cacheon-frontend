@@ -58,11 +58,11 @@ Canonical digest construction lives in [`stack_identity.py`](https://github.com/
 
 These three identities answer different questions and should appear together in an audit:
 
-| Identity              | Answers                                                    | Changes when                                                                                                            |
-| --------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Stack manifest digest | Which semantic contributions and catalog are selected?     | A target entry, runtime/base identity, arena context, or catalog snapshot changes                                       |
-| Engine-tree digest    | Which exact deterministic materialized files were emitted? | Selected source closure, direct-execution declaration, namespace rewriting, rebuild plan, or emitted inventory changes  |
-| Launch identity       | Which exact engine was executed?                           | Tree, native publication, model, image, topology, graph mode, workload, or role changes                                 |
+| Identity              | Answers                                                    | Changes when                                                                                                           |
+| --------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Stack manifest digest | Which semantic contributions and catalog are selected?     | A target entry, runtime/base identity, arena context, or catalog snapshot changes                                      |
+| Engine-tree digest    | Which exact deterministic materialized files were emitted? | Selected source closure, direct-execution declaration, namespace rewriting, rebuild plan, or emitted inventory changes |
+| Launch identity       | Which exact engine was executed?                           | Tree, native publication, model, image, topology, graph mode, workload, or role changes                                |
 
 Equal stack digests are not enough to claim equal execution if launch inputs differ. Equal
 tree digests are not enough if a different model, native publication, or topology ran.
@@ -200,13 +200,13 @@ member without fallback.
 
 These layers answer different questions:
 
-| Layer         | Bound authority                                                                                |
-| -------------- | -------------------------------------------------------------------------------------------------- |
-| Contribution   | Exact declarative device execution and source closure                                              |
-| Catalog        | Which artifact providers and target features are permitted                                         |
-| Build          | Image, logical/compiler architecture, topology-derived profile, patcher, and publication            |
-| Runtime        | Exact retained CUBIN handle, observed ABI, rank device, parameters, resources, and lifecycle        |
-| Qualification  | Full member coverage, successful invocation, seam completion, and zero fallback                     |
+| Layer         | Bound authority                                                                              |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| Contribution  | Exact declarative device execution and source closure                                        |
+| Catalog       | Which artifact providers and target features are permitted                                   |
+| Build         | Image, logical/compiler architecture, topology-derived profile, patcher, and publication     |
+| Runtime       | Exact retained CUBIN handle, observed ABI, rank device, parameters, resources, and lifecycle |
+| Qualification | Full member coverage, successful invocation, seam completion, and zero fallback              |
 
 See [Sealed direct artifacts](/docs/architecture/direct-artifacts) for the complete contract.
 

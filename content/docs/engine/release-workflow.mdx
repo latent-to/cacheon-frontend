@@ -8,12 +8,12 @@ verifies releases and emits container contexts; it intentionally has no
 publication into an ambient shell operation.
 
 <Callout type="error" title="Release acceptance is conjunctive">
-  A deployable release requires every gate on this page: clean installation and runtime
-  import, signed native-profile propagation, closed effective SGLang arguments and
-  management routes, builder-output-to-registry binding, externally anchored signatures,
-  exact host policy, and release/session-bound execution receipts. A missing gate is a
-  refusal, not a warning that another artifact can override. The dated [State of record](/docs/reference/state-of-record) reports which gates the pinned
-  implementation and retained evidence actually satisfy.
+  A deployable release requires every gate on this page: clean installation and runtime import,
+  signed native-profile propagation, closed effective SGLang arguments and management routes,
+  builder-output-to-registry binding, externally anchored signatures, exact host policy, and
+  release/session-bound execution receipts. A missing gate is a refusal, not a warning that another
+  artifact can override. The dated [State of record](/docs/reference/state-of-record) reports which
+  gates the pinned implementation and retained evidence actually satisfy.
 </Callout>
 
 This is deliberate separation of duties. The builder may assemble and hash inputs without
@@ -179,12 +179,12 @@ model/native identities, upstream identities, and serving specification.
 ## Publication checklist
 
 <Callout type="warn" title="Operational proof requirement">
-  Unit and slice coverage of the typed release, registry, authorization, runtime, and
-  receipt gates does not authorize production rollout. Release evidence must include
-  clean installation from the emitted wheel, provider-specific native reopening,
-  authenticated builder outputs, closed effective serving policy, a reproducible
-  registry image pair, and descriptor/session-bound serving evidence at the approved
-  topology. Completed evidence is tracked in [State of record](/docs/reference/state-of-record).
+  Unit and slice coverage of the typed release, registry, authorization, runtime, and receipt gates
+  does not authorize production rollout. Release evidence must include clean installation from the
+  emitted wheel, provider-specific native reopening, authenticated builder outputs, closed effective
+  serving policy, a reproducible registry image pair, and descriptor/session-bound serving evidence
+  at the approved topology. Completed evidence is tracked in [State of
+  record](/docs/reference/state-of-record).
 </Callout>
 
 - Rebuild from a clean, exact source revision.
@@ -216,19 +216,19 @@ model/native identities, upstream identities, and serving specification.
 
 ## Failure behavior
 
-| Failure                                                                                            | Required response                                                              |
-| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Missing or extra integration review                                                                | Reject release preparation; do not drop the unmatched target                     |
-| First and second source/wheel products differ                                                      | Stop and diagnose nondeterminism before signing                                  |
-| Emitted wheel fails a clean import or entrypoint exercise                                          | Reject the release; repair the complete runtime-module allowlist and rebuild     |
-| Native publication or model receipt no longer reopens                                              | Stop; recover the exact input or construct a new release identity                |
-| Generic native inventory exists without provider-specific profile/index/ABI proof                  | Reject provider-specific release admission                                       |
-| Signature verifies only with the key embedded in the release                                       | Untrusted until an externally obtained expected key verifies it                  |
-| Destination digest directory exists but differs                                                    | Treat as corruption/collision; never overwrite in place                          |
-| Builder output is not cryptographically bound to the registry object being signed                  | Do not issue reproducibility authorization; tag readback alone is insufficient   |
-| Two container builds produce different raw manifests                                               | Do not issue reproducibility authorization                                       |
-| Image verifies but host policy differs from signed `ServeSpec`                                     | Do not start the container                                                       |
-| Canary answers but receipts are unbound, omit AOT evidence, show fallback, or miss rank coverage   | Do not promote; responsiveness is not activation proof                           |
+| Failure                                                                                          | Required response                                                              |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Missing or extra integration review                                                              | Reject release preparation; do not drop the unmatched target                   |
+| First and second source/wheel products differ                                                    | Stop and diagnose nondeterminism before signing                                |
+| Emitted wheel fails a clean import or entrypoint exercise                                        | Reject the release; repair the complete runtime-module allowlist and rebuild   |
+| Native publication or model receipt no longer reopens                                            | Stop; recover the exact input or construct a new release identity              |
+| Generic native inventory exists without provider-specific profile/index/ABI proof                | Reject provider-specific release admission                                     |
+| Signature verifies only with the key embedded in the release                                     | Untrusted until an externally obtained expected key verifies it                |
+| Destination digest directory exists but differs                                                  | Treat as corruption/collision; never overwrite in place                        |
+| Builder output is not cryptographically bound to the registry object being signed                | Do not issue reproducibility authorization; tag readback alone is insufficient |
+| Two container builds produce different raw manifests                                             | Do not issue reproducibility authorization                                     |
+| Image verifies but host policy differs from signed `ServeSpec`                                   | Do not start the container                                                     |
+| Canary answers but receipts are unbound, omit AOT evidence, show fallback, or miss rank coverage | Do not promote; responsiveness is not activation proof                         |
 
 An aborted release attempt leaves the previous signed publication authoritative. Repairing
 inputs should create a newly prepared and signed descriptor, not a hand-edited release

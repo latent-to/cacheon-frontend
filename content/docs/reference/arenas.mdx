@@ -110,10 +110,10 @@ settle a proposal by returning a screen or plan.
 
 Admission has three typed outcomes before evidence exists:
 
-| Decision | Typical cause                                                | Controller behavior                                      |
-| -------- | ------------------------------------------------------------ | -------------------------------------------------------- |
-| `ADMIT`  | Screen/qualification capacity is available                   | Reserve work under the bound service                     |
-| `QUEUE`  | The relevant active-worker capacity is temporarily full      | Preserve finalized priority and retry later              |
+| Decision | Typical cause                                           | Controller behavior                                      |
+| -------- | ------------------------------------------------------- | -------------------------------------------------------- |
+| `ADMIT`  | Screen/qualification capacity is available              | Reserve work under the bound service                     |
+| `QUEUE`  | The relevant active-worker capacity is temporarily full | Preserve finalized priority and retry later              |
 | `HOLD`   | Queue depth/age or cohort size crosses admission policy | Stop automatic progress pending operator/policy handling |
 
 Screen and qualification capacities are distinct. A cohort larger than

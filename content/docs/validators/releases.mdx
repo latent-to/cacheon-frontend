@@ -31,12 +31,12 @@ Every arrow is an explicit authority transition. None is automatic, and none may
 reconstructed from a human-readable release note alone.
 
 <Callout type="error" title="Use the canonical acceptance gate">
-  The programmatic APIs expose release-construction and host-verification primitives;
-  they do not imply that the pinned implementation is deployable. Production acceptance
-  requires the complete [publication checklist](/docs/engine/release-workflow#publication-checklist),
-  including clean-wheel closure, provider-specific native proof, effective serving-policy
-  closure, builder-output binding, and descriptor/session-bound receipts. Consult the
-  dated [State of record](/docs/reference/state-of-record) before operating this sequence.
+  The programmatic APIs expose release-construction and host-verification primitives; they do not
+  imply that the pinned implementation is deployable. Production acceptance requires the complete
+  [publication checklist](/docs/engine/release-workflow#publication-checklist), including
+  clean-wheel closure, provider-specific native proof, effective serving-policy closure,
+  builder-output binding, and descriptor/session-bound receipts. Consult the dated [State of
+  record](/docs/reference/state-of-record) before operating this sequence.
 </Callout>
 
 ## Integration gate
@@ -280,14 +280,13 @@ not imply that `release-context` publishes or deploys anything.
 - Release verification is chain-independent and does not re-adjudicate the crown.
 
 <Callout type="warn" title="Production validation gate">
-  Unit and slice tests do not authorize a release. Production validation requires clean
-  wheel installation, provider-specific native reopening, two builder-authenticated
-  no-cache OCI outputs with matching registry identity, closed effective serving policy,
-  serving at the approved topology, and bound receipt verification for the exact signed
-  release/session. Structural crown fixtures can exercise release plumbing but cannot
-  supply empirical qualification or production calibration. Consult
-  [State of record](/docs/reference/state-of-record) before claiming that any operational
-  gate has been completed.
+  Unit and slice tests do not authorize a release. Production validation requires clean wheel
+  installation, provider-specific native reopening, two builder-authenticated no-cache OCI outputs
+  with matching registry identity, closed effective serving policy, serving at the approved
+  topology, and bound receipt verification for the exact signed release/session. Structural crown
+  fixtures can exercise release plumbing but cannot supply empirical qualification or production
+  calibration. Consult [State of record](/docs/reference/state-of-record) before claiming that any
+  operational gate has been completed.
 </Callout>
 
 ## Source anchors

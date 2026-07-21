@@ -238,10 +238,10 @@ replay, the attempt schema must first be extended to retain and bind those produ
 | Evidence-store publication failure                                                   | Abort the pass; recovery holds an interrupted `qualifying` row as `controller_restart_during_qualifying` rather than manufacturing a typed `NO_DECISION` |
 | B/B′ drift exceeds calibration                                                       | `NO_DECISION`; do not increase the candidate's denominator or tune the bar after seeing C                                                                |
 | Candidate survives past the pre-T quiescence proof                                   | Abort authority; never launch T into the contaminated lifetime                                                                                           |
-| T identity/session mismatch                                                          | `NO_DECISION`; T cannot be replaced with B′ or a candidate-side audit                                                                                     |
-| One member poisons a registered cohort                                               | Preserve cohort failure digest and execute the stored bisection groups                                                                                    |
-| First PASS evidence root lost                                                        | No reproduction or settlement; restore exact bytes or hold                                                                                                |
-| Reproduction differs in contribution identity or reuses any independence digest      | Reject the pair; it is not an independent reproduction                                                                                                    |
+| T identity/session mismatch                                                          | `NO_DECISION`; T cannot be replaced with B′ or a candidate-side audit                                                                                    |
+| One member poisons a registered cohort                                               | Preserve cohort failure digest and execute the stored bisection groups                                                                                   |
+| First PASS evidence root lost                                                        | No reproduction or settlement; restore exact bytes or hold                                                                                               |
+| Reproduction differs in contribution identity or reuses any independence digest      | Reject the pair; it is not an independent reproduction                                                                                                   |
 
 Never rerun only the favorable arm, splice evidence from different authorities, or lower
 a threshold after seeing the outcome. A fresh attempt must be a complete, newly bound

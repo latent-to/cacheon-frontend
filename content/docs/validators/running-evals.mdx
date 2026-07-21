@@ -6,13 +6,13 @@ Cacheon exposes two local contribution checks: `scan` and `verify`. Complete-eng
 throughput and quality decisions belong to a registered validator arena; the CLI does
 not provide a local qualification substitute.
 
-| Check                     | Question answered                                                                                | Authority                   |
-| -------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------- |
-| `scan`                    | Does the declared bundle tree satisfy the static intake policy?                                  | Local admission diagnostic  |
-| `verify`                  | Do applicable variants satisfy the registered component ABI, reference, and graph checks?        | Local component diagnostic  |
-| Arena screen              | Can the exact materialized delta pass static, build, ABI, graph, and abbreviated-serving gates?  | Promotion eligibility only  |
-| B/C/B′/T qualification    | Does the exact marginal delta clear execution, speed, and pristine-quality policy?               | One qualification decision  |
-| Independent reproduction  | Do two separately bound PASS attempts reopen and agree?                                          | Settlement prerequisite     |
+| Check                    | Question answered                                                                               | Authority                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------- | -------------------------- |
+| `scan`                   | Does the declared bundle tree satisfy the static intake policy?                                 | Local admission diagnostic |
+| `verify`                 | Do applicable variants satisfy the registered component ABI, reference, and graph checks?       | Local component diagnostic |
+| Arena screen             | Can the exact materialized delta pass static, build, ABI, graph, and abbreviated-serving gates? | Promotion eligibility only |
+| B/C/B′/T qualification   | Does the exact marginal delta clear execution, speed, and pristine-quality policy?              | One qualification decision |
+| Independent reproduction | Do two separately bound PASS attempts reopen and agree?                                         | Settlement prerequisite    |
 
 Unknown bundles still execute code during verification. Run them only inside the minimum
 [hostile-code isolation boundary](/docs/security/isolation#operator-requirements) used for
@@ -76,14 +76,14 @@ published the complete contract and the contributor can reproduce every disclose
 
 Before launching, freeze these inputs:
 
-| Input class       | Required identity or value                                                                                                                                                       |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Candidate          | Canonical bundle content hash, target ID, selected variant, and the exact source/native publication under test                                                                  |
-| Comparison stack   | Exact incumbent manifest and engine-tree identities; if they are unavailable, identify the substituted stock/reviewed baseline and do not call the result an arena reproduction |
-| Runtime            | Container/base digest, SGLang revision, model content identity, launch arguments, environment, dtype, graph mode, and cache policy                                              |
-| Hardware           | GPU model, driver/runtime, visible device set, TP/EP/DP degrees, rank mapping, clocks/power policy, and interconnect topology                                                   |
-| Workload           | Prompt/request corpus identity, batching/concurrency policy, warmup, measured iterations, token/work accounting, and timing boundary                                            |
-| Activation         | Evidence that C activates only the selected target delta and that B/B′ use the identical stack without it                                                                       |
+| Input class      | Required identity or value                                                                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Candidate        | Canonical bundle content hash, target ID, selected variant, and the exact source/native publication under test                                                                  |
+| Comparison stack | Exact incumbent manifest and engine-tree identities; if they are unavailable, identify the substituted stock/reviewed baseline and do not call the result an arena reproduction |
+| Runtime          | Container/base digest, SGLang revision, model content identity, launch arguments, environment, dtype, graph mode, and cache policy                                              |
+| Hardware         | GPU model, driver/runtime, visible device set, TP/EP/DP degrees, rank mapping, clocks/power policy, and interconnect topology                                                   |
+| Workload         | Prompt/request corpus identity, batching/concurrency policy, warmup, measured iterations, token/work accounting, and timing boundary                                            |
+| Activation       | Evidence that C activates only the selected target delta and that B/B′ use the identical stack without it                                                                       |
 
 Use the deployment's ordinary SGLang launcher and profiler only after those identities
 are fixed. Materialize a fresh process lifetime for each arm; do not toggle candidate
@@ -140,14 +140,14 @@ state, not the validator's private lifecycle database.
 
 ## Evidence scope
 
-| Evidence                          | Establishes                                       | Does not establish                              |
-| ----------------------------------- | ---------------------------------------------------- | -------------------------------------------------- |
-| Clean scan                        | Static policy accepted the declared tree          | Safety or correctness                           |
-| CPU verify                        | Exercised component reference checks              | CUDA graphs or performance                      |
-| CUDA verify                       | Exercised component and registered graph checks   | Model integration or crown authority            |
-| Local B/C/B′ bracket              | A development performance hypothesis              | Registered arena identity or quality authority  |
-| One arena PASS                    | Complete qualification under one authority         | Settlement                                      |
-| Two reopened independent PASSes   | Settlement eligibility for that exact context      | Integration or release readiness                |
+| Evidence                        | Establishes                                     | Does not establish                             |
+| ------------------------------- | ----------------------------------------------- | ---------------------------------------------- |
+| Clean scan                      | Static policy accepted the declared tree        | Safety or correctness                          |
+| CPU verify                      | Exercised component reference checks            | CUDA graphs or performance                     |
+| CUDA verify                     | Exercised component and registered graph checks | Model integration or crown authority           |
+| Local B/C/B′ bracket            | A development performance hypothesis            | Registered arena identity or quality authority |
+| One arena PASS                  | Complete qualification under one authority      | Settlement                                     |
+| Two reopened independent PASSes | Settlement eligibility for that exact context   | Integration or release readiness               |
 
 See [Qualification](/docs/validators/qualification), [Fidelity](/docs/validators/fidelity), and
 [Evidence and replay](/docs/security/evidence).

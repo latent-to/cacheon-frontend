@@ -16,22 +16,22 @@ installed `optima` console script resolves to the same parser.
 
 ## Command inventory
 
-| Command            | Audience         | Authority                | Purpose                                                                   |
-| ------------------ | ---------------- | ------------------------- | -------------------------------------------------------------------------- |
-| `slots`            | all              | read-only                 | Print the registered slot ABI                                             |
-| `compat`           | operator         | diagnostic                 | Check the installed SGLang seam surface against the pin                   |
-| `chain-compat`     | operator         | diagnostic                 | Check the installed Bittensor SDK surface without chain access            |
-| `scan`             | contributor      | local gate                 | Parse a bundle and apply recursive static policy                          |
-| `verify`           | contributor      | local gate                 | Check declared slot behavior against validator-owned references           |
-| `chain-package`    | contributor      | packaging                  | Build a canonical archive and print its content hash                      |
-| `chain-submit`     | contributor      | chain mutation              | Commit a bundle hash and HTTPS fetch location through timelock reveal      |
-| `chain-status`     | all              | read-only                  | Inspect public subnet, registration, and reveal state                     |
-| `chain-register`   | operator         | chain mutation             | Burn-register a hotkey and run the SDK preflight                          |
-| `chain-validate`   | validator        | production intake          | Consume finalized reveals; a deployment may inject qualification services |
-| `set-weights`      | validator        | production control plane   | Reconcile the journaled global reward projection                          |
-| `model-provision`  | release operator | production artifact        | Seal model bytes into a content-addressed publication and receipt         |
-| `release-verify`   | release consumer | production verification    | Reopen a signed Engine release under an externally trusted key            |
-| `release-context`  | release consumer | production build input     | Materialize a deterministic OCI context from a verified release           |
+| Command           | Audience         | Authority                | Purpose                                                                   |
+| ----------------- | ---------------- | ------------------------ | ------------------------------------------------------------------------- |
+| `slots`           | all              | read-only                | Print the registered slot ABI                                             |
+| `compat`          | operator         | diagnostic               | Check the installed SGLang seam surface against the pin                   |
+| `chain-compat`    | operator         | diagnostic               | Check the installed Bittensor SDK surface without chain access            |
+| `scan`            | contributor      | local gate               | Parse a bundle and apply recursive static policy                          |
+| `verify`          | contributor      | local gate               | Check declared slot behavior against validator-owned references           |
+| `chain-package`   | contributor      | packaging                | Build a canonical archive and print its content hash                      |
+| `chain-submit`    | contributor      | chain mutation           | Commit a bundle hash and HTTPS fetch location through timelock reveal     |
+| `chain-status`    | all              | read-only                | Inspect public subnet, registration, and reveal state                     |
+| `chain-register`  | operator         | chain mutation           | Burn-register a hotkey and run the SDK preflight                          |
+| `chain-validate`  | validator        | production intake        | Consume finalized reveals; a deployment may inject qualification services |
+| `set-weights`     | validator        | production control plane | Reconcile the journaled global reward projection                          |
+| `model-provision` | release operator | production artifact      | Seal model bytes into a content-addressed publication and receipt         |
+| `release-verify`  | release consumer | production verification  | Reopen a signed Engine release under an externally trusted key            |
+| `release-context` | release consumer | production build input   | Materialize a deterministic OCI context from a verified release           |
 
 There is no local command that grants qualification or settlement authority. Complete
 engine qualification begins at the deployment-injected arena boundary; a local evaluator
