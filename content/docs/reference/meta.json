@@ -1,0 +1,14 @@
+{
+  "title": "Reference",
+  "pages": [
+    "cli",
+    "slots-table",
+    "target-catalog",
+    "manifest-schema",
+    "stack-manifests",
+    "arenas",
+    "codebase-map",
+    "glossary",
+    "state-of-record"
+  ]
+}

@@ -1,55 +1,52 @@
 ---
 title: Competition model
-description: Competition with leader and runner-up emission split. Miners submit containerized inference servers, and the fastest correct submissions earn the largest share of emissions.
 ---
 
-Cacheon uses a competitive incentive model. The leader is the miner with the fastest inference server on record and receives most subnet emissions, while the runner-up earns a smaller share. Challengers compete to overtake the leader.
+Cacheon runs a **per-slot king-of-the-hill** competition. For each typed slot there is at most one **champion**: the kernel with the best crownable speedup on record. A challenger takes the title only by beating the champion by a fixed margin. Emission is split across the slots that have a champion, so a miner can earn by specializing in a single slot rather than winning everywhere.
 
 ## How a round works
 
-1. The validator scans on-chain commitments approximately every 10 minutes.
-2. Any hotkey with a revealed commitment that hasn't been evaluated yet is a **challenger**.
-3. If there are no challengers, the leader keeps its weight, no GPU runs, and the loop sleeps.
-4. If challengers exist, the validator dispatches an evaluation job. The current leader and runner-up are re-evaluated in the same round alongside challengers, so all scores are fresh and no cached score carries forward.
-5. A challenger who beats the leader's fresh score **by more than 1%** takes the top spot. See [defender's moat](#the-defenders-moat). The leader receives 80% of the competition pool; the runner-up receives 20%.
+A round is `commit → reveal → evaluate → settle`.
 
-## The defender's moat
+1. **Commit.** Each miner posts `H(content_hash, hotkey, salt)`. This hides the bundle (nobody can tell what you committed to) but binds you to it.
+2. **Reveal.** The miner posts `(content_hash, salt)`. A reveal is accepted only if `H(content_hash, hotkey, salt)` matches a commitment **that same hotkey** posted earlier.
+3. **Evaluate.** The validator swaps the revealed kernel into the fixed model and scores it: a two-launch throughput measurement gated by fidelity (KL divergence plus benchmark accuracy). See [Scoring](/docs/validators/scoring).
+4. **Settle.** `optima settle` takes the round's passing, original scores and applies the king-of-the-hill rule per slot.
 
-The overtake rule is not a plain `>`. It must pass two checks:
+## King-of-the-hill
 
-1. **Copycats get disqualified.** If a challenger's Docker image hash matches the current leader's, but the hotkey differs and the commitment block is later, the challenger is DQ'd (`reason = "duplicate_of_leader"`).
-2. **Non-copies need a small edge.** A new server must strictly exceed `leader_score x 1.01`. The 1% moat is fixed.
+Settlement is not a plain `>`. A challenger takes a slot's title only if:
 
-Why:
+```
+challenger_score ≥ champion_score × (1 + margin)
+```
 
-- Running the same server twice can produce small score variance from GPU clock drift, scheduling jitter, and network overhead. Without the moat, rankings could flip on noise.
-- Without the copycat disqualification, miners are incentivized to wait, copy the leader, and register it themselves.
+The margin defaults to **2%**. The champion holds the emission weight for that slot until a challenger clears the margin.
 
-## Resubmitting on the same hotkey
+Why a margin, not a strict comparison:
 
-Each on-chain commitment is identified by **(hotkey, commit block)**. Miners can commit again on the same hotkey after paying a new submission fee. The validator always uses the **latest** revealed commitment per hotkey, but each new block is treated as a separate submission.
+- Running the same kernel twice produces small score variance from GPU clock drift, scheduling jitter, and measurement noise. Without a margin, rankings could flip on noise. The scoring path also derives its bar from the _measured_ baseline noise, so a genuine but tiny edge on a noisy box does not crown. See [Scoring](/docs/validators/scoring).
 
-- **Payment per attempt.** Every new commitment must include fresh `payment_tx` and `payment_block` fields tied to that image digest via the on-chain remark.
-- **Local testing first.** Submission fees and GPU eval time are real costs; validate locally before committing.
-- **History remains identified by block.** Prior scores remain under the old `hotkey:commit_block` entry; a new commit starts a new challenger record.
+## Per-slot emission
 
-## Submission fee (payment gate)
+`optima settle --per-slot` runs a **champion per slot** and splits emission across the slots that have one. This rewards specialists: a miner who owns a single slot is paid, rather than winner-take-all giving everything to the single best end-to-end bundle. A slot with no passing kernel simply pays no one.
 
-Before GPU evaluation, the CPU validator verifies that the miner paid the configured submission fee. This is done through the following steps:
+## Anti-copy: commit-reveal
 
-1. Reads `payment_tx` and `payment_block` from the commitment JSON.
-2. Calls `substrate.retrieve_extrinsic_by_hash` (one RPC lookup; no payment database).
-3. Confirms that the extrinsic succeeded, was signed by the miner's coldkey, emitted a `Balances.Transfer` to the treasury with at least the configured fee, and included remark `cacheon:<hotkey>:<digest>` in the batch call.
+Submissions are evaluated in the open, so a lazy miner could try to copy the current champion and resubmit. Commit-reveal defeats this at the protocol level:
 
-Miners submit payment via `miner/commit.py`, which atomically runs `Utility.batch_all([transfer, remark])` then reveals the commitment. Utility.batch_all([transfer, remark]) before revealing the commitment. Validators enforce the submission payment gate with `CACHEON_SUBMISSION_FEE_RAO` environment variable (specified in RAO); setting it to 0 disables payment verification.
+- A copier who only sees a rival's bundle at reveal time has **no matching prior commitment** for it, so they cannot reveal it. Copying at reveal time is impossible.
+- If two miners independently committed to the same content, the **earliest commit is the original**; later identical ones are marked copies.
 
-## What validators score on
+In production this is Bittensor's native commit-reveal; Cacheon keeps the off-chain scoring half.
 
-Each evaluation round has two gates:
+## Copy detection
 
-| Gate        | How it's measured                                                                                         |
-| ----------- | --------------------------------------------------------------------------------------------------------- |
-| Correctness | Teacher-forcing logprob gate on the scoring vLLM. This is a hard gate: failure results in a score of `0`. |
-| Speed       | Median end-to-end wall-time improvement vs. the vLLM baseline on the same prompts                         |
+Bundle identity is a deterministic content hash over the manifest and every source file. Copy detection is **cumulative across rounds** (a copy in a later round is caught, not just a same-round duplicate) and fires on either:
 
-The final score is the median relative speedup from request start to the aligned output length, floored at zero. See [Scoring](/docs/evaluation/scoring) for the formula and tolerance band.
+- the **exact content hash**, or
+- a **reformat-invariant fingerprint** (AST-normalized), so a reflowed, recommented, or renamed-whitespace copy with a fresh hash is still demoted.
+
+Fingerprints are computed per slot over each op's bundle-local import closure, and the ledger compares per-file fingerprint sets by containment, so padding the bundle with an extra op, or relocating a stolen kernel body into an imported module behind a re-export shim, still demotes. Two miners merely vendoring the same public utility do not match. A structural fingerprint (names and constants blanked) additionally flags rename-plus-constant-tweak near-copies as an **advisory** for review, never an automatic demotion.
+
+A copy **ties** the champion. It never clears the margin, so it earns nothing. The only way to earn is to genuinely beat the best kernel on record for a slot.

@@ -2,10 +2,17 @@
   "title": "Miners",
   "pages": [
     "overview",
-    "api-contract",
-    "submission-format",
-    "local-testing",
-    "registration",
-    "rules"
+    "your-first-kernel",
+    "slots",
+    "bundle-format",
+    "kernel-abi",
+    "graph-safety",
+    "finding-a-win",
+    "examples",
+    "submitting",
+    "diagnostics",
+    "discovery-lane",
+    "override-points",
+    "dep-patches"
   ]
 }

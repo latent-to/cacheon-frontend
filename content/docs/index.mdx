@@ -1,73 +1,94 @@
 ---
 title: Introduction
-description: Cacheon (Bittensor Subnet 14) is a live, on-chain competition to build the fastest inference server for a fixed open-source model. Miners submit containerized servers and compete on speed while maintaining output correctness.
 ---
 
-**Cacheon** is Bittensor Subnet 14 (SN14). It is an open, on-chain competition for **production-grade inference optimization** of LLMs.
+**Miner-fed · validator-proven · chain-independent**
 
-Miners submit a **containerized inference server** that serves a fixed model via an OpenAI-compatible API. Validators run every submission against a vLLM baseline on the same hardware and score **end-to-end response time** (request to final token) plus **output correctness**. The fastest correct server receives the majority of emissions until another submission surpasses it.
+# Build faster inference into a product.
 
-<Callout title="TL;DR" className="my-2 gap-2 p-2 [&>*:last-child]:gap-1">
-  <ul className="marker:text-fd-muted-foreground my-0 list-disc space-y-0.5 pl-4 leading-snug">
-    <li>
-      <b>Model:</b> Qwen2.5-72B-Instruct
-    </li>
-    <li>
-      <b>Submit:</b> Docker image with <code>/v1/chat/completions</code>; commit image on-chain
-    </li>
-    <li>
-      <b>Score:</b> end-to-end speedup vs baseline (correctness-gated).{" "}
-      <a href="./evaluation/scoring">Scoring</a>
-    </li>
-    <li>
-      <b>Incentive:</b> Leader + runner-up (80/20)
-    </li>
-  </ul>
+Cacheon turns untrusted GPU optimization proposals into measured contributions and,
+after a separate integration review, signed **Cacheon Engine** releases. SGLang keeps
+the serving control plane. Cacheon improves the inference data plane.
+
+- [Build a kernel](/docs/miners/overview)
+- [Operate the referee](/docs/validators/overview)
+- [Understand the architecture](/docs/architecture/overview)
+
+At the highest level, Cacheon has two systems: the chain-independent product and
+the market that improves it. Operationally, the market side separates the
+subnet control plane from the hostile-code referee, giving readers three
+cooperating surfaces with different trust boundaries.
+
+| Surface                                        | What it is                                                                                                                    |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| [**Cacheon Engine**](/docs/engine/overview)    | The chain-independent inference distribution: reviewed source, pinned runtime, sealed model identity, and signed releases.    |
+| [**The referee**](/docs/architecture/pipeline) | Isolated, evidence-producing evaluation of one marginal target delta against a validator-owned incumbent stack.               |
+| [**The subnet**](/docs/validators/chain-loop)  | Finalized proposal ordering, attribution, economic settlement, and weight publication. It is not part of the serving product. |
+
+## One idea, four objects
+
+The system keeps four objects deliberately separate:
+
+```mermaid
+flowchart LR
+  P["Proposal<br/>hostile input"] --> Q["Crown<br/>measured contribution"]
+  Q --> I["Integrated contribution<br/>reviewed source"]
+  I --> R["Engine release<br/>signed product"]
+  Q -. "does not ship automatically" .-> R
+```
+
+A miner submits a **proposal** for one registered target delta, or a bounded discovery
+prototype through the separate discovery ABI. The referee may establish a **crown**
+after two independent passing qualifications. Cacheon maintainers may then turn the
+proposal into an **integrated contribution** after security, provenance,
+compatibility, and maintenance review. Only integrated contributions enter a signed
+**Engine release**. Discovery has review, promotion, or bounded-bounty outcomes; it is
+not another standing target family.
+
+[Learn the product model →](/docs/architecture/product-model)
+
+## Why the architecture is composable
+
+Every candidate runs as a complete isolated engine, but it is rewarded only for the
+smallest validator-controlled delta it contributes. The authoritative bracket compares:
+
+- **B** — the exact incumbent evaluation stack;
+- **C** — the same stack with one registered target replaced;
+- **B′** — an independent incumbent bookend; and
+- **T** — a candidate-free pristine reference that grades sealed trajectories after
+  candidate destruction.
+
+This separates the **execution unit** (a complete disposable engine) from the
+**economic unit** (one singleton target, atomic target, or bounded discovery
+contribution). A new optimization can build on previous wins without repackaging or
+copying them.
+
+[Follow a proposal through the system →](/docs/architecture/pipeline)
+
+## Choose your path
+
+| Goal                                                        | Start here                                         |
+| ----------------------------------------------------------- | -------------------------------------------------- |
+| Write a Triton, CuTeDSL, or Python reference kernel         | [Miner guide](/docs/miners/overview)               |
+| Validate the repository locally without a GPU               | [Local quickstart](/docs/get-started/quickstart)   |
+| Deploy intake, an arena provider, and qualification workers | [Validator guide](/docs/validators/overview)       |
+| Verify or operate a signed serving artifact                 | [Cacheon Engine](/docs/engine/overview)            |
+| Audit trust boundaries and failure behavior                 | [Security model](/docs/security/threat-model)      |
+| Check what is implemented, measured, and still unproven     | [State of record](/docs/reference/state-of-record) |
+
+## Evidence is scoped, not blended
+
+Every performance or authority claim is scoped to the exact runtime, hardware, arena,
+stack, identities, and procedure that produced it. Diagnostic measurements cannot
+authorize a crown; crown evidence cannot authorize reviewed source; and release
+verification cannot retroactively validate qualification. The
+[state of record](/docs/reference/state-of-record) identifies which evidence products have
+actually been retained for each boundary.
+
+<Callout type="info" title="Source of executable truth">
+  The [Cacheon source repository](https://github.com/latent-to/optima) owns executable contracts,
+  schemas, policies, and evidence verifiers. Content-addressed production evidence and immutable
+  publications live in separate operator-owned stores. This site owns published explanations,
+  tutorials, and operator guidance. When prose and code disagree, the pinned code and its tests take
+  precedence.
 </Callout>
-
-## Why Cacheon exists
-
-Inference has been the bottleneck for serving LLMs at scale. Latency, memory, and cost determine whether a model is usable in production. Existing optimization techniques, including _FlashAttention_, _PagedAttention_, _speculative decoding_, _KV cache quantization_, and _custom kernels_, are currently benchmarked in isolation, making objective performance comparisons impossible.
-
-Cacheon turns the problem into a live, reproducible contest: same model, same hardware, same prompts, same scoring. Miners are free to use any technique, any language, any runtime. The only thing that matters is serving the model faster while keeping outputs correct.
-
-The product-market fit is straightforward: if Cacheon can consistently produce the fastest and most cost-efficient way to serve a high-value open-source model, then developers will route inference through us because better performance directly improves their product margins and UX. Over time, that creates a clear business model: Cacheon becomes both the optimization layer where better inference systems are discovered and the serving layer that monetizes demand for production-grade inference. It can serve agentic workflows, developer APIs, and other inference-heavy products that depend on fast, reliable long-context generation.
-
-See [Why it matters](/docs/concepts/why-it-matters) for the full problem statement.
-
-## Pick your path
-
-<Cards>
-  <Card
-    title="I want to mine"
-    href="/docs/miners/overview"
-    description="What you need, the API contract your server must implement, and how to register."
-  />
-  <Card
-    title="I want to understand the system"
-    href="/docs/validators/overview"
-    description="CPU and GPU validator roles, Postgres mirroring, tiers, and running the stack."
-  />
-  <Card
-    title="I want to know what's measured"
-    href="/docs/evaluation/scoring"
-    description="End-to-end speed, correctness gate, and median aggregation."
-  />
-  <Card
-    title="I want to see the roadmap"
-    href="/docs/roadmap"
-    description="V1 72B single-model arena, V2 expanded optimization surface, V3 production inference provider, V4 multi-model expansion."
-  />
-</Cards>
-
-## What the subnet is not
-
-- **Not a training subnet.** Weights are fixed at `Qwen2.5-72B-Instruct`. You do not finetune.
-- **Not a generic hosting platform.** You serve one specific model. The competition is about serving it faster than everyone else.
-- **Not a free trial service.** Miners pay a submission fee for all submissions. Test and validate locally before you register.
-
-## Useful links
-
-- [GitHub](https://github.com/latent-to/cacheon)
-- [Discord (Bittensor)](https://discord.gg/bittensor)
-- [TAO.app subnet page](https://tao.app/subnets/14)

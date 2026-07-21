@@ -1,0 +1,67 @@
+---
+title: Submission model
+---
+
+This page answers a different question from the [competition model](/docs/concepts/competition-model) (how you win) and the slot contract (why you cannot cheat). It answers: **what may a miner submit, such that every accepted win is portable kernel IP the network can fold into its own inference library, never an sglang patch it gets entrenched on.**
+
+<Callout type="info" title="Status: design of record">
+  Parts of this model are target-state, not all built. Where the current code differs, this page
+  describes where Cacheon is going. It is included as a concept so the submission surface makes
+  sense.
+</Callout>
+
+## Why it exists
+
+Cacheon's end goal is not "patches to sglang." It is a portable kernel library (`optima-kernels`): inspectable, composable device code shipped on top of any engine. The subnet is the machine that populates that library. Miners are paid to _create_ fast kernels, the validator measures them, and an accepted win drops straight into the library.
+
+That only works if the contribution is **portable IP**. A win expressed as "monkeypatch sglang's `FusedMoE` to call kernel X" is worthless to the library: it evaporates the moment the engine changes. So the submission surface is built around one product axiom and one judgment test, on top of the four cheat-resistance invariants that govern the [slots](/docs/miners/overview).
+
+## Axiom 5: transferability
+
+> A contribution is **transferable kernel IP**: device code plus its launch plus its weight-layout math, such that it can be lifted into a different engine leaving only orchestration behind.
+
+A kernel is a kernel. Write it against whatever kernel libraries help it win (CUTLASS, CuTe-DSL, Triton, flashinfer, sgl-kernel, DeepGEMM, torch). What a contribution must **not** be is engine orchestration: scheduler wiring, runner-registry glue, monkeypatching `forward`. Engine-specific placement (routing live-layer state into inputs, installing at a chokepoint) is the **validator's adapter**, never the miner's bundle. sglang is the referee and a rented runtime, not the product foundation.
+
+## The Win Test
+
+A submission scores **only** if it is _new device code that beats the tuned baseline at equal fidelity_, that is, it created a capability or a speed the baseline did not already have. Three things are explicitly not wins, and the surface makes them non-submittable rather than leaving them to a judge:
+
+| Not a win                                                                              | Why                                            | Who owns it instead                                                          |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Engine config / args** (batch size, TP/EP, backend flags, mem-fraction)              | turning a knob is not creating a kernel        | the validator runs the model at its best config, which is the fixed baseline |
+| **Integration / rerouting** (wire an existing but unwired faster kernel)               | calling code that already exists is not new IP | the validator's adapter; once wired it becomes the new baseline              |
+| **Python-level recomposition** (reorder or skip existing launches, no new device code) | nothing to fold into the library               | the tuned baseline already does the obvious recompositions                   |
+
+This is enforced by construction. The miner surface admits only device source bound to a typed slot or override-point. There is no manifest field for engine config, and the baseline kernel is validator-owned and shipped **tuned**. So the only way to move the score is to write device code that beats the tuned baseline, which is exactly "created what wasn't there." The bar is _new code that improves_, not _from-scratch everything_.
+
+## The contribution unit
+
+One unit, three granularities. Pick the smallest that expresses the win.
+
+### 1. Override (the accessible on-ramp)
+
+The library ships a parametric base kernel with declared, typed **override-points**; the miner submits only the override as portable device source (for example a fused-activation epilogue against an MoE GEMM). Override-points are the accessibility lever: the base does the hard mainloop, and the miner writes the small hook in Triton or CuteDSL without understanding the grouped-GEMM internals.
+
+### 2. Whole kernel at a slot (the higher ceiling)
+
+The miner writes the entire kernel for a boundary: a from-scratch attention block, a novel MoE kernel, and crucially the **compute-comm fused block** (`moe.fused_experts_reduce`, the experts block that owns its trailing all-reduce). This tier is where the durable wins live, fusion across the GEMM and communication seam, roughly 75% of decode at scale. Overrides _augment_ a base; whole kernels _create_ one. Both are first-class.
+
+### 3. New format / codec
+
+A quantization codec as a kernel plus its `prepare` step, gated against a clean higher-precision reference the validator serves, so a lossy-on-lossy comparison is impossible. This is the format-specialization frontier (beating FP4, sub-4-bit).
+
+## The three layers
+
+Cacheon's product model separates the library, the referee, and the service so the moat lives in portable kernels rather than in any one engine:
+
+- **`optima-kernels`, the library and the product.** Portable device code, host launchers, and clean-reimplemented codec and layout primitives. Zero sglang imports. Each entry carries a regime tag mapping `(model, context, concurrency, GPU, format)` to a base or override, a measured speedup, and its fidelity gate. This is what ships.
+- **`optima-harness`, the subnet referee.** sglang plus the seam plus scoring, confined here. It consumes `optima-kernels` to place and measure submissions. sglang lives in this layer and nowhere else.
+- **`optima-serve`, the managed service (later).** Runs `optima-kernels` on a rented engine for customers. Swappable infrastructure; the moat is the library.
+
+The pipeline: the subnet measures a submission, and because the win is portable inspectable source by construction, it drops into `optima-kernels` with its regime tag, and the service ships it. No separate repo, no re-derivation.
+
+<Callout type="warn" title="Cheat-resistance is a separate axis">
+  Transferability is the product axis. Cheating is governed by the four slot invariants and still
+  needs the unbuilt host isolation before opening to untrusted miners. A portable kernel is not a
+  safe kernel; the two axes do not substitute for each other.
+</Callout>

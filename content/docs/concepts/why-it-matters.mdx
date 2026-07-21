@@ -1,54 +1,54 @@
 ---
 title: Why inference optimization matters
-description: Training keeps advancing, but for most real-world use cases, the bottleneck is inference and deployment. Latency, throughput, and cost decide whether a model is usable in production, and existing benchmarks remain fragmented.
 ---
 
 ## Training advances. Serving decides usability.
 
-Better models only matter if you can serve them. Frontier quality keeps improving, yet for most deployments the limiting factor is not research headlines but **how fast you get a complete response** on the hardware and traffic you actually run.
+Better models only matter if you can serve them. Frontier quality keeps improving, yet for most deployments the limiting factor is not research headlines but **how fast the model runs** on the hardware and traffic you actually have.
 
-- **Response time:** the time it takes to produce the full response, not the time until the first word appears.
-- **Throughput:** how many concurrent requests you can serve on fixed hardware.
+- **Throughput:** tokens per second on fixed hardware, the number Cacheon scores.
+- **Latency:** how long a request takes end to end.
 - **Cost:** GPU utilization and serving efficiency. Dollars per million tokens.
 
-These are **inference-time** constraints. Cacheon treats inference optimization as a competitive problem and pushes the network to discover the fastest, most efficient serving stacks in the open.
+These are **inference-time** constraints. Cacheon treats inference optimization as a competitive problem and pushes the network to discover faster GPU kernels in the open.
 
 ## The optimization surface
 
-Modern inference has dozens of knobs, and each one interacts with the others:
+A modern inference stack is a stack of GPU kernels, and each one is a place where throughput is won or lost:
 
-| Layer          | Techniques                                                  | Impact                             |
-| -------------- | ----------------------------------------------------------- | ---------------------------------- |
-| **Memory**     | KV cache quantization, eviction, paging, offloading         | Max context length, max batch size |
-| **Compute**    | FlashAttention, custom CUDA kernels, fused operations       | Tokens/sec, prefill speed          |
-| **Scheduling** | Continuous batching, chunked prefill, preemptive scheduling | Throughput under load              |
-| **Decoding**   | Speculative decoding, Medusa heads, lookahead               | Output tokens/sec                  |
-| **Runtime**    | Rust/C++ servers, kernel-level optimizations, memory layout | End-to-end latency                 |
+| Boundary          | What runs there                                      | Why it matters                                            |
+| ----------------- | ---------------------------------------------------- | --------------------------------------------------------- |
+| **Activation**    | fused SiLU/SwiGLU and gate-up projections in the MLP | Hot elementwise op on every token                         |
+| **Normalization** | RMSNorm before attention and MLP                     | Fires on every layer of every model                       |
+| **Attention**     | prefill and decode attention over paged KV           | Dominates long-context prefill and decode                 |
+| **MoE**           | fused experts (routing, grouped GEMM, SwiGLU)        | The compute waist of mixture-of-experts models            |
+| **Collectives**   | tensor-parallel all-reduce and all-to-all            | Comms-bound at TP/EP scale, ~32–43% of GPU time at decode |
 
-Existing solutions like vLLM, TensorRT-LLM, and SGLang each make different tradeoffs across these axes. No single team has tried every combination. Cacheon creates an incentive to search this space exhaustively.
+Engines like sglang, vLLM, and TensorRT-LLM each make different tradeoffs across these boundaries, and their kernels are already heavily tuned. No single team has tried every combination or every GPU. Cacheon creates an incentive to search this space in the open, one typed boundary at a time.
 
 ## The benchmark problem
 
-There is no shared, verifiable benchmark for full-stack inference performance:
+There is no shared, verifiable benchmark for kernel-level inference performance:
 
-- vLLM publishes its own benchmarks against its own baselines
+- Engines publish their own benchmarks against their own baselines
 - Academic papers measure individual techniques in isolation <sup><a href='#references'>[1]</a></sup> <sup><a href='#references'>[2]</a></sup>
 - Inference providers report numbers against undisclosed configurations
 
-The **numbers don't compare.** Teams shipping production inference have no way to know which combination of techniques actually wins for their specific model and workload.
+The **numbers don't compare.** Teams shipping production inference have no way to know which kernel actually wins for their specific model, GPU, and workload.
 
 <Callout title="What Cacheon does">
-  Fix the model, fix the hardware, fix the prompts, fix the scoring, and let anyone submit a full
-  serving stack. The subnet produces an ordered ranking that is apples-to-apples comparable.
+  Fix the model, fix the hardware, fix the prompts, fix the scoring, and let anyone submit a kernel
+  for a well-defined slot. The subnet produces an ordered ranking per slot that is apples-to-apples
+  comparable, because every kernel is measured against the same stock reference on the same box.
 </Callout>
 
 ## What winning looks like
 
-The endpoint is not a paper or a blog post. The endpoint is an inference server ranked #1 on the leaderboard, serving a top open-source model faster than vLLM on identical hardware. That is the product: the fastest way to run that model, discovered through open competition.
+The endpoint is not a paper or a blog post. The endpoint is a kernel that beats the stock, tuned baseline at equal output fidelity, folded into a portable kernel library the network owns. That is the product: the fastest way to run a given model on a given GPU, discovered through open competition and inspectable by construction.
 
-Product-market fit comes when the system evolves from a benchmark leader into the backend people actually choose for latency-sensitive inference. That includes agent frameworks that need fast long-context replies, Bittensor subnets that depend on reliable Qwen/GLM serving, and aggregators looking for differentiated performance. The target users are teams willing to pay for faster end-to-end responses and better GPU efficiency without building their own inference stack.
+Product-market fit comes when the network's kernels become the backend people actually choose for latency-sensitive inference. That includes agent frameworks that need fast long-context replies, subnets that depend on reliable model serving, and aggregators looking for differentiated performance. The target users are teams willing to pay for faster throughput and better GPU efficiency without building their own kernel team.
 
-See the [roadmap](/docs/roadmap) for how V1 through V4 scale from single-model arena to production inference marketplace.
+See the [roadmap](/docs/roadmap) for how the phases scale from a single-model arena to a production inference layer.
 
 ## References
 

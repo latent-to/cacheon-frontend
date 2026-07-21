@@ -26,7 +26,7 @@ export function baseOptions(): BaseLayoutProps {
         external: true,
       },
     ],
-    githubUrl: 'https://github.com/latent-to/cacheon',
+    githubUrl: 'https://github.com/latent-to/optima',
     themeSwitch: { enabled: false },
   }
 }

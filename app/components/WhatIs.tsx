@@ -4,15 +4,15 @@ import SectionHeader from './SectionHeader'
 const COMPETITORS = [
   {
     rank: 1,
-    name: 'Your Server',
-    tag: 'Cacheon leader',
+    name: 'Your Kernel',
+    tag: 'Cacheon champion',
     speed: 1.37,
     pass: true,
     leader: true,
   },
   {
     rank: 2,
-    name: 'vLLM',
+    name: 'sglang',
     tag: 'baseline',
     speed: 1.0,
     pass: true,
@@ -20,8 +20,8 @@ const COMPETITORS = [
   },
   {
     rank: 3,
-    name: 'Fast But Wrong',
-    tag: 'disqualified',
+    name: 'Fast But Unfaithful',
+    tag: 'fidelity gate failed',
     speed: 2.8,
     pass: false,
     leader: false,
@@ -89,18 +89,19 @@ export default function WhatIs() {
         <SectionHeader eyebrow="01 — Overview" title="What is Cacheon?" />
 
         <p className="text-lg2 text-secondary -mt-8 mb-14 max-w-2xl font-sans leading-[1.65]">
-          An arena where inference servers race to beat the baseline. The fastest correct one
-          becomes the leader.
+          An arena where GPU kernels race the stock sglang baseline. The fastest kernel that stays
+          faithful takes the slot. The board below is illustrative: it shows the scoring shape, not
+          a claimed result.
         </p>
 
         {/* Leaderboard */}
         <div className="border-border/60 bg-surface-raised overflow-hidden rounded-xl border">
           <div className="border-border/40 flex items-center justify-between border-b bg-white/[0.015] px-4 py-3 sm:px-8 sm:py-3.5">
             <span className="tracking-caps text-primary font-mono text-xs font-bold uppercase">
-              Fast is not enough. Correct wins.
+              Fast is not enough. Faithful wins.
             </span>
             <span className="text-2xs tracking-caps text-secondary/40 hidden font-mono uppercase sm:block">
-              Speed (higher is better) →
+              Throughput (higher is better) →
             </span>
           </div>
 
@@ -174,9 +175,9 @@ export default function WhatIs() {
         {/* Scoring surface */}
         <div className="mt-10 flex flex-wrap items-center justify-center gap-6 sm:gap-8">
           {[
-            { metric: 'END-TO-END SPEED', direction: '↓ lower is better', accent: true },
-            { metric: 'TOKEN MATCH', direction: 'must pass pre-filter', accent: false },
-            { metric: 'CORRECTNESS', direction: 'must pass to score', accent: false },
+            { metric: 'THROUGHPUT', direction: '↑ higher is better', accent: true },
+            { metric: 'KL FIDELITY', direction: 'must pass the gate', accent: false },
+            { metric: 'BENCHMARK ACCURACY', direction: 'must not regress', accent: false },
           ].map((item) => (
             <div key={item.metric} className="text-center">
               <div

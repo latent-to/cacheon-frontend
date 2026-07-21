@@ -1,0 +1,13 @@
+{
+  "title": "Architecture",
+  "pages": [
+    "overview",
+    "product-model",
+    "pipeline",
+    "slot-contract",
+    "stacks",
+    "direct-artifacts",
+    "seam",
+    "releases"
+  ]
+}

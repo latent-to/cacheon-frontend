@@ -1,4 +1,17 @@
 {
   "title": "Validators",
-  "pages": ["overview", "setup", "gpu-pod-setup", "architecture"]
+  "pages": [
+    "overview",
+    "first-hour",
+    "arena-service",
+    "chain-loop",
+    "qualification",
+    "scoring",
+    "fidelity",
+    "settlement-and-weights",
+    "releases",
+    "running-evals",
+    "testnet",
+    "minimax-m3-case-study"
+  ]
 }

@@ -2,14 +2,23 @@
   "title": "Cacheon Docs",
   "pages": [
     "index",
+    "---Start here---",
+    "get-started",
+    "---Learn---",
     "concepts",
+    "architecture",
+    "---Build---",
     "miners",
     "validators",
-    "evaluation",
-    "monitoring",
+    "engine",
+    "---Reference---",
+    "security",
+    "reference",
+    "dev",
+    "---Project---",
     "vision",
     "roadmap",
     "decisions",
-    "team"
+    "history"
   ]
 }

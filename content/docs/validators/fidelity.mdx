@@ -1,0 +1,103 @@
+---
+title: Fidelity and quality authority
+---
+
+Cacheon uses different quality checks at different stages. Confusing them creates a major
+security error: a useful development diagnostic is not necessarily safe as a grading
+oracle.
+
+## The quality layers
+
+| Layer                                               | Purpose                                                                | Crown authority?                           |
+| --------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------ |
+| Typed slot verification                             | Fast ABI, output-layout, numerical, applicability, and graph preflight | No                                         |
+| Contributor-controlled model A/B or in-engine audit | Development feedback and integration diagnosis                         | No                                         |
+| Pristine T over sealed B/C/B′ trajectories          | Candidate-free, retained production quality evidence                   | Yes, as one required part of qualification |
+
+## Slot verification
+
+Each registered slot owns a typed input/output contract and correctness mode. Depending
+on the slot, verification may use all-close tolerances, matched ratio, cosine similarity,
+or top-k overlap. The verifier jitters eligible dimensions, checks variant routing, and
+requires graph evidence where applicable.
+
+This catches many broken kernels cheaply, but it samples a finite contract. It cannot by
+itself establish end-to-end model behavior or serving quality.
+
+## Development quality evidence
+
+Engine developers may compare aligned rollout distributions, task behavior, and sampled
+dispatcher calls while integrating a contribution. KL-like measurements are interpretable
+only when stock-vs-stock variation is within the setup's calibration; launch
+nondeterminism can otherwise dominate the signal. Tail and argmax-disagreement measures
+help expose sparse corruption that a mean alone can hide.
+
+An in-engine audit samples live candidate calls and compares them with a stock
+calculation. It is valuable for debugging nondeterministic stacks, but the candidate
+process contains the audit machinery and cannot grade a hostile engine. Framework-mode
+token matching has the same limitation. These checks are engineering tools, not a
+registered target or crown authority.
+
+## Pristine T
+
+Production qualification launches a separate candidate-free reference session after the
+relevant C engines have been destroyed. T:
+
+- reopens an empty evaluation stack with no proposal contributions;
+- binds the same runtime/model/reference identity and frozen calibration;
+- receives sealed B/C/B′ prompt and trajectory identities from the trusted controller;
+- teacher-forces those trajectories;
+- emits bounded token-level teacher evidence; and
+- runs the registered hidden quality work.
+
+The controller then regrades raw evidence under the frozen metric policy. Candidate C
+does not choose prompts, support tokens, thresholds, or the hidden judge. Incumbent B′ is
+also untrusted and is never substituted for T.
+
+## Calibration
+
+A crown-authoritative `CalibrationManifest` is content-addressed and frozen. It binds:
+
+- pristine reference manifest;
+- arena, runtime, base engine, model, logical hardware, and workload;
+- verification policy and controller distribution;
+- raw calibration evidence and seeds;
+- speed margin, noise multiplier, and maximum noise; and
+- metric envelopes, candidate deltas, and any absolute floors.
+
+Controls include expected stock/positive passes and negative failure. A provisional,
+stale, incomplete, or context-mismatched calibration is not usable for a crown.
+
+## Quality decisions
+
+The registered policy can grade metrics such as argmax disagreement, support coverage,
+teacher NLL, KL-derived measures, tail rate, and task score. Exact metrics depend on the
+frozen arena calibration; documentation must not present one universal threshold as the
+Cacheon quality contract.
+
+Missing teacher coverage, wrong prompt/trajectory identity, tampered evidence, or
+unreopenable calibration yields `NO_DECISION`. A measured candidate regression yields
+`FAIL`. Quality `PASS` is still only one prerequisite alongside execution, graph, speed,
+identity, and reproduction evidence.
+
+## Honest limits
+
+- Finite prompts and hidden tasks cannot rule out all shape or workload overfitting.
+- A pristine implementation can contain bugs; it is an independent authority, not a
+  mathematical proof.
+- Calibration is specific to the registered runtime, model, hardware, and workload and
+  must be redone when those identities change.
+- Contributor-controlled KL, task, or audit output is useful evidence for engineers but
+  has no settlement effect.
+- Passing fidelity does not establish license, security review, or release readiness.
+
+See [Evidence and replay](/docs/security/evidence) for how raw quality products are
+retained and reopened.
+
+## Source anchors
+
+- [Typed slot contracts](https://github.com/latent-to/optima/blob/main/optima/slots.py)
+- [Tensor output specifications](https://github.com/latent-to/optima/blob/main/optima/tensor_spec.py)
+- [Qualification quality model](https://github.com/latent-to/optima/blob/main/optima/eval/qualification.py)
+- [Pristine wire protocol](https://github.com/latent-to/optima/blob/main/optima/eval/reference_protocol.py)
+- [Calibration authority](https://github.com/latent-to/optima/blob/main/optima/eval/calibration.py)

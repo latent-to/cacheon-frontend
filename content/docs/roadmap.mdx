@@ -1,52 +1,50 @@
 ---
 title: Roadmap
-description: Phase 1 proved the mechanism. Phase 2 scales it into a continuously improving optimization pipeline.
 ---
 
 ## Where we are
 
-Phase 1 is complete. Cacheon's top-performing miners are outperforming the vLLM baseline by 35%+. More importantly, we have shown that a market for inference optimization can discover real improvements against a strong baseline faster than any single team could.
+Phase 1, the Cacheon container arena, proved that a market for inference optimization can discover real improvements against a strong baseline faster than any single team. Cacheon replaces opaque container submissions with inspectable GPU kernels for typed slots, the referee is validated end to end on real GPUs, and the first submitted kernel has surpassed the pinned sglang baseline.
 
-With those foundations in place, we are preparing the next stage of the subnet. To make that transition, competition will pause on June 20 while we rebuild for Phase 2.
-
-## Phase 1 - Single-model inference arena
+## Phase 1: single-model container arena (Cacheon)
 
 **Status:** complete.
 
-One model, one hardware target, one mechanism. Prove that a containerized inference server can be evaluated on-chain and the best one wins emission.
+One model, one hardware target, one mechanism. Miners submitted whole containerized inference servers; the harness evaluated each against a pinned vLLM baseline on the same GPU and scored end-to-end speed under a correctness gate, with a leader and runner-up emission split.
 
-- Model: `Qwen2.5-72B-Instruct`, hardware: 8xH200/B200, baseline: pinned vLLM
-- Miners submitted Docker containers; the harness evaluated against baseline on the same GPU
-- Scoring: median end-to-end speedup vs baseline (10 prompts, correctness gate required)
-- Competition with leader and runner-up emission split (80/20)
-- CPU/GPU split validator: always-on CPU VPS for chain interaction, ephemeral GPU pod for eval
+**What it proved:** inference optimization is a search problem that a competitive network can solve faster than any single team. Its limitation is what motivated Phase 2: an opaque container is not portable IP and cannot be inspected, composed, or folded into a library.
 
-**What it proved:** inference optimization is a search problem that a competitive network can solve faster than any single team.
+## Phase 2: kernel competition (Cacheon)
 
-## Phase 2 - Optimization pipeline
+**Status:** active, current mechanism.
 
-**Status:** In design. Rolling out from July 2026.
+Miners submit a **bundle** (`manifest.toml` + kernel source) for a typed **slot** inside a fixed, validator-controlled model. The validator swaps the kernel into a pinned sglang engine and scores throughput gated by fidelity.
 
-Phase 1 was intentionally narrow to prove the mechanism. Phase 2 expands the optimization surface and redesigns the incentive mechanism to move closer to a continuously improving optimization baseline.
+Validated end to end on real GPUs (single H100 up to gpt-oss-120b; 4×B300 for MiniMax-M3-NVFP4):
 
-**What is changing:**
+- **Typed slots (ten today):** ops such as `activation.silu_and_mul` and `norm.rmsnorm`, fused blocks such as `attention.sdpa`, `attention.decode`, and `moe.fused_experts`, and cross-GPU collectives such as `collective.all_reduce` and `moe.fused_experts_reduce` (the block that owns its trailing all-reduce). See the [Slot catalog](/docs/reference/slots-table) for the full list.
+- **The seam** that swaps an untrusted kernel into the spawned sglang scheduler process, with tamper-resistant, out-of-process timing.
+- **Scoring under CUDA graphs on** (graphs-off cripples the baseline, so it is never used to score), with noise-robust bracketed measurement that returns no-decision on a box too noisy to reproduce.
+- **Fidelity gates:** per-token KL against the stock reference plus GSM8K and MMLU benchmark accuracy.
+- **Commit-reveal** anti-copy and **per-slot king-of-the-hill** settlement.
 
-- **Incentives mechanism**: redesigned reward structure to better align contributors with long-term optimization discovery
-- **Miner contributions**: auditable code contributions (patches to vLLM) targeting specific bottlenecks, rather than full opaque containers
-- **Evaluation**: expanded surface covering concurrency, multi-turn workloads, and throughput under SLA; automated GPU provisioning removes the manual operator loop
-- **Optimization surface**: beyond single-request speed, into a full serving profile across workload types
+### What is proven, and what is not (honest status)
 
-We will be rolling out continuous updates as things evolve. Follow on [X](https://x.com/cacheon_ai) or join [Discord](https://discord.gg/invite/cacheon) for announcements.
+- **A submitted kernel has beaten sglang.** On the MiniMax-M3-NVFP4 arena (4×B300), fused decode epilogues measured **1.044×–1.074×** through the full scorer at equal audited fidelity, reproduced on independent prompt seeds and once through the on-chain loop. This is the first validated win, not the ceiling: most example kernels are still correctness demos (faithful ones reproduce the model; broken ones are caught by the gate).
+- **Host isolation for untrusted miners is not built.** The kernel is Python running in the model process. Today the process boundary is a tripwire (a static policy scan), not a wall; namespaces, no network egress, per-eval CUDA context, and a watchdog are required before opening to untrusted miners.
+- **Chain integration is live on testnet, not mainnet.** Commit-reveal, content-addressed bundle fetch, and the validator loop are built, merged, and live-validated on Bittensor testnet (netuid 307, 2026-07-08). Weights stayed dry-run there because that subnet rejects our stake, so a real weight push and mainnet economics need our own subnet. The Ledger is durable JSON, not yet a database.
+- **No public leaderboard or monitoring dashboard yet.** It is roadmap.
+- **More slots.** MLA and weight-absorbed attention, dense FP8/FP4 GEMM, a graph-safe paged-attention contract, and further comms-overlap blocks are the highest-value targets.
 
-## Phase 3 - Production inference provider
+## Phase 3: production inference serving
 
-Winning configurations deployed as live endpoints serving real traffic. The subnet stops being just a competition and starts being a product.
+Winning kernels deployed as a managed service (`optima-serve`) running the `optima-kernels` library on a rented engine, serving real traffic. The subnet stops being just a competition and becomes a product.
 
-- Agent, RAG, and multi-turn workloads with P99 latency targets
-- **Product Market Fit:** teams route traffic to Cacheon because nothing else serves this model as efficiently
+- Agent, RAG, and multi-turn workloads with latency targets
+- **Product-market fit:** teams route traffic to Cacheon because nothing else serves this model on this hardware as efficiently
 
-## Phase 4 - Intelligence layer
+## Phase 4: intelligence layer
 
-Routing intelligence above inference providers. Given a workload, determine the optimal provider, model, hardware, and serving configuration.
+Routing intelligence above inference providers. Given a workload, determine the optimal kernel, engine, and hardware configuration. The optimization network continuously generates the knowledge that powers this routing layer. See [Vision](/docs/vision) for the long-term thesis.
 
-The optimization network continuously generates the knowledge that powers this routing layer. See [Vision](/docs/vision) for the long-term thesis.
+Follow on [X](https://x.com/cacheon_ai) or join [Discord](https://discord.com/invite/cacheon) for announcements.

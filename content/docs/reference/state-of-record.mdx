@@ -1,0 +1,263 @@
+---
+title: State of record
+---
+
+This page is the dated implementation and evidence ledger for Cacheon. Evergreen pages
+define contracts and procedures; this page records the source revision, exercised proof
+classes, and unresolved limits. A passing test, an empirical qualification, and a
+deployable release are different evidence classes.
+
+## Source snapshot
+
+Snapshot date: **2026-07-16**
+
+| Item                             | Value                                                                                                                                              |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository                       | [`latent-to/optima`](https://github.com/latent-to/optima)                                                                                          |
+| Documentation target             | Local `codex/audit-gpu-readiness-20260716` at `f8be20a43708efd830b7b1dae88f00ffaf532ad5`                                                           |
+| Remote publication               | No `origin/*` ref contains the target commit at the snapshot time                                                                                  |
+| Main base                        | [`6d7e92ef9be058821a7cc8cb37aa872cf3af0b68`](https://github.com/latent-to/optima/commit/6d7e92ef9be058821a7cc8cb37aa872cf3af0b68), merge of PR #58 |
+| Branch relation                  | Four local commits ahead of `main`                                                                                                                 |
+| Delta from the prior docs pin    | 29 commits; 154 files; +25,690/−5,639 lines                                                                                                        |
+| Production Python                | 108 files, 76,233 lines under `optima/`                                                                                                            |
+| Tests                            | 95 Python files, 45,181 lines under `tests/`                                                                                                       |
+| Complete local suite             | 1,951 passed, 19 skipped, 0 failed in 55.55 seconds (`PYENV_VERSION=sn120 python -m pytest -q tests`)                                              |
+| SGLang source pin                | `0.5.13.post1` in `optima/compat.py`                                                                                                               |
+| Bittensor raw-reveal storage ABI | `10.3.2` in `optima/chain_canary.py`                                                                                                               |
+
+Line counts describe the pinned tree; they are not quality metrics. The suite result is a
+local CPU/non-empirical validation of this checkout. Skips are reported explicitly, and
+the result is not GPU qualification, distributed serving, registry reproducibility, or
+release evidence.
+
+## Authority order
+
+When sources disagree, apply this order:
+
+1. executable code, closed registries, and schemas at the pinned commit;
+2. the [product contract](https://github.com/latent-to/optima/blob/main/docs/PRODUCT_CONTRACT.md) and [slot contract](https://github.com/latent-to/optima/blob/main/docs/SLOT_CONTRACT.md);
+3. authenticated retained evidence and immutable publications;
+4. this ledger and the [changelog](/docs/history/changelog);
+5. campaign notes, plans, audit snapshots, console output, and older narrative reports.
+
+The evidence that proves one layer cannot be substituted for another:
+
+| Evidence                       | Establishes                                               | Does not establish                                           |
+| ------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------ |
+| Unit/focused suite             | Implemented invariants under test fixtures                | Real GPU behavior or production operations                   |
+| `scan` / `verify`              | Static policy and exercised component contract            | Model throughput, pristine quality, or settlement            |
+| One qualification PASS         | Registered B/C/B′/T decision under one authority          | Crown or release readiness                                   |
+| Two independently bound PASSes | Settlement eligibility for the exact contribution/context | Integration or serving authorization                         |
+| Signed release verification    | Descriptor, artifact, model, and signature consistency    | Reproducible registry build or successful production serving |
+
+## Implemented surface
+
+### Product and referee separation
+
+- `EvaluationStackManifest` represents the complete incumbent and permits hostile proposal
+  references only inside isolated evaluation.
+- Qualification owns B/C/B′ execution, candidate-free pristine T quality, three-way
+  decisions, and reproduction. Its durable attempt retains aggregate B/C/B′ speed
+  witnesses plus referenced graph, raw-quality, and T/reference products; richer raw
+  B/C/B′ session/device frames are validated in-run but are not serialized into the
+  attempt.
+- Settlement updates an arena-scoped evaluation stack with one target transition
+  transactionally; reward projection and chain publication are separate state machines.
+- `EngineReleaseManifest` accepts integrated contributions only. Promotion must reopen
+  crown evidence and bind reviewed source, selected payload, provenance, security,
+  compatibility, and tests.
+- A serving release has no chain, wallet, intake, settlement, or live proposal dependency.
+
+### Slots and targets
+
+The executable catalog contains 11 slots and one registered atomic target:
+
+| Kind       | Registered identifiers                                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Op         | `activation.silu_and_mul`, `norm.rmsnorm`                                                                                   |
+| Block      | `attention.sdpa`, `attention.decode`, `attention.msa_block_score`, `attention.msa_prefill_block_score`, `moe.fused_experts` |
+| Collective | `moe.fused_experts_reduce`, `collective.all_reduce`, `collective.ar_residual_rmsnorm`, `collective.moe_finalize_ar_rmsnorm` |
+| Atomic     | `collective.moe_epilogue.v1` over the two MoE epilogue collective members                                                   |
+
+Every slot has a singleton target. The atomic target declares displacement and compatible
+composition explicitly. `attention.msa_block_score` has a verifier contract but no
+installing decode-side SGLang adapter; its prefill sibling has the live adapter. Runtime
+MSA `topk` controls downstream block selection, while the slot correctness `top_k` is only
+the verifier's overlap width.
+
+Sources: [`slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py), [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py),
+and [`seams.py`](https://github.com/latent-to/optima/blob/main/optima/seams.py).
+
+### Sealed direct artifacts
+
+The closed artifact-provider registry contains one authoritative, crownable provider: `cutlass.cute.cubin.v1`.
+
+Its contract is:
+
+- candidate CuTe factory code runs only in a GPU-hidden, no-network hermetic prebuild
+  child;
+- the child must emit exactly one CUDA ELF CUBIN — never PTX, a host object, shared
+  library, Python launcher, or runtime JIT input;
+- the manifest carries declarative bindings, specialization, launch, resource, and
+  lifecycle data rather than candidate host callbacks;
+- the host seals build, tree, compiler, compile-profile, architecture, CUBIN, kernel ABI,
+  and launch-plan identities;
+- each rank binds logical exports by physical kernel ordinal only after selecting its CUDA
+  device and initializing process groups; and
+- launch materialization, pointers, scalars, packed fields, TMA descriptors, FastDivmod
+  values, streams, generated storage, cleanup, and evidence remain validator-owned.
+
+All registered targets allow the provider feature and all 11 slots expose declarative
+call ABIs. That is schema coverage, not empirical proof of every slot/provider pair.
+Direct-artifact collective declarations and group/peer resources are schema vocabulary,
+not an executable standard path: `build_cute_cubin` supplies no group
+capability/handle resolvers, so such plans fail closed. The fused-epilogue collective
+evidence uses the separate hardened native-build/overlay lane.
+
+See [Sealed direct artifacts](/docs/architecture/direct-artifacts).
+
+### Public CLI
+
+The live commands are:
+
+```text
+slots  compat  chain-compat  scan  verify
+chain-package  chain-submit  chain-status  chain-register  chain-validate
+set-weights  model-provision  release-verify  release-context
+```
+
+The local loop is `scan` plus `verify`. Complete-engine speed and quality authority begins
+with a deployment-injected arena service. The direct evaluator, benchmark command, local
+JSON ledger, and standalone hash command are absent from this source tree. See
+[CLI reference](/docs/reference/cli).
+
+## Validation matrix
+
+| Area                     | Implemented contract                                                                                          | Retained evidence                                                                  | Limit at this snapshot                                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bundle and target intake | Canonical content identity, strict extraction, recursive scan, target resolution, immutable publication       | Full suite; live testnet intake/restart evidence                                   | Archive PAX/GNU metadata expansion is not included in all resource accounting                                                                                             |
+| Component verification   | Typed outputs, trusted references, variant routing, graph replay, distributed collective checks               | Full suite and earlier GPU controls                                                | `verify` is diagnostic; candidate code and its local comparator share a worker process                                                                                    |
+| Direct CUBIN provider    | Closed provider, exact compile profile, hermetic child, sealed CUBIN, ordinal ABI, validator-owned launch     | Ledger-attested B300 TP4 blockscore load/invoke/complete; retained B200 joined run | B300 receipts were lost with the pod; arbitrary direct collectives are not empirically proven                                                                             |
+| OCI qualification        | No-egress prebuild/runtime/reference sessions, B/C/B′/T roles, host timing, device receipts, teardown         | Retained B200 primary and reproduction PASSes                                      | No fresh run binds the empirical result to current HEAD; full regrade also requires a reconstructed private `CausalQualificationInput` not embedded in the attempt/SQLite |
+| Quality authority        | Candidate-free pristine T, sealed trajectories, frozen calibration, retained raw products                     | B200 joined qualification evidence                                                 | In-engine slot audit is not a universal crown gate; minimum external-quality policy is arena-specific                                                                     |
+| Settlement               | Exact pair identity, distinct authorities/evidence, lower speedup, transactional generation update            | B200 generation-1 crown and restart proof                                          | Held reservations require audited `release_hold` or minimum-age `expire`; no typed arena-retirement API exists                                                            |
+| Chain intake             | Finalized ordering, bounded reveal decoding, strict storage/event equality, retained-only internal processing | Public testnet 307 intake and restart evidence                                     | Retained-only mode is programmatic; no public CLI flag exists                                                                                                             |
+| Weight publication       | Reopen-before-project, intent journal, failed-extrinsic truthfulness, pending-intent resume across heads      | Real subnet-307 projection submitted                                               | Final timelock reveal/readback is not independently confirmed; metagraph observations are not block-atomic                                                                |
+| Arena deployment         | Closed `ArenaServiceRegistry`, fixed non-crown screens, capacity and retry policy                             | In-process and campaign-specific providers                                         | The repository ships no production `ArenaServiceProvider`                                                                                                                 |
+| Integration              | Crown reopening and exact source/payload/review binding                                                       | Unit and focused tests                                                             | No retained B200 crown has been promoted into maintained integrated source                                                                                                |
+| Release                  | Deterministic runtime artifacts, model/native seals, SBOM, provenance, Ed25519, registry and serve types      | Unit/focused tests only                                                            | Serving-wheel closure, provider-specific native admission, and end-to-end registry/serve authority remain incomplete                                                      |
+| Operations               | Typed state and recovery surfaces                                                                             | Development and testnet exercises                                                  | Mainnet ownership, stake/permits, hosting, backup, monitoring, rollout, and key custody remain deployment work                                                            |
+
+## Empirical qualification evidence
+
+The strongest retained performance authority is the joined blockscore qualification on a
+TP4 arena hosted by an 8×B200 system:
+
+| Field                         | Primary | Reproduction |
+| ----------------------------- | ------- | ------------ |
+| Charged-basis speedup         | 1.0561× | 1.0487×      |
+| Timed-section-only diagnostic | 1.0932× | 1.0866×      |
+| Qualification decision        | PASS    | PASS         |
+
+Settlement accepted the pair after all seven required authority/evidence digests differed,
+used the lower value, **1.0487×**, and committed a generation-1 crown. Restart reopening
+passed. These checks prove distinct bound qualification products; they do not by themselves
+prove separate operators, hosts, or infrastructure failure domains. The charged basis
+includes conditioning and timed work; the timed-section result and the standalone
+19.6–22.4% serving bracket use different denominators and are not interchangeable scores.
+
+Evidence boundaries:
+
+- The run used an SM100/B200 worker image from an earlier branch, before the evaluator
+  trim and strict-validation branch. The relevant production pipeline was preserved, but
+  current `f8be20a4` has not been rerun on that GPU arena.
+- Its SGLang source build was `0.0.0.dev1+g56e290315`, not the repository constant
+  `0.5.13.post1`. `compat` reports this mismatch without failing, so the run does not
+  validate the source pin as a consensus boundary.
+- A real projection with digest prefix `fb20bc7b` was submitted on subnet 307. The latest
+  retained record still marked the timelock reveal pending; final chain readback is not
+  claimed.
+- Earlier fused-epilogue and MSA measurements remain useful mechanism evidence in the
+  [MiniMax-M3 case study](/docs/validators/minimax-m3-case-study) and
+  [changelog](/docs/history/changelog), but they do not replace this authority or become
+  current-schema crowns retroactively.
+
+## Current checkout hardening and release status
+
+The strict-validation commits centralize repeated validation mechanisms in
+`optima/_strict.py`. Module-specific exception types and policy bounds remain local;
+shared helpers enforce canonical digests, exact integers, identifiers, exact fields,
+duplicate-key rejection, CUDA driver integers, and environment flags. Most identity
+authorities now reject the all-zero digest. Identity computation itself is unchanged.
+
+The checked-out branch is **not release-ready**. The serving-wheel allowlist omits the
+direct-artifact runtime module closure, including provider, ABI, device-launch/runtime,
+CUDA, and CuTe modules. Commit `f8be20a4` added `optima._strict` and a clean extracted-wheel
+smoke for `_strict`, the seam, bootstrap, the SGLang plugin, and `release_runtime`; that
+narrower regression passes. Clean-wheel `import optima.manifest` still fails first on
+missing `optima.artifact_provider`, and other release-path imports fail on omitted modules
+such as `optima.cuda_cubin`. The 1,951-test suite does not exercise the complete
+manifest-reachable installed-wheel import graph.
+
+Direct-CUBIN serving has an independent fail-closed blocker: `release_runtime.py` does
+not propagate the signed native build's `OPTIMA_CUTE_COMPILE_PROFILE_DIGEST` into the
+engine process, while the CUBIN runtime requires that exact profile identity.
+
+Release preparation also treats native output generically: it reopens a caller-supplied
+`NativeArtifactPublication` inventory and binds its `NativeBuildSpec`; it does not run the
+provider prebuild or provider-specifically reopen the CuTe index and compile profile. A
+release pipeline must retain and verify those provider-specific authorities before the
+generic release identity can be accepted.
+
+Release authorization also requires closure of the open review surface around:
+
+- effective SGLang argv authority, including abbreviations, duplicate/loader flags, and
+  management interfaces;
+- binding the signed container-reproducibility statement to the actual builder output,
+  not only a later mutable tag readback;
+- authenticated or disabled management routes when serving uses host networking;
+- release/session binding for serving receipts and complete archive/model/build TOCTOU
+  accounting; and
+- production key custody, rotation, rollback, registry retention, and deployment policy.
+
+No final deterministic registry pair, authorized image, TP8 serving run, or complete
+all-rank serving receipt set is claimed for current HEAD. See [Releases](/docs/architecture/releases)
+and [Release workflow](/docs/engine/release-workflow) for the gates this closes.
+
+## Operational invariants and open controls
+
+- One authoritative executor manager must own each protected device/resource pool. Two
+  independent managers do not share the quiescence lock.
+- Settlement restart authenticates retained attempt bytes and stored PASS dispositions; it
+  is not a full causal regrade. Preserve the private provider/plan authorities needed to
+  reconstruct the exact `CausalQualificationInput` if regrade is an operational promise.
+- Queue-age admission backpressure is not automatic disposal. An operator must explicitly
+  release a hold with an audited reason or use the typed expiry transition after its
+  minimum age; stale non-terminal rows can otherwise block overlapping settlement.
+- Generation-zero or orphan arena stacks can block global projection. The repository has
+  no typed retirement API; direct database deletion is not a supported operating path.
+- Weight reconciliation refreshes the metagraph and resumes an exact retained pending
+  intent across later heads. Its observations are not an atomic chain snapshot, and its
+  journal deadline is not timelock-reveal-aware.
+- FlashInfer dependency overlays build each logical architecture in a separate hermetic
+  child because architecture selection is import-time state. Runtime installs only the
+  row for the active device. During autotuning, both the deep producer and fused epilogue
+  consumer remain stock so a candidate cannot influence tactic selection.
+- The DSL-JIT carve-out admits only the registered CuTe form under closed binding and
+  contribution-local reachability rules. It is defense in depth inside OCI isolation,
+  not a proof that arbitrary Python or native code is safe.
+
+## Source map
+
+- [Artifact provider policy](https://github.com/latent-to/optima/blob/main/optima/artifact_provider.py)
+- [Artifact call ABI](https://github.com/latent-to/optima/blob/main/optima/artifact_abi.py)
+- [CUDA device launch authority](https://github.com/latent-to/optima/blob/main/optima/artifact_device_launch.py)
+- [CuTe CUBIN publication/runtime](https://github.com/latent-to/optima/blob/main/optima/cute_cubin.py)
+- [OCI prebuild](https://github.com/latent-to/optima/blob/main/optima/eval/oci_prebuild.py)
+- [Qualification runner](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_runner.py)
+- [Finalized intake](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py)
+- [Settlement](https://github.com/latent-to/optima/blob/main/optima/settlement.py)
+- [Weight reconciliation](https://github.com/latent-to/optima/blob/main/optima/chain/weights.py)
+- [Release construction](https://github.com/latent-to/optima/blob/main/optima/release.py)
+- [Release host authority](https://github.com/latent-to/optima/blob/main/optima/release_host.py)
+- [Release runtime](https://github.com/latent-to/optima/blob/main/optima/release_runtime.py)

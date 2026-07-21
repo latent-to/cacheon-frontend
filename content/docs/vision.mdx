@@ -1,6 +1,5 @@
 ---
 title: Vision
-description: Cacheon is building the optimization layer for AI inference.
 ---
 
 ## The opportunity
@@ -11,36 +10,36 @@ See [Why inference optimization matters](/docs/concepts/why-it-matters) for the 
 
 ## Why no single team wins
 
-Inference optimization is a massive search problem. Every model, hardware configuration, batching strategy, scheduler, and serving parameter adds another dimension to the space. The landscape changes continuously as new models, hardware, and techniques emerge.
+Inference optimization is a massive search problem. Every model, GPU, quantization format, and kernel boundary adds another dimension to the space. The landscape changes continuously as new models, hardware, and techniques emerge.
 
 Most optimization work today remains fragmented across individual companies, with the same ground covered repeatedly by teams who cannot share what they find. We spoke with inference providers, including Chutes, and heard the same problem consistently: the bottleneck was not expertise, it was the size of the search space. Too many combinations to test, moving too quickly for any single team to stay current.
 
-Our belief is that optimization should compound with open-source. Every discovery should make future discoveries easier, not remain siloed inside a single company.
+Our belief is that optimization should compound with open source. Every discovery should make future discoveries easier, not remain siloed inside a single company.
 
 ## The coordination layer
 
-We use Bittensor to align independent contributors around a single objective: discovering inference optimizations against a defined set of parameters. This turns the search into a shared, continuous process. The network explores the optimization space faster than any single team could, and every contribution expands the baseline available to future contributors.
+We use Bittensor to align independent contributors around a single objective: discovering faster GPU kernels against a fixed model and a defined set of typed slots. This turns the search into a shared, continuous process. The network explores the optimization space faster than any single team could, and every accepted kernel expands the baseline available to future contributors.
 
-## Near-term: optimization pipeline
+## The product: library, harness, serve
 
-Given a customer's inputs (model, workload, hardware), Cacheon continuously discovers and deploys the most efficient way to serve their particular profile, without requiring a dedicated inference optimization team.
+Cacheon separates the thing it sells from the thing that measures it, so the moat lives in portable kernels rather than in any one engine.
 
-The target is teams like Chutes, who described the problem directly: _we spend a meaningful budget on inference and are not confident our stack is optimal, since everything is changing too rapidly and we do not have the bandwidth to continuously benchmark._
+- **`optima-kernels`, the library.** Portable, inspectable device code plus host launchers and clean codec and layout primitives. This is the product, and every accepted win folds into it with a regime tag that records the model, GPU, format, and measured speedup it holds for.
+- **`optima-harness`, the referee.** The validator: a pinned sglang engine, the seam that swaps a kernel in, and the scoring pipeline. It consumes the library to place and measure submissions.
+- **`optima-serve`, the managed service.** Runs the library's kernels on a rented engine for customers. The infrastructure underneath is swappable; the moat is the library.
 
-**Business model:** subscription or savings-share agreements.
+Because a submission is portable source by construction, the subnet's measurement pipeline feeds the library directly. See the [submission model](/docs/concepts/submission-model) for the transferability axiom that makes this hold.
 
-## Long-term: intelligence layer
+## Long-term: the intelligence layer
 
 Infrastructure providers compete on price and availability, but customers do not care which provider their request runs on. They care about cost, latency, and quality.
 
 When customers care more about outcomes than suppliers, an aggregation layer tends to emerge above the suppliers. Booking.com did it for hotels. OpenRouter is doing it for AI models: most developers do not want to spend time comparing model providers, so OpenRouter sits above them and handles the selection.
 
-We believe the same opportunity exists one layer deeper in the stack. Before you can route workloads intelligently, you need to know which provider, configuration, engine, and hardware combination is optimal for a given workload. Cacheon's optimization network continuously generates that knowledge. The routing layer is the natural extension of owning the optimization data.
-
-**Business model:** usage-based routing fees and optimization margins.
+We believe the same opportunity exists one layer deeper in the stack. Before you can route workloads intelligently, you need to know which kernel, engine, and hardware combination is optimal for a given workload. Cacheon's optimization network continuously generates that knowledge. The routing layer is the natural extension of owning the optimization data.
 
 ## The question we are answering
 
 Every AI workload should have an answer to: "What is the optimal way to serve this?"
 
-Phase 1 proved the mechanism. Phase 2 is about scaling it. See the [Cacheon roadmap](/docs/roadmap) for where we are and what is coming next.
+Phase 1 proved the mechanism. Phase 2 is building the kernel library that answers the question. See the [roadmap](/docs/roadmap) for where we are and what is coming next.

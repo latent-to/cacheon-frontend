@@ -1,0 +1,163 @@
+---
+title: SGLang compatibility
+---
+
+Cacheon competes against and integrates with an exact SGLang runtime. The pin is
+part of evaluation and release identity, not a loose minimum version. The
+source pin is `0.5.13.post1` in
+[`optima/compat.py`](https://github.com/latent-to/optima/blob/main/optima/compat.py).
+
+A green static seam canary establishes import and chokepoint compatibility only. A
+runtime pin is eligible for evaluation or release authority only after end-to-end GPU
+controls reject a deliberately broken bundle, accept a faithful bundle, and rebaseline
+the registered champions under the exact new identity. Treat the source pin as the
+compatibility target, not as evidence that these empirical gates passed. Completed proof
+coverage belongs in [State of record](/docs/reference/state-of-record).
+
+## Why the pin matters
+
+SGLang internals define the lower side of Cacheon's narrow waist: module paths,
+call signatures, graph capture, attention/MoE dispatch, collectives, engine
+arguments, and native dependencies. An upstream change can alter both whether
+a contribution loads and what baseline it must beat.
+
+Therefore a pin bump changes evaluation context. Existing performance evidence
+cannot simply be relabeled with the new version.
+
+## What Cacheon depends on upstream
+
+The canary is table-driven from the registered seam adapters and adds richer
+checks for the most consequential surfaces:
+
+| Upstream surface              | Why Cacheon needs it                      | What movement can break                                   |
+| ----------------------------- | ----------------------------------------- | --------------------------------------------------------- |
+| `SiluAndMul` and `RMSNorm`    | Narrow component call sites               | Argument order, residual semantics, fallback routing      |
+| `RadixAttention.forward`      | Attention block insertion before sampling | Q/K/V and batch-state translation, graph behavior         |
+| `FusedMoE.forward_impl`       | MoE waist that survives piecewise capture | Expert inputs, routing outputs, reduction ownership       |
+| `GroupCoordinator.all_reduce` | Validator-owned TP collective boundary    | Process-group ownership and all-rank behavior             |
+| `Engine.generate` logprob API | Trusted KL/quality observation            | Top-logprob collection and sealed trajectory schema       |
+| `ServerArgs` fields           | Deterministic engine launch policy        | Model, graph, memory, seed, backend, and logging controls |
+| Blessed native base           | FlashInfer/CUTLASS/Triton kernel surface  | JIT products, numerics, throughput, validator agreement   |
+
+Optional seams may report a skip when their required package is absent on a
+development box. That is not evidence for the engine environment; run the
+canary again inside the exact pinned image where those packages are required.
+
+## Compatibility canary
+
+```bash
+python -m optima.cli compat
+```
+
+The canary imports the installed runtime, reports its version, and inspects every
+registered seam. It does not load a model or require a GPU. Importantly, a
+version mismatch is printed as `DIFFERS from pin` but remains an `ok` report;
+the command can still exit zero. Operators and automation must compare the
+reported version with `PINNED_SGLANG` explicitly. A green seam result means the
+expected symbols and signatures remain present; it does not mean behavior or
+performance is unchanged.
+
+### Interpret the output
+
+- **Import or signature FAIL**: the version cannot be used for scoring until a
+  reviewed adapter restores the same semantic boundary.
+- **`DIFFERS from pin` with all checks green**: static compatibility appears
+  intact, but policy still forbids treating the environment as the pinned
+  arena. Fail this condition in deployment automation.
+- **Optional-package SKIP**: that seam was not assessed on this host. It must be
+  exercised in the complete engine environment.
+- **All seams intact**: imports and signatures match; proceed to behavioral
+  negative controls and GPU/model validation.
+
+Capture the complete output with installed package versions and image digest.
+Do not retain only the final “ALL SEAMS INTACT” line; which optional rows were
+skipped matters.
+
+Run the Bittensor SDK canary separately:
+
+```bash
+python -m optima.cli chain-compat
+```
+
+This separation prevents an unrelated chain SDK change from being confused
+with an Engine runtime change.
+
+## Pin-bump procedure
+
+1. **Freeze the candidate upstream build.** Record the exact SGLang version,
+   repository revision, base image digest, Torch/CUDA stack, native packages,
+   and supported GPU architectures.
+2. **Run the static canary.** Update seam adapters only where the registered
+   semantic boundary is unchanged. A moved upstream symbol is not permission to
+   widen a slot.
+3. **Run contract tests.** Exercise manifests, target resolution, dispatch,
+   typed outputs, graph replay, collectives, deterministic Engine-tree
+   materialization, qualification schemas, and release verification.
+4. **Run negative controls.** Confirm missing, ambiguous, wrong, graph-unsafe,
+   and sabotage contributions still fail closed or route to the trusted
+   baseline as specified.
+5. **Run real GPU/model qualification controls.** Establish stock stability,
+   B/B′ drift behavior, pristine T grading, worker cleanup, supported topology,
+   and known-good/known-bad candidates under the new exact environment.
+6. **Recalibrate the arena.** Freeze new workload, noise, quality, resource, and
+   timing policy through the normal reviewed arena process. Do not reuse old
+   empirical thresholds by assumption.
+7. **Create new identities.** Runtime, base engine, arena, evaluation stack,
+   native build, and release digests must reflect the bump.
+8. **Publish migration state.** Mark prior crowns/releases by their original
+   pin; do not imply they reproduce on the new one until they do.
+
+## Behavioral proof after the canary
+
+A pin is ready for authority only after progressively stronger controls:
+
+1. a faithful component still passes its registered reference;
+2. a deliberately broken component still fails rather than falling through an
+   unobserved upstream path;
+3. graph capture/replay observes the registered dynamic inputs and outputs;
+4. collective seams activate and complete on every rank at the real world
+   size;
+5. complete stock B/B′ engines remain stable under the arena workload;
+6. candidate C changes only the selected target delta;
+7. pristine T regrades sealed outputs without candidate code present; and
+8. known champions are rebaselined rather than inheriting old speedups.
+
+The broken-bundle control is especially important. A faithful candidate can
+appear green even if the adapter never fired and SGLang silently used its
+baseline. The negative control proves that the intended call path is actually
+under Cacheon's verifier and receipt authority.
+
+## Seam design rule
+
+Slot contracts are stable semantic ABIs; SGLang adapters are version-specific
+glue. Keep upstream-specific imports, call translation, and fallback behavior in
+the adapter layer. If the new runtime cannot preserve a target's four
+invariants—validator-owned boundary, upstream-of-sampler position,
+high-precision reference, and untrusted-number exclusion—do not carry that
+target forward unchanged.
+
+## Evidence migration rule
+
+A new pin creates a new runtime digest and therefore new evaluation-stack,
+arena, native-build, and release identities. Historical evidence remains valid
+for the old context; it does not become corrupt, but it cannot authorize the
+new one. Record whether each result is:
+
+- static canary evidence;
+- component/graph/collective evidence;
+- complete-engine qualification evidence; or
+- release build-and-serve evidence.
+
+This prevents a successful import check from being cited as a serving proof,
+or a champion from another runtime identity from being quoted as the active baseline.
+
+## Release implications
+
+An `EngineReleaseDescriptor` binds the SGLang version, upstream revision,
+digest-pinned base image, reproducible Cacheon artifacts, native build, and
+serving policy. Consumers verify those exact identities. Upgrading a running
+deployment means building and signing a new release; it is never an in-place
+package upgrade inside an existing release.
+
+See [State of record](/docs/reference/state-of-record) for which empirical GPU
+proofs exist for the present architecture and which remain outstanding.

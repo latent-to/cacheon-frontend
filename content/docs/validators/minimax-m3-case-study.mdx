@@ -1,0 +1,91 @@
+---
+title: MiniMax-M3 case study
+---
+
+The MiniMax-M3 work established that meaningful serving improvements can come
+from bounded collective epilogues rather than from replacing an entire model
+runtime. It also exposed the evidence gaps that led to the current hardened
+referee.
+
+This is historical engineering evidence, not a current-path crown record.
+
+## Workload and target
+
+The campaign used MiniMax-M3-NVFP4 at tensor parallelism four on B300-class
+hardware. The strongest proposals fused parts of the MoE tail where expert
+output, reduction, residual addition, and RMS normalization otherwise cross
+several launch and communication boundaries.
+
+That work informed the current registered identities:
+
+- `collective.ar_residual_rmsnorm`;
+- `collective.moe_finalize_ar_rmsnorm`; and
+- atomic `collective.moe_epilogue.v1`, which owns and displaces both singleton
+  epilogue identities when they are one inseparable change.
+
+The atomic target matters economically: a single fused implementation should
+not earn duplicate permanent titles for two overlapping views of the same
+delta.
+
+## Historical measurements
+
+Under the pre-hardening harness, the shallow fused path measured `1.044×` and
+`1.049×` in two runs. The deeper fused path measured `1.074×` and `1.071×`.
+A later chain-loop reproduction measured `1.072×` for the deep bundle. The
+recorded audit samples reported zero violations in those campaigns.
+
+Those results are useful evidence that the optimization surface is real. They
+do **not** prove a crown under today's architecture because they predate the
+complete current controls: injected arena services, exact target resolution,
+isolated whole-engine B/C/B′ sessions, pristine T authority, retained
+exact-schema evidence, transactional two-pass settlement, and the separate
+integrated release stack.
+
+## What the campaign taught us
+
+### Optimize the whole owned boundary
+
+A reduce-only slot cannot express overlap with its producer. Giving
+`moe.fused_experts_reduce` ownership of the trailing reduction and defining a
+bounded fused epilogue target created semantic units large enough for real
+communication/launch wins while keeping a validator-owned output contract.
+
+### Direct rollout comparison can be misleading
+
+Large low-bit MoE launches showed that two nominally identical engines could
+produce noisy logit differences. That made self-reported or direct rollout KL
+an unreliable universal authority. The current design seals externally
+observed B/C/B′ trajectories and grades them later with a separate candidate-free
+pristine T engine.
+
+### Graph behavior is part of correctness
+
+An eager-only correct kernel can disappear under graph capture or behave
+differently on replay. The current verifier captures applicable entries,
+refreshes dynamic inputs, poisons outputs, and checks multiple replays; the
+production referee then observes the complete graph-enabled Engine.
+
+### Candidate code cannot share the controller boundary
+
+Native extensions and Python hooks were once too close to trusted timing and
+quality logic. The hardened design builds in disposable prebuild workers,
+executes each complete arm in a no-egress OCI lifetime, times from the host, and
+destroys C before pristine T receives sealed trajectories.
+
+### Reproduction is a state, not a note
+
+Two promising measurements written in a worklog are not equivalent to two
+independent retained qualification attempts. The current settlement state
+machine records a first PASS as `reproduction_pending`, reopens both attempts,
+and uses the lower matching speedup.
+
+## Current interpretation
+
+The historical B300 numbers should be read as discovery and design evidence.
+The current hardened path has structural synthetic settlement and dry-run
+weight evidence, but no current-path real B300 crown or final production Engine
+image served end to end. Those are explicit remaining gates, not implied by
+the older campaign.
+
+See [Current status](/docs/reference/state-of-record) for the maintained proof
+ledger and [Qualification](/docs/validators/qualification) for the present authority model.
