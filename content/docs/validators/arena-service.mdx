@@ -86,7 +86,10 @@ The controller supplies a durable queue snapshot. The service returns:
 
 - `admit` when screen or qualification capacity is available;
 - `queue` when work should wait without losing finalized priority; or
-- `hold` when queue depth, queue age, cohort size, or retry policy has crossed a bound.
+- `hold` when queue depth, queue age, or cohort size has crossed an admission bound.
+
+Retry policy is applied after `NO_DECISION` evidence through the separate
+`retry_disposition()` promotion decision; it is not an input to admission.
 
 Capacity policy must be chosen from measured operational budgets. It should include
 expected queue age, stage cost, cohort size, retries, and crown latency. Network fetch
@@ -106,6 +109,14 @@ oversized cohort or exceeded queue bound holds it, while insufficient active
 qualification capacity queues it. These distinctions prevent temporary saturation from
 becoming a miner loss while ensuring an indefinitely overloaded service fails visibly.
 
+A hold is durable and never disappears merely because time passed. The store exposes two
+explicit reservation-level dispositions: `release_hold`, with an audited reason, and
+`expire`, which is admitted only after the configured minimum age. It does not expose an
+automatic TTL or a typed transition that retires an entire arena. Settlement lease expiry
+and a discovery claim's configured lifetime are different state machines and do not clear
+an arena hold. Operators must monitor held rows and preserve their evidence; deleting or
+silently aging them out can reorder authority and is not a supported recovery path.
+
 ## Provider interface
 
 Reviewed deployment code implements two operations:
@@ -115,13 +126,14 @@ class ArenaServiceProvider:
     provider_digest: str
 
     def run_screen(self, manifest, stage, candidate): ...
-    def build_qualification(self, request): ...
+    def build_qualification(self, request, state=None): ...
 ```
 
-`run_screen` must return the requested stage and typed evidence. `build_qualification`
-must preserve the exact promoted reservation order and qualification-policy digest while
-supplying a plan factory, isolated executor, post-commit entropy provider, hidden judge,
-and absolute deadline.
+`run_screen` must return the requested stage and typed evidence. The service always passes
+the controller-supplied `state` object to `build_qualification`; providers that do not need
+it must still accept the optional parameter. The returned work must preserve the exact
+promoted reservation order and qualification-policy digest while supplying a plan factory,
+isolated executor, post-commit entropy provider, hidden judge, and absolute deadline.
 
 The provider runs in the trusted deployment process. It is not discovered from package
 entry points or submission metadata.
@@ -193,6 +205,13 @@ without a Python caller injecting `ArenaServiceRegistry` fails closed. Use
 `--intake-only` for the public standalone workflow. A production operator must supply a
 reviewed provider and registry through deployment code.
 
+The deployment API also accepts `retained_only=True` on `run_pass()` and
+`run_validator()`. This mode requires an existing finalized cursor, reads a fresh
+finalized head, and processes the already-durable queue without rereading or advancing
+reveal history. It conflicts with `intake_only` and still requires the reviewed arena
+authority needed by the work. It is intentionally not exposed as a public
+`chain-validate --retained-only` flag.
+
 The repository also does not ship a registry serialization format that turns arbitrary
 configuration into trusted executable authority. That omission is deliberate: the
 provider object, secrets, executor, and hidden judge are deployment capabilities, while
@@ -220,11 +239,11 @@ arena ID alone is not enough to compare measurements after a deployment change.
 - Registry typing does not attest that an operator chose representative prompts or
   sufficient capacity.
 - Screens do not prove a win, grant a crown, or authorize a release.
+- Screen and qualification receipts do not make optional sampled in-engine audit a
+  universal authority; only evidence required by the registered policy contributes to
+  the decision.
 - Multiple registered arenas do not imply their measurements can be mixed; every result
   remains bound to one arena and stack identity.
-- The retained repository proof used test/structural providers. No production provider
-  for a real evaluator fleet exists in the repository as of the 2026-07-13 state of
-  record.
 
 Next: [Authoritative qualification](/docs/validators/qualification).
 

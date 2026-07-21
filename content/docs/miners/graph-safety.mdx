@@ -157,10 +157,10 @@ arena requirement before investing in an eager-only specialization.
 
 ## Do not benchmark a different regime
 
-`evaluate --disable-cuda-graph` exists for debugging startup or math. It changes
-the incumbent execution regime and therefore cannot establish a production
-speedup. A graph-on candidate must be compared with the graph-on incumbent under
-the same evaluation stack.
+Disabling CUDA graphs in a contributor-controlled launch can help debug startup or math,
+but it changes the incumbent execution regime and therefore cannot establish a production
+speedup. A graph-on candidate must be compared with the graph-on incumbent under the same
+evaluation stack.
 
 When graph verification fails, use the stage-specific guidance in
 [Diagnostics](/docs/miners/diagnostics). Do not work around it by narrowing metadata until

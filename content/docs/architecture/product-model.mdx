@@ -127,7 +127,7 @@ The validator-owned target catalog defines what can receive ordinary attribution
 
 Miner packaging and manifest row order do not define economic scope. A bundle that explicitly claims a registered target but does not resolve to its exact members and allowed features fails resolution rather than falling through to an unregistered identity.
 
-The catalog currently registers all singleton slots and the atomic `collective.moe_epilogue.v1` target. The atomic target owns both `collective.ar_residual_rmsnorm` and `collective.moe_finalize_ar_rmsnorm`, and explicitly displaces the corresponding singleton titles while active. The live policy is implemented in [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
+The registered catalog contains every singleton slot and the atomic `collective.moe_epilogue.v1` target. The atomic target owns both `collective.ar_residual_rmsnorm` and `collective.moe_finalize_ar_rmsnorm`, and explicitly displaces the corresponding singleton targets while active. The live policy is implemented in [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
 
 ## Discovery lane
 
@@ -184,7 +184,9 @@ The product model is intact only if all six statements hold:
 
 1. Removing chain access and miner hosting does not prevent rebuilding or serving the latest signed release.
 2. A new component is evaluated as one marginal substitution over the current stack.
-3. The trusted controller never imports candidate code; complete engines remain the isolation unit.
+3. The trusted controller never imports candidate code; candidate runtime execution stays
+   inside a complete isolated engine, while a [sealed-direct-artifact](/docs/architecture/direct-artifacts)
+   factory may execute only inside its further isolated no-network/no-GPU compiler child.
 4. A whole-system prototype cannot acquire a duplicate permanent whole-engine reward title by packaging alone.
 5. Every shipped component resolves to reviewed source and immutable attribution.
 6. Updating the evaluation incumbent and publishing a release are independent, explicitly authorized state transitions.
@@ -197,8 +199,10 @@ Before extending Cacheon, locate the feature in this model:
    discovery identity. “The whole engine” is not an acceptable default.
 2. **Who supplies surrounding code?** The validator must assemble the incumbent; a miner
    must not be required to redistribute other contributors' bundles.
-3. **Where does hostile code execute?** Proposal code belongs only in the complete isolated
-   evaluation engine, never in the controller or serving release by reference.
+3. **Where does hostile code execute?** Runtime proposal code belongs only in the complete
+   isolated evaluation engine. A direct-artifact factory may run only in the bounded
+   compiler child during disposable prebuild. Neither path may import candidate code into
+   the controller or carry a miner runtime callback into a serving release.
 4. **What creates product authority?** Identify the review record, preserved selected
    payload, integrated source, maintained tests, and release decision.
 5. **Can the resulting release stand alone?** Rebuild, verification, and serving must not

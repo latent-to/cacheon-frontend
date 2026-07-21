@@ -12,7 +12,7 @@ The developer commands intentionally reuse parts of the ABI and evaluation machi
 ## Developer path
 
 ```text
-slots -> scan -> verify -> evaluate / bench -> chain-package -> host -> chain-submit -> chain-status
+slots -> scan -> verify -> chain-package -> host -> chain-submit -> chain-status
 ```
 
 | Step            | Purpose                                                                                              | Authority              |
@@ -20,8 +20,6 @@ slots -> scan -> verify -> evaluate / bench -> chain-package -> host -> chain-su
 | `slots`         | Inspect the live slot ABI                                                                            | Informational          |
 | `scan`          | Run static bundle policy checks                                                                      | Diagnostic             |
 | `verify`        | Check a single op/block against its trusted reference; collective slots use distributed verification | Diagnostic             |
-| `evaluate`      | Run a narrow model-level development comparison                                                      | Diagnostic             |
-| `bench`         | Run benchmark-oriented throughput and quality diagnostics                                            | Diagnostic             |
 | `chain-package` | Produce the deterministic hosted archive and content identity                                        | Submission preparation |
 | HTTPS host      | Make the immutable archive available for validator fetch                                             | Transport only         |
 | `chain-submit`  | Commit the proposal through timelock commit-reveal                                                   | Chain intake           |
@@ -46,8 +44,12 @@ flowchart TD
     R -->|"attributable FAIL"| F
     R -->|"NO_DECISION"| N
     R -->|"matching PASS"| S["Reopen both evidence roots"]
-    S --> T["Transactional settlement and stack update"]
+    S --> G["Same-authority cohort planning"]
+    G -->|"selected current registered winner"| T["Transactional settlement and stack update"]
+    G -->|"current discovery candidate"| J["DISCOVERY_BOUNTY / no stack transition"]
+    G -->|"stale or not selected"| H["HOLD / no stack transition"]
     T --> W["Reward projection and journaled weights"]
+    J --> W
     T -. "separate decision" .-> I["Integration review and signed release"]
 ```
 
@@ -152,6 +154,14 @@ runtime ranks may validate and load native products but may never compile or
 repair them. Both stages use read-only roots, bounded mounts and protocols, and
 host-owned cleanup; the trusted controller also owns timing.
 
+For a direct-artifact row, prebuild executes the declared compiler factory only
+inside a no-egress compiler child and publishes CUBIN rather than a host launcher.
+After rank-local CUDA setup, the scheduler worker admits the exact CUBIN, binds its
+complete driver-observed ABI to the declarative device plan by ordinal, and
+materializes parameters and lifecycle storage in validator code. Qualification
+requires per-member `aot_loaded`, `aot_invoked`, and normal `completed` coverage,
+with no fallback receipt. See [Sealed direct artifacts](/docs/architecture/direct-artifacts).
+
 After C is destroyed, T grades its sealed trajectory under a separate pristine lifetime. T never contains the candidate and does not compete on speed. Hidden reference work, quality policy, and selected prompt identity are bound into retained evidence.
 
 The host pairs candidate throughput with the B/B′ bookend and applies the registered noise policy. Conceptually:
@@ -198,10 +208,13 @@ Consider a hypothetical candidate for one registered singleton target:
 4. A second independently selected authority repeats the exact reproduction identity and
    also passes. A pass against a newer incumbent or different target specification would
    not count as this reproduction.
-5. Settlement reopens both evidence roots, takes the lower accepted speedup, revalidates
-   the live target transition, and atomically updates the evaluation stack.
-6. Reward projection can now see the active claim. Product integration remains a separate
-   review; no proposal bytes have entered a release merely because settlement completed.
+5. Settlement reopens both evidence roots and makes the pair eligible for its
+   same-authority cohort. If the candidate is selected as that cohort's current registered
+   winner, settlement takes the lower accepted speedup, revalidates the live target
+   transition, and atomically updates the evaluation stack; otherwise the pair is held.
+6. If crowned, reward projection can now see the active claim. Product integration remains
+   a separate review; no proposal bytes have entered a release merely because settlement
+   completed.
 
 The values and candidate in this walkthrough are illustrative. The state transitions and
 failure semantics are the important part.
@@ -227,16 +240,25 @@ the retained first pass cannot update the incumbent by itself.
 
 ## 9. Settlement
 
-Settlement reopens both evidence roots instead of trusting an in-memory verdict. It verifies:
+Settlement reopens both recorded attempt references instead of trusting an in-memory
+verdict. The references may live under the same content-addressed store root. It verifies:
 
 - both reports are complete `PASS` results;
-- authority and evidence roots are distinct;
+- all seven required authority, attempt, report, commitment, and selection digests are
+  pairwise distinct across the two passes;
 - reproduction identities match exactly;
 - the incumbent and target transition are still current;
 - target overlap, displacement, and composition remain valid;
 - the requested stack update matches the measured candidate.
 
-The conservative settled speedup is the lower accepted speedup from the two passes. The stack transition and settlement evidence are committed transactionally; a partial write cannot expose a half-updated incumbent.
+The planner leases one cohort whose rows share qualification authority and incumbent
+state. Stale rows are held, and exactly one current registered winner is selected across
+the remaining rows, including rows whose targets do not overlap. Other current pairs are
+held as `conflict_lost` or `incumbent_advanced`; a stale pair is held as `stale_incumbent`.
+
+For the selected winner, the conservative settled speedup is the lower accepted speedup
+from the two passes. The stack transition and settlement evidence are committed
+transactionally; a partial write cannot expose a half-updated incumbent.
 
 Principal code: [`settlement.py`](https://github.com/latent-to/optima/blob/main/optima/settlement.py).
 
@@ -261,7 +283,8 @@ Principal code: [`economics.py`](https://github.com/latent-to/optima/blob/main/o
 
 A settled crown may enter integration review, but serving remains a separate state machine. Reviewed source is promoted to an integrated contribution, assembled into an `EngineReleaseManifest`, rematerialized, signed, published, and verified without chain dependencies.
 
-See [Release architecture](/docs/architecture/releases). Current implementation and validation limits are tracked in [State of record](/docs/reference/state-of-record).
+See [Release architecture](/docs/architecture/releases). The dated [State of record](/docs/reference/state-of-record) tracks implementation and validation
+limits.
 
 ## Operational handoff checklist
 
@@ -272,20 +295,17 @@ able to reopen, rather than merely observe, each handoff:
   publication;
 - registered arena, target catalog, incumbent manifest, candidate transition, and screen
   receipt;
-- B/C/B′ launch identities, raw bounded session evidence, device/cleanup receipts, and
-  the candidate-free T evidence;
-- frozen calibration and the exact policy that maps the raw evidence to the verdict;
-- distinct primary and reproduction authorities over one reproduction identity;
+- B/C/B′ launch identities and aggregate `SpeedWitness` rows, plus the retained
+  graph/quality/pristine-T references and witnesses; raw B/C/B′ session/device frames are
+  validated in-run but are not serialized into the attempt;
+- frozen calibration and the exact policy that maps the retained witness/evidence products
+  to the verdict;
+- the seven digest-distinctness fields across primary and reproduction over one
+  reproduction identity;
 - transactional settlement events and resulting evaluation-stack digest;
-- reward projection, publication intent, chain submission/readback, and confirmed or held
-  state; and
+- reward projection plus publication intent/status/chronology records; later readback
+  vectors must be re-observed because the journal does not serialize them; and
 - if shipping is proposed, the separate integration records and signed release identity.
 
 Console output, a green local benchmark, one `PASS`, or a successful chain SDK return is
 not a substitute for the corresponding reopenable product.
-
-## Legacy simulation is not production authority
-
-`commit`, `reveal`, `ledger`, and `legacy-settle --development-only` exercise an older local mechanism simulator. They do not write production SQLite qualification, settlement, or weight state. Production operator flow uses `chain-validate` and `set-weights`.
-
-The distinction matters when reading old examples or historical receipts: a successful legacy flow does not demonstrate the current isolated two-pass production path.

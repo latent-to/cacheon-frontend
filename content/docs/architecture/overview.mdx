@@ -117,7 +117,10 @@ The authoritative path is:
 7. journaled reward projection and weight publication;
 8. independent integration review and signed engine release.
 
-Local `verify`, `evaluate`, and `bench` commands are developer diagnostics. They do not mint production crown authority. See [Evaluation pipeline](/docs/architecture/pipeline) for the detailed state machine and [Releases](/docs/architecture/releases) for the ship boundary.
+`scan` and `verify` are contributor diagnostics. Matched A/B profiling on
+contributor-controlled hardware may test a performance mechanism, but none of these paths
+can mint production crown authority. See [Evaluation pipeline](/docs/architecture/pipeline) for the
+detailed state machine and [Releases](/docs/architecture/releases) for the ship boundary.
 
 ## Design acceptance tests
 
@@ -136,6 +139,7 @@ The architecture is preserving its product boundary when all of the following re
 - [Product model](/docs/architecture/product-model)
 - [Stacks and manifests](/docs/architecture/stacks)
 - [Evaluation pipeline](/docs/architecture/pipeline)
+- [Sealed direct artifacts](/docs/architecture/direct-artifacts)
 - [SGLang seam](/docs/architecture/seam)
 - [Release architecture](/docs/architecture/releases)
 - [Current state of record](/docs/reference/state-of-record)

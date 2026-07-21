@@ -2,16 +2,21 @@
 title: Evidence and replay
 ---
 
-Cacheon retains raw, content-addressed evidence so a qualification decision can be
-reopened and regraded. A summary score, log excerpt, or database flag is not sufficient
-authority by itself.
+Cacheon retains typed, content-addressed qualification attempts and referenced evidence. A
+summary score, log excerpt, or database flag is not sufficient authority by itself. The
+persisted attempt is also not a self-contained full-regrade package: causal regrade
+requires the caller to supply the exact reconstructed `CausalQualificationInput`, including
+private plan/provider authorities and graph/calibration references not embedded in SQLite
+or `CohortQualificationAttempt`.
 
-The database and evidence store play complementary roles. SQLite says **which transition
-was authorized, in what order, and which evidence addresses belong to it**. The evidence
-store supplies **the authenticated bytes needed to recompute the decision**. Backing up
-only one leaves either an unindexed pile of artifacts or an unreplayable state machine.
+SQLite, the evidence store, and deployment-owned regrade context play complementary roles.
+SQLite says **which transition was authorized and in what order**. The evidence store
+authenticates **the attempt and referenced artifacts that were published**. The external
+context supplies **the expected causal plan, requirements, and artifact references needed
+by the full grader**. Backing up only the first two preserves settlement byte authority but
+does not guarantee that the complete qualification decision can be regraded.
 
-## Two durable layers
+## Durable state and regrade authority
 
 ### SQLite authority
 
@@ -46,9 +51,19 @@ bytes at the same address fail.
 The default artifact limit is 64 MiB, with a hard 1 GiB ceiling. Individual evidence
 producers may impose tighter bounds.
 
+### Regrade context
+
+`reopen_causal_qualification(..., expected=...)` requires a reconstructed `CausalQualificationInput`. The expected object supplies the full prepared plan, candidate
+authorities, graph evidence references and requirements, calibration artifact/reference
+context, runtime resource policy, T/reference authority, and commitment. The persisted `QualificationAuthorityManifest` carries identity fields and commitments, not this full
+object. Production retention must therefore preserve enough reviewed private deployment
+state to reconstruct the exact expected input; a digest without the typed object is not a
+regrade recipe.
+
 ## Evidence chain
 
-Authoritative qualification relates these products:
+Authoritative qualification relates these products. The table is a conceptual authority
+chain, not a claim that every row is embedded in the attempt or SQLite:
 
 | Stage              | Representative retained identity/evidence                                                                                                   |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -56,15 +71,15 @@ Authoritative qualification relates these products:
 | Stack construction | Target catalog, contribution ref, incumbent/candidate manifests, materialized trees, marginal arm/cohort plans                              |
 | Arena              | Service manifest, capacity decision, ordered screen-stage evidence and receipt                                                              |
 | Launch             | Runtime preflight, model mount, native build/publication, hardware/resource/seccomp identity                                                |
-| Execution          | B/C/B′ raw session frames, prompt batches, token counts, timings, device-state and cleanup receipts                                         |
+| Execution          | Durable `SpeedWitness` with three aggregate B/C/B′ charged-rate rows; richer session frames and per-arm device/cleanup observations are validated in-run but are not serialized into the attempt |
 | Graph              | Member, variant, shape, capture, and replay observations                                                                                    |
 | Selection          | Pre-execution commitment, post-commit entropy, secret reveal, selected prompts, sealed trajectory digest                                    |
-| Reference          | Candidate-free T request/transcript and teacher/hidden-task evidence                                                                        |
+| Reference          | Candidate-free T session/request/frame identities plus the referenced raw teacher/rollout/hidden-task quality artifact; raw request/response transcript bytes are not embedded in the attempt |
 | Calibration        | Raw control evidence, context, frozen thresholds and metric policy                                                                          |
 | Qualification      | Regraded candidate report and complete cohort attempt                                                                                       |
 | Reproduction       | Distinct authority, attempt, report, and selection evidence over the same economic identity                                                 |
 | Settlement         | Paired candidate, evidence references, hash-chained event plan, atomic stack transition                                                     |
-| Weights            | Exact global projection, intent/pending/held/confirmed records, live readback                                                               |
+| Weights            | Exact retained projection plus journal status/blocks/`last_update`/reason; live vectors are compared during reconciliation but pre/post readback vectors and post-read metagraph identity are not serialized |
 | Release            | Integration records, model receipt, source/wheel, native inventory, SBOM, provenance, descriptor signature, OCI attestation, serve receipts |
 
 Not every artifact is public. Selection secrets and hidden tasks remain in private
@@ -74,24 +89,28 @@ the secret bytes.
 ```mermaid
 flowchart LR
     DB["SQLite state transition\nordered refs + statuses"]
-    ES["Evidence store\ndomain + schema + bytes"]
-    RG["Regrader\nfrozen policy + raw evidence"]
+    ES["Evidence store\nattempt + referenced bytes"]
+    PA["Private expected input\nplan + provider + graph/calibration refs"]
+    RG["Causal regrader\nexpected input + authenticated products"]
     OUT["Reconstructed verdict\nPASS / FAIL / NO_DECISION"]
 
-    DB -->|"artifact refs + exact context"| RG
+    DB -->|"recorded identities + disposition"| RG
     ES -->|"authenticated artifacts"| RG
+    PA -->|"reconstructed CausalQualificationInput"| RG
     RG --> OUT
     OUT -. "must match retained transition" .-> DB
 ```
 
 ## Reopening and regrading
 
-A valid audit proceeds from identities, not from a desired verdict:
+A full evidence regrade is available only when the exact expected `CausalQualificationInput` can be reconstructed. It proceeds from identities, not from a
+desired verdict:
 
 1. Reopen the chain-scoped reservation and immutable publication.
 2. Reopen the exact target catalog, stack/tree, launch, model, and native identities.
 3. Authenticate each evidence artifact by domain, schema, size, and digest.
-4. Recompute charged execution rates from raw session batches.
+4. Validate the three aggregate `ChargedExecutionRate` rows, recompute their tokens/second
+   values from retained counts and intervals, and regrade speed under frozen calibration.
 5. Regrade graph observations against the frozen requirement.
 6. Reconstruct selection and verify post-commit entropy and trajectory binding.
 7. Verify T is candidate-free and covers the selected prompts/tasks.
@@ -99,28 +118,54 @@ A valid audit proceeds from identities, not from a desired verdict:
 9. Reconstruct the qualification decision and reproduction identity.
 10. Reopen settlement and reward claims before projecting weights.
 
-Missing, changed, ambiguous, or context-mismatched evidence yields a hold or
-`NO_DECISION`; it must not be patched over with an operator assertion.
+Missing, changed, ambiguous, or context-mismatched evidence prevents a valid full regrade;
+it must not be patched over with an operator assertion. The live qualification path maps
+its recognized authority failures to `NO_DECISION`; a later audit must describe missing
+external regrade context as an unavailable proof, not fabricate a new verdict.
+
+Settlement recovery is narrower. It reopens and authenticates the retained attempt bytes,
+checks the stored PASS disposition and seven digest-distinctness fields, and binds the
+settlement transition. It does not call the full causal grader or recover graph/calibration
+references from the attempt. "Reopened for settlement" and "fully regraded" are therefore
+different evidence claims.
+
+### Sampled seam audit is not universal authority
+
+[`optima/audit.py`](https://github.com/latent-to/optima/blob/main/optima/audit.py) can emit sampled comparison receipts for supported live dispatch seams when its runtime
+flags are explicitly armed. The isolated qualification worker currently clears those
+flags, and qualification does not consume sampled audit receipts as a required input.
+They are therefore optional diagnostics, not a universal cross-slot correctness gate or
+settlement authority.
+
+Required authority still comes from the registered verifier and graph checks, canonical
+execution receipts, B/C/B′ measurement, and candidate-free T policy. The absence of a
+sampled audit receipt must not be rewritten as either a pass or a failure unless a future
+typed policy explicitly binds, retains, and grades that evidence.
 
 ### Example: reopening a disputed speed pass
 
 A reviewer starts with the settlement candidate, not with a dashboard's reported
 speedup. They reopen both qualification attempt references and verify that their
-reproduction identities match but their authorities/evidence roots are distinct. For
-each attempt they then:
+reproduction identities match while the seven required authority, attempt, report,
+commitment, and selection digests differ. The references may share one
+content-addressed store root. For each attempt they then:
 
-1. recover the exact B/C/B′ raw batches and host timings;
-2. verify token counts, charged intervals, role order, device-state, and cleanup receipts;
-3. recompute B/B′ drift and candidate throughput under the frozen calibration;
+1. reopen each report's `SpeedWitness` and verify its B/C/B′ launch and distinct session
+   identities;
+2. verify retained conditioning/timed/charged token counts, intervals, sums, and the witness
+   projection digest;
+3. recompute the three aggregate rates, B/B′ drift, and candidate speed decision under the
+   frozen calibration;
 4. reopen selection commitments and the sealed C trajectory;
 5. verify the separate T lifetime is candidate-free and regrade quality;
 6. reconstruct the attempt verdict; and
 7. verify settlement used the lower accepted speedup and the exact live target transition.
 
-If the dashboard rounded both attempts to “1.04×” but raw evidence reconstructs different
-accepted values, the exact values and conservative settlement rule govern. If one raw
-session artifact is gone, the reviewer cannot fill the gap from logs or the other pass;
-the economic claim must be held according to policy.
+If the dashboard rounded both attempts to “1.04×” but the retained aggregate witnesses
+regrade to different accepted values, those exact values and the conservative settlement
+rule govern. The persisted attempt cannot answer a dispute that requires raw batch frames,
+per-arm device samples, or lifecycle receipts; logs must not be presented as if the schema
+had authenticated those absent products.
 
 ## Failure semantics
 
@@ -128,7 +173,7 @@ the economic claim must be held according to policy.
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | Artifact digest, length, domain, media type, or schema differs     | Authentication failure; do not consume the bytes                                            |
 | Artifact exists but belongs to another arena/stack/attempt context | Context mismatch; it cannot repair this authority                                           |
-| Raw execution evidence is incomplete                               | No attributable reconstructed verdict; hold or `NO_DECISION`                                |
+| Required attempt/witness or referenced graph/quality evidence is incomplete | No attributable regraded verdict; hold or `NO_DECISION`                                     |
 | Regraded result differs from stored verdict                        | Preserve both products, stop downstream transition, investigate policy/code/state integrity |
 | Two passes reuse authority or evidence                             | Reproduction requirement is unsatisfied                                                     |
 | Active claim's evidence was deleted                                | Hold reward projection; do not treat deletion as retirement                                 |
@@ -154,11 +199,14 @@ hold the projection when the claim can no longer reopen.
 ### Restore drill
 
 A useful restore test uses a copy of the SQLite database and evidence root on a clean
-owner-controlled path, then exercises the same reopen/regrade calls used by settlement and
-weight projection. Verify not only digests, but also the filesystem assumptions enforced
-by the evidence store: absolute root, owner-only directories, regular single-linked files,
-read-only modes, and stable size/digest during access. A byte-perfect backup restored with
-unsafe ownership or hard links should fail until the storage boundary is repaired.
+owner-controlled path. Test two paths separately: settlement's attempt-byte/PASS reopen,
+and full causal regrade using a separately restored exact `CausalQualificationInput`.
+Weight projection reopening is a third state path. Verify not only digests, but also the
+filesystem assumptions enforced by the evidence store: absolute root, owner-only
+directories, regular single-linked files, read-only modes, and stable size/digest during
+access. A byte-perfect backup restored with unsafe ownership or hard links should fail;
+an SQLite/evidence restore without the private expected input must not be reported as a
+successful full regrade.
 
 ## Privacy and observability
 
@@ -172,6 +220,12 @@ instead of dumping candidate source, hidden work, or model data.
 - Content addressing proves byte integrity, not semantic correctness.
 - Regrading reproduces the implemented policy; it does not prove the policy was well
   chosen.
+- Weight projection evidence binds the desired vector and projection-time metagraph/state
+  identities. The publication journal records status and chronology metadata, not the
+  pre/post readback vectors or post-read metagraph identity; it neither authenticates those
+  live observations nor turns separate SDK queries into a block-atomic snapshot.
+- Optional sampled in-engine audit receipts are not a universal qualification or
+  settlement authority.
 - Local retention does not provide cross-validator consensus or public availability.
 - A database administrator or host root can still destroy or replace the entire authority
   domain; backups, access control, and independent audit remain operational requirements.

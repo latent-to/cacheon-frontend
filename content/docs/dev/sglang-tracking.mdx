@@ -4,14 +4,15 @@ title: SGLang compatibility
 
 Cacheon competes against and integrates with an exact SGLang runtime. The pin is
 part of evaluation and release identity, not a loose minimum version. The
-current source pin is `0.5.13.post1` in
+source pin is `0.5.13.post1` in
 [`optima/compat.py`](https://github.com/latent-to/optima/blob/main/optima/compat.py).
 
-At the current snapshot, the static seam canary is green for `0.5.13.post1`,
-while the GPU end-to-end broken-bundle rejection, faithful-bundle pass, and
-champion rebaseline are still pending. `0.5.12.post1` remains the last pin with
-complete retained H100 validation. Treat the source pin as the compatibility
-target, not as proof that those empirical gates have already run.
+A green static seam canary establishes import and chokepoint compatibility only. A
+runtime pin is eligible for evaluation or release authority only after end-to-end GPU
+controls reject a deliberately broken bundle, accept a faithful bundle, and rebaseline
+the registered champions under the exact new identity. Treat the source pin as the
+compatibility target, not as evidence that these empirical gates passed. Completed proof
+coverage belongs in [State of record](/docs/reference/state-of-record).
 
 ## Why the pin matters
 
@@ -148,7 +149,7 @@ new one. Record whether each result is:
 - release build-and-serve evidence.
 
 This prevents a successful import check from being cited as a serving proof,
-or an old H100 champion from being quoted as a current baseline.
+or a champion from another runtime identity from being quoted as the active baseline.
 
 ## Release implications
 
@@ -158,5 +159,5 @@ serving policy. Consumers verify those exact identities. Upgrading a running
 deployment means building and signing a new release; it is never an in-place
 package upgrade inside an existing release.
 
-See [Current status](/docs/reference/state-of-record) for which empirical GPU
+See [State of record](/docs/reference/state-of-record) for which empirical GPU
 proofs exist for the present architecture and which remain outstanding.

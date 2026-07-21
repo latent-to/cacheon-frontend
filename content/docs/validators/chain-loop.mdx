@@ -97,9 +97,9 @@ optima chain-validate \
 
 Remove `--once` to run continuously; `--interval` controls the delay between passes.
 
-The current command has no `--wallet`, `--hotkey`, `--ledger`, `--eval-cmd`,
-`--margin`, or `--dry-run-weights` options. Those flags belonged to an earlier
-prototype and must not appear in service units or runbooks.
+`chain-validate` accepts only its declared intake and arena schema. Chain-signing
+credentials, external evaluator commands, scoring policy, and weight publication belong
+to separate authorities and must not be added to the validator-loop service.
 
 Without `--intake-only`, the CLI rejects startup unless its Python caller injects an
 exact `ArenaServiceRegistry` and selects a registered `--arena-id`:
@@ -178,7 +178,7 @@ transport and qualification retries, cohort size, epoch cutoff, and expiry. Thes
 code defaults, not a promise that they suit every deployment; an operator should review
 them alongside arena capacity.
 
-The default `IntakePolicy` currently sets:
+The default `IntakePolicy` values are:
 
 | Bound                              |         Default | Effect                                                               |
 | ---------------------------------- | --------------: | -------------------------------------------------------------------- |
@@ -240,8 +240,7 @@ Recovery is intentionally conservative:
 A hold is not self-healing. Diagnose the retained `reason`, repair the authority, and use
 the reviewed release/requeue API appropriate to the deployment. The store's
 `release_hold(...)` appends an operator reason and chooses the lane from retained
-publication and reproduction evidence; it does not erase prior attempts. No public CLI
-currently wraps reservation-hold release, so deployment tooling must expose it under its
+publication and reproduction evidence; it does not erase prior attempts. No public CLI wraps reservation-hold release, so deployment tooling must expose it under its
 own access controls and audit trail.
 
 ## Incident playbook

@@ -2,49 +2,42 @@
 title: CLI reference
 ---
 
-The CLI exposes three different surfaces: production control-plane operations,
-local contribution tools, and development-only simulations. They share an
-entrypoint but do **not** share authority.
+The CLI is a thin operator and contributor surface over Cacheon's typed APIs. A
+command's output has only the authority listed here; human-readable output is not a
+qualification, settlement, or release receipt.
 
 ```bash
 python -m optima.cli <command> [options]
 python -m optima.cli <command> --help
 ```
 
-Using the module form is recommended on GPU hosts because SGLang starts child
-processes. The installed `optima` console script targets the same parser.
+Use module invocation on GPU hosts because SGLang starts child processes. The
+installed `optima` console script resolves to the same parser.
 
 ## Command inventory
 
-| Command                      | Audience         | Authority                  | Purpose                                                           |
-| ---------------------------- | ---------------- | -------------------------- | ----------------------------------------------------------------- |
-| `slots`                      | all              | read-only                  | Print the live slot ABI                                           |
-| `compat`                     | operator         | diagnostic                 | Check the installed SGLang seam against the pin                   |
-| `chain-compat`               | operator         | diagnostic                 | Check the installed Bittensor SDK surface without network access  |
-| `scan`                       | contributor      | local gate                 | Parse a bundle and apply static policy                            |
-| `verify`                     | contributor      | local gate                 | Check the declared slot contract against a trusted reference      |
-| `hash`                       | contributor      | identity                   | Print the deterministic bundle content hash                       |
-| `evaluate`                   | developer        | **development diagnostic** | Run the older direct throughput/fidelity harness                  |
-| `bench`                      | developer        | **development diagnostic** | Run direct task/throughput diagnostics                            |
-| `chain-package`              | contributor      | submission                 | Build the deterministic archive to host                           |
-| `chain-submit`               | contributor      | submission                 | Commit a bundle hash and HTTPS fetch location                     |
-| `chain-status`               | all              | read-only                  | Inspect current subnet and reveal state                           |
-| `chain-register`             | operator         | chain mutation             | Register a hotkey and run its preflight                           |
-| `chain-validate`             | validator        | production                 | Consume finalized reveals; optionally run an injected arena       |
-| `set-weights`                | validator        | production                 | Reconcile the journaled global reward projection                  |
-| `model-provision`            | release operator | production                 | Seal model bytes into a content-addressed external receipt        |
-| `release-verify`             | release consumer | production                 | Verify and reopen a signed Engine release                         |
-| `release-context`            | release consumer | production                 | Produce a deterministic OCI build context from a verified release |
-| `commit`, `reveal`, `ledger` | developer        | local simulation           | Exercise the legacy local JSON commit/reveal model                |
-| `legacy-settle`              | developer        | **development-only**       | Run the old settlement simulation; requires `--development-only`  |
+| Command            | Audience         | Authority                | Purpose                                                                   |
+| ------------------ | ---------------- | ------------------------- | -------------------------------------------------------------------------- |
+| `slots`            | all              | read-only                 | Print the registered slot ABI                                             |
+| `compat`           | operator         | diagnostic                 | Check the installed SGLang seam surface against the pin                   |
+| `chain-compat`     | operator         | diagnostic                 | Check the installed Bittensor SDK surface without chain access            |
+| `scan`             | contributor      | local gate                 | Parse a bundle and apply recursive static policy                          |
+| `verify`           | contributor      | local gate                 | Check declared slot behavior against validator-owned references           |
+| `chain-package`    | contributor      | packaging                  | Build a canonical archive and print its content hash                      |
+| `chain-submit`     | contributor      | chain mutation              | Commit a bundle hash and HTTPS fetch location through timelock reveal      |
+| `chain-status`     | all              | read-only                  | Inspect public subnet, registration, and reveal state                     |
+| `chain-register`   | operator         | chain mutation             | Burn-register a hotkey and run the SDK preflight                          |
+| `chain-validate`   | validator        | production intake          | Consume finalized reveals; a deployment may inject qualification services |
+| `set-weights`      | validator        | production control plane   | Reconcile the journaled global reward projection                          |
+| `model-provision`  | release operator | production artifact        | Seal model bytes into a content-addressed publication and receipt         |
+| `release-verify`   | release consumer | production verification    | Reopen a signed Engine release under an externally trusted key            |
+| `release-context`  | release consumer | production build input     | Materialize a deterministic OCI context from a verified release           |
 
-<Callout type="warn" title="Know which path you are running">
-  `evaluate`, `bench`, and `legacy-settle` are useful diagnostics. They are not the production
-  qualification or settlement authority and cannot mint a current crown. The hardened path is a
-  registered arena injected into `chain-validate`.
-</Callout>
+There is no local command that grants qualification or settlement authority. Complete
+engine qualification begins at the deployment-injected arena boundary; a local evaluator
+or JSON ledger is not an alternate production interface.
 
-## Local contribution loop
+## Contribution commands
 
 ### `slots`
 
@@ -52,8 +45,8 @@ processes. The installed `optima` console script targets the same parser.
 python -m optima.cli slots
 ```
 
-Reads the live `SLOTS` registry. It does not import contribution code or require
-a GPU. See the [slot catalog](/docs/reference/slots-table).
+Reads the registered `SLOTS` table without importing contribution code or requiring a
+GPU. See the [slot catalog](/docs/reference/slots-table).
 
 ### `scan`
 
@@ -61,54 +54,49 @@ a GPU. See the [slot catalog](/docs/reference/slots-table).
 python -m optima.cli scan path/to/bundle
 ```
 
-Loads `manifest.toml` as data and checks the complete declared tree. A clean AST
-scan is defense in depth; it does not make contribution code trusted.
+Loads `manifest.toml` as data and recursively applies the Python policy to declared and
+vendored `.py` files. Manifest-declared CUDA sources and dependency patches are admitted
+as separate reviewed-build tiers; undeclared executable files, binaries, and symlinks are
+rejected. Static scanning is defense in depth; a clean result does not make contribution
+code trusted.
 
 ### `verify`
 
 ```bash
-# CPU sanity check
+# CPU contract smoke
 python -m optima.cli verify examples/miner_silu_torch \
   --device cpu --dtype float32
 
-# CUDA slot verification
+# CUDA contract and graph verification
 python -m optima.cli verify path/to/bundle \
   --device cuda --dtype bfloat16 --model MiniMax-M3
 
-# Collective verification at the arena topology
+# Distributed verification at the arena topology
 python -m optima.cli verify path/to/bundle \
   --device cuda --world-size 4
 ```
 
-Useful options are `--dtype`, `--device`, `--seed`, `--world-size`, `--tp-size`,
-and `--model`. Verification proves only the registered component contract. It
-does not prove a serving speedup or grant settlement authority.
+Options are `--dtype`, `--device`, `--seed`, `--world-size`, `--tp-size`, and
+`--model`. The verifier rejects ambiguous variant domains, applies the model-specific
+slot profile, and spawns workers for candidate execution. Collective slots use the
+requested rank count; a host without enough CUDA devices falls back to CPU/Gloo unless
+`--device cuda` makes the requirement explicit.
 
-### `evaluate` and `bench`
-
-Both commands launch direct developer diagnostics and expose many experimental
-knobs. Always inspect their live help:
-
-```bash
-python -m optima.cli evaluate --help
-python -m optima.cli bench --help
-```
-
-Do not use graphs-off measurements as performance evidence. Do not translate a
-direct diagnostic result into a production PASS, reproduction, or crown.
+Verification proves only the exercised component contract. It does not establish model
+integration, serving throughput, pristine quality, isolation, independent reproduction,
+or settlement.
 
 ## Submission commands
 
-### Package and hash
+### Package
 
 ```bash
 python -m optima.cli chain-package path/to/bundle --out bundle.tar.gz
-python -m optima.cli hash path/to/bundle
 ```
 
-Host the archive at a stable **HTTPS** URL. The commitment binds the canonical
-bundle content hash; validators fetch and independently rehash the extracted
-tree.
+The command writes one canonical wrapper archive and prints the deterministic content
+hash of the extracted bundle tree. Host the exact archive at a stable HTTPS URL. The URL
+is transport; the hash is proposal identity.
 
 ### Submit
 
@@ -120,25 +108,38 @@ python -m optima.cli chain-submit path/to/bundle \
   --blocks-until-reveal 10
 ```
 
-Use `--dry-run` to construct and print the payload without signing or sending
-it. A submitted commitment is unreadable until its reveal delay elapses; the
-validator acts only on finalized, valid reveals.
+`chain-submit` re-hashes the local bundle before constructing the payload. Use
+`--dry-run` to print the payload without signing or submitting it. Validators act only
+on finalized, valid reveals and independently fetch, extract, and re-hash the hosted
+archive.
 
-### Inspect chain state
+### Inspect public chain state
 
 ```bash
 python -m optima.cli chain-status \
-  --network <network> --netuid <netuid>
+  --network <network> --netuid <netuid> \
+  --wallet <wallet> --hotkey <hotkey>
 ```
 
-Adding `--wallet` and `--hotkey` reports registration information for that
-identity.
+The wallet arguments add registration information. This command does not expose the
+validator's private intake, screening, qualification, or settlement database.
+
+### Register a hotkey
+
+```bash
+python -m optima.cli chain-register \
+  --network <network> --netuid <netuid> \
+  --wallet <wallet> --hotkey <hotkey>
+```
+
+This is a chain mutation and may burn registration cost. It checks for existing
+registration first, then runs the SDK preflight.
 
 ## Validator commands
 
 ### `chain-validate`
 
-Intake-only mode is complete and intentionally available without a GPU arena:
+The stock entrypoint supports complete finalized intake without a GPU service:
 
 ```bash
 python -m optima.cli chain-validate \
@@ -146,28 +147,15 @@ python -m optima.cli chain-validate \
   --intake-only --once
 ```
 
-It performs finalized ordering, hardened fetch, rehashing, private retention,
-and immutable worker publication. Full qualification additionally requires
-deployment code to inject an `ArenaServiceRegistry` and select its closed
-service with `--arena-id`. A reviewed deployment wrapper calls
-`cmd_chain_validate(args, arena_registry=registry)` (or `run_validator(...)`)
-after constructing that registry. Its operator-facing invocation may retain
-the same arguments:
+Intake mode persists finalized order, hardened fetch and re-hash results, private
+retention, immutable worker publication, and copy disposition. Storage and loop controls
+are `--intake-db`, `--private-root`, `--publication-root`, `--interval`, and `--once`.
 
-```bash
-python -m optima.cli chain-validate \
-  --network <network> --netuid <netuid> \
-  --arena-id <registered-arena>
-```
-
-The shell command above is **not sufficient through the stock entrypoint**:
-`python -m optima.cli` has no way to inject the registry and will refuse it.
-The repository does not ship a production `ArenaServiceProvider`, and the
-documentation does not provide a shell callback escape hatch.
-
-Storage and loop controls are `--intake-db`, `--private-root`,
-`--publication-root`, `--interval`, and `--once`. These paths contain durable
-authority; back them up and apply the documented permissions.
+Qualification requires a deployment-owned `ArenaServiceRegistry` plus a registered
+`--arena-id`. The repository does not construct a production provider from shell text.
+A reviewed deployment wrapper calls `cmd_chain_validate(args, arena_registry=registry)`
+or `run_validator(...)` after creating the registry. Invoking the stock module without
+`--intake-only` refuses to run because no registry was injected.
 
 ### `set-weights`
 
@@ -181,12 +169,25 @@ python -m optima.cli set-weights \
   --dry-run
 ```
 
-The command recomputes a pure global projection from settled state. With
-`--dry-run`, it returns the proposed payload without creating a journal intent
-or submitting. Without `--dry-run`, reconciliation records the intent in the
-SQLite journal and may sign/submit it. An SDK success return leaves the intent
-pending; later chain observation is what confirms it. `--release-hold REASON`
-appends an audited release of a held publication and does not submit it.
+The command reopens settled state and computes a pure global projection. `--dry-run`
+creates no publication intent and submits nothing; stable stdout reports the projection
+digest, `status=dry_run`, `chain_matches`, and `submitted=False`. It does not print the
+projected UID/weight vector or the complete projection inputs. A live reconciliation
+journals intent before submission and confirms it only through later chain observation.
+`--release-hold REASON` appends an audited release of the held publication and does not
+submit.
+
+## Environment checks
+
+```bash
+python -m optima.cli compat
+python -m optima.cli chain-compat
+```
+
+`compat` checks imports and signatures for the pinned SGLang seam. A version mismatch is
+reported but is not, by itself, a failing exit status; automation must compare the
+reported version to `PINNED_SGLANG`. `chain-compat` checks the Bittensor SDK API used by
+Cacheon without connecting to a network.
 
 ## Release commands
 
@@ -195,11 +196,10 @@ appends an audited release of a held publication and does not submit it.
 ```bash
 python -m optima.cli model-provision \
   /srv/models/model /srv/optima/model-publication \
-  --expected-content-digest <sha256>
+  --expected-content-digest <sha256> --workers <n>
 ```
 
-The result is an immutable content-addressed tree plus a receipt. `--workers`
-controls hashing parallelism.
+The result is an immutable content-addressed model tree and receipt.
 
 ### Verify a release
 
@@ -209,28 +209,29 @@ python -m optima.cli release-verify /srv/optima/releases/<digest> \
   --descriptor-digest <expected-digest>
 ```
 
-Release verification requires a Cacheon installation with the `release` extra.
-
-The expected public key is an external trust input; accepting a key discovered
-inside the release would not authenticate its signer.
+The expected public key is an external trust input. A key discovered only inside the
+release cannot authenticate its signer.
 
 ### Materialize a container context
 
 ```bash
-python -m optima.cli release-context /srv/optima/releases/<digest> ./context \
+python -m optima.cli release-context \
+  /srv/optima/releases/<digest> ./context \
   --expected-public-key <ed25519-public-key> \
   --descriptor-digest <expected-digest>
 ```
 
-This first reopens the complete signed release and then emits a deterministic
-OCI context. Release construction and signing are programmatic APIs; there is
-no public `release-create` command.
+The command reopens the complete signed publication before writing a deterministic OCI
+context. Release construction and signing remain programmatic APIs; there is no public
+`release-create` command.
 
 ## Exit behavior
 
-Most commands return `0` on success and a non-zero code on refusal or failed
-checks. Scripts should rely on the process status and retain structured/durable
-receipts where a command emits them. Human-readable text is not settlement
-evidence.
+Commands use a non-zero status for parser errors, explicit refusals, and failed local
+checks, but exit `0` is only command completion. It is not always business-state success:
+for example, `set-weights` can complete with a durable `pending` publication that still
+requires later chain observation. Automation must inspect the typed status and retain the
+receipts or durable records emitted by the authoritative subsystem. Console prose and
+process status alone are never settlement or publication evidence.
 
 Source: [`optima/cli.py`](https://github.com/latent-to/optima/blob/main/optima/cli.py).

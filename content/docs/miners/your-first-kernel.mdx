@@ -148,27 +148,25 @@ python -m optima.cli verify my_collective \
   --device cuda --dtype bfloat16 --world-size 4 --tp-size 4
 ```
 
-Then use the engine-facing developer diagnostics while iterating:
+Then follow the canonical
+[performance-development procedure](/docs/validators/running-evals#performance-development)
+in an environment matching the published arena contract. No repository command
+materializes the incumbent/candidate engines for this local experiment. Bracket the
+candidate with identical incumbent runs:
 
-```bash
-python -m optima.cli evaluate my_silu \
-  --model <arena-model> --tp-size <arena-tp> ...
-
-python -m optima.cli bench my_silu \
-  --model <arena-model> --tp-size <arena-tp> \
-  --benchmarks <published-benchmark-set> ...
+```text
+B  -> C -> B′
+speedup = candidate_rate / mean(baseline_before_rate, baseline_after_rate)
 ```
 
-`evaluate` and `bench` are **developer diagnostics, not crown authority**. Their
-flags are intentionally useful for debugging, including candidate-only launch
-changes. An authoritative candidate cannot choose a different evaluation stack;
-the validator binds B, C, B′, T, resources, graph evidence, hidden inputs, and
-calibrated policies itself.
+Keep the arena's CUDA-graph state, topology, model, dtype, workload, and charged-work
+definition fixed. Reject a result when B/B′ drift is comparable to the claimed gain.
+For a long-prefill target, make the workload genuinely prefill-heavy; repeated prompts
+with a live radix cache can silently turn later iterations into decode/cache-hit work.
 
-Never call a graphs-off result a win. `--disable-cuda-graph` is a debugging
-mode that changes the incumbent regime. For a long-prefill target, also make the
-workload genuinely prefill-heavy; repeated prompts with a live radix cache can
-silently turn later iterations into decode/cache-hit measurements.
+This local bracket is a performance hypothesis, not crown authority. The validator binds
+B, C, B′, pristine T, resources, graph evidence, hidden inputs, and calibrated policies,
+then requires a separately bound reproduction.
 
 ## 7. Decide whether the target is worth pursuing
 

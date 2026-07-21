@@ -132,10 +132,10 @@ host networking; it is not the hostile candidate container.
 
 ## Non-authoritative development paths
 
-`verify`, `evaluate`, and `bench` are diagnostics. Their spawned processes and optional
-network namespace are not equivalent to the production OCI controller, evidence chain,
-or pristine reference. `--allow-unsafe-no-isolation` is explicitly unsafe and must never
-be used for crownable work.
+`scan` and `verify` are contributor diagnostics. Contributor-controlled matched A/B
+profiling may load candidate code in model workers, but its process boundary is not
+equivalent to the production OCI controller, evidence graph, or pristine reference. No
+contributor-controlled execution path is acceptable for crownable work.
 
 ## Explicit nonclaims
 

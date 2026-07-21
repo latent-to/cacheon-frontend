@@ -96,11 +96,10 @@ For attention work:
 - an optimization to one should not be measured on a workload dominated by the
   other.
 
-The developer `evaluate --input-len` option can generate longer inputs, but
-repeated timed prompts with radix caching enabled may turn later passes into
-cache hits. For a prefill diagnostic, use the arena's cache policy or explicitly
-disable the radix cache in both arms. Treat this as local debugging, not
-authority.
+A developer diagnostic can generate longer inputs, but repeated timed prompts
+with radix caching enabled may turn later passes into cache hits. For a prefill
+diagnostic, reproduce the arena's cache policy or explicitly disable the radix
+cache in both arms. Treat this as local debugging, not authority.
 
 For collective work, reproduce the actual world/TP size and interconnect. A
 single-GPU benchmark says nothing about distributed ordering, graph replay, or
@@ -122,9 +121,9 @@ T  = separately defined pristine quality reference
 ```
 
 Changing a backend, graph flag, prompt mix, topology, or engine option only in C
-does not measure a component delta. The local `evaluate` CLI exposes such flags
-for diagnosis, but authoritative qualification binds all four arms from the
-validator's stack and reference manifests.
+does not measure a component delta. Ad hoc developer launches may expose such
+controls for diagnosis, but authoritative qualification binds all four arms
+from the validator's stack and reference manifests.
 
 The repository implementations are
 [`stack_plan.py`](https://github.com/latent-to/optima/blob/main/optima/stack_plan.py)
@@ -154,9 +153,9 @@ Write a small target worksheet before implementation:
 | local correctness proof needed | all applicable slot shapes, mutation/output checks, CUDA replays                    |
 | end-to-end falsifier           | no throughput change, B/B′ drift, fallback on material calls, or quality regression |
 
-This forces the optimization story to connect all the way from a measured bottleneck to
-a selectable variant. “My kernel is 30% faster” is incomplete until you can state what
-fraction of which arena path it replaces and how often the domain routes.
+This worksheet requires a causal chain from the measured bottleneck to a selectable
+variant. “My kernel is 30% faster” is incomplete until the replaced fraction of the arena
+path and the domain's routing frequency are specified.
 
 ## Use a disciplined development ladder
 
@@ -166,8 +165,10 @@ fraction of which arena path it replaces and how often the domain routes.
 3. Microbenchmark the exact callable to understand the mechanism, not to claim
    end-to-end speedup.
 4. Trace the complete incumbent and candidate developer launches.
-5. Run graph-on `evaluate` with matched controls and inspect B/C/B′ drift.
-6. Run the relevant `bench`/quality diagnostics.
+5. Run a matched graph-on whole-engine diagnostic using the
+   [canonical local profiling record](/docs/validators/running-evals#performance-development)
+   and inspect B/C/B′ drift.
+6. Run the relevant non-authoritative quality diagnostics.
 7. Repeat across fresh processes, seeds, and conditioning until the effect is
    larger than normal variance.
 

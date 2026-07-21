@@ -68,12 +68,37 @@ rather than trusting modes, filenames, or build logs.
 | SBOM and provenance                | Which declared inputs and build lineage produced the release artifacts?                     |
 | `ServeSpec`                        | Which image, platform, topology, command, environment, and mount contract may run?          |
 | Signed descriptor                  | Who authorized this exact closed set of identities?                                         |
-| Registry reproducibility statement | Did two controlled builds publish the same raw image digest?                                |
-| Serve receipts                     | Did every expected slot and tensor-parallel rank activate, fire, and complete in the smoke? |
+| Registry reproducibility statement | Did two reopened registry manifests expose the same raw image digest and required labels?   |
+| Serve receipts                     | Did the supplied receipt set report active, fired, and completed coverage for every expected slot and tensor-parallel rank? |
 
 These products compose; they are not interchangeable. For example, a valid signature
 over a descriptor with a missing model tree still cannot start, and a responsive server
 with fallback receipts has not proved that the released optimization executed.
+The production authority must additionally bind both registry readbacks to their
+controlled builder invocations, bind smoke receipts to the exact release and serving
+session, and require direct-AOT load/invocation evidence when the release declares it.
+Those causal bindings are not established by the registry or receipt primitives alone.
+
+## Native and dependency artifacts
+
+Architecture coverage is explicit rather than inferred from the machine that performed
+the build. The FlashInfer dependency-patch path publishes one sealed overlay containing
+the validator-declared `sm100` and `sm103` fused-MoE modules. FlashInfer captures its CUDA
+architecture list in import-time state, so each module is compiled in a separate hermetic
+child interpreter whose environment is fixed before any FlashInfer import; the parent
+build process never imports FlashInfer. The build child compiles but does not load the
+module. At engine startup, the installer selects only the row matching the current device
+and refuses an architecture that the publication does not cover.
+
+This multi-architecture dependency overlay is distinct from a sealed direct artifact: it
+patches a closed dependency subtree and publishes exact prebuilt dependency modules,
+while a direct artifact is admitted through its registered provider, slot ABI, compile
+profile, resource plan, and launch plan.
+
+FlashInfer autotuning is a runtime-owned phase. While its tactic profiler is active, both
+the deep MoE producer and the fused-epilogue consumer stay on the stock path. A reviewed
+or candidate implementation cannot influence tactic selection, and autotuner calls do
+not count as proof that a Cacheon seam fired.
 
 ## Serving boundary
 

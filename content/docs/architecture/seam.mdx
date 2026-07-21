@@ -5,7 +5,8 @@ title: SGLang seam
 The seam connects Cacheon's stable slot ABI to version-pinned SGLang internals. It is intentionally split into two layers:
 
 - [`slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py) defines the stable miner-facing semantic contract;
-- `optima/seams.py` defines the SGLang-specific adapters that must be reviewed whenever the runtime pin moves. The current scheduler-gate row is on the post-main working branch pinned in [State of record](/docs/reference/state-of-record).
+- [`seams.py`](https://github.com/latent-to/optima/blob/main/optima/seams.py) defines the SGLang-specific adapter registry that must be reviewed whenever the runtime pin moves;
+- [`seam.py`](https://github.com/latent-to/optima/blob/main/optima/seam.py) and the [`scheduler_gate` adapter](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_scheduler_gate.py) enforce activation and scheduler-only candidate loading.
 
 Slots are the narrow waist. Adapters are replaceable glue.
 
@@ -62,7 +63,9 @@ The current rows are:
 
 Several adapters may share one binding when they implement one semantic product. The shallow AR-fusion consume adapter and both deep producer adapters share `arfusion`; activating only part of that set would violate the protocol.
 
-The catalog can contain a verified slot before the pinned runtime exposes a safe live chokepoint. `attention.msa_block_score` currently has a slot and verifier contract, while [`sglang_msa.py`](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_msa.py) deliberately refuses installation until a stable decode-side MSA chokepoint is registered. The prefill sibling has a live adapter and appears in the table.
+The catalog can contain a verified slot before the pinned runtime exposes a safe live
+chokepoint. `attention.msa_block_score` has a slot and verifier contract, while [`sglang_msa.py`](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_msa.py) refuses installation unless a stable decode-side MSA chokepoint is registered. The
+prefill sibling has an installed adapter and appears in the table.
 
 ## Bootstrap across spawned processes
 
@@ -90,8 +93,8 @@ children stay pass-through and never emit an `active` receipt.
 SGLang versions that expose a plugin framework also have an [`sglang_plugin.py`](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_plugin.py) shim. The `.pth` bootstrap remains the general spawn-safe path across the supported pin.
 
 Principal code: [`bootstrap.py`](https://github.com/latent-to/optima/blob/main/optima/bootstrap.py),
-plus post-main working-tree paths `optima/seam.py` and
-`optima/integrations/sglang_scheduler_gate.py` at the snapshot commit.
+[`seam.py`](https://github.com/latent-to/optima/blob/main/optima/seam.py), and
+[`integrations/sglang_scheduler_gate.py`](https://github.com/latent-to/optima/blob/main/optima/integrations/sglang_scheduler_gate.py).
 
 ## Closed activation vocabulary
 
@@ -244,10 +247,10 @@ The seam is deliberately pinned-runtime code. An SGLang upgrade requires:
 
 Optional backend rows declare `requires` packages so CPU/dev environments can skip an unassessable adapter rather than report a false break. Production arenas that depend on that adapter must provide and assess the dependency.
 
-<Callout type="warn" title="Current pin validation status">
-  A green import/chokepoint canary is necessary compatibility evidence, not proof that the current
+<Callout type="warn" title="Pin-validation boundary">
+  A green import/chokepoint canary is necessary compatibility evidence, not proof that a
   pin preserves candidate execution and measured performance. Check [State of
-  record](/docs/reference/state-of-record) for the dated claim boundary and [SGLang
+  record](/docs/reference/state-of-record) for completed evidence and [SGLang
   compatibility](/docs/dev/sglang-tracking) for the complete validation ladder.
 </Callout>
 

@@ -58,11 +58,11 @@ Canonical digest construction lives in [`stack_identity.py`](https://github.com/
 
 These three identities answer different questions and should appear together in an audit:
 
-| Identity              | Answers                                                    | Changes when                                                                             |
-| --------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Stack manifest digest | Which semantic contributions and catalog are selected?     | A target entry, runtime/base identity, arena context, or catalog snapshot changes        |
-| Engine-tree digest    | Which exact deterministic materialized files were emitted? | Selected source closure, namespace rewriting, rebuild plan, or emitted inventory changes |
-| Launch identity       | Which exact engine was executed?                           | Tree, native publication, model, image, topology, graph mode, workload, or role changes  |
+| Identity              | Answers                                                    | Changes when                                                                                                            |
+| --------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Stack manifest digest | Which semantic contributions and catalog are selected?     | A target entry, runtime/base identity, arena context, or catalog snapshot changes                                       |
+| Engine-tree digest    | Which exact deterministic materialized files were emitted? | Selected source closure, direct-execution declaration, namespace rewriting, rebuild plan, or emitted inventory changes  |
+| Launch identity       | Which exact engine was executed?                           | Tree, native publication, model, image, topology, graph mode, workload, or role changes                                 |
 
 Equal stack digests are not enough to claim equal execution if launch inputs differ. Equal
 tree digests are not enough if a different model, native publication, or topology ran.
@@ -181,6 +181,35 @@ the runtime result back to the prepared launch identity.
 
 Principal implementations are [`eval/engine_launch.py`](https://github.com/latent-to/optima/blob/main/optima/eval/engine_launch.py), [`eval/native_artifact.py`](https://github.com/latent-to/optima/blob/main/optima/eval/native_artifact.py), and [`eval/oci_backend.py`](https://github.com/latent-to/optima/blob/main/optima/eval/oci_backend.py).
 
+### Direct-artifact identity across the stack
+
+A direct artifact is not identified by its CUBIN name or `ops.entry`. Its
+canonical execution identity covers the provider, compiler factory, allowed
+profile inputs, ordered bindings, lifecycle plan, specialization predicates,
+prelaunch operations, validator-owned resource plan, derived capability
+requirements, and complete device launch plan. That projection is included in
+the selected contribution and selected-delta identities used to materialize the
+engine tree.
+
+The target catalog separately binds the immutable provider-registry snapshot and
+digest. Launch preparation then adds the measured compile profile, native build
+specification, sealed publication digest, and exact file inventory. Runtime
+admission adds driver-observed CUBIN ABI and contract digests, while execution
+receipts prove that the selected entry loaded, ran, and completed on every active
+member without fallback.
+
+These layers answer different questions:
+
+| Layer         | Bound authority                                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------- |
+| Contribution   | Exact declarative device execution and source closure                                              |
+| Catalog        | Which artifact providers and target features are permitted                                         |
+| Build          | Image, logical/compiler architecture, topology-derived profile, patcher, and publication            |
+| Runtime        | Exact retained CUBIN handle, observed ABI, rank device, parameters, resources, and lifecycle        |
+| Qualification  | Full member coverage, successful invocation, seam completion, and zero fallback                     |
+
+See [Sealed direct artifacts](/docs/architecture/direct-artifacts) for the complete contract.
+
 ## Transactional stack updates
 
 A passing qualification does not immediately mutate the incumbent. The settlement path requires two independently selected and reopened passing qualifications for the exact same reproduction identity.
@@ -236,5 +265,7 @@ There is no supported arrow from a mutable miner URL, chain record, or evaluatio
 - [`stack_plan.py`](https://github.com/latent-to/optima/blob/main/optima/stack_plan.py) — marginal arms, cohorts, transitions, and rollback
 - [`engine_tree.py`](https://github.com/latent-to/optima/blob/main/optima/engine_tree.py) — deterministic source materialization and integration promotion
 - [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py) — singleton, atomic, overlap, and composition policy
+- [`artifact_identity.py`](https://github.com/latent-to/optima/blob/main/optima/artifact_identity.py) — canonical direct-artifact execution identity
+- [`artifact_provider.py`](https://github.com/latent-to/optima/blob/main/optima/artifact_provider.py) — closed provider registry included in catalog identity
 - [`eval/reference_quality.py`](https://github.com/latent-to/optima/blob/main/optima/eval/reference_quality.py) — pristine reference quality products
 - [`eval/calibration.py`](https://github.com/latent-to/optima/blob/main/optima/eval/calibration.py) — calibrated qualification/reference policy

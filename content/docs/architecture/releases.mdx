@@ -11,14 +11,24 @@ flowchart LR
     R --> M["EngineReleaseManifest"]
     M --> T["Materialized reviewed engine tree"]
     T --> P["Prepared release descriptor + artifacts"]
-    P --> S["Ed25519 signature<br/>trusted by external expected key"]
+    P --> W["Clean-wheel closure +<br/>provider-specific native proof"]
+    W --> S["Ed25519 signature<br/>trusted by external expected key"]
     S --> U["Immutable release publication"]
-    U --> O["Two reproducible registry builds"]
-    O --> A["Authorized digest-pinned container"]
+    U --> O["Two builder-authenticated<br/>reproducible registry outputs"]
+    O --> A["Authorized image + closed<br/>effective argv/routes"]
     A --> V["Fail-closed serving runtime"]
+    V --> Q["Release/session-bound smoke<br/>+ AOT coverage when applicable"]
 ```
 
-The current implementation contract is described here. Evidence about what has been exercised on real hardware is kept separately in [State of record](/docs/reference/state-of-record).
+This page defines the release contract. Evidence about which gates the pinned
+implementation and retained hardware products satisfy is kept separately in
+[State of record](/docs/reference/state-of-record).
+
+<Callout type="error" title="Every arrow is required">
+  Registry digest equality, a signed descriptor, or a responsive canary cannot skip the
+  wheel, native-provider, builder-provenance, effective-policy, management-route, or
+  bound-receipt gates. The canonical executable checklist is [Build and sign a release](/docs/engine/release-workflow#publication-checklist).
+</Callout>
 
 ## Promotion from crown to source
 
@@ -85,6 +95,30 @@ Native products are prebuilt under a typed `NativeBuildSpec` and published into 
 
 Scheduler ranks may load and validate sealed native products. They may not compile or repair a missing product during serving. The release publication carries the exact native address space expected by its descriptor.
 
+For `cutlass.cute.cubin.v1`, the release build pipeline must produce the native input from
+the release-rematerialized reviewed tree through the same registered, no-GPU/no-network
+prebuild boundary used by evaluation. `prepare_release()` neither runs that build nor
+provider-specifically validates the CuTe index/profile. It generically reopens the
+caller-supplied `NativeArtifactPublication` inventory and binds its `NativeBuildSpec` and
+publication digest. Release admission must therefore retain and independently reopen the
+provider-specific prebuild, compile-profile, canonical index, and CUBIN proof before
+calling the generic preparation API.
+
+The CuTe build profile covers logical and compiler architecture, image/platform, worker
+distribution, device policy, topology, and validator-measured constants. Its publication
+contains only sealed CUBINs and a canonical index; it does not contain a miner Python
+launcher, host object, PTX fallback, or JIT engine.
+
+The direct-artifact load contract requires each scheduler rank, after CUDA device
+setup, to reopen the exact publication, compare the complete per-ordinal parameter
+widths with the driver-observed CUBIN inventory, retain the admitted handle, and
+construct parameters and lifecycle resources from the signed manifest. The closed
+serving environment must derive the CuTe compile-profile digest from the signed native
+build specification and propagate it unchanged into that load phase. If that handoff is
+absent or mismatched, a direct-CUBIN release must fail before startup. Release identity
+support alone is not serving support. See [Sealed direct artifacts](/docs/architecture/direct-artifacts)
+and consult [State of record](/docs/reference/state-of-record) for implementation status.
+
 Principal code: [`eval/native_artifact.py`](https://github.com/latent-to/optima/blob/main/optima/eval/native_artifact.py) and [`eval/engine_launch.py`](https://github.com/latent-to/optima/blob/main/optima/eval/engine_launch.py).
 
 ## Prepared release
@@ -137,7 +171,7 @@ The publication is self-contained with respect to chain state. It retains proven
 - a deployment-policy document;
 - a generated Dockerfile.
 
-The Dockerfile installs the deterministic serving wheel, installs only reviewed runtime overlays for the pinned upstream revision, copies the release under `/optima`, and uses `optima.release_runtime` as its entry point. The generated deployment policy requires a read-only root filesystem, a bounded writable `/tmp`, the reviewed seccomp profile, an exact model mount, and a receipt directory.
+The Dockerfile installs the deterministic serving wheel, installs only reviewed runtime overlays for the pinned upstream revision, copies the release under `/optima`, and uses `optima.release_runtime` as its entry point. The generated deployment policy requires a read-only root filesystem, a bounded writable `/tmp`, the reviewed seccomp profile, an exact model mount, and a receipt directory. Context generation does not prove that the emitted wheel's complete import graph works; release acceptance installs it in a clean environment and exercises every manifest-reachable runtime entrypoint.
 
 No chain credentials or private signing key enter the context.
 
@@ -151,9 +185,9 @@ No chain credentials or private signing key enter the context.
 - distinct temporary registry tags;
 - BuildKit-generated provenance/SBOM disabled in favor of Cacheon's signed canonical artifacts.
 
-After each push, Cacheon reopens the Registry v2 manifest and configuration rather than trusting local image output. It verifies descriptor, seccomp, and reviewed-overlay labels. The two raw manifest digests must match.
+After each push, Cacheon reopens the Registry v2 manifest and configuration rather than trusting a mutable tag. It verifies descriptor, seccomp, and reviewed-overlay labels. The two raw manifest digests must match. On equality, the current primitive signs the common descriptor/image/platform statement with Ed25519 as `SignedContainerReproducibility`; it does not retain or authenticate the builder invocations' output records.
 
-The common descriptor/image/platform statement is then signed with Ed25519 as `SignedContainerReproducibility`. Deployment authorizes an image only after checking that attestation against the expected public key, release descriptor, platform, repository, and digest.
+Canonical release authority therefore adds a separate provenance gate: each reopened registry object must be bound to the output emitted by its corresponding builder invocation before the signed reproducibility statement is accepted as authoritative. Tag readback plus digest equality alone does not provide that binding. Deployment then checks the accepted attestation against the expected public key, release descriptor, platform, repository, and digest.
 
 Principal code: [`release_host.py`](https://github.com/latent-to/optima/blob/main/optima/release_host.py).
 
@@ -161,7 +195,7 @@ Principal code: [`release_host.py`](https://github.com/latent-to/optima/blob/mai
 
 The host launches by immutable `repository@sha256:<digest>`, never by a mutable tag. Before a container is accepted, host-side authorization reopens registry metadata and verifies the signed reproducibility statement.
 
-Container creation and inspection enforce the deployment contract, including:
+The implemented container-creation and inspection primitives enforce:
 
 - exact image digest and labels;
 - read-only root filesystem;
@@ -169,10 +203,19 @@ Container creation and inspection enforce the deployment contract, including:
 - reviewed seccomp profile;
 - expected GPU device request;
 - exact read-only model bind mount;
-- no unexpected mounts, privileges, or host namespace changes;
-- signed entry point, command, and environment.
+- no additional mounts, privilege escalation, or Linux capabilities;
+- exact host network and IPC modes; and
+- the registry image's exact entry point, command, and environment.
 
-The result is an `AuthorizedReleaseContainer`, not merely a successful `docker run`.
+The typed host primitive returns an `AuthorizedReleaseContainer`. Canonical production
+authority combines that result with deployment-owned gates that close the effective parsed
+SGLang argument vector after aliases, abbreviations, duplicates, loader/config indirection,
+and defaults; bind that effective image configuration to the signed `ServeSpec`; close any
+remaining PID, UTS, user, and cgroup namespace policy; and authenticate or disable
+management routes exposed by the signed network mode. Builder-output provenance must also
+have passed. Those external gates are part of the release contract but are not implemented
+by the container primitive; an `AuthorizedReleaseContainer` is therefore never equivalent
+to successful production authorization or merely to a successful `docker run`.
 
 ## Fail-closed runtime entry
 
@@ -186,7 +229,13 @@ Inside the container, `verify_serving_release()` reopens the signed release befo
 - seam bindings derived from release slots;
 - native and engine-tree identities.
 
-It then constructs a closed serving environment. `OPTIMA_RELEASE_REQUIRED=1` changes seam behavior from development fallback to fail-closed startup: missing namespace binding, seam installation, candidate activation, or registered slots terminates the process. The runtime also sets strict candidate execution and disables user-site/import-path escape hatches.
+It must then construct a closed serving environment, including every signed native-profile
+value required by sealed direct artifacts. `OPTIMA_RELEASE_REQUIRED=1` changes seam behavior
+from development fallback to fail-closed startup: missing namespace binding, seam
+installation, candidate activation, registered slots, compile-profile authority, or other
+required runtime identity terminates the process. The runtime also sets strict candidate
+execution and disables user-site/import-path escape hatches. Environment construction does
+not replace effective-argv or management-route verification at the host/deployment boundary.
 
 Only after verification does the entry point `exec` the exact signed `sglang.launch_server` command.
 
@@ -194,9 +243,25 @@ Principal code: [`release_runtime.py`](https://github.com/latent-to/optima/blob/
 
 ## Serve smoke and receipts
 
-A release smoke must produce `active`, `fired`, and `completed` seam coverage for every expected release slot and tensor-parallel rank, with no `load_failed` or `fallback` receipt. `verify_serve_receipts()` validates the fresh receipt directory and binds its result to the release descriptor.
+A release smoke must produce `active`, `fired`, and `completed` seam coverage for every
+expected release slot and tensor-parallel rank, with no `load_failed` or `fallback` receipt.
+`verify_serve_receipts()` enforces that coverage over the supplied directory and places the
+reopened release descriptor digest in its returned summary.
 
-This proves that the signed engine tree routed through its intended seams during the smoke. It does not replace the earlier crown, integration, signature, registry, or host-authority checks.
+The input frames do not themselves bind a unique release descriptor and serve-session
+identity. The summary's descriptor field therefore cannot authenticate which process
+emitted those files. Production acceptance requires descriptor/session binding at receipt
+emission and verification; a directory with matching slot/rank names is insufficient.
+
+Direct-artifact loading and use emit `aot_loaded` and `aot_invoked`. Authoritative
+qualification enforces full per-member coverage for those receipt classes, but
+`verify_serve_receipts()` does not consume them. A release containing a sealed direct
+artifact requires equivalent release-smoke AOT coverage, bound to the same release and
+session, before it can be authorized.
+
+After those bindings are present, a successful smoke proves that the signed engine tree
+routed through its intended seams for that session. It does not replace the earlier crown,
+integration, signature, registry, or host-authority checks.
 
 ## Operator surface
 
@@ -226,6 +291,8 @@ No live chain query, wallet, miner endpoint, evaluation incumbent, or referee da
 
 - [`stack_manifest.py`](https://github.com/latent-to/optima/blob/main/optima/stack_manifest.py) — integration records and release manifest
 - [`engine_tree.py`](https://github.com/latent-to/optima/blob/main/optima/engine_tree.py) — source promotion and deterministic tree materialization
+- [`artifact_identity.py`](https://github.com/latent-to/optima/blob/main/optima/artifact_identity.py) — reviewed direct-execution declaration identity
+- [`cute_cubin.py`](https://github.com/latent-to/optima/blob/main/optima/cute_cubin.py) — sealed CUBIN publication and runtime binding
 - [`model_provision.py`](https://github.com/latent-to/optima/blob/main/optima/model_provision.py) — model sealing
 - [`release.py`](https://github.com/latent-to/optima/blob/main/optima/release.py) — descriptor, artifacts, signing, publication, and context
 - [`release_host.py`](https://github.com/latent-to/optima/blob/main/optima/release_host.py) — registry reproducibility and host authorization

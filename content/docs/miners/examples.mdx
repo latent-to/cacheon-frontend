@@ -6,9 +6,9 @@ The repository examples are development fixtures for specific parts of the
 component ABI. They are not a catalog of active crowns, and their comments or
 metadata are not validator decisions.
 
-Several examples predate explicit contribution targets and rely on legacy
-singleton resolution. When starting a real proposal, add the appropriate
-`[competition]` table and revalidate it against the current target catalog.
+Examples that omit an explicit contribution target rely on legacy singleton
+resolution. Before adapting one for submission, add the appropriate
+`[competition]` table and revalidate it against the registered target catalog.
 
 ## Positive learning examples
 
@@ -39,7 +39,7 @@ These bundles are meant to fail or expose a gate:
 | [`miner_rmsnorm_broken`](https://github.com/latent-to/optima/tree/main/examples/miner_rmsnorm_broken)       | an incorrect normalization is rejected despite plausible output shape                        |
 | [`miner_setup_demo`](https://github.com/latent-to/optima/tree/main/examples/miner_setup_demo)               | legacy engine-wide `setup` surface for isolation tests                                       |
 
-`miner_setup_demo` is not a registered component template. No current registered
+`miner_setup_demo` is not a registered component template. No registered
 target permits `setup`; a cross-cutting engine change belongs in
 [Discovery](/docs/miners/discovery-lane).
 
@@ -49,11 +49,11 @@ target permits `setup`; a cross-cutting engine change belongs in
 demonstrates a Torch reference paired with a CuTe-DSL epilogue declaration for
 `moe.fused_experts/gemm1_epilogue`.
 
-The composition and CPU/dense path work. The validator-owned GPU base kernel is
-currently a stub, so this example cannot reproduce a GPU win through the
-current override path. Read [Override points](/docs/miners/override-points) before using
-it, and do not treat historical provenance fields in its metadata as a result
-of this bundle.
+This example exercises composition and the CPU/dense reference path. The
+validator-owned GPU base kernel raises `NotImplementedError`, so the example is
+not eligible for GPU qualification through that override point. Read
+[Override points](/docs/miners/override-points) before using it. Provenance fields in its
+metadata are descriptive inputs, not evidence produced by this bundle.
 
 ## Identity fixtures are not kernels
 

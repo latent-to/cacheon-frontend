@@ -74,15 +74,16 @@ copying them.
 | Deploy intake, an arena provider, and qualification workers | [Validator guide](/docs/validators/overview)      |
 | Verify or operate a signed serving artifact                 | [Cacheon Engine](/docs/engine/overview)           |
 | Audit trust boundaries and failure behavior                 | [Security model](/docs/security/threat-model)     |
-| Check what is implemented, measured, and still unproven     | [Current status](/docs/reference/state-of-record) |
+| Check what is implemented, measured, and still unproven     | [State of record](/docs/reference/state-of-record) |
 
 ## Evidence is scoped, not blended
 
-Cacheon has historical B300 performance wins and a completed hardened authority
-implementation. Those are different evidence classes. The historical wins were measured
-through the earlier referee; the hardened path has structural RTX evidence but still
-requires current-path B300 qualification and a real release-image build-and-serve proof.
-The [state of record](/docs/reference/state-of-record) keeps those claims separate.
+Every performance or authority claim is scoped to the exact runtime, hardware, arena,
+stack, identities, and procedure that produced it. Diagnostic measurements cannot
+authorize a crown; crown evidence cannot authorize reviewed source; and release
+verification cannot retroactively validate qualification. The
+[state of record](/docs/reference/state-of-record) identifies which evidence products have
+actually been retained for each boundary.
 
 <Callout type="info" title="Source of executable truth">
   The [Cacheon source repository](https://github.com/latent-to/optima) owns executable contracts,
