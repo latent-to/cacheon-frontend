@@ -23,7 +23,6 @@ export function meta(_: Route.MetaArgs) {
         'Compete to write the fastest GPU kernels for LLM inference. Fair benchmark, clear champion, real reason to route traffic.',
     },
     { property: 'og:type', content: 'website' },
-    // TODO: confirm canonical Cacheon domain before publish — is the site staying on cacheon.ai or moving to an optima domain?
     { property: 'og:url', content: 'https://cacheon.ai' },
   ]
 }

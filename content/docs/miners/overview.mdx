@@ -69,7 +69,7 @@ mode = "slot"
 ```
 
 See [Slots and targets](/docs/miners/slots) and the authoritative
-[target catalog](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
+[target catalog](https://github.com/latent-to/cacheon/blob/main/optima/target_catalog.py).
 
 ## What happens to a submission
 
@@ -88,7 +88,7 @@ Cacheon keeps four objects distinct:
    from integrated source. A crown is not permission to ship miner code.
 
 That separation is part of the product contract, not release ceremony. Read
-the full [product contract](https://github.com/latent-to/optima/blob/main/docs/PRODUCT_CONTRACT.md)
+the full [product contract](https://github.com/latent-to/cacheon/blob/main/docs/PRODUCT_CONTRACT.md)
 before working on an advanced target.
 
 ## How qualification works
@@ -110,9 +110,9 @@ The crown records the lower reproduced speedup. After the first passing attempt,
 the durable intake state is `reproduction_pending`; that is not yet a crown.
 
 The evaluation design and evidence objects live in
-[qualification.py](https://github.com/latent-to/optima/blob/main/optima/eval/qualification.py),
-[qualification_runner.py](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_runner.py),
-and [arena_service.py](https://github.com/latent-to/optima/blob/main/optima/arena_service.py).
+[qualification.py](https://github.com/latent-to/cacheon/blob/main/optima/eval/qualification.py),
+[qualification_runner.py](https://github.com/latent-to/cacheon/blob/main/optima/eval/qualification_runner.py),
+and [arena_service.py](https://github.com/latent-to/cacheon/blob/main/optima/arena_service.py).
 
 ## How rewards work
 
@@ -127,7 +127,7 @@ income from a local speedup: arena availability, target activity, competing
 crowns, half-life, discovery pool, and metagraph state all matter. Discovery
 proposals, when enabled, use a bounded, non-renewable, expiring bounty rather
 than a standing crown. See the source-grounded
-[economics implementation](https://github.com/latent-to/optima/blob/main/optima/economics.py)
+[economics implementation](https://github.com/latent-to/cacheon/blob/main/optima/economics.py)
 and [Discovery lane](/docs/miners/discovery-lane).
 
 ## Your development loop
