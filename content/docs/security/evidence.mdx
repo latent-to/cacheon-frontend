@@ -131,7 +131,7 @@ different evidence claims.
 
 ### Sampled seam audit is not universal authority
 
-[`optima/audit.py`](https://github.com/latent-to/optima/blob/main/optima/audit.py) can emit sampled comparison receipts for supported live dispatch seams when its runtime
+[`optima/audit.py`](https://github.com/latent-to/cacheon/blob/main/optima/audit.py) can emit sampled comparison receipts for supported live dispatch seams when its runtime
 flags are explicitly armed. The isolated qualification worker currently clears those
 flags, and qualification does not consume sampled audit receipts as a required input.
 They are therefore optional diagnostics, not a universal cross-slot correctness gate or
@@ -232,8 +232,8 @@ instead of dumping candidate source, hidden work, or model data.
 
 ## Source anchors
 
-- [Evidence store](https://github.com/latent-to/optima/blob/main/optima/eval/evidence_store.py)
-- [Calibration evidence](https://github.com/latent-to/optima/blob/main/optima/eval/calibration.py)
-- [Qualification evidence model](https://github.com/latent-to/optima/blob/main/optima/eval/qualification.py)
-- [Qualification runner and regrade](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_runner.py)
-- [SQLite authority](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py)
+- [Evidence store](https://github.com/latent-to/cacheon/blob/main/optima/eval/evidence_store.py)
+- [Calibration evidence](https://github.com/latent-to/cacheon/blob/main/optima/eval/calibration.py)
+- [Qualification evidence model](https://github.com/latent-to/cacheon/blob/main/optima/eval/qualification.py)
+- [Qualification runner and regrade](https://github.com/latent-to/cacheon/blob/main/optima/eval/qualification_runner.py)
+- [SQLite authority](https://github.com/latent-to/cacheon/blob/main/optima/chain/intake.py)

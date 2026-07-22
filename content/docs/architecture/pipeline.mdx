@@ -61,7 +61,7 @@ Submissions enter through native timelock commit-reveal. The validator acts only
 
 State transitions are typed and transactional. The validator does not reconstruct production authority from console output, mutable directories, or a legacy JSON ledger.
 
-Principal code: [`chain/intake.py`](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py) and [`chain/validator_loop.py`](https://github.com/latent-to/optima/blob/main/optima/chain/validator_loop.py).
+Principal code: [`chain/intake.py`](https://github.com/latent-to/cacheon/blob/main/optima/chain/intake.py) and [`chain/validator_loop.py`](https://github.com/latent-to/cacheon/blob/main/optima/chain/validator_loop.py).
 
 ## 2. Hardened fetch and publication
 
@@ -77,7 +77,7 @@ The submitted URL is transport, not identity. The fetch path:
 
 Partial downloads, path tricks, changed content, duplicate/malformed archives, and publication mismatches fail closed. Candidate workers receive only immutable publications; they do not fetch miner URLs themselves.
 
-Principal code: [`chain/fetch.py`](https://github.com/latent-to/optima/blob/main/optima/chain/fetch.py), [`chain/payload.py`](https://github.com/latent-to/optima/blob/main/optima/chain/payload.py), and [`bundle_hash.py`](https://github.com/latent-to/optima/blob/main/optima/bundle_hash.py).
+Principal code: [`chain/fetch.py`](https://github.com/latent-to/cacheon/blob/main/optima/chain/fetch.py), [`chain/payload.py`](https://github.com/latent-to/cacheon/blob/main/optima/chain/payload.py), and [`bundle_hash.py`](https://github.com/latent-to/cacheon/blob/main/optima/bundle_hash.py).
 
 ## 3. Arena and target resolution
 
@@ -103,7 +103,7 @@ The proposal is resolved against the exact target catalog snapshot. A registered
 
 The command-line `chain-validate` loop can perform intake alone. Full production qualification requires the operator to inject a real `ArenaServiceRegistry` and select `--arena-id`; the repository does not manufacture a production arena provider from implicit defaults.
 
-Principal code: [`arena_service.py`](https://github.com/latent-to/optima/blob/main/optima/arena_service.py), [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py), and [`stack_plan.py`](https://github.com/latent-to/optima/blob/main/optima/stack_plan.py).
+Principal code: [`arena_service.py`](https://github.com/latent-to/cacheon/blob/main/optima/arena_service.py), [`target_catalog.py`](https://github.com/latent-to/cacheon/blob/main/optima/target_catalog.py), and [`stack_plan.py`](https://github.com/latent-to/cacheon/blob/main/optima/stack_plan.py).
 
 ## 4. Non-crown screens
 
@@ -131,7 +131,7 @@ Each candidate stack is the frozen incumbent with exactly one registered target 
 
 The evaluator may amortize B/B′ and one pristine reference lifetime across several candidates, but the retained evidence still binds each C to its exact delta and causal authority.
 
-Principal code: [`eval/qualification_intake.py`](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_intake.py) and [`stack_plan.py`](https://github.com/latent-to/optima/blob/main/optima/stack_plan.py).
+Principal code: [`eval/qualification_intake.py`](https://github.com/latent-to/cacheon/blob/main/optima/eval/qualification_intake.py) and [`stack_plan.py`](https://github.com/latent-to/cacheon/blob/main/optima/stack_plan.py).
 
 ## 6. B/C/B′/T qualification
 
@@ -173,7 +173,7 @@ required_bar   = 1 + max(margin_floor, noise_multiplier × measured_noise)
 
 The exact registered policy, not this explanatory formula, is authoritative.
 
-Principal code: [`eval/qualification.py`](https://github.com/latent-to/optima/blob/main/optima/eval/qualification.py), [`eval/qualification_runner.py`](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_runner.py), and [`eval/oci_backend.py`](https://github.com/latent-to/optima/blob/main/optima/eval/oci_backend.py).
+Principal code: [`eval/qualification.py`](https://github.com/latent-to/cacheon/blob/main/optima/eval/qualification.py), [`eval/qualification_runner.py`](https://github.com/latent-to/cacheon/blob/main/optima/eval/qualification_runner.py), and [`eval/oci_backend.py`](https://github.com/latent-to/cacheon/blob/main/optima/eval/oci_backend.py).
 
 ## 7. Verdict semantics
 
@@ -260,7 +260,7 @@ For the selected winner, the conservative settled speedup is the lower accepted 
 from the two passes. The stack transition and settlement evidence are committed
 transactionally; a partial write cannot expose a half-updated incumbent.
 
-Principal code: [`settlement.py`](https://github.com/latent-to/optima/blob/main/optima/settlement.py).
+Principal code: [`settlement.py`](https://github.com/latent-to/cacheon/blob/main/optima/settlement.py).
 
 ## 10. Reward projection and weights
 
@@ -277,7 +277,7 @@ Weight publication is a separate journaled reconciliation. Intent, pending, held
 
 The `set-weights` command requires explicit policy inputs, including half-life, discovery lifetime, discovery pool, and refresh behavior. Numeric choices are deployment policy and require calibration.
 
-Principal code: [`economics.py`](https://github.com/latent-to/optima/blob/main/optima/economics.py), [`chain/weights.py`](https://github.com/latent-to/optima/blob/main/optima/chain/weights.py), and the [emissions policy](https://github.com/latent-to/optima/blob/main/docs/EMISSIONS_POLICY.md).
+Principal code: [`economics.py`](https://github.com/latent-to/cacheon/blob/main/optima/economics.py), [`chain/weights.py`](https://github.com/latent-to/cacheon/blob/main/optima/chain/weights.py), and the [emissions policy](https://github.com/latent-to/cacheon/blob/main/docs/EMISSIONS_POLICY.md).
 
 ## 11. Integration and release
 

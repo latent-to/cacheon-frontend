@@ -6,7 +6,7 @@ Cacheon Engine is a chain-independent, open inference-acceleration distribution.
 
 The subnet is a market around that product. It discovers, measures, attributes, and rewards improvements. It is not embedded in the released engine, and the managed service never serves mutable miner bundles or reads live chain state to decide what code to execute.
 
-The [canonical product contract](https://github.com/latent-to/optima/blob/main/docs/PRODUCT_CONTRACT.md) is the normative source for this boundary.
+The [canonical product contract](https://github.com/latent-to/cacheon/blob/main/docs/PRODUCT_CONTRACT.md) is the normative source for this boundary.
 
 ## A useful mental model
 
@@ -127,7 +127,7 @@ The validator-owned target catalog defines what can receive ordinary attribution
 
 Miner packaging and manifest row order do not define economic scope. A bundle that explicitly claims a registered target but does not resolve to its exact members and allowed features fails resolution rather than falling through to an unregistered identity.
 
-The registered catalog contains every singleton slot and the atomic `collective.moe_epilogue.v1` target. The atomic target owns both `collective.ar_residual_rmsnorm` and `collective.moe_finalize_ar_rmsnorm`, and explicitly displaces the corresponding singleton targets while active. The live policy is implemented in [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
+The registered catalog contains every singleton slot and the atomic `collective.moe_epilogue.v1` target. The atomic target owns both `collective.ar_residual_rmsnorm` and `collective.moe_finalize_ar_rmsnorm`, and explicitly displaces the corresponding singleton targets while active. The live policy is implemented in [`target_catalog.py`](https://github.com/latent-to/cacheon/blob/main/optima/target_catalog.py).
 
 ## Discovery lane
 
@@ -213,8 +213,8 @@ confuses the execution unit with the reward unit.
 
 ## Source map
 
-- [`docs/PRODUCT_CONTRACT.md`](https://github.com/latent-to/optima/blob/main/docs/PRODUCT_CONTRACT.md) — normative product invariants
-- [`stack_manifest.py`](https://github.com/latent-to/optima/blob/main/optima/stack_manifest.py) — proposal, integration, evaluation-stack, and release-stack identities
-- [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py) — reward-unit policy
-- [`engine_tree.py`](https://github.com/latent-to/optima/blob/main/optima/engine_tree.py) — deterministic proposal and integrated-source materialization
-- [`release.py`](https://github.com/latent-to/optima/blob/main/optima/release.py) — chain-independent release artifacts and signatures
+- [`docs/PRODUCT_CONTRACT.md`](https://github.com/latent-to/cacheon/blob/main/docs/PRODUCT_CONTRACT.md) — normative product invariants
+- [`stack_manifest.py`](https://github.com/latent-to/cacheon/blob/main/optima/stack_manifest.py) — proposal, integration, evaluation-stack, and release-stack identities
+- [`target_catalog.py`](https://github.com/latent-to/cacheon/blob/main/optima/target_catalog.py) — reward-unit policy
+- [`engine_tree.py`](https://github.com/latent-to/cacheon/blob/main/optima/engine_tree.py) — deterministic proposal and integrated-source materialization
+- [`release.py`](https://github.com/latent-to/cacheon/blob/main/optima/release.py) — chain-independent release artifacts and signatures

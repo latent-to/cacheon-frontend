@@ -28,7 +28,7 @@ export default function Community() {
           <Button
             as="a"
             variant="secondary"
-            href="https://github.com/latent-to/optima"
+            href="https://github.com/latent-to/cacheon"
             target="_blank"
             rel="noopener noreferrer"
           >

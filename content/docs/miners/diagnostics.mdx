@@ -41,7 +41,7 @@ The production SQLite state machine currently exposes these statuses:
 | `expired`              | terminal queue-age expiry                                                                       |
 
 These transitions are implemented in
-[intake.py](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py).
+[intake.py](https://github.com/latent-to/cacheon/blob/main/optima/chain/intake.py).
 The command `chain-status` shows revealed chain commitments, not this private
 state machine. Obtain lifecycle receipts through the operator's published
 surface.
@@ -210,9 +210,9 @@ Check that:
 
 Publication/storage faults after a valid fetch are validator-side
 `NO_DECISION`, not candidate failure. The transport boundary is implemented in
-[fetch.py](https://github.com/latent-to/optima/blob/main/optima/chain/fetch.py)
+[fetch.py](https://github.com/latent-to/cacheon/blob/main/optima/chain/fetch.py)
 and immutable publication in
-[publication.py](https://github.com/latent-to/optima/blob/main/optima/chain/publication.py).
+[publication.py](https://github.com/latent-to/cacheon/blob/main/optima/chain/publication.py).
 
 ## 6. Non-crown screens
 

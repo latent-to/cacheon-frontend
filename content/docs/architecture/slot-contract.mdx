@@ -4,7 +4,7 @@ title: Slot contract
 
 The slot contract is Cacheon's narrow waist: a stable, validator-owned tensor boundary between untrusted optimization code and a pinned inference engine.
 
-Slots may evolve, SGLang adapters may churn, and correctness policies may be recalibrated. Every core slot must still satisfy the four invariants on this page. The normative checklist is [`docs/SLOT_CONTRACT.md`](https://github.com/latent-to/optima/blob/main/docs/SLOT_CONTRACT.md); the executable catalog is [`optima/slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py).
+Slots may evolve, SGLang adapters may churn, and correctness policies may be recalibrated. Every core slot must still satisfy the four invariants on this page. The normative checklist is [`docs/SLOT_CONTRACT.md`](https://github.com/latent-to/cacheon/blob/main/docs/SLOT_CONTRACT.md); the executable catalog is [`optima/slots.py`](https://github.com/latent-to/cacheon/blob/main/optima/slots.py).
 
 ## The four invariants
 
@@ -154,7 +154,7 @@ Candidate selection must agree across all ranks. Once all ranks select the candi
 
 Passing the distributed numerical check does not establish model quality or speed. Collective error can compound across layers, and topology controls performance. The candidate must still pass the registered full-engine bracket and pristine-reference quality policy.
 
-The implementation is split between [`verify_collective.py`](https://github.com/latent-to/optima/blob/main/optima/verify_collective.py), [`dispatch.py`](https://github.com/latent-to/optima/blob/main/optima/dispatch.py), and the version-pinned adapters in [`integrations/`](https://github.com/latent-to/optima/tree/main/optima/integrations).
+The implementation is split between [`verify_collective.py`](https://github.com/latent-to/cacheon/blob/main/optima/verify_collective.py), [`dispatch.py`](https://github.com/latent-to/cacheon/blob/main/optima/dispatch.py), and the version-pinned adapters in [`integrations/`](https://github.com/latent-to/cacheon/tree/main/optima/integrations).
 
 ## CUDA graph contract
 
@@ -194,7 +194,7 @@ A slot is a semantic ABI; a reward target is an economic identity. Most current 
 
 The catalog explicitly records displacement of the corresponding singleton targets. It also defines first-applicable precedence for the compatible `moe.fused_experts_reduce` and `moe.fused_experts` targets. Packaging order never decides overlap or ownership.
 
-See [Product model](/docs/architecture/product-model) and [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
+See [Product model](/docs/architecture/product-model) and [`target_catalog.py`](https://github.com/latent-to/cacheon/blob/main/optima/target_catalog.py).
 
 ## Slot evolution
 
@@ -258,9 +258,9 @@ Passing a unit test without these properties is not sufficient to extend the nar
 
 ## Source map
 
-- [`docs/SLOT_CONTRACT.md`](https://github.com/latent-to/optima/blob/main/docs/SLOT_CONTRACT.md) — normative invariants
-- [`slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py) — executable slot catalog
-- [`tensor_spec.py`](https://github.com/latent-to/optima/blob/main/optima/tensor_spec.py) — typed outputs and workspaces
-- [`verify.py`](https://github.com/latent-to/optima/blob/main/optima/verify.py) — op/block verification and graph replay
-- [`verify_collective.py`](https://github.com/latent-to/optima/blob/main/optima/verify_collective.py) — distributed verification
-- [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py) — economic target projection
+- [`docs/SLOT_CONTRACT.md`](https://github.com/latent-to/cacheon/blob/main/docs/SLOT_CONTRACT.md) — normative invariants
+- [`slots.py`](https://github.com/latent-to/cacheon/blob/main/optima/slots.py) — executable slot catalog
+- [`tensor_spec.py`](https://github.com/latent-to/cacheon/blob/main/optima/tensor_spec.py) — typed outputs and workspaces
+- [`verify.py`](https://github.com/latent-to/cacheon/blob/main/optima/verify.py) — op/block verification and graph replay
+- [`verify_collective.py`](https://github.com/latent-to/cacheon/blob/main/optima/verify_collective.py) — distributed verification
+- [`target_catalog.py`](https://github.com/latent-to/cacheon/blob/main/optima/target_catalog.py) — economic target projection

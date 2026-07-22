@@ -7,9 +7,9 @@ content hash and an HTTPS fetch URL. The chain carries a reference, not the
 archive bytes.
 
 The miner-side implementation is in
-[submit.py](https://github.com/latent-to/optima/blob/main/optima/chain/submit.py),
+[submit.py](https://github.com/latent-to/cacheon/blob/main/optima/chain/submit.py),
 and the canonical payload is defined by
-[payload.py](https://github.com/latent-to/optima/blob/main/optima/chain/payload.py).
+[payload.py](https://github.com/latent-to/cacheon/blob/main/optima/chain/payload.py).
 
 ## The identity chain
 
@@ -41,7 +41,7 @@ Confirm all of the following against the operator's current announcement:
 - how the operator publishes intake and qualification status.
 
 The repository's
-[submission terms](https://github.com/latent-to/optima/blob/main/docs/SUBMISSION_TERMS.md)
+[submission terms](https://github.com/latent-to/cacheon/blob/main/docs/SUBMISSION_TERMS.md)
 are currently marked draft and become binding only when an operator announcement
 designates a version. Read the designated terms before signing. Ensure you own
 or can grant the required rights to every submitted source fragment.
@@ -112,7 +112,7 @@ Current transport bounds include a 64 MiB archive, 256 MiB extracted content,
 4,096 members, and a 60-second transfer deadline. The validator accepts only
 regular identity-bearing archive members and re-hashes the safely extracted
 tree. See
-[fetch.py](https://github.com/latent-to/optima/blob/main/optima/chain/fetch.py).
+[fetch.py](https://github.com/latent-to/cacheon/blob/main/optima/chain/fetch.py).
 
 ## 4. Dry-run the chain payload
 

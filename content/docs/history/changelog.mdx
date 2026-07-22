@@ -18,7 +18,7 @@ The initial Cacheon implementation established the core thesis:
 
 The first seams targeted `SiluAndMul.forward_cuda` and `RMSNorm.forward_cuda`. Even at this stage, candidates filled validator-allocated outputs rather than returning final model responses.
 
-Foundation commit: [`d066d45`](https://github.com/latent-to/optima/commit/d066d45).
+Foundation commit: [`d066d45`](https://github.com/latent-to/cacheon/commit/d066d45).
 
 ## 2026-06-01 — Real workloads and stronger quality gates
 
@@ -35,7 +35,7 @@ The ABI expanded from individual operations to blocks:
 
 The same period added `(prepare, forward)` slots and `moe.fused_experts`, allowing layout or quantization transforms once at model load while retaining a narrow forward boundary.
 
-Representative changes: [PR #1](https://github.com/latent-to/optima/pull/1), [PR #3](https://github.com/latent-to/optima/pull/3), [PR #4](https://github.com/latent-to/optima/pull/4), and [PR #5](https://github.com/latent-to/optima/pull/5).
+Representative changes: [PR #1](https://github.com/latent-to/cacheon/pull/1), [PR #3](https://github.com/latent-to/cacheon/pull/3), [PR #4](https://github.com/latent-to/cacheon/pull/4), and [PR #5](https://github.com/latent-to/cacheon/pull/5).
 
 ## 2026-06-01 — Isolation, framework experiments, and the narrow waist
 
@@ -52,7 +52,7 @@ The canonical slot contract was then written around four invariants:
 
 Arbitrary rebuild scripts were rejected. Only validator-shipped reviewed patchers could implement the rebuild escape hatch.
 
-Representative changes: [PR #6](https://github.com/latent-to/optima/pull/6), [PR #8](https://github.com/latent-to/optima/pull/8), [PR #9](https://github.com/latent-to/optima/pull/9), and [PR #11](https://github.com/latent-to/optima/pull/11).
+Representative changes: [PR #6](https://github.com/latent-to/cacheon/pull/6), [PR #8](https://github.com/latent-to/cacheon/pull/8), [PR #9](https://github.com/latent-to/cacheon/pull/9), and [PR #11](https://github.com/latent-to/cacheon/pull/11).
 
 ## 2026-06-02 — Collective slots
 
@@ -60,7 +60,7 @@ Profiling showed that decode at tensor-parallel scale was frequently communicati
 
 Collectives widened the capability boundary by passing a process group, so single-process verification became invalid. `verify_collective` added multi-rank execution and comparison with trusted fp32 cross-rank partials. The design also established terminal all-rank selection: after ranks select a candidate collective, one rank cannot safely fall back while peers enter candidate communication.
 
-Changes: [PR #12](https://github.com/latent-to/optima/pull/12) and [PR #13](https://github.com/latent-to/optima/pull/13).
+Changes: [PR #12](https://github.com/latent-to/cacheon/pull/12) and [PR #13](https://github.com/latent-to/cacheon/pull/13).
 
 ## 2026-06-07 to 2026-06-10 — Chain plumbing and noise-aware scoring
 
@@ -68,7 +68,7 @@ The first chain-facing system added durable evaluation records, block-hash promp
 
 Scoring moved to a bookended `B, C, B′` comparison. Candidate throughput was paired with the mean of opening and closing baselines, while baseline disagreement produced `NO_DECISION`. The threshold combined a minimum margin with measured noise. Graph-safety declarations, count-dimension jitter, out-of-process verification, and per-slot economic state were added in the same period.
 
-Changes: [PR #14](https://github.com/latent-to/optima/pull/14), [PR #15](https://github.com/latent-to/optima/pull/15), [PR #16](https://github.com/latent-to/optima/pull/16), and [PR #17](https://github.com/latent-to/optima/pull/17).
+Changes: [PR #14](https://github.com/latent-to/cacheon/pull/14), [PR #15](https://github.com/latent-to/cacheon/pull/15), [PR #16](https://github.com/latent-to/cacheon/pull/16), and [PR #17](https://github.com/latent-to/cacheon/pull/17).
 
 ## 2026-06-21 to 2026-06-26 — Quantized MoE and MiniMax-M3
 
@@ -84,7 +84,7 @@ The pinned SGLang runtime moved to `0.5.13.post1`. Compatibility checks were spl
 
 The first dedicated miner and submission guides also landed during this period.
 
-Changes: [PR #18](https://github.com/latent-to/optima/pull/18), [PR #19](https://github.com/latent-to/optima/pull/19), [PR #20](https://github.com/latent-to/optima/pull/20), [PR #21](https://github.com/latent-to/optima/pull/21), and [PR #22](https://github.com/latent-to/optima/pull/22).
+Changes: [PR #18](https://github.com/latent-to/cacheon/pull/18), [PR #19](https://github.com/latent-to/cacheon/pull/19), [PR #20](https://github.com/latent-to/cacheon/pull/20), [PR #21](https://github.com/latent-to/cacheon/pull/21), and [PR #22](https://github.com/latent-to/cacheon/pull/22).
 
 ## 2026-07-02 to 2026-07-07 — Adversarial hardening and deep epilogue
 
@@ -99,7 +99,7 @@ The deep path added reviewed dependency overlays. A bundle could declare a const
 
 The `moe_export` state machine established scoped export/consume behavior between fused MoE production and the AR+residual+RMSNorm consumer.
 
-Changes: [PR #23](https://github.com/latent-to/optima/pull/23), [PR #24](https://github.com/latent-to/optima/pull/24), and [PR #25](https://github.com/latent-to/optima/pull/25).
+Changes: [PR #23](https://github.com/latent-to/cacheon/pull/23), [PR #24](https://github.com/latent-to/cacheon/pull/24), and [PR #25](https://github.com/latent-to/cacheon/pull/25).
 
 ## 2026-07-07 — First historical submitted speedups
 
@@ -113,7 +113,7 @@ On the MiniMax-M3-NVFP4 arena, two stock launches were not logit-identical enoug
 
 The earlier path introduced an untimed in-engine audit that sampled seam calls, replayed trusted baseline behavior on cloned inputs, and graded them under slot tolerances. KL became advisory on that arena. This corrected a false-failure mode, but the in-engine audit remained part of the older referee design. The final architecture later replaced candidate-adjacent quality authority with a separately launched pristine T reference over sealed trajectories.
 
-Change: [`4eef097`](https://github.com/latent-to/optima/commit/4eef097).
+Change: [`4eef097`](https://github.com/latent-to/cacheon/commit/4eef097).
 
 ## 2026-07-08 — Historical native chain loop
 
@@ -123,7 +123,7 @@ The deep fused-epilogue proposal completed that historical loop at 1.072× again
 
 This demonstrated live chain transport and then-current autonomous evaluation. It did not exercise the later SQLite intake, isolated current-schema B/C/B′/T evidence, two-pass reproduction, or release promotion.
 
-Change: [PR #26](https://github.com/latent-to/optima/pull/26).
+Change: [PR #26](https://github.com/latent-to/cacheon/pull/26).
 
 ## 2026-07-09 to 2026-07-10 — Submission ergonomics and MSA prefill
 
@@ -131,7 +131,7 @@ Developer onboarding and documentation were simplified, and the MSA prefill scor
 
 Two direct TP4 B300 lanes measured the MSA prefill candidate at 1.115× and 1.205×, with zero recorded audit violations. No crown or settlement was attempted. These remain historical direct-evaluator performance receipts.
 
-Changes: [PR #27](https://github.com/latent-to/optima/pull/27), [PR #28](https://github.com/latent-to/optima/pull/28), [PR #29](https://github.com/latent-to/optima/pull/29), and [PR #30](https://github.com/latent-to/optima/pull/30).
+Changes: [PR #27](https://github.com/latent-to/cacheon/pull/27), [PR #28](https://github.com/latent-to/cacheon/pull/28), [PR #29](https://github.com/latent-to/cacheon/pull/29), and [PR #30](https://github.com/latent-to/cacheon/pull/30).
 
 ## 2026-07-10 — Product and referee architecture reset
 
@@ -147,7 +147,7 @@ The reset established the current invariants:
 - crown and ship are independent decisions;
 - cross-cutting work uses a bounded discovery lane.
 
-A donor implementation at `1b1c842b` was retained as an architectural reference but not merged wholesale. Current main was built through bounded source extraction from [`203bb559`](https://github.com/latent-to/optima/commit/203bb559).
+A donor implementation at `1b1c842b` was retained as an architectural reference but not merged wholesale. Current main was built through bounded source extraction from [`203bb559`](https://github.com/latent-to/cacheon/commit/203bb559).
 
 ## 2026-07-11 — Product contract and hardened target waist
 
@@ -164,7 +164,7 @@ The first hardening group encoded the product contract and rebuilt the miner-fac
 
 The target catalog made economic identity independent of bundle row order. It registered singleton and atomic targets, explicit displacement, compatible composition, allowed features, and frozen slot contract digests.
 
-Merged changes: [#31](https://github.com/latent-to/optima/pull/31), [#32](https://github.com/latent-to/optima/pull/32), [#33](https://github.com/latent-to/optima/pull/33), [#34](https://github.com/latent-to/optima/pull/34), [#35](https://github.com/latent-to/optima/pull/35), [#36](https://github.com/latent-to/optima/pull/36), [#37](https://github.com/latent-to/optima/pull/37), [#38](https://github.com/latent-to/optima/pull/38), and [#39](https://github.com/latent-to/optima/pull/39).
+Merged changes: [#31](https://github.com/latent-to/cacheon/pull/31), [#32](https://github.com/latent-to/cacheon/pull/32), [#33](https://github.com/latent-to/cacheon/pull/33), [#34](https://github.com/latent-to/cacheon/pull/34), [#35](https://github.com/latent-to/cacheon/pull/35), [#36](https://github.com/latent-to/cacheon/pull/36), [#37](https://github.com/latent-to/cacheon/pull/37), [#38](https://github.com/latent-to/cacheon/pull/38), and [#39](https://github.com/latent-to/cacheon/pull/39).
 
 ## 2026-07-11 to 2026-07-12 — Stack identity and isolated execution
 
@@ -182,7 +182,7 @@ The execution layer added:
 - exact stack/tree/native/arena/model launch bindings;
 - B/C/B′ materialization from one frozen incumbent.
 
-Merged changes: [#40](https://github.com/latent-to/optima/pull/40), [#41](https://github.com/latent-to/optima/pull/41), [#42](https://github.com/latent-to/optima/pull/42), [#43](https://github.com/latent-to/optima/pull/43), [#44](https://github.com/latent-to/optima/pull/44), [#45](https://github.com/latent-to/optima/pull/45), and [#46](https://github.com/latent-to/optima/pull/46).
+Merged changes: [#40](https://github.com/latent-to/cacheon/pull/40), [#41](https://github.com/latent-to/cacheon/pull/41), [#42](https://github.com/latent-to/cacheon/pull/42), [#43](https://github.com/latent-to/cacheon/pull/43), [#44](https://github.com/latent-to/cacheon/pull/44), [#45](https://github.com/latent-to/cacheon/pull/45), and [#46](https://github.com/latent-to/cacheon/pull/46).
 
 ## 2026-07-12 — Pristine reference and causal qualification
 
@@ -200,7 +200,7 @@ The new path introduced:
 - graph evidence tied to exact candidate identity;
 - correction of tied top-logprob and pristine-publication edge cases.
 
-Merged changes: [#47](https://github.com/latent-to/optima/pull/47), [#48](https://github.com/latent-to/optima/pull/48), [#49](https://github.com/latent-to/optima/pull/49), [#50](https://github.com/latent-to/optima/pull/50), and [#51](https://github.com/latent-to/optima/pull/51).
+Merged changes: [#47](https://github.com/latent-to/cacheon/pull/47), [#48](https://github.com/latent-to/cacheon/pull/48), [#49](https://github.com/latent-to/cacheon/pull/49), [#50](https://github.com/latent-to/cacheon/pull/50), and [#51](https://github.com/latent-to/cacheon/pull/51).
 
 ## 2026-07-12 — Bounded discovery
 
@@ -208,7 +208,7 @@ Cross-cutting source-patch proposals gained a separate discovery ABI. The valida
 
 A structural RTX exercise completed the joined discovery B/C/B′/T path. The no-op proposal correctly received an economic failure rather than a synthetic win.
 
-Change: [PR #52](https://github.com/latent-to/optima/pull/52).
+Change: [PR #52](https://github.com/latent-to/cacheon/pull/52).
 
 ## 2026-07-13 — Finalized SQLite intake
 
@@ -218,7 +218,7 @@ The old shell/CPU report evaluator and JSON settlement path were removed from pr
 
 A live testnet reveal was fetched, published, and reopened across restart without duplicate work. This intake proof did not claim a current-path performance crown.
 
-Change: [PR #53](https://github.com/latent-to/optima/pull/53).
+Change: [PR #53](https://github.com/latent-to/cacheon/pull/53).
 
 ## 2026-07-13 — Transactional settlement and emissions
 
@@ -237,7 +237,7 @@ The economics layer added:
 
 Numeric policy parameters remained uncalibrated by design.
 
-Change: [PR #54](https://github.com/latent-to/optima/pull/54).
+Change: [PR #54](https://github.com/latent-to/cacheon/pull/54).
 
 ## 2026-07-13 — Reproduction, integration, and signed release closure
 
@@ -262,7 +262,7 @@ The closure added the missing product authorities:
 
 The exact final structural proof used a synthetic 100-ppm candidate to exercise two-pass crown, restart, and a live `submitted=false` weight dry-run. It did not claim a real acceleration result. The real joined double-build and TP8 serve proof was not run.
 
-Changes: [PR #55](https://github.com/latent-to/optima/pull/55) and [PR #56](https://github.com/latent-to/optima/pull/56). The latter only clarified that the value embedded in the container context is an Ed25519 public verification key.
+Changes: [PR #55](https://github.com/latent-to/cacheon/pull/55) and [PR #56](https://github.com/latent-to/cacheon/pull/56). The latter only clarified that the value embedded in the container context is an Ed25519 public verification key.
 
 ## 2026-07-13 — CuTe admission and scheduler-role loading
 
@@ -308,7 +308,7 @@ TP4 B200 joined qualification retained primary and reproduction PASSes at 1.0561
 and reopened it after restart. The run proves the blockscore direct-CUBIN lane, not
 arbitrary direct-artifact collectives.
 
-Changes: [PR #59](https://github.com/latent-to/optima/pull/59), including `368727f6` through `93dfb182` and their validation follow-ups.
+Changes: [PR #59](https://github.com/latent-to/cacheon/pull/59), including `368727f6` through `93dfb182` and their validation follow-ups.
 
 ## 2026-07-15 — Chain reconciliation and executable-surface trim
 
@@ -340,11 +340,11 @@ manifest-reachable serving entrypoint before the branch is release-ready.
 
 ### MXFP4 throughput claim retracted — 2026-06-07
 
-An early sm120/MXFP4 example was described as a submitted throughput improvement before it had passed Cacheon's scored end-to-end gate. Commit [`c83c5a9`](https://github.com/latent-to/optima/commit/c83c5a9) removed the slot/example and the unsupported throughput language while retaining the useful generic MoE and cosine-correctness machinery.
+An early sm120/MXFP4 example was described as a submitted throughput improvement before it had passed Cacheon's scored end-to-end gate. Commit [`c83c5a9`](https://github.com/latent-to/cacheon/commit/c83c5a9) removed the slot/example and the unsupported throughput language while retaining the useful generic MoE and cosine-correctness machinery.
 
 ### Weight submission truthfulness — 2026-07
 
-The earlier chain adapter could report `submitted=true` even when the extrinsic failed, which could suppress a necessary retry. Commit [`20b8d674`](https://github.com/latent-to/optima/commit/20b8d674) corrected the immediate bug. The final economics design institutionalized the lesson: submission intent, release, and confirmation are separate persisted states, and an SDK return value alone never confirms weights.
+The earlier chain adapter could report `submitted=true` even when the extrinsic failed, which could suppress a necessary retry. Commit [`20b8d674`](https://github.com/latent-to/cacheon/commit/20b8d674) corrected the immediate bug. The final economics design institutionalized the lesson: submission intent, release, and confirmation are separate persisted states, and an SDK return value alone never confirms weights.
 
 ### Historical crown language narrowed — 2026-07-13
 
@@ -352,7 +352,7 @@ The July 7 and July 8 fused-epilogue results remain real, reproduced measurement
 
 ### Slot count corrected — 2026-07-13
 
-The live slot catalog contains 11 slots, not 10. `attention.msa_prefill_block_score` is the additional current slot. The executable [`slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py) catalog is authoritative.
+The live slot catalog contains 11 slots, not 10. `attention.msa_prefill_block_score` is the additional current slot. The executable [`slots.py`](https://github.com/latent-to/cacheon/blob/main/optima/slots.py) catalog is authoritative.
 
 ## Hardening merge index
 

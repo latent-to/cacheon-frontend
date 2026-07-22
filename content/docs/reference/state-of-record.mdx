@@ -13,10 +13,10 @@ Snapshot date: **2026-07-16**
 
 | Item                             | Value                                                                                                                                              |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Repository                       | [`latent-to/optima`](https://github.com/latent-to/optima)                                                                                          |
+| Repository                       | [`latent-to/cacheon`](https://github.com/latent-to/cacheon)                                                                                          |
 | Documentation target             | Local `codex/audit-gpu-readiness-20260716` at `f8be20a43708efd830b7b1dae88f00ffaf532ad5`                                                           |
 | Remote publication               | No `origin/*` ref contains the target commit at the snapshot time                                                                                  |
-| Main base                        | [`6d7e92ef9be058821a7cc8cb37aa872cf3af0b68`](https://github.com/latent-to/optima/commit/6d7e92ef9be058821a7cc8cb37aa872cf3af0b68), merge of PR #58 |
+| Main base                        | [`6d7e92ef9be058821a7cc8cb37aa872cf3af0b68`](https://github.com/latent-to/cacheon/commit/6d7e92ef9be058821a7cc8cb37aa872cf3af0b68), merge of PR #58 |
 | Branch relation                  | Four local commits ahead of `main`                                                                                                                 |
 | Delta from the prior docs pin    | 29 commits; 154 files; +25,690/−5,639 lines                                                                                                        |
 | Production Python                | 108 files, 76,233 lines under `optima/`                                                                                                            |
@@ -35,7 +35,7 @@ release evidence.
 When sources disagree, apply this order:
 
 1. executable code, closed registries, and schemas at the pinned commit;
-2. the [product contract](https://github.com/latent-to/optima/blob/main/docs/PRODUCT_CONTRACT.md) and [slot contract](https://github.com/latent-to/optima/blob/main/docs/SLOT_CONTRACT.md);
+2. the [product contract](https://github.com/latent-to/cacheon/blob/main/docs/PRODUCT_CONTRACT.md) and [slot contract](https://github.com/latent-to/cacheon/blob/main/docs/SLOT_CONTRACT.md);
 3. authenticated retained evidence and immutable publications;
 4. this ledger and the [changelog](/docs/history/changelog);
 5. campaign notes, plans, audit snapshots, console output, and older narrative reports.
@@ -85,8 +85,8 @@ installing decode-side SGLang adapter; its prefill sibling has the live adapter.
 MSA `topk` controls downstream block selection, while the slot correctness `top_k` is only
 the verifier's overlap width.
 
-Sources: [`slots.py`](https://github.com/latent-to/optima/blob/main/optima/slots.py), [`target_catalog.py`](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py),
-and [`seams.py`](https://github.com/latent-to/optima/blob/main/optima/seams.py).
+Sources: [`slots.py`](https://github.com/latent-to/cacheon/blob/main/optima/slots.py), [`target_catalog.py`](https://github.com/latent-to/cacheon/blob/main/optima/target_catalog.py),
+and [`seams.py`](https://github.com/latent-to/cacheon/blob/main/optima/seams.py).
 
 ### Sealed direct artifacts
 
@@ -249,15 +249,15 @@ and [Release workflow](/docs/engine/release-workflow) for the gates this closes.
 
 ## Source map
 
-- [Artifact provider policy](https://github.com/latent-to/optima/blob/main/optima/artifact_provider.py)
-- [Artifact call ABI](https://github.com/latent-to/optima/blob/main/optima/artifact_abi.py)
-- [CUDA device launch authority](https://github.com/latent-to/optima/blob/main/optima/artifact_device_launch.py)
-- [CuTe CUBIN publication/runtime](https://github.com/latent-to/optima/blob/main/optima/cute_cubin.py)
-- [OCI prebuild](https://github.com/latent-to/optima/blob/main/optima/eval/oci_prebuild.py)
-- [Qualification runner](https://github.com/latent-to/optima/blob/main/optima/eval/qualification_runner.py)
-- [Finalized intake](https://github.com/latent-to/optima/blob/main/optima/chain/intake.py)
-- [Settlement](https://github.com/latent-to/optima/blob/main/optima/settlement.py)
-- [Weight reconciliation](https://github.com/latent-to/optima/blob/main/optima/chain/weights.py)
-- [Release construction](https://github.com/latent-to/optima/blob/main/optima/release.py)
-- [Release host authority](https://github.com/latent-to/optima/blob/main/optima/release_host.py)
-- [Release runtime](https://github.com/latent-to/optima/blob/main/optima/release_runtime.py)
+- [Artifact provider policy](https://github.com/latent-to/cacheon/blob/main/optima/artifact_provider.py)
+- [Artifact call ABI](https://github.com/latent-to/cacheon/blob/main/optima/artifact_abi.py)
+- [CUDA device launch authority](https://github.com/latent-to/cacheon/blob/main/optima/artifact_device_launch.py)
+- [CuTe CUBIN publication/runtime](https://github.com/latent-to/cacheon/blob/main/optima/cute_cubin.py)
+- [OCI prebuild](https://github.com/latent-to/cacheon/blob/main/optima/eval/oci_prebuild.py)
+- [Qualification runner](https://github.com/latent-to/cacheon/blob/main/optima/eval/qualification_runner.py)
+- [Finalized intake](https://github.com/latent-to/cacheon/blob/main/optima/chain/intake.py)
+- [Settlement](https://github.com/latent-to/cacheon/blob/main/optima/settlement.py)
+- [Weight reconciliation](https://github.com/latent-to/cacheon/blob/main/optima/chain/weights.py)
+- [Release construction](https://github.com/latent-to/cacheon/blob/main/optima/release.py)
+- [Release host authority](https://github.com/latent-to/cacheon/blob/main/optima/release_host.py)
+- [Release runtime](https://github.com/latent-to/cacheon/blob/main/optima/release_runtime.py)

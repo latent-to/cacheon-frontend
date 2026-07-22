@@ -23,9 +23,9 @@ deep `collective.moe_finalize_ar_rmsnorm` singleton target and the
 does not gain permission merely because the manifest parses.
 
 The authoritative allowlist is in
-[dep_policy.py](https://github.com/latent-to/optima/blob/main/optima/dep_policy.py),
+[dep_policy.py](https://github.com/latent-to/cacheon/blob/main/optima/dep_policy.py),
 and target feature policy is in
-[target_catalog.py](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
+[target_catalog.py](https://github.com/latent-to/cacheon/blob/main/optima/target_catalog.py).
 
 ## Declaration
 
@@ -54,7 +54,7 @@ sections, malformed hunks, and missing-newline markers. Application is byte
 exact at the declared location: there is no fuzzy context match or offset
 search. A patch prepared against a different dependency revision must fail.
 
-See [deppatch.py](https://github.com/latent-to/optima/blob/main/optima/deppatch.py).
+See [deppatch.py](https://github.com/latent-to/cacheon/blob/main/optima/deppatch.py).
 
 ## Rebuild plan
 
@@ -87,7 +87,7 @@ and source digest; the bundle chooses a reviewed capability, not executable
 installer code.
 
 The rebuild contract is implemented in
-[rebuild.py](https://github.com/latent-to/optima/blob/main/optima/rebuild.py).
+[rebuild.py](https://github.com/latent-to/cacheon/blob/main/optima/rebuild.py).
 
 ## Build and load are separated
 
@@ -107,9 +107,9 @@ local cache is not authoritative evidence.
 
 This split prevents a bundle ID, ambient cache, or mutable shared install from
 selecting what runs. The overlay validation logic is in
-[dep_policy.py](https://github.com/latent-to/optima/blob/main/optima/dep_policy.py),
+[dep_policy.py](https://github.com/latent-to/cacheon/blob/main/optima/dep_policy.py),
 and the reviewed applier is
-[apply_dep_patch.py](https://github.com/latent-to/optima/blob/main/optima/patchers/apply_dep_patch.py).
+[apply_dep_patch.py](https://github.com/latent-to/cacheon/blob/main/optima/patchers/apply_dep_patch.py).
 
 ## Native source declarations
 
@@ -144,7 +144,7 @@ Before proposing a dependency-patch bundle:
 - review the complete materialized delta, not just the Python shim.
 
 The committed
-[atomic stack fixture](https://github.com/latent-to/optima/tree/main/tests/fixtures/stack_fused_epilogue_atomic)
+[atomic stack fixture](https://github.com/latent-to/cacheon/tree/main/tests/fixtures/stack_fused_epilogue_atomic)
 demonstrates manifest identity, patch declaration, and rebuild selection. Its
 native and Python bodies are deliberately test stubs and do not implement the
 production deep ABI. Treat it as a schema fixture, not a miner kernel template.
