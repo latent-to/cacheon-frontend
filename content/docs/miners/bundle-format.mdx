@@ -7,9 +7,9 @@ target. Its `manifest.toml` is data: the validator parses it before importing
 miner code.
 
 The parser is implemented in
-[manifest.py](https://github.com/latent-to/optima/blob/main/optima/manifest.py).
+[manifest.py](https://github.com/latent-to/cacheon/blob/main/optima/manifest.py).
 Target resolution is a separate step implemented by
-[target_catalog.py](https://github.com/latent-to/optima/blob/main/optima/target_catalog.py).
+[target_catalog.py](https://github.com/latent-to/cacheon/blob/main/optima/target_catalog.py).
 A manifest can be structurally valid and still be ineligible for a registered
 target.
 
@@ -204,9 +204,9 @@ constraints. Legacy metadata keys such as `min_num_tokens`, `max_num_tokens`,
 specializations should be expressed in `capabilities` where possible.
 
 The canonical vocabulary and normalization rules are in
-[capabilities.py](https://github.com/latent-to/optima/blob/main/optima/capabilities.py)
+[capabilities.py](https://github.com/latent-to/cacheon/blob/main/optima/capabilities.py)
 and routing is in
-[registry.py](https://github.com/latent-to/optima/blob/main/optima/registry.py).
+[registry.py](https://github.com/latent-to/cacheon/blob/main/optima/registry.py).
 
 An empty manifest list contributes no constraint for that field; a non-empty list does.
 If both manifest and metadata declare a field, their canonicalized intersection is the
@@ -387,7 +387,7 @@ entry = "moe_finalize_ar_rmsnorm"
 ```
 
 The committed
-[atomic stack fixture](https://github.com/latent-to/optima/tree/main/tests/fixtures/stack_fused_epilogue_atomic)
+[atomic stack fixture](https://github.com/latent-to/cacheon/tree/main/tests/fixtures/stack_fused_epilogue_atomic)
 is useful for studying identity and rebuild declarations. It is a test fixture,
 not a production-ready kernel and not a template whose stub ABI should be
 copied blindly.

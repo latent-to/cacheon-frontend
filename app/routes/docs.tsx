@@ -15,7 +15,6 @@ import { source } from '~/lib/source.server'
 import { baseOptions } from '~/lib/layout.shared'
 import { getMDXComponents } from '~/components/mdx'
 
-// TODO: confirm canonical frontend repo before publish — is this repo staying named cacheon-frontend or being renamed (e.g. optima-frontend)? The "edit this page" / GitHub-view links derive from this.
 const DOCS_REPO = 'https://github.com/latent-to/cacheon-frontend/blob/main/content/docs'
 
 const clientLoader = browserCollections.docs.createClientLoader({

@@ -33,7 +33,7 @@ must match the host CUDA/runtime environment. Resolve SGLang and its Torch
 family for the host first, then install Cacheon without replacing that stack:
 
 ```bash
-git clone https://github.com/latent-to/optima.git
+git clone https://github.com/latent-to/cacheon.git
 cd optima
 
 python3 -m venv .venv
@@ -205,6 +205,6 @@ denominator. Do not treat them as qualification evidence.
 | Graph path falls back           | Capability metadata, `graph_safe`, static allocations, host syncs, dynamic-input contract           |
 | Baselines drift                 | Stop scoring; inspect thermals, clocks, competing processes, device cleanup, and arena conditioning |
 
-Source: [`optima/compat.py`](https://github.com/latent-to/optima/blob/main/optima/compat.py),
-[`optima/verify.py`](https://github.com/latent-to/optima/blob/main/optima/verify.py), and
-[`optima/verify_collective.py`](https://github.com/latent-to/optima/blob/main/optima/verify_collective.py).
+Source: [`optima/compat.py`](https://github.com/latent-to/cacheon/blob/main/optima/compat.py),
+[`optima/verify.py`](https://github.com/latent-to/cacheon/blob/main/optima/verify.py), and
+[`optima/verify_collective.py`](https://github.com/latent-to/cacheon/blob/main/optima/verify_collective.py).
