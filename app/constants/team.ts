@@ -5,16 +5,17 @@ export interface TeamMember {
   github?: string
   twitter?: string
   linkedin?: string
+  scholar?: string
 }
 
 export const TEAM: TeamMember[] = [
   {
-    name: 'Xavier Lyu',
-    role: 'Research',
-    image: '/team/xavier-29b60b7a.jpg',
-    twitter: 'https://x.com/xavi3rlu',
-    github: 'https://github.com/xavierlyu',
-    linkedin: 'https://www.linkedin.com/in/xavier-lyu',
+    name: 'Shivanshu Purohit',
+    role: 'Subnet Lead',
+    image: '/team/shivanshu.jpg',
+    github: 'https://github.com/ShivanshuPurohit',
+    linkedin: 'https://www.linkedin.com/in/shivanshu-purohit',
+    scholar: 'https://scholar.google.com/citations?user=PbFnD-0AAAAJ',
   },
   {
     name: 'Clément Blaise',
