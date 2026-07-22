@@ -1,83 +1,36 @@
 import { cn } from '~/lib/cn'
 import SectionHeader from './SectionHeader'
 
-const COMPETITORS = [
+const TARGETS = [
   {
-    rank: 1,
-    name: 'Your Kernel',
-    tag: 'Cacheon champion',
-    speed: 1.37,
-    pass: true,
-    leader: true,
+    name: 'RMSNorm kernel',
+    detail: '+37% over incumbent',
+    crowned: true,
   },
   {
-    rank: 2,
-    name: 'sglang',
-    tag: 'baseline',
-    speed: 1.0,
-    pass: true,
-    leader: false,
+    name: 'Attention block',
+    detail: 'no challenger yet',
+    crowned: false,
   },
   {
-    rank: 3,
-    name: 'Fast But Unfaithful',
-    tag: 'fidelity gate failed',
-    speed: 2.8,
-    pass: false,
-    leader: false,
+    name: 'Collective op',
+    detail: '+12% over incumbent',
+    crowned: true,
   },
 ] as const
 
-const MAX_SPEED = 3.2
-
-function SpeedBar({ speed, pass, leader }: { speed: number; pass: boolean; leader: boolean }) {
-  const pct = Math.min((speed / MAX_SPEED) * 100, 100)
-
-  return (
-    <div className="relative h-3 w-full overflow-hidden rounded-sm bg-white/[0.06]">
-      <div className="absolute inset-0 flex items-stretch">
-        {[...Array(20)].map((_, i) => (
-          <div key={i} className="flex-1 border-r border-white/[0.03]" />
-        ))}
-      </div>
-
-      <div
-        className={cn(
-          'relative h-full rounded-sm transition-all duration-700',
-          !pass
-            ? 'from-error/60 to-error/80 bg-gradient-to-r'
-            : leader
-              ? 'from-accent/70 to-accent bg-gradient-to-r'
-              : 'bg-gradient-to-r from-white/10 to-white/20',
-        )}
-        style={{ width: `${pct}%` }}
-      />
-
-      {leader && (
-        <div
-          className="shadow-accent-md pointer-events-none absolute inset-y-0 left-0 rounded-sm"
-          style={{ width: `${pct}%` }}
-        />
-      )}
-    </div>
-  )
-}
-
-function StatusPill({ pass, label }: { pass: boolean; label: string }) {
+function StatusPill({ crowned }: { crowned: boolean }) {
   return (
     <span
       className={cn(
-        'tracking-caps inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-xs font-bold sm:gap-1.5 sm:px-2.5 sm:py-1 sm:text-xs',
-        pass ? 'bg-accent/15 text-accent' : 'bg-error/15 text-error',
+        'tracking-caps inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-2xs font-bold sm:px-3 sm:text-xs',
+        crowned ? 'bg-accent/15 text-accent' : 'border-border/60 text-secondary/50 border',
       )}
     >
-      <span
-        className={cn(
-          'inline-block size-1.5 rounded-full sm:size-2',
-          pass ? 'bg-accent shadow-accent-sm' : 'bg-error shadow-error-sm',
-        )}
-      />
-      {label}
+      {crowned && (
+        <span className="bg-accent shadow-accent-sm inline-block size-1.5 rounded-full sm:size-2" />
+      )}
+      {crowned ? 'crowned' : 'open'}
     </span>
   )
 }
@@ -89,88 +42,53 @@ export default function WhatIs() {
         <SectionHeader eyebrow="01 — Overview" title="What is Cacheon?" />
 
         <p className="text-lg2 text-secondary -mt-8 mb-14 max-w-2xl font-sans leading-[1.65]">
-          An arena where GPU kernels race the stock sglang baseline. The fastest kernel that stays
-          faithful takes the slot. The board below is illustrative: it shows the scoring shape, not
-          a claimed result.
+          An arena where GPU kernels race the stock sglang baseline. Improve inference performance
+          with your kernel, without impacting quality, and get a reward scaled to your impact.
+          Bigger improvements mean bigger rewards.
         </p>
 
-        {/* Leaderboard */}
+        {/* Many targets, independently judged */}
         <div className="border-border/60 bg-surface-raised overflow-hidden rounded-xl border">
-          <div className="border-border/40 flex items-center justify-between border-b bg-white/[0.015] px-4 py-3 sm:px-8 sm:py-3.5">
+          <div className="border-border/40 border-b bg-white/[0.015] px-4 py-3 sm:px-8 sm:py-3.5">
             <span className="tracking-caps text-primary font-mono text-xs font-bold uppercase">
-              Fast is not enough. Faithful wins.
-            </span>
-            <span className="text-2xs tracking-caps text-secondary/40 hidden font-mono uppercase sm:block">
-              Throughput (higher is better) →
+              No single leaderboard. Every target crowns on its own.
             </span>
           </div>
 
-          {COMPETITORS.map((c, i) => (
+          {TARGETS.map((t, i) => (
             <div
-              key={c.rank}
-              className={cn(i > 0 && 'border-border/20 border-t', c.leader && 'bg-accent/[0.035]')}
+              key={t.name}
+              className={cn(i > 0 && 'border-border/20 border-t', t.crowned && 'bg-accent/[0.035]')}
             >
-              <div className="grid grid-cols-[1.5rem_1fr_auto_auto] items-center gap-x-2 px-4 py-4 sm:grid-cols-[3rem_11rem_1fr_5rem_auto] sm:gap-x-6 sm:px-8 sm:py-5">
-                <div
-                  className={cn(
-                    'font-mono text-xl leading-none font-black tracking-tight sm:text-2xl',
-                    c.leader ? 'text-accent' : c.pass ? 'text-white/20' : 'text-error/30',
-                  )}
-                >
-                  {c.rank}
-                </div>
-
+              <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-8 sm:py-5">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 sm:gap-2.5">
-                    {c.leader && (
-                      <span className="text-base leading-none drop-shadow-[0_0_8px_var(--accent-glow)] sm:text-xl">
-                        👑
-                      </span>
+                  <div
+                    className={cn(
+                      'text-sm2 sm:text-base2 font-mono font-bold',
+                      t.crowned ? 'text-primary' : 'text-secondary/80',
                     )}
-                    {!c.pass && <span className="text-sm leading-none sm:text-base">⚠️</span>}
-                    <span
-                      className={cn(
-                        'text-sm2 sm:text-base2 font-mono font-bold',
-                        c.leader
-                          ? 'text-primary'
-                          : c.pass
-                            ? 'text-secondary/80'
-                            : 'text-secondary/50 decoration-error/40 line-through',
-                      )}
-                    >
-                      {c.name}
-                    </span>
+                  >
+                    {t.name}
                   </div>
                   <div
                     className={cn(
                       'text-2xs tracking-caps mt-0.5 font-mono font-semibold uppercase sm:mt-1',
-                      c.leader ? 'text-accent/60' : c.pass ? 'text-secondary/30' : 'text-error/40',
+                      t.crowned ? 'text-accent/60' : 'text-secondary/30',
                     )}
                   >
-                    {c.tag}
+                    {t.detail}
                   </div>
                 </div>
 
-                <div className="hidden sm:flex sm:flex-col">
-                  <SpeedBar speed={c.speed} pass={c.pass} leader={c.leader} />
-                </div>
-
-                <div
-                  className={cn(
-                    'text-right font-mono text-base font-black tracking-tight sm:text-xl',
-                    c.leader ? 'text-accent' : c.pass ? 'text-white/30' : 'text-error/60',
-                  )}
-                >
-                  {c.speed.toFixed(c.speed === 1.0 ? 1 : 2)}x
-                </div>
-
-                <div className="flex justify-end">
-                  <StatusPill pass={c.pass} label={!c.pass ? 'FAIL' : c.leader ? 'PASS' : 'BASE'} />
-                </div>
+                <StatusPill crowned={t.crowned} />
               </div>
             </div>
           ))}
         </div>
+        <p className="text-2xs tracking-caps text-secondary/40 mt-3 font-mono uppercase">
+          Every registered target is judged against its own incumbent. Many kernels can hold a
+          crown at the same time.
+        </p>
 
         {/* Scoring surface */}
         <div className="mt-10 flex flex-wrap items-center justify-center gap-6 sm:gap-8">

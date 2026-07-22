@@ -35,9 +35,9 @@ const STEPS = [
     title: 'Validator scores it',
     desc: (
       <>
-        The validator swaps your kernel into a pinned <code>sglang</code> engine and runs two
-        launches, scoring throughput gated by fidelity. Beat the slot champion by a margin to take
-        the crown: per-slot king-of-the-hill.
+        The validator swaps your kernel into a pinned <code>sglang</code> engine and brackets it
+        between incumbent baseline launches, scoring throughput gated by fidelity. Clear the bar
+        twice, independently, and your delta crowns that target.
       </>
     ),
   },
@@ -114,7 +114,7 @@ export default function HowItWorks() {
             <span className="text-secondary">else</span> {'\n'}
             <span className="text-secondary">
               {'    '}
-              // Two launches, same model + seed; only the slot kernel differs
+              // Same model + seed; only your target&apos;s kernel differs
             </span>
             {'\n    baseline_tput = throughput(OPTIMA_ACTIVE='}
             <span className="text-accent">0</span>
@@ -126,7 +126,7 @@ export default function HowItWorks() {
             <span className="text-secondary"> # your kernel</span>
             {'\n    speedup = cand_tput / baseline_tput'}
             <span className="text-secondary">
-              {'\n    # bracket the candidate with a baseline before AND after (B, C, B'}
+              {'\n    # bracket the candidate with an incumbent baseline before AND after (B, C, B'}
               &apos;{')'}
             </span>
             {'\n    require speedup >= '}
@@ -134,10 +134,14 @@ export default function HowItWorks() {
             {' + '}
             <span className="text-accent">max</span>
             {'('}
-            <span className="text-accent">0.02</span>
+            <span className="text-accent">margin_floor</span>
             {', k * measured_noise)'}
             {'\n    score = speedup'}
-            <span className="text-secondary"> # else NO-DECISION (never crowns)</span>
+            <span className="text-secondary"> # else NO_DECISION — retryable, never a loss</span>
+            {'\n'}
+            <span className="text-secondary">
+              # a second, independent pass must reproduce this before it crowns the target
+            </span>
           </pre>
         </GlassCard>
 
@@ -163,9 +167,9 @@ export default function HowItWorks() {
         </div>
 
         <p className="border-border/40 text-base2 text-secondary mt-2 border-t pt-6 text-center font-sans leading-[1.65]">
-          Throughput comes from two launches of the same model, baseline (stock kernels) and
-          candidate (your kernel), so the delta is attributable to the one slot. Fidelity is scored
-          separately with KL and benchmark accuracy. Both relative to the same pinned sglang
+          Throughput comes from bracketing your kernel between incumbent baseline launches, so the
+          delta is attributable to your one target, not machine noise. Fidelity is scored separately
+          against a pristine, candidate-free reference. Both relative to the same pinned sglang
           baseline on the same hardware.
         </p>
       </div>
