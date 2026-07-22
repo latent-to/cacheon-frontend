@@ -23,7 +23,7 @@ function StatusPill({ crowned }: { crowned: boolean }) {
   return (
     <span
       className={cn(
-        'tracking-caps inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-2xs font-bold sm:px-3 sm:text-xs',
+        'tracking-caps text-2xs inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono font-bold sm:px-3 sm:text-xs',
         crowned ? 'bg-accent/15 text-accent' : 'border-border/60 text-secondary/50 border',
       )}
     >
@@ -86,8 +86,8 @@ export default function WhatIs() {
           ))}
         </div>
         <p className="text-2xs tracking-caps text-secondary/40 mt-3 font-mono uppercase">
-          Every registered target is judged against its own incumbent. Many kernels can hold a
-          crown at the same time.
+          Every registered target is judged against its own incumbent. Many kernels can hold a crown
+          at the same time.
         </p>
 
         {/* Scoring surface */}
