@@ -12,8 +12,8 @@ resolution. Before adapting one for submission, add the appropriate
 
 ## Positive learning examples
 
-| Example                                                                                                                               | What it demonstrates                                          | Limits                                                             |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Example                                                                                                                                | What it demonstrates                                          | Limits                                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
 | [`miner_silu_torch`](https://github.com/latent-to/cacheon/tree/main/examples/miner_silu_torch)                                         | smallest CPU-importable `entry(x, out)` bundle                | correctness/packaging only; not expected to beat a tuned incumbent |
 | [`miner_silu_triton`](https://github.com/latent-to/cacheon/tree/main/examples/miner_silu_triton)                                       | Triton activation implementation and architecture constraints | needs matching GPU/Triton environment                              |
 | [`miner_rmsnorm_triton`](https://github.com/latent-to/cacheon/tree/main/examples/miner_rmsnorm_triton)                                 | pure RMSNorm output ownership in Triton                       | local example, not crown evidence                                  |
@@ -31,8 +31,8 @@ signature in [Kernel ABI](/docs/miners/kernel-abi), not a superficially similar 
 
 These bundles are meant to fail or expose a gate:
 
-| Example                                                                                                     | Intended lesson                                                                              |
-| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Example                                                                                                      | Intended lesson                                                                              |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | [`miner_silu_broken_torch`](https://github.com/latent-to/cacheon/tree/main/examples/miner_silu_broken_torch) | wrong activation math fails CPU correctness                                                  |
 | [`miner_silu_broken`](https://github.com/latent-to/cacheon/tree/main/examples/miner_silu_broken)             | a GPU implementation cannot win by skipping required work                                    |
 | [`miner_silu_sparse`](https://github.com/latent-to/cacheon/tree/main/examples/miner_silu_sparse)             | sparse corruption can evade naive averages, so tail/disagreement and end-to-end gates matter |
