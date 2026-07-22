@@ -26,6 +26,14 @@ function IconLinkedin({ size = 16 }: { size?: number }) {
   )
 }
 
+function IconScholar({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 3 1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z" />
+    </svg>
+  )
+}
+
 export default function Team() {
   return (
     <section id="team" className="border-border/50 relative border-t">
@@ -44,12 +52,12 @@ export default function Team() {
 
 function MemberCard({ member }: { member: TeamMember }) {
   return (
-    <GlassCard className="group p-4 sm:p-5">
+    <GlassCard className="p-4 sm:p-5">
       <div className="border-border/60 mb-4 size-12 overflow-hidden rounded-full border">
         <img
           src={member.image}
           alt={member.name}
-          className="h-full w-full object-cover grayscale transition-all duration-300 group-hover:grayscale-0"
+          className="h-full w-full object-cover grayscale"
           onError={(e) => {
             const target = e.currentTarget
             target.style.display = 'none'
@@ -102,6 +110,17 @@ function MemberCard({ member }: { member: TeamMember }) {
             aria-label={`${member.name} on LinkedIn`}
           >
             <IconLinkedin />
+          </a>
+        )}
+        {member.scholar && (
+          <a
+            href={member.scholar}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-secondary/70 hover:text-primary transition-colors"
+            aria-label={`${member.name} on Google Scholar`}
+          >
+            <IconScholar />
           </a>
         )}
       </div>
