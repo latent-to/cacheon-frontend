@@ -22,23 +22,23 @@ Miners submit a **bundle** (`manifest.toml` + kernel source) for a typed **slot*
 
 Validated end to end on real GPUs (single H100 up to gpt-oss-120b; 4×B300 for MiniMax-M3-NVFP4):
 
-- **Typed slots (ten today):** ops such as `activation.silu_and_mul` and `norm.rmsnorm`, fused blocks such as `attention.sdpa`, `attention.decode`, and `moe.fused_experts`, and cross-GPU collectives such as `collective.all_reduce` and `moe.fused_experts_reduce` (the block that owns its trailing all-reduce). See the [Slot catalog](/docs/reference/slots-table) for the full list.
+- **Registered targets (12 today):** 11 typed slots, ops such as `activation.silu_and_mul` and `norm.rmsnorm`, fused blocks such as `attention.sdpa`, `attention.decode`, and `moe.fused_experts`, and cross-GPU collectives such as `collective.all_reduce`, plus one atomic target spanning the fused collective epilogue. See the [Target catalog](/docs/reference/target-catalog) for the full list.
 - **The seam** that swaps an untrusted kernel into the spawned sglang scheduler process, with tamper-resistant, out-of-process timing.
 - **Scoring under CUDA graphs on** (graphs-off cripples the baseline, so it is never used to score), with noise-robust bracketed measurement that returns no-decision on a box too noisy to reproduce.
 - **Fidelity gates:** per-token KL against the stock reference plus GSM8K and MMLU benchmark accuracy.
-- **Commit-reveal** anti-copy and **per-slot king-of-the-hill** settlement.
+- **Commit-reveal** anti-copy and **per-target crown** settlement: each registered target tracks its own incumbent independently, so many targets can be crowned by different miners at once.
 
 ### What is proven, and what is not (honest status)
 
 - **A submitted kernel has beaten sglang.** On the MiniMax-M3-NVFP4 arena (4×B300), fused decode epilogues measured **1.044×–1.074×** through the full scorer at equal audited fidelity, reproduced on independent prompt seeds and once through the on-chain loop. This is the first validated win, not the ceiling: most example kernels are still correctness demos (faithful ones reproduce the model; broken ones are caught by the gate).
 - **Host isolation for untrusted miners is not built.** The kernel is Python running in the model process. Today the process boundary is a tripwire (a static policy scan), not a wall; namespaces, no network egress, per-eval CUDA context, and a watchdog are required before opening to untrusted miners.
 - **Chain integration is live on testnet, not mainnet.** Commit-reveal, content-addressed bundle fetch, and the validator loop are built, merged, and live-validated on Bittensor testnet (netuid 307, 2026-07-08). Weights stayed dry-run there because that subnet rejects our stake, so a real weight push and mainnet economics need our own subnet. The Ledger is durable JSON, not yet a database.
-- **No public leaderboard or monitoring dashboard yet.** It is roadmap.
+- **No public per-target status page or monitoring dashboard yet.** Crowns are per-target rather than a single ranking, so this would be a status page, not a leaderboard. It is roadmap.
 - **More slots.** MLA and weight-absorbed attention, dense FP8/FP4 GEMM, a graph-safe paged-attention contract, and further comms-overlap blocks are the highest-value targets.
 
 ## Phase 3: production inference serving
 
-Winning kernels deployed as a managed service (`optima-serve`) running the `optima-kernels` library on a rented engine, serving real traffic. The subnet stops being just a competition and becomes a product.
+Winning kernels deployed as a managed inference service running a portable kernel library on a rented engine, serving real traffic. The subnet stops being just a competition and becomes a product.
 
 - Agent, RAG, and multi-turn workloads with latency targets
 - **Product-market fit:** teams route traffic to Cacheon because nothing else serves this model on this hardware as efficiently

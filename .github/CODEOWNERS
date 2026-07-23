@@ -3,15 +3,15 @@
 # Last entry matching a path wins. Patterns follow .gitignore syntax.
 
 # Default: all files require review from core maintainers
-*                           @xavierlyu @clementblaise @chideraao @camfairchild
+*                           @ShivanshuPurohit @clementblaise @chideraao @camfairchild
 
 # Docs content (MDX)
-content/                    @xavierlyu @chideraao
+content/                    @ShivanshuPurohit @chideraao
 
 # Workers / deployment config
-workers/                    @xavierlyu @clementblaise
-wrangler.jsonc              @xavierlyu @clementblaise
-workflows/                  @xavierlyu @clementblaise
+workers/                     @clementblaise
+wrangler.jsonc               @clementblaise
+workflows/                   @clementblaise
 
 # CI and repo config
-.github/                    @xavierlyu @clementblaise
+.github/                     @clementblaise

@@ -6,7 +6,7 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 ## Submission unit: a kernel for one slot, not a whole container
 
-**Decision:** A miner implements **one operation** (a typed slot) inside a fixed model the validator controls. The validator owns the weights, the graph, the tokenizer, the sampler, the prompts, the timing, and the reference. The miner only fills an output tensor the validator allocated, strictly upstream of the sampler.
+**Decision:** A miner implements **one registered target** (a typed slot, or an atomic boundary spanning a few related slots) inside a fixed model the validator controls. The validator owns the weights, the graph, the tokenizer, the sampler, the prompts, the timing, and the reference. The miner only fills an output tensor the validator allocated, strictly upstream of the sampler.
 
 **Reasoning:** This is the single most important design decision, and it is what makes the referee cheat-resistant. Because the miner never produces the final tokens or the logprobs, the "run gibberish and fetch the real answer from an API" attack has **no output to substitute**. The validator produces the tokens from the rest of the trusted model.
 
@@ -14,9 +14,9 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 ## Fidelity reference: a local stock-kernel run, not a production API
 
-**Decision:** The fidelity "gold standard" is the **same model on the same box with the stock kernels**. The validator does two launches, kernel off (baseline reference) and kernel on (candidate), and diffs them.
+**Decision:** Speed and fidelity are measured by two different local references, launched separately so neither corrupts the other. Speed compares the candidate against a bracket of the frozen incumbent, launched immediately before and after it (B, C, B′), on the same box. Fidelity compares the candidate against a separately launched pristine reference (T) run over sealed prompt trajectories, decoupled from the timed launches so speed-oriented timing changes cannot alter measured correctness.
 
-**Reasoning:** The reference is local, exact, free, deterministic, and adversary-independent. Only one op differs between the two runs, so any output difference is attributable to the miner's kernel.
+**Reasoning:** The references are local, exact, free, deterministic, and adversary-independent. Splitting speed from fidelity also fixed a real failure mode: coupling them let timing-driven nondeterminism from the speed launches occasionally fail an honest candidate's fidelity check. A separately launched pristine reference removed that false-failure path.
 
 **Rejected:** A production API (for example a hosted model endpoint) as the per-round reference. It is non-reproducible (samples drift even at temperature 0 due to quantization and sampler differences), sparse (APIs return only top-k logprobs, so a true distribution distance is not computable), a network dependency inside the trusted loop, and consensus-breaking (two validators hitting the API get different samples and compute different scores, which breaks Bittensor consensus). Referencing a second trusted GPU pod is compatible but is just the same idea with more plumbing.
 
@@ -38,19 +38,19 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 ## Anti-copy: commit-reveal
 
-**Decision:** A round is `commit → reveal → evaluate → settle`. Each miner first commits `H(content_hash, hotkey, salt)`, then later reveals `(content_hash, salt)`; a reveal is accepted only if it matches a commitment that same hotkey posted earlier.
+**Decision:** Every proposal moves through `commit → timelocked reveal → intake → qualification → settlement`, continuously and per-proposal rather than in a synchronized round. Each miner first commits `H(content_hash, hotkey, salt)` on chain, then reveals `(content_hash, salt)` once the timelock clears; a reveal is accepted only if it matches a commitment that same hotkey posted earlier.
 
-**Reasoning:** Submissions are evaluated in the open, so a copier could otherwise resubmit the current champion's bundle. A copier who only sees a rival's bundle at reveal time has no matching prior commitment for it and cannot reveal it. Copy detection additionally fires cumulatively across rounds on either the exact content hash or a reformat-invariant AST fingerprint.
+**Reasoning:** Submissions are evaluated in the open, so a copier could otherwise resubmit the current incumbent's bundle. A copier who only sees a rival's bundle at reveal time has no matching prior commitment for it and cannot reveal it. Copy detection additionally fires cumulatively across proposals on either the exact content hash or a reformat-invariant AST fingerprint.
 
 **Rejected:** Evaluating in the open with no commitment (trivially copyable), and byte-hash-only deduplication (a reformatted or renamed copy dodges a plain hash).
 
-## Emissions: per-slot king-of-the-hill
+## Emissions: per-target crowns, not a fixed split
 
-**Decision:** Each slot has one **champion**. A challenger takes a slot's title only if `challenger_score ≥ champion_score × (1 + margin)`, with the margin defaulting to 2%. `optima settle --per-slot` splits emission across the slots that have a champion.
+**Decision:** Each registered target tracks its own current best contribution independently. A candidate crowns a target only after two independent qualification passes both clear the bar `1 + max(min_margin, noise_multiplier × noise)`, where `min_margin` and `noise_multiplier` come from a frozen calibration and `noise` is the measured spread between two incumbent launches. The first pass moves a candidate to `reproduction_pending`; a second, independently attempted pass must reproduce it before anything crowns, and the settled speedup is the lower of the two. Reward is age-decayed credit on that margin, not a flat emission share: `credit = floor((speedup_ppm - 1,000,000) × half_life / (half_life + age_blocks))`, so credit halves every half-life, counted from the block the winning proposal was submitted, not from when settlement happened to run.
 
-**Reasoning:** A per-slot champion rewards specialists: a miner who owns one slot is paid, rather than everything going to the single best end-to-end bundle. The margin (not a plain `>`) prevents rankings from flipping on timing noise, and it means a copy that merely ties the champion never clears the bar and earns nothing.
+**Reasoning:** A per-target crown still rewards specialists: a miner who owns one target is paid, rather than everything going to a single best end-to-end bundle. The calibrated bar, not a plain `>` or a flat percentage, prevents rankings from flipping on timing noise, and requiring two independent passes means a single lucky measurement can't crown anything on its own. Age-decayed credit rewards being first and being better, and decays a stale advantage instead of paying an unchanging share forever.
 
-**Rejected:** Winner-take-all across all slots (does not reward specialization) and a strict `>` comparison (would let noise or a copy flip the title).
+**Rejected:** A single global champion across all targets (does not reward specialization), a flat percentage margin applied regardless of measured noise (miscalibrates on quieter or noisier hardware), and a one-pass crown (a single noisy measurement could crown a kernel that never reproduces).
 
 ## Scoring regime: CUDA graphs on
 
@@ -62,11 +62,11 @@ This page exists so contributors and miners can answer "why does it work this wa
 
 ## Submission language: Triton and CuteDSL source, not raw CUDA
 
-**Decision:** Miners submit **Triton or CuteDSL source**, not raw CUDA extensions or prebuilt binaries.
+**Decision:** Miners submit **source**, never a compiled artifact. The default path is Triton or CuteDSL. A target that explicitly permits it can also accept declared `.cu`/`.cuh` CUDA source, built by a validator-owned, reviewed builder rather than the miner's own toolchain. A target that permits a registered direct-artifact provider can accept CuTe source that the validator itself compiles into a sealed CUBIN during an isolated, no-network prebuild; the miner never supplies compiled output, only the source the validator compiles.
 
-**Reasoning:** Source kernels keep submissions inspectable and narrow the attack surface (the host launch code still runs in-process, so isolation is still required, but there is no opaque compiled artifact). Inspectable source is also what makes an accepted win portable IP that can fold into the `optima-kernels` library.
+**Reasoning:** Source kernels keep submissions inspectable and narrow the attack surface: the host launch code still runs in-process, so isolation is still required, but there is no opaque compiled artifact to hide behind. Inspectable source is also what makes an accepted win reusable IP rather than a one-off patch.
 
-**Rejected:** Raw CUDA extensions or prebuilt binaries. They are opaque, present a larger attack surface, cannot be read or composed into a portable library, and are harder to prove correct.
+**Rejected:** Raw CUDA extensions or prebuilt binaries supplied directly by the miner. Whether the source is Triton, CuteDSL, or reviewed CUDA, and whether it runs directly or through a sealed validator-compiled CUBIN, the validator builds the executable artifact from visible source — never the miner.
 
 ---
 
