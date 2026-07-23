@@ -18,17 +18,17 @@ Our belief is that optimization should compound with open source. Every discover
 
 ## The coordination layer
 
-We use Bittensor to align independent contributors around a single objective: discovering faster GPU kernels against a fixed model and a defined set of typed slots. This turns the search into a shared, continuous process. The network explores the optimization space faster than any single team could, and every accepted kernel expands the baseline available to future contributors.
+We use Bittensor to align independent contributors around a single objective: discovering faster GPU kernels against a fixed model and its registered targets. This turns the search into a shared, continuous process. The network explores the optimization space faster than any single team could, and every crowned kernel becomes the new incumbent its own target is measured against.
 
-## The product: library, harness, serve
+## The product: contribution surface, arena, and a portable library
 
-Cacheon separates the thing it sells from the thing that measures it, so the moat lives in portable kernels rather than in any one engine.
+Cacheon separates what it measures today from what it will eventually sell, so the moat can live in portable kernels rather than in any one engine.
 
-- **`optima-kernels`, the library.** Portable, inspectable device code plus host launchers and clean codec and layout primitives. This is the product, and every accepted win folds into it with a regime tag that records the model, GPU, format, and measured speedup it holds for.
-- **`optima-harness`, the referee.** The validator: a pinned sglang engine, the seam that swaps a kernel in, and the scoring pipeline. It consumes the library to place and measure submissions.
-- **`optima-serve`, the managed service.** Runs the library's kernels on a rented engine for customers. The infrastructure underneath is swappable; the moat is the library.
+- **The contribution surface, today.** Bundles, the manifest, the slot ABI, and the target catalog define what a miner may submit and which target it is measured against.
+- **The arena, today.** A pinned sglang engine, the seam that swaps a candidate in, and the qualification and settlement pipeline that decides whether it crowns. This is the referee: it consumes the contribution surface to place and measure submissions.
+- **A portable kernel library, target-state.** Every crowned contribution is inspectable source by construction, so it can, in principle, be lifted into a different engine. Folding crowned kernels into a standalone, engine-agnostic library is the long-term goal; it is not yet a separate shipped artifact.
 
-Because a submission is portable source by construction, the subnet's measurement pipeline feeds the library directly. See the [submission model](/docs/concepts/submission-model) for the transferability axiom that makes this hold.
+Because a submission is portable source by construction, a crowned contribution is already reusable IP even before that library exists as its own artifact. See the [submission model](/docs/concepts/submission-model) for the transferability axiom that makes this hold.
 
 ## Long-term: the intelligence layer
 

@@ -31,15 +31,16 @@ Engines like sglang, vLLM, and TensorRT-LLM each make different tradeoffs across
 There is no shared, verifiable benchmark for kernel-level inference performance:
 
 - Engines publish their own benchmarks against their own baselines
-- Academic papers measure individual techniques in isolation <sup><a href='#references'>[1]</a></sup> <sup><a href='#references'>[2]</a></sup>
+- Academic papers measure individual techniques in isolation
 - Inference providers report numbers against undisclosed configurations
 
 The **numbers don't compare.** Teams shipping production inference have no way to know which kernel actually wins for their specific model, GPU, and workload.
 
 <Callout title="What Cacheon does">
   Fix the model, fix the hardware, fix the prompts, fix the scoring, and let anyone submit a kernel
-  for a well-defined slot. The subnet produces an ordered ranking per slot that is apples-to-apples
-  comparable, because every kernel is measured against the same stock reference on the same box.
+  for a well-defined target. Each target is judged against its own incumbent, independent of every
+  other target, so the comparison stays apples-to-apples: every kernel is measured against the same
+  stock reference on the same box.
 </Callout>
 
 ## What winning looks like
@@ -49,9 +50,3 @@ The endpoint is not a paper or a blog post. The endpoint is a kernel that beats 
 Product-market fit comes when the network's kernels become the backend people actually choose for latency-sensitive inference. That includes agent frameworks that need fast long-context replies, subnets that depend on reliable model serving, and aggregators looking for differentiated performance. The target users are teams willing to pay for faster throughput and better GPU efficiency without building their own kernel team.
 
 See the [roadmap](/docs/roadmap) for how the phases scale from a single-model arena to a production inference layer.
-
-## References
-
-[1]: Xavier Lyu - https://x.com/xavi3rlu/status/2049950829097127951
-
-[2]: Jianyang Gao - https://x.com/gaoj0017/status/2037532673812443214

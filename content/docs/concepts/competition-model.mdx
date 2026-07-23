@@ -2,51 +2,60 @@
 title: Competition model
 ---
 
-Cacheon runs a **per-slot king-of-the-hill** competition. For each typed slot there is at most one **champion**: the kernel with the best crownable speedup on record. A challenger takes the title only by beating the champion by a fixed margin. Emission is split across the slots that have a champion, so a miner can earn by specializing in a single slot rather than winning everywhere.
+Cacheon crowns kernels **per registered target**, not per miner and not network-wide. Each target tracks its own current best contribution independently. Many kernels can hold a crown across different targets at the same time; there is no single leaderboard and no single champion.
 
-## How a round works
+## How a proposal moves through the system
 
-A round is `commit → reveal → evaluate → settle`.
+Every proposal moves through `commit → timelocked reveal → intake → qualification → settlement`. This runs continuously per proposal, not in a synchronized round shared by every miner.
 
-1. **Commit.** Each miner posts `H(content_hash, hotkey, salt)`. This hides the bundle (nobody can tell what you committed to) but binds you to it.
-2. **Reveal.** The miner posts `(content_hash, salt)`. A reveal is accepted only if `H(content_hash, hotkey, salt)` matches a commitment **that same hotkey** posted earlier.
-3. **Evaluate.** The validator swaps the revealed kernel into the fixed model and scores it: a two-launch throughput measurement gated by fidelity (KL divergence plus benchmark accuracy). See [Scoring](/docs/validators/scoring).
-4. **Settle.** `optima settle` takes the round's passing, original scores and applies the king-of-the-hill rule per slot.
+1. **Commit.** Each miner posts `H(content_hash, hotkey, salt)` on chain. This hides the bundle (nobody can tell what you committed to) but binds you to it.
+2. **Reveal.** After a timelock, the miner posts `(content_hash, salt)`. A reveal is accepted only if `H(content_hash, hotkey, salt)` matches a commitment **that same hotkey** posted earlier.
+3. **Qualify.** The validator swaps the revealed kernel into the fixed model and measures it: a bracketed throughput comparison against the incumbent, and a separately launched pristine fidelity check. See [Scoring](/docs/validators/scoring).
+4. **Settle.** A passing, independently reproduced result advances the target's incumbent.
 
-## King-of-the-hill
+## Qualifying for a crown
 
-Settlement is not a plain `>`. A challenger takes a slot's title only if:
+A candidate is measured against its exact frozen incumbent, bracketed by two launches of that same incumbent (`B`, `C`, `B′`), so timing noise on the box is visible rather than assumed away:
 
 ```
-challenger_score ≥ champion_score × (1 + margin)
+speedup = candidate_rate / mean(baseline_before_rate, baseline_after_rate)
+noise   = relative spread of the two baseline rates
+bar     = 1 + max(min_margin, noise_multiplier * noise)
 ```
 
-The margin defaults to **2%**. The champion holds the emission weight for that slot until a challenger clears the margin.
+`min_margin` and `noise_multiplier` come from a frozen calibration bound to the arena, model, and hardware — not a fixed percentage applied everywhere. If the two baseline launches disagree past the calibrated maximum, the result is `NO_DECISION`: retryable, never a loss.
 
-Why a margin, not a strict comparison:
+A single passing measurement does not crown anything. The first `PASS` only moves the candidate to `reproduction_pending`. A second, independently attempted pass has to reproduce it — matching arena, target, delta, hotkey, and incumbent identity, but using distinct evaluation authority and evidence — before it crowns. The settled speedup is the lower of the two:
 
-- Running the same kernel twice produces small score variance from GPU clock drift, scheduling jitter, and measurement noise. Without a margin, rankings could flip on noise. The scoring path also derives its bar from the _measured_ baseline noise, so a genuine but tiny edge on a noisy box does not crown. See [Scoring](/docs/validators/scoring).
+```
+settled_speedup = min(primary_speedup, reproduction_speedup)
+```
 
-## Per-slot emission
+## Credit, not a fixed split
 
-`optima settle --per-slot` runs a **champion per slot** and splits emission across the slots that have one. This rewards specialists: a miner who owns a single slot is paid, rather than winner-take-all giving everything to the single best end-to-end bundle. A slot with no passing kernel simply pays no one.
+Crowning a target doesn't pay a fixed emission share. Credit is age-decayed, based on the reproduced marginal improvement:
+
+```
+improvement = speedup_ppm - 1_000_000
+credit      = floor(improvement * half_life_blocks / (half_life_blocks + age_blocks))
+```
+
+Credit halves every half-life, and age starts counting from the block the winning proposal was submitted, not from when settlement happened to run. A target with no passing kernel simply pays no one. When a target's incumbent advances, every other current, non-winning candidate in that settlement group is marked, not silently dropped: a candidate naming an older incumbent is `stale_incumbent`, an overlapping loser is `conflict_lost`, and a non-overlapping current loser is `incumbent_advanced` because the shared incumbent moved anyway.
 
 ## Anti-copy: commit-reveal
 
-Submissions are evaluated in the open, so a lazy miner could try to copy the current champion and resubmit. Commit-reveal defeats this at the protocol level:
+Submissions are evaluated in the open, so a lazy miner could try to copy the current incumbent and resubmit it. Commit-reveal defeats this at the protocol level:
 
 - A copier who only sees a rival's bundle at reveal time has **no matching prior commitment** for it, so they cannot reveal it. Copying at reveal time is impossible.
 - If two miners independently committed to the same content, the **earliest commit is the original**; later identical ones are marked copies.
 
-In production this is Bittensor's native commit-reveal; Cacheon keeps the off-chain scoring half.
-
 ## Copy detection
 
-Bundle identity is a deterministic content hash over the manifest and every source file. Copy detection is **cumulative across rounds** (a copy in a later round is caught, not just a same-round duplicate) and fires on either:
+Bundle identity is a deterministic content hash over the manifest and every source file. Copy detection is **cumulative across proposals** (a copy submitted later is still caught, not just a same-batch duplicate) and fires on either:
 
 - the **exact content hash**, or
 - a **reformat-invariant fingerprint** (AST-normalized), so a reflowed, recommented, or renamed-whitespace copy with a fresh hash is still demoted.
 
-Fingerprints are computed per slot over each op's bundle-local import closure, and the ledger compares per-file fingerprint sets by containment, so padding the bundle with an extra op, or relocating a stolen kernel body into an imported module behind a re-export shim, still demotes. Two miners merely vendoring the same public utility do not match. A structural fingerprint (names and constants blanked) additionally flags rename-plus-constant-tweak near-copies as an **advisory** for review, never an automatic demotion.
+Fingerprints are computed per target over each op's bundle-local import closure, and per-file fingerprint sets are compared by containment, so padding the bundle with an extra op, or relocating a stolen kernel body into an imported module behind a re-export shim, still demotes. Two miners merely vendoring the same public utility do not match. A structural fingerprint (names and constants blanked) additionally flags rename-plus-constant-tweak near-copies as an **advisory** for review, never an automatic demotion.
 
-A copy **ties** the champion. It never clears the margin, so it earns nothing. The only way to earn is to genuinely beat the best kernel on record for a slot.
+A copy never clears the bar, so it cannot crown. The only way to earn is to genuinely beat the current incumbent for a target.
