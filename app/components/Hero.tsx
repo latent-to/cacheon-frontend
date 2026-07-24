@@ -12,7 +12,7 @@ function ClientOnly({ children }: { children: React.ReactNode }) {
 const FEATURES = [
   {
     title: 'Kernel arena',
-    body: 'Write the fastest GPU kernel for a slot in a fixed model. The best kernel for each slot earns the emission.',
+    body: 'Write the fastest GPU kernel for a target in a fixed model. Crowned improvements earn ongoing reward, scaled to how much faster they are.',
   },
   {
     title: 'Triton or CuteDSL',
@@ -20,7 +20,7 @@ const FEATURES = [
   },
   {
     title: 'sglang is the line',
-    body: 'Same model, same machine class, same prompts. Beat the current champion at equal fidelity to prove you are actually faster.',
+    body: 'Same model, same machine class, same prompts. Beat the incumbent at equal fidelity to prove you are actually faster.',
   },
 ]
 

@@ -12,7 +12,7 @@ This page answers a different question from the [competition model](/docs/concep
 
 ## Why it exists
 
-Cacheon's end goal is not "patches to sglang." It is a portable kernel library (`optima-kernels`): inspectable, composable device code shipped on top of any engine. The subnet is the machine that populates that library. Miners are paid to _create_ fast kernels, the validator measures them, and an accepted win drops straight into the library.
+Cacheon's end goal is not "patches to sglang." It is a portable kernel library: inspectable, composable device code shipped on top of any engine. The subnet is the machine that populates that library, though the library itself is still target-state, not yet a separate shipped artifact (see [Vision](/docs/vision)). Miners are paid to _create_ fast kernels, the validator measures them, and an accepted win is reusable IP the moment it crowns.
 
 That only works if the contribution is **portable IP**. A win expressed as "monkeypatch sglang's `FusedMoE` to call kernel X" is worthless to the library: it evaporates the moment the engine changes. So the submission surface is built around one product axiom and one judgment test, on top of the four cheat-resistance invariants that govern the [slots](/docs/miners/overview).
 
@@ -50,15 +50,15 @@ The miner writes the entire kernel for a boundary: a from-scratch attention bloc
 
 A quantization codec as a kernel plus its `prepare` step, gated against a clean higher-precision reference the validator serves, so a lossy-on-lossy comparison is impossible. This is the format-specialization frontier (beating FP4, sub-4-bit).
 
-## The three layers
+## The contribution surface and the arena
 
-Cacheon's product model separates the library, the referee, and the service so the moat lives in portable kernels rather than in any one engine:
+Cacheon separates what a miner submits from what measures it, so the moat can live in portable kernels rather than in any one engine:
 
-- **`optima-kernels`, the library and the product.** Portable device code, host launchers, and clean-reimplemented codec and layout primitives. Zero sglang imports. Each entry carries a regime tag mapping `(model, context, concurrency, GPU, format)` to a base or override, a measured speedup, and its fidelity gate. This is what ships.
-- **`optima-harness`, the subnet referee.** sglang plus the seam plus scoring, confined here. It consumes `optima-kernels` to place and measure submissions. sglang lives in this layer and nowhere else.
-- **`optima-serve`, the managed service (later).** Runs `optima-kernels` on a rented engine for customers. Swappable infrastructure; the moat is the library.
+- **The contribution surface.** Bundles, the manifest, and the target catalog. Portable device source with no required coupling to engine internals beyond the declared slot ABI.
+- **The arena, the referee.** sglang plus the seam plus qualification and settlement, confined here. It consumes the contribution surface to place and measure submissions. sglang lives in this layer and nowhere else.
+- **A portable kernel library, target-state.** Folding every crowned contribution into a standalone, engine-agnostic library with a regime tag (model, context, concurrency, GPU, format) is the long-term goal. It is not yet a separate shipped artifact — see [Vision](/docs/vision).
 
-The pipeline: the subnet measures a submission, and because the win is portable inspectable source by construction, it drops into `optima-kernels` with its regime tag, and the service ships it. No separate repo, no re-derivation.
+The pipeline today: the arena measures a submission, and because every submission is already portable, inspectable source by construction, a win is reusable the moment it crowns—even before a standalone library exists to hold it.
 
 <Callout type="warn" title="Cheat-resistance is a separate axis">
   Transferability is the product axis. Cheating is governed by the four slot invariants and still

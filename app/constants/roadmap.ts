@@ -25,7 +25,7 @@ export const ROADMAP: RoadmapPhase[] = [
     items: [
       'Cacheon: miners submit Triton/CuteDSL kernels for typed slots (op, block, collective), swapped into a pinned sglang engine',
       'Throughput scored gated by fidelity: per-token KL vs a stock reference + real-benchmark task accuracy',
-      'Commit-reveal submissions with per-slot king-of-the-hill: one champion per slot',
+      'Commit-reveal submissions; a target crowns only after two independent qualification passes beat the incumbent',
       'Auditable kernel source instead of opaque containers',
       'Mechanism validated on real GPUs up to gpt-oss-120b',
     ],
