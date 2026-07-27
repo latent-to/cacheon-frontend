@@ -20,7 +20,7 @@ Node 20+ is required.
 | UI      | React 19, TypeScript                  |
 | Build   | Vite + React Router v7                |
 | Styling | Tailwind CSS v4                       |
-| Docs    | Fumadocs (generated from Cacheon)     |
+| Docs | Fumadocs (generated from the [Cacheon repo](https://github.com/latent-to/cacheon/tree/main/docs)|
 | Deploy  | Cloudflare Workers (`wrangler.jsonc`) |
 
 ## Project layout
