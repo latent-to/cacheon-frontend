@@ -2,5 +2,5 @@ import type { source } from '~/lib/source.server'
 
 export async function getLLMText(page: (typeof source)['$inferPage']) {
   const processed = await page.data.getText('processed')
-  return `# ${page.data.title} (${page.url})\n\n${processed}`
+  return `# ${page.data.displayTitle ?? page.data.title} (${page.url})\n\n${processed}`
 }

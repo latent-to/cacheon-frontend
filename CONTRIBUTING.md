@@ -20,15 +20,16 @@ Node 20+ is required.
 | UI      | React 19, TypeScript                  |
 | Build   | Vite + React Router v7                |
 | Styling | Tailwind CSS v4                       |
-| Docs    | Fumadocs (MDX under `content/docs/`)  |
+| Docs | Fumadocs (generated from the [Cacheon repo](https://github.com/latent-to/cacheon/tree/main/docs)|
 | Deploy  | Cloudflare Workers (`wrangler.jsonc`) |
 
 ## Project layout
 
 ```
 app/              React Router routes, layouts, and components
-content/docs/     Fumadocs MDX -- canonical docs source
+content/docs/     Generated Fumadocs MDX (gitignored)
 public/           Static assets (team photos, icons)
+scripts/          Canonical documentation importer and tests
 workers/          Cloudflare Worker entry points
 workflows/        Cloudflare Workflows
 ```
@@ -54,13 +55,24 @@ workflows/        Cloudflare Workflows
    npm run preview
    ```
 
-## Docs changes (`content/docs/`)
+## Documentation changes
 
-Docs are written in MDX and served via Fumadocs. A few rules:
+Documentation prose, navigation, and review history belong in
+[`latent-to/cacheon`](https://github.com/latent-to/cacheon), alongside the code
+they describe. Submit documentation changes there rather than editing
+`content/docs/`, which is deleted and regenerated at build time.
 
-- Sidebar order comes from `meta.json` files in each directory. Update them when you add or rename pages.
-- Avoid JSX-hostile characters in prose: wrap comparison operators like `<=` or `<` in backtick spans (`` `<= 0.5` ``) rather than leaving them bare.
-- Keep miner-facing content under `content/docs/miners/` and validator-facing content under `content/docs/validators/` or `content/docs/evaluation/`. Do not duplicate facts across files; link to the canonical section instead.
+The importer publishes only pages listed in Cacheon's `mkdocs.yml`, generates
+Fumadocs metadata, translates the supported MkDocs syntax, and binds source
+links to the exact imported commit. Test a clean local Cacheon checkout with:
+
+```bash
+CACHEON_DOCS_SOURCE_DIR=../cacheon npm run docs:import
+npm run test:docs
+npm run build
+```
+
+Changes to the importer or docs routes belong in this frontend repository.
 
 ## Style guide
 

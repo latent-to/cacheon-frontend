@@ -4,16 +4,18 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "npm run docs:import",
     "dev": "react-router dev",
-    "prebuild": "fumadocs-mdx && react-router typegen && wrangler types",
+    "docs:import": "node scripts/import-cacheon-docs.mjs",
+    "test:docs": "node --test scripts/*.test.mjs",
+    "prebuild": "npm run docs:import && fumadocs-mdx && react-router typegen && wrangler types",
     "build": "react-router build",
-    "typecheck": "fumadocs-mdx && react-router typegen && wrangler types && tsc -b",
+    "typecheck": "npm run docs:import && fumadocs-mdx && react-router typegen && wrangler types && tsc -b",
     "lint": "eslint .",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "preview": "npm run build && wrangler dev",
-    "deploy": "npm run build && wrangler deploy",
-    "postinstall": "fumadocs-mdx && react-router typegen && wrangler types"
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@radix-ui/react-tabs": "^1.1.13",

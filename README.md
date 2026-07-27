@@ -10,7 +10,7 @@ Frontend for [cacheon.ai](https://cacheon.ai) — the dashboard and docs site fo
 | Routing | React Router v7                       |
 | Build   | Vite                                  |
 | Styling | Tailwind CSS v4                       |
-| Docs    | Fumadocs (MDX under `content/docs/`)  |
+| Docs| Fumadocs (generated from the [Cacheon repo](https://github.com/latent-to/cacheon/tree/main/docs)|
 | Deploy  | Cloudflare Workers (`wrangler.jsonc`) |
 
 ## Getting started
@@ -46,9 +46,37 @@ app/
   diagrams/         SVG/React diagrams
   app.css           Tailwind + CSS variables (colors, fonts)
 content/
-  docs/             Fumadocs MDX -- canonical docs source
+  docs/             Generated Fumadocs MDX (gitignored)
 public/             Static assets (team photos, icons)
+scripts/
+  cacheon-docs.mjs  Build-time canonical docs adapter
 workers/            Cloudflare Worker entry points
+```
+
+## Documentation source
+
+Documentation prose and navigation are canonical in
+[`latent-to/cacheon`](https://github.com/latent-to/cacheon): published pages come
+from that repository's `mkdocs.yml` navigation and `docs/` tree. This frontend
+imports an exact Cacheon commit into the gitignored `content/docs/` build
+directory and generates `public/sitemap.xml` from the same ordered inventory;
+do not edit or commit either generated artifact here.
+
+By default, development and production builds resolve the current
+`latent-to/cacheon` `main` commit through GitHub. To build against a clean local
+checkout:
+
+```bash
+CACHEON_DOCS_SOURCE_DIR=../cacheon npm run build
+```
+
+Pin a remote build explicitly with `CACHEON_DOCS_REF=<40-character-sha>`.
+`CACHEON_DOCS_REPOSITORY` can override the public `owner/repository` source.
+`GITHUB_TOKEN` is optional and only used while resolving a non-SHA ref.
+
+```bash
+npm run docs:import     # regenerate content/docs without building
+npm run test:docs       # adapter and compatibility-redirect tests
 ```
 
 ## Contributing

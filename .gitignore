@@ -16,6 +16,11 @@ build
 # fumadocs-mdx generated sources
 .source
 
+# Canonical docs are imported from latent-to/cacheon at build time.
+/content/docs/
+/content/cacheon-docs-source.json
+/public/sitemap.xml
+
 # react-router typegen output
 .react-router
 

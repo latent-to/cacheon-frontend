@@ -21,7 +21,7 @@ const STEPS = [
       <>
         Package the kernel source in a bundle and{' '}
         <a
-          href="/docs/miners/submitting"
+          href="/docs/miner-guide/submitting"
           className="text-accent underline-offset-2 hover:underline"
         >
           commit-reveal
@@ -65,7 +65,7 @@ const METRICS: MetricRow[] = [
         Per-token KL divergence vs. a stock reference run must stay under the slot&apos;s calibrated
         threshold.{' '}
         <a
-          href="/docs/validators/fidelity"
+          href="/docs/validator-guide/fidelity"
           className="text-accent underline-offset-2 hover:underline"
         >
           See how it works.
