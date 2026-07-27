@@ -1,4 +1,5 @@
 import { defineDocs, defineConfig } from 'fumadocs-mdx/config'
+import { pageSchema } from 'fumadocs-core/source/schema'
 
 // Rewrite ```mermaid fenced code blocks into <Mermaid chart="..." /> at the
 // mdast stage, before fumadocs' shiki pass highlights them. The chart source is
@@ -52,6 +53,13 @@ function remarkMermaid() {
 export const docs = defineDocs({
   dir: 'content/docs',
   docs: {
+    schema: pageSchema.extend({
+      displayTitle: pageSchema.shape.title,
+      siteName: pageSchema.shape.title,
+      sourceRepository: pageSchema.shape.title,
+      sourceRevision: pageSchema.shape.title.regex(/^[0-9a-f]{40}$/),
+      sourcePath: pageSchema.shape.title.startsWith('docs/'),
+    }),
     postprocess: {
       includeProcessedMarkdown: true,
     },

@@ -13,3 +13,8 @@ pnpm-lock.yaml
 
 public
 CODEOWNERS
+
+# Generated from the canonical Cacheon documentation source.
+content/docs
+content/cacheon-docs-source.json
+public/sitemap.xml

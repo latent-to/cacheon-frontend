@@ -11,8 +11,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  format-lint-typecheck:
+  quality:
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     steps:
@@ -25,8 +28,19 @@ jobs:
 
       - run: npm ci
 
+      - name: Pin canonical Cacheon documentation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "CACHEON_DOCS_REF=$(gh api repos/latent-to/cacheon/commits/main --jq .sha)" >> "$GITHUB_ENV"
+
+      - name: Documentation adapter tests
+        run: npm run test:docs
+
       - name: Prettier (check only)
         run: npm run format:check
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Production build
+        run: npm run build
