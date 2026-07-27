@@ -10,7 +10,7 @@ Frontend for [cacheon.ai](https://cacheon.ai) — the dashboard and docs site fo
 | Routing | React Router v7                       |
 | Build   | Vite                                  |
 | Styling | Tailwind CSS v4                       |
-| Docs    | Fumadocs (generated from Cacheon)     |
+| Docs| Fumadocs (generated from the [Cacheon repo](https://github.com/latent-to/cacheon/tree/main/docs)|
 | Deploy  | Cloudflare Workers (`wrangler.jsonc`) |
 
 ## Getting started
