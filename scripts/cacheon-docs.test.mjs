@@ -111,6 +111,35 @@ flowchart LR
   assert.match(result, /```mermaid\nflowchart LR\n  A --> B\n```/)
 })
 
+test('rejects raw HTML in titles and never sanitizes it into descriptions', () => {
+  const options = {
+    navTitle: 'Canonical page',
+    documentPath: 'guide/page.md',
+    repository: 'latent-to/cacheon',
+    revision: REVISION,
+    siteName: 'Optima',
+  }
+  const result = convertMarkdownToMdx(
+    `# Safe title
+
+Reviewed <scr<script>ipt>alert(1)</scr<script>ipt> artifacts must never become metadata.
+
+The fallback description remains plain engineering prose with no raw HTML.
+`,
+    options,
+  )
+  const frontmatter = result.split('---')[1]
+  assert.match(
+    frontmatter,
+    /description: "The fallback description remains plain engineering prose with no raw HTML\."/,
+  )
+  assert.doesNotMatch(frontmatter, /<|>|alert\(1\)|scr<script>/i)
+  assert.throws(
+    () => convertMarkdownToMdx('# <span>Unsafe title</span>\n\nSafe body text.', options),
+    /level-one heading cannot contain raw HTML/,
+  )
+})
+
 test('normalizes the MkDocs landing-page wrappers into standard MDX', () => {
   const result = convertMarkdownToMdx(
     `<div class="optima-hero" markdown>

@@ -188,7 +188,6 @@ function stripMarkdown(value) {
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/[`*_~]/g, '')
-    .replace(/<[^>]+>/g, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -201,7 +200,9 @@ function deriveDescription(contents) {
       !candidate ||
       /^(?:#|```|~~~|!!!|>|[-*+] |\d+\. |\||<)/.test(candidate) ||
       /^\*\*[^*\n]+\*\*$/.test(candidate) ||
-      candidate.includes('\n```')
+      candidate.includes('\n```') ||
+      candidate.includes('<') ||
+      candidate.includes('>')
     ) {
       continue
     }
@@ -331,7 +332,11 @@ export function convertMarkdownToMdx(
   if (titleIndex === -1) {
     throw new Error(`${documentPath}: expected a level-one heading`)
   }
-  const title = stripMarkdown(lines[titleIndex].replace(/^#\s+/, ''))
+  const sourceTitle = lines[titleIndex].replace(/^#\s+/, '')
+  if (sourceTitle.includes('<') || sourceTitle.includes('>')) {
+    throw new Error(`${documentPath}: level-one heading cannot contain raw HTML`)
+  }
+  const title = stripMarkdown(sourceTitle)
   if (!title) {
     throw new Error(`${documentPath}: level-one heading cannot be empty`)
   }
