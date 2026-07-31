@@ -140,41 +140,43 @@ The fallback description remains plain engineering prose with no raw HTML.
   )
 })
 
-test('normalizes the MkDocs landing-page wrappers into standard MDX', () => {
-  const result = convertMarkdownToMdx(
-    `<div class="optima-hero" markdown>
-<div class="optima-eyebrow">Engineering boundary</div>
+test('normalizes legacy and Cacheon MkDocs landing-page wrappers into standard MDX', () => {
+  for (const brand of ['optima', 'cacheon']) {
+    const result = convertMarkdownToMdx(
+      `<div class="${brand}-hero" markdown>
+<div class="${brand}-eyebrow">Engineering boundary</div>
 
 # Canonical landing page
 
-<div class="optima-actions" markdown>
+<div class="${brand}-actions" markdown>
 [Build](miner-guide/overview.md){ .md-button }
 </div>
 </div>
 
-<div class="optima-grid" markdown>
-<a class="optima-card" href="engine/overview/">
+<div class="${brand}-grid" markdown>
+<a class="${brand}-card" href="engine/overview/">
 <strong>Engine</strong>
 <span>Reviewed release artifacts.</span>
 </a>
 </div>
 `,
-    {
-      navTitle: 'Home',
-      documentPath: 'index.md',
-      repository: 'latent-to/cacheon',
-      revision: REVISION,
-      siteName: 'Optima',
-    },
-  )
-  assert.match(result, /title: "Home"/)
-  assert.match(result, /displayTitle: "Canonical landing page"/)
-  assert.match(result, /description: "Reviewed release artifacts\."/)
-  assert.match(result, /\*\*Engineering boundary\*\*/)
-  assert.match(result, /- \[Build\]\(\/docs\/miner-guide\/overview\)/)
-  assert.match(result, /\[\*\*Engine\*\*\]\(\/docs\/engine\/overview\)/)
-  assert.match(result, /Reviewed release artifacts\./)
-  assert.doesNotMatch(result, /optima-|<div|<a /)
+      {
+        navTitle: 'Home',
+        documentPath: 'index.md',
+        repository: 'latent-to/cacheon',
+        revision: REVISION,
+        siteName: 'Cacheon',
+      },
+    )
+    assert.match(result, /title: "Home"/)
+    assert.match(result, /displayTitle: "Canonical landing page"/)
+    assert.match(result, /description: "Reviewed release artifacts\."/)
+    assert.match(result, /\*\*Engineering boundary\*\*/)
+    assert.match(result, /- \[Build\]\(\/docs\/miner-guide\/overview\)/)
+    assert.match(result, /\[\*\*Engine\*\*\]\(\/docs\/engine\/overview\)/)
+    assert.match(result, /Reviewed release artifacts\./)
+    assert.doesNotMatch(result, new RegExp(`${brand}-|<div|<a `))
+  }
 })
 
 test('preserves the complete mkdocs.yml page order across physical directories', () => {

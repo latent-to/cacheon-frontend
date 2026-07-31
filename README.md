@@ -4,14 +4,14 @@ Frontend for [cacheon.ai](https://cacheon.ai) — the dashboard and docs site fo
 
 ## Stack
 
-| Layer   | Choice                                |
-| ------- | ------------------------------------- |
-| UI      | React 19, TypeScript                  |
-| Routing | React Router v7                       |
-| Build   | Vite                                  |
-| Styling | Tailwind CSS v4                       |
-| Docs| Fumadocs (generated from the [Cacheon repo](https://github.com/latent-to/cacheon/tree/main/docs)|
-| Deploy  | Cloudflare Workers (`wrangler.jsonc`) |
+| Layer   | Choice                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------- |
+| UI      | React 19, TypeScript                                                                              |
+| Routing | React Router v7                                                                                   |
+| Build   | Vite                                                                                              |
+| Styling | Tailwind CSS v4                                                                                   |
+| Docs    | Fumadocs (generated from the [Cacheon repo](https://github.com/latent-to/cacheon/tree/main/docs)) |
+| Deploy  | Cloudflare Workers (`wrangler.jsonc`)                                                             |
 
 ## Getting started
 

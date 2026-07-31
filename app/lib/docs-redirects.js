@@ -3,6 +3,7 @@ const EXACT_REDIRECTS = new Map([
   ['EMISSIONS_POLICY', 'reference/emissions-policy'],
   ['FIDELITY', 'validator-guide/fidelity'],
   ['GPU_SETUP', 'dev/gpu-setup'],
+  ['HOW_CACHEON_WORKS', 'architecture/overview'],
   ['HOW_OPTIMA_WORKS', 'architecture/overview'],
   ['INCENTIVES', 'miner-guide/incentives'],
   ['INCENTIVE_LOAD_VALIDATION', 'results/incentive-load-validation'],

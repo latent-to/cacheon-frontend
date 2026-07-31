@@ -253,19 +253,24 @@ function rewriteLine(line, documentPath) {
 
 function normalizeIndexMarkdown(markdown) {
   return markdown
-    .replace(/^<div class="optima-eyebrow">([^<]+)<\/div>$/gm, (_, label) => `**${label.trim()}**`)
-    .replace(/<div class="optima-actions" markdown>\n([\s\S]*?)\n<\/div>/g, (_, actions) =>
-      actions
-        .split('\n')
-        .filter((line) => line.trim())
-        .map((line) => `- ${line.trim()}`)
-        .join('\n'),
+    .replace(
+      /^<div class="(?:optima|cacheon)-eyebrow">([^<]+)<\/div>$/gm,
+      (_, label) => `**${label.trim()}**`,
     )
     .replace(
-      /<a class="optima-card" href="([^"]+)">\n<strong>([^<]+)<\/strong>\n<span>([^<]+)<\/span>\n<\/a>/g,
+      /<div class="(?:optima|cacheon)-actions" markdown>\n([\s\S]*?)\n<\/div>/g,
+      (_, actions) =>
+        actions
+          .split('\n')
+          .filter((line) => line.trim())
+          .map((line) => `- ${line.trim()}`)
+          .join('\n'),
+    )
+    .replace(
+      /<a class="(?:optima|cacheon)-card" href="([^"]+)">\n<strong>([^<]+)<\/strong>\n<span>([^<]+)<\/span>\n<\/a>/g,
       (_, href, title, description) => `[**${title.trim()}**](${href})\n\n${description.trim()}`,
     )
-    .replace(/^<\/?div(?:\s+class="optima-(?:hero|grid)"\s+markdown)?>\s*$/gm, '')
+    .replace(/^<\/?div(?:\s+class="(?:optima|cacheon)-(?:hero|grid)"\s+markdown)?>\s*$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
 }
 
