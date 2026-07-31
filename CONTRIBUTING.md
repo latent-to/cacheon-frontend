@@ -15,13 +15,13 @@ Node 20+ is required.
 
 ## Stack
 
-| Layer   | Choice                                |
-| ------- | ------------------------------------- |
-| UI      | React 19, TypeScript                  |
-| Build   | Vite + React Router v7                |
-| Styling | Tailwind CSS v4                       |
-| Docs | Fumadocs (generated from the [Cacheon repo](https://github.com/latent-to/cacheon/tree/main/docs)|
-| Deploy  | Cloudflare Workers (`wrangler.jsonc`) |
+| Layer   | Choice                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------- |
+| UI      | React 19, TypeScript                                                                              |
+| Build   | Vite + React Router v7                                                                            |
+| Styling | Tailwind CSS v4                                                                                   |
+| Docs    | Fumadocs (generated from the [Cacheon repo](https://github.com/latent-to/cacheon/tree/main/docs)) |
+| Deploy  | Cloudflare Workers (`wrangler.jsonc`)                                                             |
 
 ## Project layout
 
