@@ -1,6 +1,6 @@
 import { cn } from '~/lib/cn'
 import SectionHeader from './SectionHeader'
-import { GlassCard } from './dashboard/shared'
+import { GlassCard } from './ui/glass-card'
 
 const STEPS = [
   {

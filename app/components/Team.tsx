@@ -1,6 +1,6 @@
 import { TEAM, type TeamMember } from '../constants/team'
 import SectionHeader from './SectionHeader'
-import { GlassCard } from './dashboard/shared'
+import { GlassCard } from './ui/glass-card'
 
 function IconGithub({ size = 16 }: { size?: number }) {
   return (
