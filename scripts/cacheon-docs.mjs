@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { sourceDocsRedirects } from '../app/lib/docs-redirects.js'
 
@@ -475,39 +476,102 @@ export async function createLocalSource(sourceDirectory, { allowDirty = false } 
   }
 }
 
-async function fetchText(url, headers = {}) {
-  const response = await fetch(url, { headers })
-  if (!response.ok) {
-    throw new Error(`failed to fetch ${url}: ${response.status} ${response.statusText}`)
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function githubApiHeaders(token) {
+  return {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'cacheon-docs-importer',
+    'X-GitHub-Api-Version': '2022-11-28',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
-  return response.text()
+}
+
+// Retries only the two GitHub REST calls this importer makes (ref resolution and the
+// single archive download) — never the per-file fan-out that used to trip rate limits.
+async function fetchWithRetry(
+  url,
+  { headers = {}, fetchImpl = fetch, maxAttempts = 4, onFailureMessage } = {},
+) {
+  let lastResponse
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetchImpl(url, { headers })
+    if (response.ok) return response
+    lastResponse = response
+    const retryable = response.status === 429 || response.status === 403 || response.status >= 500
+    if (!retryable || attempt === maxAttempts) break
+    const retryAfterSeconds = Number(response.headers.get('retry-after'))
+    const delayMs =
+      Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? retryAfterSeconds * 1000
+        : attempt * 500
+    await sleep(delayMs)
+  }
+  throw new Error(
+    onFailureMessage
+      ? onFailureMessage(lastResponse)
+      : `failed to fetch ${url}: ${lastResponse.status} ${lastResponse.statusText}`,
+  )
+}
+
+async function downloadAndExtractArchive({ repository, revision, token, fetchImpl }) {
+  const response = await fetchWithRetry(
+    `https://api.github.com/repos/${repository}/tarball/${revision}`,
+    {
+      headers: githubApiHeaders(token),
+      fetchImpl,
+      onFailureMessage: (res) =>
+        `failed to download archive for ${repository}@${revision}: ${res.status} ${res.statusText}`,
+    },
+  )
+  const archiveBuffer = Buffer.from(await response.arrayBuffer())
+
+  const extractRoot = await mkdtemp(path.join(os.tmpdir(), 'cacheon-docs-'))
+  const archivePath = path.join(extractRoot, 'archive.tar.gz')
+  await writeFile(archivePath, archiveBuffer)
+  try {
+    execFileSync('tar', ['-xzf', archivePath, '-C', extractRoot], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+  } catch (error) {
+    await rm(extractRoot, { recursive: true, force: true })
+    throw new Error(`failed to extract archive for ${repository}@${revision}: ${error.message}`)
+  }
+  await rm(archivePath, { force: true })
+
+  const entries = await readdir(extractRoot, { withFileTypes: true })
+  const rootEntry = entries.find((entry) => entry.isDirectory())
+  if (!rootEntry) {
+    await rm(extractRoot, { recursive: true, force: true })
+    throw new Error(
+      `GitHub archive for ${repository}@${revision} did not contain a repository directory`,
+    )
+  }
+  return { extractRoot, repositoryRoot: path.join(extractRoot, rootEntry.name) }
 }
 
 export async function createRemoteSource({
   repository = DEFAULT_REPOSITORY,
   ref = DEFAULT_REF,
   token = process.env.GITHUB_TOKEN,
+  fetchImpl = fetch,
 } = {}) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repository)) {
     throw new Error(`invalid CACHEON_DOCS_REPOSITORY: ${repository}`)
   }
   let revision = ref
   if (!SHA_PATTERN.test(revision)) {
-    const headers = {
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'cacheon-docs-importer',
-      'X-GitHub-Api-Version': '2022-11-28',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    }
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `https://api.github.com/repos/${repository}/commits/${encodeURIComponent(ref)}`,
-      { headers },
+      {
+        headers: githubApiHeaders(token),
+        fetchImpl,
+        onFailureMessage: (res) =>
+          `failed to resolve ${repository}@${ref}: ${res.status} ${res.statusText}`,
+      },
     )
-    if (!response.ok) {
-      throw new Error(
-        `failed to resolve ${repository}@${ref}: ${response.status} ${response.statusText}`,
-      )
-    }
     const payload = await response.json()
     revision = payload.sha
   }
@@ -515,14 +579,26 @@ export async function createRemoteSource({
     throw new Error(`GitHub returned an invalid revision for ${repository}@${ref}`)
   }
 
-  const rawRoot = `https://raw.githubusercontent.com/${repository}/${revision}`
+  const { extractRoot, repositoryRoot } = await downloadAndExtractArchive({
+    repository,
+    revision,
+    token,
+    fetchImpl,
+  })
+  const docsRoot = path.join(repositoryRoot, DOCS_DIRECTORY)
+  let disposed = false
+
   return {
     kind: 'remote',
     repository,
     revision: revision.toLowerCase(),
-    readConfig: () => fetchText(`${rawRoot}/mkdocs.yml`),
-    readDocument: (documentPath) =>
-      fetchText(`${rawRoot}/${DOCS_DIRECTORY}/${encodeURI(documentPath)}`),
+    readConfig: () => readFile(path.join(repositoryRoot, 'mkdocs.yml'), 'utf8'),
+    readDocument: (documentPath) => readFile(path.join(docsRoot, documentPath), 'utf8'),
+    dispose: async () => {
+      if (disposed) return
+      disposed = true
+      await rm(extractRoot, { recursive: true, force: true })
+    },
   }
 }
 
