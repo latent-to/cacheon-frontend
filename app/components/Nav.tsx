@@ -9,7 +9,7 @@ const linkCls =
 
 const navLinks = [
   { to: '/', label: 'Home' },
-  { to: '/dashboard', label: 'Dashboard' },
+  { href: 'https://dash.cacheon.ai/', label: 'Dashboard' },
   { to: '/docs', label: 'Docs' },
   { href: 'https://discord.com/invite/cacheon', label: 'Discord', icon: <DiscordIcon /> },
   { href: 'https://x.com/cacheon_ai', label: 'X', icon: <XIcon /> },

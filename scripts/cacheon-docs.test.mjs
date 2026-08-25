@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import {
   collectNavigationPages,
   convertMarkdownToMdx,
+  createRemoteSource,
   generateSitemap,
   importCacheonDocs,
   navigationMetadata,
@@ -271,4 +273,137 @@ nav:
   await assert.rejects(readFile(path.join(outputDirectory, 'unlisted.mdx')), {
     code: 'ENOENT',
   })
+})
+
+function fakeJsonResponse(payload) {
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: { get: () => null },
+    json: async () => payload,
+  }
+}
+
+function fakeArchiveResponse(buffer) {
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: { get: () => null },
+    arrayBuffer: async () =>
+      buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
+  }
+}
+
+function fakeErrorResponse(status, { retryAfter } = {}) {
+  return {
+    ok: false,
+    status,
+    statusText: 'error',
+    headers: { get: (name) => (name === 'retry-after' ? (retryAfter ?? null) : null) },
+  }
+}
+
+async function buildFixtureArchive(rootDirName, files) {
+  const archiveRoot = await mkdtemp(path.join(os.tmpdir(), 'cacheon-docs-fixture-'))
+  const repositoryDirectory = path.join(archiveRoot, rootDirName)
+  for (const [relativePath, contents] of Object.entries(files)) {
+    const destination = path.join(repositoryDirectory, relativePath)
+    await mkdir(path.dirname(destination), { recursive: true })
+    await writeFile(destination, contents)
+  }
+  const archivePath = path.join(archiveRoot, 'archive.tar.gz')
+  execFileSync('tar', ['-czf', archivePath, '-C', archiveRoot, rootDirName])
+  const archiveBuffer = await readFile(archivePath)
+  return { archiveRoot, archiveBuffer }
+}
+
+test('remote source downloads a single archive and reads mkdocs.yml/docs from the extracted tree', async () => {
+  const { archiveRoot, archiveBuffer } = await buildFixtureArchive(
+    `latent-to-cacheon-${REVISION.slice(0, 7)}`,
+    {
+      'mkdocs.yml': 'site_name: Optima\nnav:\n  - Home: index.md\n',
+      'docs/index.md': '# Welcome\n\nCanonical home documentation for the system.\n',
+    },
+  )
+
+  const calledUrls = []
+  const fetchImpl = async (url) => {
+    calledUrls.push(url)
+    if (url.includes('/commits/')) return fakeJsonResponse({ sha: REVISION })
+    if (url.includes('/tarball/')) return fakeArchiveResponse(archiveBuffer)
+    throw new Error(`unexpected fetch: ${url}`)
+  }
+
+  const source = await createRemoteSource({
+    repository: 'latent-to/cacheon',
+    ref: 'main',
+    fetchImpl,
+  })
+
+  assert.equal(calledUrls.length, 2)
+  assert.equal(source.revision, REVISION)
+  assert.match(await source.readConfig(), /site_name: Optima/)
+  assert.match(await source.readDocument('index.md'), /# Welcome/)
+
+  await source.dispose()
+  await assert.rejects(source.readConfig(), { code: 'ENOENT' })
+
+  await rm(archiveRoot, { recursive: true, force: true })
+})
+
+test('remote source retries a 429 ref-resolution response before succeeding', async () => {
+  const { archiveRoot, archiveBuffer } = await buildFixtureArchive(
+    `latent-to-cacheon-${REVISION.slice(0, 7)}`,
+    {
+      'mkdocs.yml': 'site_name: Optima\nnav:\n  - Home: index.md\n',
+      'docs/index.md': '# Welcome\n\nCanonical home documentation for the system.\n',
+    },
+  )
+
+  let commitsCallCount = 0
+  const fetchImpl = async (url) => {
+    if (url.includes('/commits/')) {
+      commitsCallCount += 1
+      return commitsCallCount === 1
+        ? fakeErrorResponse(429, { retryAfter: '0' })
+        : fakeJsonResponse({ sha: REVISION })
+    }
+    if (url.includes('/tarball/')) return fakeArchiveResponse(archiveBuffer)
+    throw new Error(`unexpected fetch: ${url}`)
+  }
+
+  const source = await createRemoteSource({
+    repository: 'latent-to/cacheon',
+    ref: 'main',
+    fetchImpl,
+  })
+
+  assert.equal(commitsCallCount, 2)
+  assert.equal(source.revision, REVISION)
+  await source.dispose()
+  await rm(archiveRoot, { recursive: true, force: true })
+})
+
+test('remote source rejects a GitHub archive with no repository root directory', async () => {
+  const archiveRoot = await mkdtemp(path.join(os.tmpdir(), 'cacheon-docs-fixture-'))
+  const loosePath = path.join(archiveRoot, 'loose.txt')
+  await writeFile(loosePath, 'not a repository archive\n')
+  const archivePath = path.join(archiveRoot, 'archive.tar.gz')
+  execFileSync('tar', ['-czf', archivePath, '-C', archiveRoot, 'loose.txt'])
+  const archiveBuffer = await readFile(archivePath)
+
+  const fetchImpl = async (url) => {
+    if (url.includes('/commits/')) return fakeJsonResponse({ sha: REVISION })
+    if (url.includes('/tarball/')) return fakeArchiveResponse(archiveBuffer)
+    throw new Error(`unexpected fetch: ${url}`)
+  }
+
+  await assert.rejects(
+    createRemoteSource({ repository: 'latent-to/cacheon', ref: 'main', fetchImpl }),
+    /did not contain a repository directory/,
+  )
+
+  await rm(archiveRoot, { recursive: true, force: true })
 })

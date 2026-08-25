@@ -24,15 +24,19 @@ async function main() {
         ref: process.env.CACHEON_DOCS_REF ?? defaults.ref,
       })
 
-  const result = await importCacheonDocs({
-    source,
-    outputDirectory,
-    manifestPath,
-    sitemapPath,
-  })
-  process.stdout.write(
-    `Imported ${result.pageCount} ${result.siteName} documentation pages and verified ${result.redirectCount} compatibility redirects from ${result.repository}@${result.revision}.\n`,
-  )
+  try {
+    const result = await importCacheonDocs({
+      source,
+      outputDirectory,
+      manifestPath,
+      sitemapPath,
+    })
+    process.stdout.write(
+      `Imported ${result.pageCount} ${result.siteName} documentation pages and verified ${result.redirectCount} compatibility redirects from ${result.repository}@${result.revision}.\n`,
+    )
+  } finally {
+    await source.dispose?.()
+  }
 }
 
 main().catch((error) => {

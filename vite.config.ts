@@ -7,8 +7,6 @@ import * as MdxConfig from './source.config'
 
 const fumadocsDeps = ['fumadocs-core/source/client', 'fumadocs-core/search/server']
 
-const API_UPSTREAM = 'http://127.0.0.1:8080'
-
 export default defineConfig({
   resolve: {
     tsconfigPaths: true,
@@ -19,15 +17,6 @@ export default defineConfig({
   ssr: {
     optimizeDeps: {
       include: fumadocsDeps,
-    },
-  },
-  server: {
-    proxy: {
-      '/proxy-api': {
-        target: API_UPSTREAM,
-        changeOrigin: false,
-        rewrite: (path) => path.replace(/^\/proxy-api/, ''),
-      },
     },
   },
   plugins: [
