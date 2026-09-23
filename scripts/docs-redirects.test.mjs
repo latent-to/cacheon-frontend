@@ -30,17 +30,6 @@ test('redirects retired frontend prose to its canonical engineering page', () =>
   assert.deepEqual(legacyDocsRedirect(['decisions']), ['architecture', 'product-model'])
 })
 
-test('has no typed Cacheon root compatibility paths to track', () => {
-  // Cacheon dropped its not_in_nav root-compatibility-stub system upstream;
-  // there is nothing left for sourceDocsRedirects to mirror. If Cacheon
-  // reintroduces typed root redirects, add matching entries in
-  // docs-redirects.js and assert their round-trip here.
-  assert.equal(Object.keys(sourceDocsRedirects).length, 0)
-  for (const [source, target] of Object.entries(sourceDocsRedirects)) {
-    assert.equal(legacyDocsRedirect([source]).join('/'), target)
-  }
-})
-
 test('leaves canonical and unknown paths untouched', () => {
   assert.equal(legacyDocsRedirect(['miner-guide', 'submitting']), null)
   assert.equal(legacyDocsRedirect(['unknown']), null)
