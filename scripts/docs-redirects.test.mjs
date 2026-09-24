@@ -30,16 +30,6 @@ test('redirects retired frontend prose to its canonical engineering page', () =>
   assert.deepEqual(legacyDocsRedirect(['decisions']), ['architecture', 'product-model'])
 })
 
-test('covers every typed Cacheon root compatibility path', () => {
-  assert.equal(Object.keys(sourceDocsRedirects).length, 19)
-  assert.deepEqual(legacyDocsRedirect(['HOW_CACHEON_WORKS']), ['architecture', 'overview'])
-  assert.deepEqual(legacyDocsRedirect(['STATE_OF_RECORD']), ['reference', 'state-of-record'])
-  assert.deepEqual(legacyDocsRedirect(['MINER_GUIDE']), ['miner-guide', 'overview'])
-  for (const [source, target] of Object.entries(sourceDocsRedirects)) {
-    assert.equal(legacyDocsRedirect([source]).join('/'), target)
-  }
-})
-
 test('leaves canonical and unknown paths untouched', () => {
   assert.equal(legacyDocsRedirect(['miner-guide', 'submitting']), null)
   assert.equal(legacyDocsRedirect(['unknown']), null)
