@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Button } from '~/components/ui/button'
+import { COMMUNITY_DISCORD_URL } from '~/constants/links'
 
 const FaultyTerminal = lazy(() => import('./FaultyTerminal'))
 
@@ -98,7 +99,7 @@ export default function Hero() {
           <Button
             as="a"
             variant="secondary"
-            href="https://discord.gg/bittensor"
+            href={COMMUNITY_DISCORD_URL}
             target="_blank"
             rel="noopener noreferrer"
           >

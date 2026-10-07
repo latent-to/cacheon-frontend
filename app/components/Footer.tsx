@@ -1,7 +1,9 @@
+import { COMMUNITY_DISCORD_URL } from '~/constants/links'
+
 export default function Footer() {
   const links = [
     { label: 'GitHub', href: 'https://github.com/latent-to/cacheon' },
-    { label: 'Discord', href: 'https://discord.gg/bittensor' },
+    { label: 'Discord', href: COMMUNITY_DISCORD_URL },
     { label: 'TAO.app', href: 'https://tao.app/subnets/14' },
     { label: 'Bittensor', href: 'https://bittensor.com' },
   ]

@@ -1,6 +1,7 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared'
 
 import { DiscordIcon, XIcon } from '~/components/icons'
+import { COMMUNITY_DISCORD_URL } from '~/constants/links'
 
 export function baseOptions(): BaseLayoutProps {
   return {
@@ -11,7 +12,7 @@ export function baseOptions(): BaseLayoutProps {
     links: [
       {
         type: 'icon',
-        url: 'https://discord.com/invite/cacheon',
+        url: COMMUNITY_DISCORD_URL,
         icon: <DiscordIcon size={16} />,
         text: 'Discord',
         label: 'Discord',
