@@ -62,30 +62,39 @@ cache state, and client measurement boundary for each provider.
 
 ## Contact form delivery
 
-The homepage form submits to a server action that sends only to **sales@cacheon.ai**
-through the `SALES_EMAIL` Cloudflare email binding. Messages use
-`website@cacheon.ai` as From and the visitor's validated address as Reply-To.
-Name, email, optional company, and workload details are sent as plain text.
-The client shows success only after the email service accepts the submission;
-provider failures show a retry message. The destination email address is not
-displayed on the page or included in public form responses.
+The homepage form sends inquiries to a configured Discord channel using a bot,
+through a server action. Name, reply email, optional company, and the full workload
+message are included in one Discord message. Mentions are disabled. The website
+shows success only after Discord returns a message receipt, and a generic retry
+message on failure. No destination email, channel ID, or bot token is exposed in
+page content, loader data, or form responses. There is no email fallback.
 
-Before production deployment, onboard `cacheon.ai` for
-[Cloudflare Email Sending](https://developers.cloudflare.com/email-service/get-started/send-emails/)
-and verify/authorize `sales@cacheon.ai` as a destination for the restricted binding.
-This repository configures the binding; it does not provision or verify the domain
-or mailbox. Confirm delivery in staging before launch. Do not change the existing
-mailbox MX records to enable outbound sending.
+Before deployment, choose a private sales channel and a bot that has View Channel,
+Send Messages, and Embed Links permissions there. Set both values as Worker secrets
+using the interactive prompts (do not commit tokens or put them in public vars):
+
+```bash
+npx wrangler secret put CONTACT_DISCORD_BOT_TOKEN
+npx wrangler secret put CONTACT_DISCORD_CHANNEL_ID
+```
+
+This change does not create a bot or select a channel. Until these are configured,
+submissions fail with the retry message. Confirm delivery to the intended channel
+before launch. Discord receives the submitted customer details; restrict channel
+membership to the team handling inquiries.
 
 Same-origin POST checks, server validation, a hidden honeypot, a 32 KiB request cap,
 and `CONTACT_RATE_LIMITER` (five attempts per IP per minute per Cloudflare location)
-protect the endpoint. Missing email or rate-limit bindings fail closed. Form
-contents and provider error details are not logged by the application. Cloudflare
-Email Service still processes the submitted details for delivery.
+protect the endpoint. Missing configuration fails closed. Provider errors and
+contact details are not logged by the application. Discord requests time out after
+eight seconds and are not automatically retried to avoid duplicate deliveries.
+A manual retry after an ambiguous timeout can still produce a duplicate.
 
-Local Wrangler email bindings simulate delivery. Keep remote bindings disabled
-for local tests; the automated tests use a fake sender and never email the team.
-`npm run test:contact` covers delivery routing, validation, rate limiting, and errors.
+`npm run test:contact` uses mocked HTTP delivery and never posts to Discord.
+Local development with real Discord secrets **does send real messages**. Leave
+those secrets unset during routine preview checks.
+
+Discord API reference: [Create Message](https://docs.discord.com/developers/resources/message#create-message).
 
 ## Stack
 

@@ -4,22 +4,19 @@ export type ContactResult = {
   errors?: Partial<Record<'name' | 'email' | 'company' | 'message', string>>
 }
 
-type SalesEmail = {
-  from: string
-  to: string
-  replyTo: string
-  subject: string
-  text: string
-}
-
 export type ContactEnv = {
-  SALES_EMAIL?: { send(message: SalesEmail): Promise<unknown> }
+  CONTACT_DISCORD_BOT_TOKEN?: string
+  CONTACT_DISCORD_CHANNEL_ID?: string
   CONTACT_RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> }
 }
 
 const unavailable = 'We could not send your message. Please try again later.'
 
-export async function submitContact(request: Request, env: ContactEnv) {
+export async function submitContact(
+  request: Request,
+  env: ContactEnv,
+  fetchImpl: typeof fetch = fetch,
+) {
   const result = (status: number, body: ContactResult) => ({ status, body })
   if (request.method !== 'POST') {
     return result(405, { ok: false, message: 'Please submit the contact form using POST.' })
@@ -30,7 +27,11 @@ export async function submitContact(request: Request, env: ContactEnv) {
   if (!request.headers.get('Content-Type')?.startsWith('application/x-www-form-urlencoded')) {
     return result(415, { ok: false, message: 'Please use the contact form to send your message.' })
   }
-  if (!env.SALES_EMAIL || !env.CONTACT_RATE_LIMITER) {
+  if (
+    !env.CONTACT_DISCORD_BOT_TOKEN?.trim() ||
+    !/^[0-9]{17,20}$/.test(env.CONTACT_DISCORD_CHANNEL_ID ?? '') ||
+    !env.CONTACT_RATE_LIMITER
+  ) {
     return result(503, { ok: false, message: unavailable })
   }
 
@@ -88,13 +89,49 @@ export async function submitContact(request: Request, env: ContactEnv) {
       return result(400, { ok: false, message: 'Please check the highlighted fields.', errors })
     }
 
-    await env.SALES_EMAIL.send({
-      from: 'website@cacheon.ai',
-      to: 'sales@cacheon.ai',
-      replyTo: email,
-      subject: 'Cacheon website — inference optimization inquiry',
-      text: `Name: ${name}\nEmail: ${email}\nCompany: ${company || 'Not provided'}\n\nWorkload / goals:\n${message}`,
-    })
+    // One Discord message preserves the full inquiry within embed limits.
+    // User-supplied mentions must never ping members, roles, or @everyone.
+    // Avoid splitting a UTF-16 surrogate pair at the description boundary.
+    const splitAt = /[\uD800-\uDBFF]/.test(message.charAt(3999)) ? 3999 : 4000
+    const embeds = [
+      {
+        title: 'Website inquiry — inference optimization',
+        description: message.slice(0, splitAt),
+        fields: [
+          { name: 'Name', value: name },
+          { name: 'Reply email', value: email },
+          { name: 'Company', value: company || 'Not provided' },
+        ],
+      },
+      ...(message.length > splitAt
+        ? [{ title: 'Workload / goals (continued)', description: message.slice(splitAt) }]
+        : []),
+    ]
+    const response = await fetchImpl(
+      `https://discord.com/api/v10/channels/${env.CONTACT_DISCORD_CHANNEL_ID}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bot ${env.CONTACT_DISCORD_BOT_TOKEN.trim()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ embeds, allowed_mentions: { parse: [] } }),
+        signal: AbortSignal.timeout(8000),
+        redirect: 'error',
+      },
+    )
+    // No automatic retries: an ambiguous timeout may already have created a message.
+    if (!response.ok) return result(503, { ok: false, message: unavailable })
+    const receipt: unknown = await response.json()
+    if (
+      !receipt ||
+      typeof receipt !== 'object' ||
+      !('id' in receipt) ||
+      typeof receipt.id !== 'string' ||
+      !receipt.id
+    ) {
+      return result(503, { ok: false, message: unavailable })
+    }
     return result(200, {
       ok: true,
       message: 'Thanks for reaching out. Your inquiry has been submitted to our sales team.',

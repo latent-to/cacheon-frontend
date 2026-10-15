@@ -10,7 +10,6 @@
       "deepseek": { "input": null, "output": null, "cacheRead": null }
     }
   },
-  "send_email": [{ "name": "SALES_EMAIL", "destination_address": "sales@cacheon.ai" }],
   "ratelimits": [
     {
       "name": "CONTACT_RATE_LIMITER",
