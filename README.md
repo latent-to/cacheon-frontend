@@ -19,8 +19,13 @@ are not ranked. Models appear as GLM, DeepSeek, then Qwen, with GLM selected fir
 The hero shows GLM and DeepSeek speed only. The Performance section includes all three models.
 A GPU-only cost estimator uses model-specific hardware (GLM 4 × B300, DeepSeek 2 × B300,
 Qwen 1 × H100) and editable hourly cost, concurrency, per-user throughput, and utilization.
-Default hourly rates ($5/B300 and $2/H100) are illustrative, not market quotes;
-concurrency defaults to one. Hardware references are linked separately from performance runs.
+Hourly rates come from Lium's public `pricing.json` feed, using the starting available
+listing for the exact GPU SKU (or its labeled reference price when no listings exist).
+The server caches successful reads for one hour and failures for five minutes, with
+a clearly dated October 15 snapshot fallback ($8/B300, $3.75/H100). Feed timestamps
+and source links are displayed. Defaults are 24 concurrent users and 80% usage.
+The pricing section reuses the exact OpenRouter snapshot and top-three speed-ranked
+endpoints, emphasizing output prices alongside input and cached-input prices. Hardware references are linked separately from performance runs.
 The estimate is not a Cacheon API price and excludes service fees and non-GPU costs.
 Higher-concurrency speed must be supplied as an assumption, not inferred as measured scaling.
 
@@ -48,13 +53,13 @@ normalized with older units. Homepage responses use `Cache-Control: no-store`.
 The Qwen result is backed by the six retained October 7 H100 measurements in
 `public/benchmarks/qwen-h100-20261007.json`. The tuned checkpoint and o200k token
 counting differ from OpenRouter. Both medians include all six prompts; this is the
-fastest observed candidate of seven, not repeated stability testing. GLM and DeepSeek use paired candidate throughput and mean TTFT from retained winning arena submissions,
-archived in `public/benchmarks/*-arena-20261015.json` with source links. These are
-AIPerf replay measurements, as confirmed by the team. GLM reports 125.04 tok/s/user
-and 2.913 s TTFT; DeepSeek reports 196.31 tok/s/user and 2.635 s TTFT. The earlier
-232 tok/s DeepSeek summary has no paired TTFT source located and is superseded here
-by the sourced winner. GLM's separate single-prompt result (208.1 tok/s, 1.018 s TTFT)
-is a different workload and is not combined with arena metrics.
+fastest observed candidate of seven, not repeated stability testing. GLM uses paired candidate throughput and mean TTFT from its retained winning submission:
+125.04 tok/s/user and 2.913 s TTFT. DeepSeek uses the newer baseline arm in submission
+`840a00d2`: 338.68 tok/s/user and 3.576 s TTFT. That submission's candidate failed the
+speed threshold; the displayed metrics are the baseline, not a winning candidate.
+Source links and selected raw results are archived in `public/benchmarks/*-arena-20261015.json`.
+Both are AIPerf replay measurements. GLM's separate single-prompt result (208.1 tok/s,
+1.018 s TTFT) is a different workload and is not combined with arena metrics.
 Before making matched-performance or market-leadership claims, supply runs using
 the same checkpoint, token counting, prompts, reasoning settings, concurrency,
 cache state, and client measurement boundary for each provider.

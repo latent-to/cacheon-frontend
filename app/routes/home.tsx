@@ -6,6 +6,7 @@ import { submitContact } from '~/lib/contact.server'
 import { modelBenchmarks } from '~/constants/benchmarks'
 import type { Route } from './+types/home'
 import { data } from 'react-router'
+import { getGpuMarket } from '~/lib/gpu-market.server'
 import { getComparison } from '~/lib/openrouter.server'
 
 // React Router runs this on the Worker; only public performance metrics and provider prices reach the client.
@@ -13,6 +14,7 @@ import { getComparison } from '~/lib/openrouter.server'
 export async function loader({ context }: Route.LoaderArgs) {
   const env = context.cloudflare.env
   const cache = await caches.open('openrouter-comparisons')
+  const gpuMarketPromise = getGpuMarket(cache)
   const comparisons = Object.fromEntries(
     await Promise.all(
       modelBenchmarks.map(async (model) => [
@@ -25,7 +27,10 @@ export async function loader({ context }: Route.LoaderArgs) {
       ]),
     ),
   )
-  return data({ comparisons }, { headers: { 'Cache-Control': 'no-store' } })
+  return data(
+    { comparisons, gpuMarket: await gpuMarketPromise },
+    { headers: { 'Cache-Control': 'no-store' } },
+  )
 }
 
 // React Router runs form submissions on the Worker.
@@ -122,7 +127,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           </p>
         </section>
 
-        <Benchmarks comparisons={loaderData.comparisons} />
+        <Benchmarks comparisons={loaderData.comparisons} gpuMarket={loaderData.gpuMarket} />
 
         <section className="mx-auto max-w-6xl px-6 py-20 sm:px-8 sm:py-28">
           <p className="text-accent mb-5 font-mono text-xs tracking-widest uppercase">

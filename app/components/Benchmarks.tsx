@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { modelBenchmarks } from '~/constants/benchmarks'
+import type { GpuMarket } from '~/lib/gpu-market'
 import CostEstimator from './CostEstimator'
 import { leadingProviders } from '~/lib/comparisons'
 import type { Comparison, ProviderResult } from '~/lib/comparisons'
@@ -10,7 +11,13 @@ function money(value: number | null) {
     : `$${value.toLocaleString('en-US', { maximumFractionDigits: 4 })}`
 }
 
-export default function Benchmarks({ comparisons }: { comparisons: Record<string, Comparison> }) {
+export default function Benchmarks({
+  comparisons,
+  gpuMarket,
+}: {
+  comparisons: Record<string, Comparison>
+  gpuMarket: GpuMarket
+}) {
   const [modelId, setModelId] = useState(modelBenchmarks[0].id)
   const model = modelBenchmarks.find((item) => item.id === modelId)!
   const comparison = comparisons[modelId]
@@ -172,7 +179,7 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
                   rel="noopener noreferrer"
                   className="text-accent mt-3 block text-sm underline underline-offset-4"
                 >
-                  View winning submission ↗
+                  View measurement source ↗
                 </a>
               )}
               {model.cacheon.evidence && (
@@ -267,7 +274,12 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
             </div>
           </details>
         </div>
-        <CostEstimator key={model.id} model={model} />
+        <CostEstimator
+          key={model.id}
+          model={model}
+          market={gpuMarket[model.hardware.marketId]}
+          comparison={comparison}
+        />
         <p className="text-secondary mt-4 text-xs">
           OpenRouter data refreshes on demand after one hour. The comparison shows the three fastest
           available endpoints by output speed, with TTFT alongside, including Fast tiers. Missing

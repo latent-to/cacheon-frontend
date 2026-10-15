@@ -1,31 +1,41 @@
 {
-  "model": "DeepSeek-V4.1-Flash",
+  "model": "DeepSeek V4.1 Flash",
   "captured_date": "2026-10-15",
-  "source": "https://dash.cacheon.ai/deepseek-v4.1-flash?submission=cb6c3daf107419958799178cf9bc2837d3bd12e3d363a9200b7992d8a52b88ef",
-  "api_source": "https://dash.cacheon.ai/api/winners?arena=dsv41flash",
-  "reservation_id": "cb6c3daf107419958799178cf9bc2837d3bd12e3d363a9200b7992d8a52b88ef",
-  "retained_at": "October 11, 2026",
-  "candidate_decode_tps_per_user": 196.3111061850701,
-  "candidate_mean_ttft_seconds": 2.6345374686460636,
+  "source": "https://dash.cacheon.ai/deepseek-v4.1-flash?submission=840a00d2a3400ad69102b343f43d114f213a9dbd31c258cf0fcf03b58c779719",
+  "api_source": "https://dash.cacheon.ai/api/submissions/840a00d2a3400ad69102b343f43d114f213a9dbd31c258cf0fcf03b58c779719?arena=dsv41flash",
+  "reservation_id": "840a00d2a3400ad69102b343f43d114f213a9dbd31c258cf0fcf03b58c779719",
+  "measurement_role": "baseline",
+  "baseline": {
+    "kind": "stock",
+    "checkpoint": null,
+    "evaluated": false,
+    "assigned": true,
+    "artifact_digest": "",
+    "reservation_id": null,
+    "stack_digest": "da8207c9bc6dbbddd762d86d8fd859c34a476ac9ea2bc27200bd8ada3da7f242",
+    "tree_digest": "820fae6a9897a34f7368db6f07e8dc9c8a56427761b20b5bd045da31268cff3d",
+    "arena_digest": "acc8df79a095275989078072e4569a61ef8028df87f739a60b4220984b6f8911",
+    "reward_bar": null,
+    "source": "dsv41flash"
+  },
+  "baseline_decode_tps_per_user": 338.6842184583297,
+  "baseline_mean_ttft_seconds": 3.576266984644592,
   "raw_result": {
-    "speedup": 1.2857287998115563,
-    "required_speedup": 1.0486871764877788,
-    "audit": {
-      "decision": "PASS",
-      "detail": "872 audited calls, 0 violations, worst_frac=0.7812, compare_errors=0, baseline_refused=0"
-    },
-    "passes": 3,
+    "speedup": 1.0001348158041046,
+    "required_speedup": 1.0224453133624454,
+    "audit": null,
+    "passes": 4,
     "pass_limit": 4,
-    "detail": "positive paired gain clears the sealed statistical boundary",
+    "detail": "positive paired gain is not established within the sealed budget",
     "decode_tps": [
-      157.94550841059888,
-      196.3111061850701
+      338.6842184583297,
+      339.0948922823434
     ],
     "ttft_s": [
-      3.404704957735099,
-      2.6345374686460636
+      3.576266984644592,
+      3.54324970025883
     ]
   },
-  "metric_mapping": "result.decode_tps[1] and result.ttft_s[1] are candidate measurements; index 0 is the paired baseline.",
-  "limitations": "Arena replay means, not matched to OpenRouter traffic or P50. Hardware reference is linked in the estimator."
+  "metric_mapping": "Index 0 of decode_tps and ttft_s is the baseline arm. Index 1 is the candidate. This page reports the baseline, not the candidate, which failed the speed threshold.",
+  "limitations": "Concurrent multi-turn arena replay means, not matched to OpenRouter traffic P50s. Not the earlier 232 tok/s report."
 }

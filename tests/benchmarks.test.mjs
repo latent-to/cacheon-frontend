@@ -241,3 +241,47 @@ test('GPU estimates account for hardware, concurrency, speed and utilization, re
   ])
     assert.equal(estimateGpuCost(...args), null)
 })
+
+test('GPU market uses available listing prices and distinguishes reference fallback', async () => {
+  const { parseGpuMarket, getGpuMarket } = await import('../app/lib/gpu-market.server.ts')
+  const payload = {
+    generated_at: '2026-10-15T19:02:16Z',
+    models: [
+      {
+        model: 'NVIDIA B300 SXM6 AC',
+        available_nodes: 3,
+        min_price_usd_per_gpu_hour: 8,
+        reference_price_usd_per_gpu_hour: 6,
+      },
+      {
+        model: 'NVIDIA H100 80GB HBM3',
+        available_nodes: 0,
+        min_price_usd_per_gpu_hour: 3.75,
+        reference_price_usd_per_gpu_hour: 1.39,
+      },
+    ],
+  }
+  const rates = parseGpuMarket(payload)
+  assert.equal(rates.b300.hourlyRate, 8)
+  assert.equal(rates.b300.basis, 'listed')
+  assert.equal(rates.h100.hourlyRate, 1.39)
+  assert.equal(rates.h100.basis, 'reference')
+  assert.throws(() => parseGpuMarket({ ...payload, models: [] }))
+  assert.throws(() => parseGpuMarket({ ...payload, generated_at: 'bad' }))
+  const h = harness()
+  h.respond(async () => Response.json(payload))
+  assert.deepEqual(await getGpuMarket(h.options.cache, h.options.fetcher, h.options.now), rates)
+  await getGpuMarket(h.options.cache, h.options.fetcher, h.options.now)
+  assert.equal(h.calls(), 1)
+  h.advance(hour)
+  h.respond(async () => new Response('', { status: 503 }))
+  const fallback = await getGpuMarket(h.options.cache, h.options.fetcher, h.options.now)
+  assert.equal(fallback.b300.fallback, true)
+  assert.equal(fallback.b300.observedAt, '2026-10-15T19:02:16.726Z')
+  h.advance(300000)
+  h.respond(async () => Response.json(payload))
+  assert.equal(
+    (await getGpuMarket(h.options.cache, h.options.fetcher, h.options.now)).b300.fallback,
+    false,
+  )
+})

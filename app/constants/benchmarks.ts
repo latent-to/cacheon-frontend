@@ -3,7 +3,7 @@ export type ModelBenchmark = {
   name: string
   openRouterModel: string
   source: string
-  hardware: { gpu: string; count: number; hourlyRate: number; source: string }
+  hardware: { gpu: string; count: number; marketId: 'b300' | 'h100'; source: string }
   cacheon: {
     throughput: number
     ttft: number | null
@@ -20,7 +20,12 @@ export const modelBenchmarks: ModelBenchmark[] = [
     name: 'GLM-5.3',
     openRouterModel: 'z-ai/glm-5.3',
     source: 'https://openrouter.ai/z-ai/glm-5.3',
-    hardware: { gpu: 'NVIDIA B300', count: 4, hourlyRate: 5, source: '/docs/results/prefix-cache' },
+    hardware: {
+      gpu: 'NVIDIA B300',
+      count: 4,
+      marketId: 'b300',
+      source: '/docs/results/prefix-cache',
+    },
     cacheon: {
       throughput: 125.0439568665574,
       ttft: 2.9131185586534216,
@@ -40,18 +45,18 @@ export const modelBenchmarks: ModelBenchmark[] = [
     hardware: {
       gpu: 'NVIDIA B300',
       count: 2,
-      hourlyRate: 5,
+      marketId: 'b300',
       source: '/docs/results/deepseek-v41-flash-b300',
     },
     cacheon: {
-      throughput: 196.3111061850701,
-      ttft: 2.6345374686460636,
-      label: 'AIPerf benchmark',
+      throughput: 338.6842184583297,
+      ttft: 3.576266984644592,
+      label: 'AIPerf · newer baseline',
       methodology:
-        'AIPerf arena replay result retained October 11, 2026: 196.31 tok/s/user and 2.635 s mean TTFT from the same winning submission. Concurrent, multi-turn workload; these means differ from OpenRouter P50 traffic measurements. A matched provider comparison is still needed to establish relative performance.',
+        'AIPerf arena replay on the newer baseline: 338.68 tok/s/user and 3.576 s mean TTFT from the baseline arm of the same run. These are baseline measurements; the candidate did not meet the speed threshold. Concurrent, multi-turn workload; these means differ from OpenRouter P50 traffic measurements. A matched provider comparison is still needed to establish relative performance.',
       evidence: '/benchmarks/deepseek-arena-20261015.json',
       resultSource:
-        'https://dash.cacheon.ai/deepseek-v4.1-flash?submission=cb6c3daf107419958799178cf9bc2837d3bd12e3d363a9200b7992d8a52b88ef',
+        'https://dash.cacheon.ai/deepseek-v4.1-flash?submission=840a00d2a3400ad69102b343f43d114f213a9dbd31c258cf0fcf03b58c779719',
     },
   },
   {
@@ -62,7 +67,7 @@ export const modelBenchmarks: ModelBenchmark[] = [
     hardware: {
       gpu: 'NVIDIA H100 80 GB',
       count: 1,
-      hourlyRate: 2,
+      marketId: 'h100',
       source: '/benchmarks/qwen-h100-20261007.json',
     },
     cacheon: {
