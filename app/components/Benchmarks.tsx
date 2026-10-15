@@ -1,16 +1,32 @@
 import { useState } from 'react'
-import { modelBenchmarks, snapshotDate } from '~/constants/benchmarks'
+import { modelBenchmarks } from '~/constants/benchmarks'
+import { formatPrice, leadingProviders } from '~/lib/comparisons'
+import type { Comparison, Pricing } from '~/lib/comparisons'
 
 type Metric = 'throughput' | 'ttft'
 
-export default function Benchmarks() {
+export default function Benchmarks({
+  pricing,
+  comparisons,
+}: {
+  pricing: Record<string, Pricing>
+  comparisons: Record<string, Comparison>
+}) {
   const [modelId, setModelId] = useState('qwen')
   const [metric, setMetric] = useState<Metric>('throughput')
   const model = modelBenchmarks.find((item) => item.id === modelId)!
-  const providers = [...model.providers].sort((a, b) =>
-    metric === 'throughput' ? b.throughput - a.throughput : a.ttft - b.ttft,
-  )
-  const maximum = Math.max(model.cacheon[metric] ?? 0, ...providers.map((p) => p[metric]))
+  const comparison = comparisons[modelId]
+  const providers = leadingProviders(comparison.providers, metric)
+  const maximum = Math.max(1, model.cacheon[metric] ?? 0, ...providers.map((p) => p[metric] ?? 0))
+  const prices = pricing[modelId]
+  const updated =
+    comparison.fetchedAt === null
+      ? null
+      : new Date(comparison.fetchedAt).toLocaleString('en-US', {
+          timeZone: 'UTC',
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }) + ' UTC'
   const format = (value: number) => (metric === 'throughput' ? value.toFixed(1) : value.toFixed(3))
   const unit = metric === 'throughput' ? 'tok/s' : 's'
 
@@ -69,6 +85,28 @@ export default function Benchmarks() {
             </button>
           ))}
         </div>
+        <div className="border-border mb-7 border p-5" aria-live="polite">
+          <h3 className="mb-4 text-sm font-medium">
+            Cacheon pricing · {model.name}{' '}
+            <span className="text-secondary font-normal">· USD per million tokens</span>
+          </h3>
+          <dl className="grid gap-4 sm:grid-cols-3">
+            {(
+              [
+                ['Input', prices.input],
+                ['Output', prices.output],
+                ['Cache read', prices.cacheRead],
+              ] as const
+            ).map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-secondary text-xs">{label}</dt>
+                <dd className="mt-1 font-mono text-lg">
+                  {value === null ? 'Contact us' : formatPrice(value)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
         <div className="border-border bg-surface border">
           <div className="border-border flex flex-wrap items-center justify-between gap-4 border-b p-5 sm:px-8">
             <div className="flex flex-wrap gap-2" role="group" aria-label="Choose a metric">
@@ -95,11 +133,23 @@ export default function Benchmarks() {
               {bar('Cacheon', model.cacheon[metric], true)}
               <div className="border-border mt-5 border-t pt-5">
                 <p className="text-secondary mb-2 text-xs">
-                  OpenRouter · published P50 · {snapshotDate}
+                  OpenRouter · P50 over the last 30 minutes
+                </p>
+                <p className="text-secondary mb-3 text-xs">
+                  {updated
+                    ? `Last refreshed ${updated}${comparison.status === 'stale' ? ' · Stale data; refresh pending or failed' : ''}`
+                    : 'Provider data temporarily unavailable.'}
                 </p>
                 {providers.map((provider) => (
-                  <div key={provider.name}>{bar(provider.name, provider[metric])}</div>
+                  <div key={provider.id}>{bar(provider.name, provider[metric])}</div>
                 ))}
+                {providers.length === 0 && comparison.status !== 'unavailable' && (
+                  <p className="text-secondary py-4 text-sm">
+                    OpenRouter is not returning {metric === 'throughput' ? 'throughput' : 'TTFT'}{' '}
+                    measurements for this model right now. Available provider prices are listed
+                    below.
+                  </p>
+                )}
               </div>
             </div>
             <aside className="border-border border-t p-5 sm:p-8 lg:border-t-0 lg:border-l">
@@ -137,18 +187,20 @@ export default function Benchmarks() {
             <div className="overflow-x-auto px-5 pb-6 sm:px-8">
               <table className="w-full min-w-[600px] text-left text-sm">
                 <caption className="text-secondary mb-4 text-left text-xs">
-                  OpenRouter snapshot, {snapshotDate}. Top three throughput endpoints in Standard
-                  routing, plus the lowest-TTFT endpoint when distinct. Prices in USD per million
-                  tokens. Cacheon pricing is available on request.
+                  Prices in USD per million tokens. OpenRouter reports P50 performance over the last
+                  30 minutes for available endpoints; Cacheon reports internal results under the
+                  conditions above.
+                  {updated && ` OpenRouter last refreshed ${updated}.`}
                 </caption>
                 <thead className="text-secondary">
                   <tr>
                     {[
                       'Provider / endpoint',
-                      'tok/s (P50)',
-                      'TTFT (P50)',
+                      'tok/s',
+                      'TTFT',
                       'Input / 1M',
                       'Output / 1M',
+                      'Cache read / 1M',
                     ].map((label) => (
                       <th
                         key={label}
@@ -161,16 +213,40 @@ export default function Benchmarks() {
                   </tr>
                 </thead>
                 <tbody>
-                  {providers.map((provider) => (
-                    <tr key={provider.name}>
+                  <tr className="text-accent">
+                    <th scope="row" className="border-border border-b py-3 pr-5 font-medium">
+                      Cacheon · internal
+                    </th>
+                    {[
+                      model.cacheon.throughput.toFixed(1),
+                      model.cacheon.ttft === null
+                        ? 'Not published'
+                        : `${model.cacheon.ttft.toFixed(3)} s`,
+                      ...[prices.input, prices.output, prices.cacheRead].map((value) =>
+                        value === null ? 'Contact us' : formatPrice(value),
+                      ),
+                    ].map((value, index) => (
+                      <td
+                        key={index}
+                        className="border-border border-b py-3 pr-5 font-mono tabular-nums"
+                      >
+                        {value}
+                      </td>
+                    ))}
+                  </tr>
+                  {comparison.providers.map((provider) => (
+                    <tr key={provider.id}>
                       <th scope="row" className="border-border border-b py-3 pr-5 font-normal">
                         {provider.name}
                       </th>
                       {[
-                        provider.throughput,
-                        `${provider.ttft.toFixed(2)} s`,
-                        `$${provider.inputPrice}`,
-                        `$${provider.outputPrice.toFixed(2)}`,
+                        provider.throughput === null
+                          ? 'Not published'
+                          : provider.throughput.toFixed(1),
+                        provider.ttft === null ? 'Not published' : `${provider.ttft.toFixed(3)} s`,
+                        formatPrice(provider.pricing.input),
+                        formatPrice(provider.pricing.output),
+                        formatPrice(provider.pricing.cacheRead),
                       ].map((value, index) => (
                         <td
                           key={index}
@@ -187,8 +263,9 @@ export default function Benchmarks() {
           </details>
         </div>
         <p className="text-secondary mt-4 text-xs">
-          Dated snapshot, not a live ranking. Fast tiers are included. No cross-source speedup or
-          quality-equivalence claim is implied.
+          OpenRouter data refreshes on demand after one hour. Charts show the top three available
+          endpoints for the selected metric, including Fast tiers. Missing metrics are not ranked.
+          No cross-source speedup or quality-equivalence claim is implied.
         </p>
       </div>
     </section>

@@ -3,6 +3,40 @@ import Footer from '~/components/Footer'
 import Benchmarks from '~/components/Benchmarks'
 import { COMMUNITY_DISCORD_URL } from '~/constants/links'
 import { modelBenchmarks } from '~/constants/benchmarks'
+import type { Route } from './+types/home'
+import { data } from 'react-router'
+import { readPricing } from '~/lib/pricing.server'
+import { getComparison } from '~/lib/openrouter.server'
+
+// React Router runs this on the Worker; only public prices and metrics reach the client.
+// eslint-disable-next-line react-refresh/only-export-components
+export async function loader({ context }: Route.LoaderArgs) {
+  const env = context.cloudflare.env
+  const pricing = readPricing(
+    env.CACHEON_PRICING,
+    modelBenchmarks.map((model) => model.id),
+  )
+  const cache = await caches.open('openrouter-comparisons')
+  const comparisons = Object.fromEntries(
+    await Promise.all(
+      modelBenchmarks.map(async (model) => [
+        model.id,
+        await getComparison(model.openRouterModel, {
+          cache,
+          waitUntil: (task) => context.cloudflare.ctx.waitUntil(task),
+          apiKey: env.OPENROUTER_API_KEY,
+        }),
+      ]),
+    ),
+  )
+  return data({ pricing, comparisons }, { headers: { 'Cache-Control': 'no-store' } })
+}
+
+// Apply loader headers to the HTML document as well as client navigation data.
+// eslint-disable-next-line react-refresh/only-export-components
+export function headers({ loaderHeaders }: Route.HeadersArgs) {
+  return loaderHeaders
+}
 
 // React Router requires metadata exports in route modules.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -23,7 +57,7 @@ export function meta() {
 const primaryLink =
   'inline-flex items-center justify-center gap-8 bg-accent px-6 py-3.5 text-sm font-semibold text-bg no-underline hover:bg-teal-200 hover:text-bg hover:no-underline'
 
-export default function Home() {
+export default function Home({ loaderData }: Route.ComponentProps) {
   return (
     <>
       <Nav />
@@ -83,7 +117,7 @@ export default function Home() {
           </p>
         </section>
 
-        <Benchmarks />
+        <Benchmarks pricing={loaderData.pricing} comparisons={loaderData.comparisons} />
 
         <section className="mx-auto max-w-6xl px-6 py-20 sm:px-8 sm:py-28">
           <p className="text-accent mb-5 font-mono text-xs tracking-widest uppercase">
