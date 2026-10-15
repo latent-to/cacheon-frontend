@@ -1,7 +1,8 @@
 import Nav from '~/components/Nav'
 import Footer from '~/components/Footer'
 import Benchmarks from '~/components/Benchmarks'
-import { COMMUNITY_DISCORD_URL } from '~/constants/links'
+import ContactForm from '~/components/ContactForm'
+import { submitContact } from '~/lib/contact.server'
 import { modelBenchmarks } from '~/constants/benchmarks'
 import type { Route } from './+types/home'
 import { data } from 'react-router'
@@ -32,6 +33,13 @@ export async function loader({ context }: Route.LoaderArgs) {
   return data({ pricing, comparisons }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
+// React Router runs form submissions on the Worker.
+// eslint-disable-next-line react-refresh/only-export-components
+export async function action({ request, context }: Route.ActionArgs) {
+  const result = await submitContact(request, context.cloudflare.env)
+  return data(result.body, { status: result.status, headers: { 'Cache-Control': 'no-store' } })
+}
+
 // Apply loader headers to the HTML document as well as client navigation data.
 // eslint-disable-next-line react-refresh/only-export-components
 export function headers({ loaderHeaders }: Route.HeadersArgs) {
@@ -41,9 +49,9 @@ export function headers({ loaderHeaders }: Route.HeadersArgs) {
 // React Router requires metadata exports in route modules.
 // eslint-disable-next-line react-refresh/only-export-components
 export function meta() {
-  const title = 'Cacheon — Open models. Faster inference.'
+  const title = 'Cacheon — Inference optimized for your workload.'
   const description =
-    'Inference acceleration for open models. Explore Cacheon throughput and time-to-first-token results alongside leading OpenRouter providers, and discuss access for your workload.'
+    'We optimize inference for customers. Reduce latency, improve throughput, and get more from your infrastructure with optimization tailored to your models and workloads.'
   return [
     { title },
     { name: 'description', content: description },
@@ -57,7 +65,7 @@ export function meta() {
 const primaryLink =
   'inline-flex items-center justify-center gap-8 bg-accent px-6 py-3.5 text-sm font-semibold text-bg no-underline hover:bg-teal-200 hover:text-bg hover:no-underline'
 
-export default function Home({ loaderData }: Route.ComponentProps) {
+export default function Home({ loaderData, actionData }: Route.ComponentProps) {
   return (
     <>
       <Nav />
@@ -67,22 +75,23 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           className="mx-auto max-w-6xl px-6 pt-36 pb-16 sm:px-8 sm:pt-44 sm:pb-24"
         >
           <p className="text-accent mb-8 flex items-center gap-3 font-mono text-xs tracking-widest uppercase">
-            <span className="bg-accent h-1.5 w-1.5" /> Inference, accelerated
+            <span className="bg-accent h-1.5 w-1.5" /> Inference optimization for your business
           </p>
           <div className="grid items-end gap-10 lg:grid-cols-[1.5fr_1fr] lg:gap-16">
             <h1 className="text-[clamp(3.5rem,7.5vw,6rem)] leading-[1.02] font-medium tracking-[-0.055em]">
-              Open models.
+              Your inference.
               <br />
-              <span className="text-accent">Faster inference.</span>
+              <span className="text-accent">Optimized.</span>
             </h1>
             <div className="pb-2">
               <p className="text-secondary mb-7 max-w-md text-lg leading-relaxed">
-                Your application runs on tokens. We make them move faster. Cacheon optimizes
-                inference for the open models behind agents, coding tools, and interactive AI.
+                We optimize inference for customers. We work with your models, hardware, and
+                workloads to reduce latency, increase throughput, and get more from your
+                infrastructure.
               </p>
               <div className="flex flex-wrap items-center gap-5">
                 <a href="#access" className={primaryLink}>
-                  Discuss access <span aria-hidden="true">↗</span>
+                  Contact us <span aria-hidden="true">↗</span>
                 </a>
                 <a href="#benchmarks" className="text-sm">
                   Explore benchmarks ↓
@@ -121,16 +130,19 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
         <section className="mx-auto max-w-6xl px-6 py-20 sm:px-8 sm:py-28">
           <p className="text-accent mb-5 font-mono text-xs tracking-widest uppercase">
-            02 / Built for the waiting time
+            02 / Built around your workload
           </p>
           <div className="grid gap-12 md:grid-cols-2 md:gap-20">
             <div>
               <h2 className="text-3xl leading-tight font-medium tracking-tight sm:text-5xl">
-                Every turn adds up.
+                Your workload.
+                <br />
+                Our focus.
               </h2>
               <p className="text-secondary mt-6 max-w-md leading-relaxed">
-                A coding agent can make dozens of model calls before it finishes a task. Both the
-                wait for the first token and the speed of the remaining response matter.
+                Inference optimization starts with what your customers need. We help you identify
+                bottlenecks, tune performance, and evaluate improvements against the traffic your
+                application actually serves.
               </p>
               <a
                 href="/docs/get-started/concepts"
@@ -143,18 +155,18 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               {[
                 [
                   '01',
-                  'Start responding sooner',
-                  'Time to first token measures how long a user or agent waits before generation begins.',
+                  'Understand your requirements',
+                  'Start with your models, hardware, context lengths, and concurrency. Define the latency, throughput, and cost targets that matter to your application.',
                 ],
                 [
                   '02',
-                  'Finish the response faster',
-                  'Output tokens per second measures how quickly reasoning, code, and answers are generated after the first token.',
+                  'Optimize your inference',
+                  'Focus on the bottlenecks in your inference stack to improve time to first token, token generation speed, and infrastructure efficiency.',
                 ],
                 [
                   '03',
-                  'Measure your actual workload',
-                  'Prompt length, concurrent requests, reasoning settings, and cache hits all affect performance. Evaluate the traffic you plan to send.',
+                  'Validate the improvement',
+                  'Compare before-and-after performance on representative workloads, with clear measurement conditions and tradeoffs.',
                 ],
               ].map(([number, title, body]) => (
                 <div key={number} className="border-border flex gap-6 border-b pb-7">
@@ -170,30 +182,23 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         </section>
 
         <section id="access" className="border-border bg-surface border-y">
-          <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 sm:px-8 sm:py-20 md:grid-cols-[1.4fr_1fr] md:items-center">
+          <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 sm:px-8 sm:py-20 md:grid-cols-2 md:items-start md:gap-16">
             <div>
               <p className="text-accent mb-5 font-mono text-xs tracking-widest uppercase">
-                03 / Get started
+                03 / Contact us
               </p>
               <h2 className="text-3xl font-medium tracking-tight sm:text-5xl">
                 Bring your workload.
               </h2>
               <p className="text-secondary mt-5 max-w-lg">
-                Tell us which model you use, your typical context length, and your expected
-                concurrency. Talk with the team about model availability, API access, and pricing.
+                Tell us what you run and what you want to improve. We’ll discuss how Cacheon can
+                optimize inference for your team, along with scope and pricing.
               </p>
-            </div>
-            <div className="md:justify-self-end">
-              <a
-                className={primaryLink}
-                href={COMMUNITY_DISCORD_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Talk to the team <span aria-hidden="true">↗</span>
+              <a href="mailto:sales@cacheon.ai" className="text-accent mt-6 inline-block text-sm">
+                sales@cacheon.ai ↗
               </a>
-              <p className="text-secondary mt-3 text-xs">Connect with Cacheon on Discord.</p>
             </div>
+            <ContactForm initialResult={actionData} />
           </div>
         </section>
 

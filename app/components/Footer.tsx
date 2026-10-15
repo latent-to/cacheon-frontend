@@ -6,6 +6,7 @@ export default function Footer() {
     { label: 'Discord', href: COMMUNITY_DISCORD_URL },
     { label: 'Subnet', href: '/subnet' },
     { label: 'Docs', href: '/docs' },
+    { label: 'Contact', href: '/#access' },
   ]
 
   return (
@@ -13,7 +14,7 @@ export default function Footer() {
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-4">
         <div className="text-base2 flex items-center gap-2 font-sans">
           <img src="/icon-192.png" alt="Cacheon" className="h-5 w-5" />
-          <span className="text-sm2 text-secondary">Cacheon · Open models. Faster inference.</span>
+          <span className="text-sm2 text-secondary">Cacheon · Inference optimized for you.</span>
         </div>
 
         <div className="tracking-caps flex flex-wrap justify-center gap-4 font-mono text-xs uppercase sm:gap-5">

@@ -1,8 +1,8 @@
 # Cacheon.ai Frontend
 
-Frontend for [cacheon.ai](https://cacheon.ai) — the dashboard and docs site for [Cacheon](https://github.com/latent-to/cacheon) (Bittensor SN14).
+Frontend for [cacheon.ai](https://cacheon.ai) — customer inference optimization, benchmarks, and documentation for [Cacheon](https://github.com/latent-to/cacheon).
 
-The homepage introduces the inference product and benchmarks. Contributor,
+The homepage leads with inference optimization for customer workloads and benchmarks. Contributor,
 validator, rewards, roadmap, and team content lives at `/subnet`.
 
 ## Benchmark content
@@ -60,9 +60,31 @@ Before making matched-performance or market-leadership claims, supply runs using
 the same checkpoint, token counting, prompts, reasoning settings, concurrency,
 cache state, and client measurement boundary for each provider.
 
-Access currently links to the established team Discord. Replace it with the real
-onboarding destination when available; the page does not invent a public API URL,
-self-service signup, or Cacheon price.
+## Contact form delivery
+
+The homepage form submits to a server action that sends only to **sales@cacheon.ai**
+through the `SALES_EMAIL` Cloudflare email binding. Messages use
+`website@cacheon.ai` as From and the visitor's validated address as Reply-To.
+Name, email, optional company, and workload details are sent as plain text.
+The client shows success only after the email service accepts the submission;
+provider failures show a retry message and a direct email alternative.
+
+Before production deployment, onboard `cacheon.ai` for
+[Cloudflare Email Sending](https://developers.cloudflare.com/email-service/get-started/send-emails/)
+and verify/authorize `sales@cacheon.ai` as a destination for the restricted binding.
+This repository configures the binding; it does not provision or verify the domain
+or mailbox. Confirm delivery in staging before launch. Do not change the existing
+mailbox MX records to enable outbound sending.
+
+Same-origin POST checks, server validation, a hidden honeypot, a 32 KiB request cap,
+and `CONTACT_RATE_LIMITER` (five attempts per IP per minute per Cloudflare location)
+protect the endpoint. Missing email or rate-limit bindings fail closed. Form
+contents and provider error details are not logged by the application. Cloudflare
+Email Service still processes the submitted details for delivery.
+
+Local Wrangler email bindings simulate delivery. Keep remote bindings disabled
+for local tests; the automated tests use a fake sender and never email the team.
+`npm run test:contact` covers delivery routing, validation, rate limiting, and errors.
 
 ## Stack
 
