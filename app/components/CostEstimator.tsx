@@ -174,6 +174,14 @@ export default function CostEstimator({
               <p className="text-secondary mb-4 text-sm">{provider.name}</p>
               <p className="font-mono text-3xl tabular-nums">{price(provider.pricing.output)}</p>
               <p className="text-secondary mt-1 text-xs">API output / 1M tokens</p>
+              <p className="text-secondary mt-3 text-sm">
+                <span className="text-primary font-mono tabular-nums">
+                  {provider.throughput === null
+                    ? 'Speed unavailable'
+                    : `${provider.throughput.toFixed(1)} tok/s`}
+                </span>{' '}
+                · Output speed (P50)
+              </p>
               <dl className="mt-5 space-y-3 text-sm">
                 <div className="flex flex-wrap justify-between gap-2">
                   <dt className="text-secondary">Input / 1M</dt>
