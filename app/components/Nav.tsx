@@ -11,7 +11,7 @@ const navLinks = [
   { to: '/#benchmarks', label: 'Benchmarks' },
   { to: '/docs', label: 'Docs' },
   { to: '/subnet', label: 'Subnet' },
-  { to: '/#access', label: 'Contact us ↗' },
+  { to: '/#contact-us', label: 'Contact us ↗' },
 ] as const
 
 export default function Nav() {

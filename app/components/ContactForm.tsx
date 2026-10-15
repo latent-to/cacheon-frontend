@@ -20,9 +20,9 @@ export default function ContactForm({ initialResult }: { initialResult?: Contact
   return (
     <fetcher.Form
       method="post"
-      action="/?index#access"
+      action="/?index#contact-us"
       className="space-y-5"
-      aria-label="Contact sales"
+      aria-label="Contact the Cacheon team"
       aria-busy={pending}
     >
       <div className="grid gap-5 sm:grid-cols-2">
@@ -112,7 +112,7 @@ export default function ContactForm({ initialResult }: { initialResult?: Contact
         {pending ? 'Sending…' : 'Send inquiry'} <span aria-hidden="true">↗</span>
       </button>
       <p className="text-secondary text-xs leading-relaxed">
-        Your details go to the Cacheon sales team so we can respond to your inquiry.
+        Your details go to the Cacheon team so we can respond to your inquiry.
       </p>
     </fetcher.Form>
   )

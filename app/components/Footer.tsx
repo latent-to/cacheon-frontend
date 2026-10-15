@@ -6,7 +6,7 @@ export default function Footer() {
     { label: 'Discord', href: COMMUNITY_DISCORD_URL },
     { label: 'Subnet', href: '/subnet' },
     { label: 'Docs', href: '/docs' },
-    { label: 'Contact', href: '/#access' },
+    { label: 'Contact', href: '/#contact-us' },
   ]
 
   return (

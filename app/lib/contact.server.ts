@@ -134,7 +134,7 @@ export async function submitContact(
     }
     return result(200, {
       ok: true,
-      message: 'Thanks for reaching out. Your inquiry has been submitted to our sales team.',
+      message: 'Thanks for reaching out. Your inquiry has been submitted to the Cacheon team.',
     })
   } catch {
     // Do not log contact details or return provider errors to visitors.

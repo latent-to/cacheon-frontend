@@ -90,7 +90,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                 infrastructure.
               </p>
               <div className="flex flex-wrap items-center gap-5">
-                <a href="#access" className={primaryLink}>
+                <a href="#contact-us" className={primaryLink}>
                   Contact us <span aria-hidden="true">↗</span>
                 </a>
                 <a href="#benchmarks" className="text-sm">
@@ -182,7 +182,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           </div>
         </section>
 
-        <section id="access" className="border-border bg-surface border-y">
+        <section id="contact-us" className="border-border bg-surface border-y">
           <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 sm:px-8 sm:py-20 md:grid-cols-2 md:items-start md:gap-16">
             <div>
               <p className="text-accent mb-5 font-mono text-xs tracking-widest uppercase">
