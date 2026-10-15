@@ -4,7 +4,7 @@ import type { GpuMarketRate } from '~/lib/gpu-market'
 import { leadingProviders } from '~/lib/comparisons'
 import type { Comparison } from '~/lib/comparisons'
 import { estimateGpuCost } from '~/lib/cost-estimate'
-import { clampConcurrency, concurrencyRange, estimateUserThroughput } from '~/lib/concurrency'
+import { calculatorThroughput, clampConcurrency, concurrencyRange } from '~/lib/concurrency'
 
 const price = (value: number | null) =>
   value === null
@@ -23,7 +23,7 @@ export default function CostEstimator({
   const providers = leadingProviders(comparison.providers, 'throughput')
   const points = model.cacheon.concurrency
   const range = concurrencyRange(points)
-  const singleMeasurement = range?.min === range?.max
+  const maxUsers = range ? Math.min(24, range.max) : 1
   const updated =
     comparison.fetchedAt === null
       ? null
@@ -38,7 +38,8 @@ export default function CostEstimator({
     utilization: '80',
   })
   const users = Number(values.users || NaN)
-  const speed = estimateUserThroughput(points, users)
+  const speedEstimate = calculatorThroughput(points, users)
+  const speed = speedEstimate?.throughput ?? null
   const result = estimateGpuCost(
     Number(values.rate || NaN),
     model.hardware.count,
@@ -48,7 +49,7 @@ export default function CostEstimator({
   )
   const fields = [
     { key: 'rate', label: 'USD / GPU-hour', min: 0, max: undefined, step: '0.01' },
-    { key: 'users', label: 'Concurrent users', min: range?.min, max: range?.max, step: '1' },
+    { key: 'users', label: 'Concurrent users', min: 1, max: maxUsers, step: '1' },
     { key: 'utilization', label: 'Time spent generating (%)', min: 0.1, max: 100, step: '0.1' },
   ] as const
   return (
@@ -111,7 +112,7 @@ export default function CostEstimator({
               max={max}
               step={step}
               value={values[key]}
-              readOnly={key === 'users' && singleMeasurement}
+              readOnly={key === 'users' && maxUsers === 1}
               aria-describedby={key === 'users' ? 'concurrency-evidence' : undefined}
               onChange={(event) => {
                 const value = event.target.value
@@ -128,7 +129,12 @@ export default function CostEstimator({
           </label>
         ))}
         <div className="text-secondary text-xs">
-          {points.some((point) => point.users === users) ? 'Measured' : 'Estimated'} tok/s per user
+          {speedEstimate?.basis === 'measured'
+            ? 'Measured'
+            : speedEstimate?.basis === 'assumed'
+              ? 'Assumed'
+              : 'Estimated'}{' '}
+          tok/s per user
           <output
             className="border-border bg-bg text-primary mt-2 block w-full border p-3 font-mono text-base"
             aria-live="polite"
@@ -138,16 +144,21 @@ export default function CostEstimator({
         </div>
       </div>
       <p id="concurrency-evidence" className="text-secondary mt-3 text-xs leading-relaxed">
-        {singleMeasurement
-          ? `Available evidence covers ${range?.max} concurrent ${range?.max === 1 ? 'user' : 'users'} only. Concurrency is fixed at that measurement until a compatible scaling benchmark is available.`
-          : `Measured range: ${range?.min}–${range?.max} concurrent users. Speed is interpolated between measured points; estimates stop at the measured limits.`}{' '}
+        {maxUsers === 1
+          ? 'This checkpoint was measured at 1 concurrent user, so its calculator is capped at 1.'
+          : `Choose 1–${maxUsers} concurrent users. The cap follows the highest verified concurrency, up to 24.`}{' '}
+        {points.length === 1 && maxUsers > 1
+          ? `Speed was measured at ${range?.max} users. At lower concurrency, the calculator assumes the same tok/s per user; more measurements are needed to estimate how speed changes.`
+          : points.length > 1
+            ? `Speed is interpolated between measured points. Below ${range?.min} users, it assumes the speed at the lowest measured concurrency.`
+            : ''}{' '}
         <a href={model.cacheon.evidence} className="text-accent underline underline-offset-4">
           Benchmark evidence ↗
         </a>
       </p>
       {!result && (
         <p role="status" className="mt-3 text-sm">
-          Enter a nonnegative hourly rate, a whole number of users within the measured range, and
+          Enter a nonnegative hourly rate, a whole number of users within the allowed range, and
           utilization above 0 and at most 100%.
         </p>
       )}

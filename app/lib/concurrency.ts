@@ -34,5 +34,18 @@ export function estimateUserThroughput(points: readonly ConcurrencyPoint[], user
 export function clampConcurrency(points: readonly ConcurrencyPoint[], users: number) {
   const range = concurrencyRange(points)
   if (!range || !Number.isFinite(users)) return null
-  return Math.max(range.min, Math.min(range.max, Math.round(users)))
+  return Math.max(1, Math.min(24, range.max, Math.round(users)))
+}
+
+export function calculatorThroughput(points: readonly ConcurrencyPoint[], users: number) {
+  const range = concurrencyRange(points)
+  if (!range || !Number.isInteger(users) || users < 1 || users > Math.min(24, range.max))
+    return null
+  const measured = points.find((point) => point.users === users)
+  if (measured) return { throughput: measured.throughput, basis: 'measured' as const }
+  const interpolated = estimateUserThroughput(points, users)
+  if (interpolated !== null) return { throughput: interpolated, basis: 'interpolated' as const }
+  // Below the first measurement, use a visibly labeled constant-speed assumption.
+  // One data point cannot establish how per-user throughput changes with concurrency.
+  return { throughput: points[0].throughput, basis: 'assumed' as const }
 }

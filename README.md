@@ -18,16 +18,22 @@ shows all available provider performance stats. Missing metrics stay null and
 are not ranked. Models appear as GLM, DeepSeek, then Qwen, with GLM selected first.
 The hero shows GLM and DeepSeek speed only. The Performance section includes all three models.
 A GPU-only cost estimator uses model-specific hardware (GLM 4 × B300, DeepSeek 2 × B300,
-Qwen 1 × H100) and editable hourly cost, concurrency, per-user throughput, and utilization.
+Qwen 1 × H100) and editable hourly cost, concurrency, and utilization.
+Concurrency is editable from 1 to 24 for GLM and DeepSeek; Qwen is capped at its
+measured single-user limit. Per-user throughput is interpolated between compatible
+measured points when available. Below the lowest measured concurrency, the calculator
+holds that point's per-user speed constant and explicitly labels it as assumed.
+The current GLM and DeepSeek results each have only a 24-user measurement, so lower
+user counts use this assumption rather than claiming a fitted scaling curve.
 Hourly rates come from Lium's public `pricing.json` feed, using the starting available
 listing for the exact GPU SKU (or its labeled reference price when no listings exist).
 The server caches successful reads for one hour and failures for five minutes, with
 a clearly dated October 15 snapshot fallback ($8/B300, $3.75/H100). Feed timestamps
-and source links are displayed. Defaults are 24 concurrent users and 80% usage.
+and source links are displayed. Defaults are 24 concurrent users (1 for Qwen) and 80% usage.
 The pricing section reuses the exact OpenRouter snapshot and top-three speed-ranked
-endpoints, emphasizing output prices alongside input and cached-input prices. Hardware references are linked separately from performance runs.
+endpoints, emphasizing output prices with provider speed beneath, alongside input and cached-input prices. Hardware references are linked separately from performance runs.
 The estimate is not a Cacheon API price and excludes service fees and non-GPU costs.
-Higher-concurrency speed must be supplied as an assumption, not inferred as measured scaling.
+User input and estimates cannot exceed the model's measured maximum concurrency or 24 users.
 
 Cache entries are fresh for one hour per Cloudflare location. The next request
 after expiry returns a visibly stale snapshot while refreshing in `waitUntil`.

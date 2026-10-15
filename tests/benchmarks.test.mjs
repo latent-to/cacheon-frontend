@@ -5,6 +5,7 @@ import { estimateGpuCost } from '../app/lib/cost-estimate.ts'
 import { leadingProviders } from '../app/lib/comparisons.ts'
 import {
   clampConcurrency,
+  calculatorThroughput,
   concurrencyRange,
   estimateUserThroughput,
 } from '../app/lib/concurrency.ts'
@@ -28,8 +29,35 @@ test('concurrency interpolation preserves measurements, interpolates inside them
     assert.equal(estimateUserThroughput(points, users), null)
   }
   assert.equal(clampConcurrency(points, 1000), 24)
-  assert.equal(clampConcurrency(points, -1), 4)
+  assert.equal(clampConcurrency(points, -1), 1)
   assert.equal(clampConcurrency(points, NaN), null)
+})
+
+test('calculator allows lower concurrency as an explicit assumption, interpolates supported points, and caps at 24', () => {
+  const one = [{ users: 24, throughput: 338.68 }]
+  assert.deepEqual(calculatorThroughput(one, 24), { throughput: 338.68, basis: 'measured' })
+  for (const users of [1, 12, 23]) {
+    assert.equal(clampConcurrency(one, users), users)
+    assert.deepEqual(calculatorThroughput(one, users), { throughput: 338.68, basis: 'assumed' })
+  }
+  const many = [
+    { users: 4, throughput: 200 },
+    { users: 24, throughput: 100 },
+    { users: 32, throughput: 80 },
+  ]
+  assert.deepEqual(calculatorThroughput(many, 14), { throughput: 150, basis: 'interpolated' })
+  assert.deepEqual(calculatorThroughput(many, 1), { throughput: 200, basis: 'assumed' })
+  assert.equal(clampConcurrency(many, 32), 24)
+  for (const users of [0, -1, 25, 32, 1.5, NaN, Infinity]) {
+    assert.equal(calculatorThroughput(many, users), null)
+  }
+  assert.equal(calculatorThroughput([{ users: 1, throughput: 529 }], 2), null)
+  const low = calculatorThroughput(one, 12)
+  const high = calculatorThroughput(one, 24)
+  assert.equal(
+    estimateGpuCost(8, 2, 12, low.throughput, 80).perMillion,
+    2 * estimateGpuCost(8, 2, 24, high.throughput, 80).perMillion,
+  )
 })
 
 test('invalid measurement series cannot produce a range or estimate', () => {
