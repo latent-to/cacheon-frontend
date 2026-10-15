@@ -4,8 +4,8 @@ export default function Footer() {
   const links = [
     { label: 'GitHub', href: 'https://github.com/latent-to/cacheon' },
     { label: 'Discord', href: COMMUNITY_DISCORD_URL },
-    { label: 'TAO.app', href: 'https://tao.app/subnets/14' },
-    { label: 'Bittensor', href: 'https://bittensor.com' },
+    { label: 'Subnet', href: '/subnet' },
+    { label: 'Docs', href: '/docs' },
   ]
 
   return (
@@ -13,7 +13,7 @@ export default function Footer() {
       <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-4">
         <div className="text-base2 flex items-center gap-2 font-sans">
           <img src="/icon-192.png" alt="Cacheon" className="h-5 w-5" />
-          <span className="text-sm2 text-secondary">· SN14 · MIT License</span>
+          <span className="text-sm2 text-secondary">Cacheon · Open models. Faster inference.</span>
         </div>
 
         <div className="tracking-caps flex flex-wrap justify-center gap-4 font-mono text-xs uppercase sm:gap-5">
@@ -21,8 +21,6 @@ export default function Footer() {
             <a
               key={l.label}
               href={l.href}
-              target="_blank"
-              rel="noopener noreferrer"
               className="text-secondary hover:text-primary no-underline transition-colors"
             >
               {l.label}

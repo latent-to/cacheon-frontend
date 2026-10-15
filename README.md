@@ -2,6 +2,37 @@
 
 Frontend for [cacheon.ai](https://cacheon.ai) — the dashboard and docs site for [Cacheon](https://github.com/latent-to/cacheon) (Bittensor SN14).
 
+The homepage introduces the inference product and benchmarks. Contributor,
+validator, rewards, roadmap, and team content lives at `/subnet`.
+
+## Benchmark content
+
+`app/constants/benchmarks.ts` holds a dated editorial snapshot, not a live feed.
+The comparison shows internal Cacheon measurements separately from OpenRouter's
+published P50 provider metrics. It does not calculate cross-source speedup claims.
+Provider rows retain their own TTFT, throughput, and prices together. Selection
+includes the three highest-throughput endpoints in Standard routing (including
+Fast tiers) and the lowest-TTFT endpoint when distinct.
+
+The October 15, 2026 OpenRouter snapshot links to each original model page.
+Refresh the complete provider selection, prices, metrics, and date together.
+Do not substitute the fastest provider's throughput and another provider's latency
+into a single row. Missing measurements stay null, never zero.
+
+The Qwen result is backed by the six retained October 7 H100 measurements in
+`public/benchmarks/qwen-h100-20261007.json`. The tuned checkpoint and o200k token
+counting differ from OpenRouter. Both medians include all six prompts; this is the
+fastest observed candidate of seven, not repeated stability testing. GLM's 125 and
+DeepSeek's 232 tok/s/user come from the existing internally supplied performance
+summary; their run protocols and TTFT are still pending and are labeled that way.
+Before making matched-performance or market-leadership claims, supply runs using
+the same checkpoint, token counting, prompts, reasoning settings, concurrency,
+cache state, and client measurement boundary for each provider.
+
+Access currently links to the established team Discord. Replace it with the real
+onboarding destination when available; the page does not invent a public API URL,
+self-service signup, or Cacheon price.
+
 ## Stack
 
 | Layer   | Choice                                                                                            |

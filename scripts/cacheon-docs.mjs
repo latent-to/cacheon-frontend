@@ -419,6 +419,7 @@ export function generateSitemap(pages, siteUrl = 'https://cacheon.ai') {
   const root = siteUrl.replace(/\/+$/, '')
   const locations = [
     `${root}/`,
+    `${root}/subnet`,
     ...pages.map(({ documentPath }) => {
       const route = documentPath.replace(/\.md$/i, '').replace(/(?:^|\/)index$/, '')
       return `${root}/docs${route ? `/${route}` : ''}`
