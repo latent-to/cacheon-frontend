@@ -13,8 +13,8 @@ IDs. The homepage's server loader fetches each model's official
 It keeps each endpoint's last-30-minute P50 throughput/TTFT together and discards
 pricing before caching or sending data to the browser. OpenRouter's latency
 percentiles are milliseconds; the adapter converts them to seconds.
-Only available endpoints (`status: 0`) are shown. Charts rank the top three with
-measurements for the selected metric, including Fast tiers; an expanded table
+Only available endpoints (`status: 0`) are shown. The comparison ranks the top three by
+output speed, with TTFT shown alongside each speed, including Fast tiers; an expanded table
 shows all available provider performance stats. Missing metrics stay null and
 are not ranked. Models appear as GLM, DeepSeek, then Qwen, with GLM selected first.
 No Cacheon or provider pricing is shown or included in homepage loader data.
@@ -45,7 +45,8 @@ The Qwen result is backed by the six retained October 7 H100 measurements in
 counting differ from OpenRouter. Both medians include all six prompts; this is the
 fastest observed candidate of seven, not repeated stability testing. GLM's 125 and
 DeepSeek's 232 tok/s/user come from the existing internally supplied performance
-summary; their run protocols and TTFT are still pending and are labeled that way.
+summary and use AIPerf, as confirmed by the team. Their TTFT measurements remain
+unpublished.
 Before making matched-performance or market-leadership claims, supply runs using
 the same checkpoint, token counting, prompts, reasoning settings, concurrency,
 cache state, and client measurement boundary for each provider.

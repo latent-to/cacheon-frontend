@@ -21,9 +21,9 @@ export const modelBenchmarks: ModelBenchmark[] = [
     cacheon: {
       throughput: 125,
       ttft: null,
-      label: 'Internally reported · protocol pending',
+      label: 'AIPerf benchmark',
       methodology:
-        '125 tok/s/user is the internally reported Cacheon result. Test conditions and time to first token have not yet been published. A matched provider comparison is still needed to establish relative performance.',
+        '125 tok/s/user measured with AIPerf. Time to first token has not yet been published. A matched provider comparison is still needed to establish relative performance.',
     },
   },
   {
@@ -34,9 +34,9 @@ export const modelBenchmarks: ModelBenchmark[] = [
     cacheon: {
       throughput: 232,
       ttft: null,
-      label: 'Internally reported · protocol pending',
+      label: 'AIPerf benchmark',
       methodology:
-        '232 tok/s/user is the internally reported Cacheon result. Test conditions and time to first token have not yet been published. A matched provider comparison is still needed to establish relative performance.',
+        '232 tok/s/user measured with AIPerf. Time to first token has not yet been published. A matched provider comparison is still needed to establish relative performance.',
     },
   },
   {

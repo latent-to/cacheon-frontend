@@ -3,15 +3,12 @@ import { modelBenchmarks } from '~/constants/benchmarks'
 import { leadingProviders } from '~/lib/comparisons'
 import type { Comparison } from '~/lib/comparisons'
 
-type Metric = 'throughput' | 'ttft'
-
 export default function Benchmarks({ comparisons }: { comparisons: Record<string, Comparison> }) {
   const [modelId, setModelId] = useState(modelBenchmarks[0].id)
-  const [metric, setMetric] = useState<Metric>('throughput')
   const model = modelBenchmarks.find((item) => item.id === modelId)!
   const comparison = comparisons[modelId]
-  const providers = leadingProviders(comparison.providers, metric)
-  const maximum = Math.max(1, model.cacheon[metric] ?? 0, ...providers.map((p) => p[metric] ?? 0))
+  const providers = leadingProviders(comparison.providers, 'throughput')
+  const maximum = Math.max(1, model.cacheon.throughput, ...providers.map((p) => p.throughput ?? 0))
   const updated =
     comparison.fetchedAt === null
       ? null
@@ -20,32 +17,48 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
           dateStyle: 'medium',
           timeStyle: 'short',
         }) + ' UTC'
-  const format = (value: number) => (metric === 'throughput' ? value.toFixed(1) : value.toFixed(3))
-  const unit = metric === 'throughput' ? 'tok/s' : 's'
-
-  function bar(name: string, value: number | null, cacheon = false) {
+  function stats(name: string, throughput: number | null, ttft: number | null, cacheon = false) {
     return (
-      <div className="py-3">
-        <div className="mb-2 flex items-baseline justify-between gap-4 text-sm">
-          <span className={cacheon ? 'text-accent font-semibold' : 'text-secondary'}>{name}</span>
-          <span className="shrink-0 font-mono tabular-nums">
-            {value === null ? (
-              'Not published'
-            ) : (
-              <>
-                {format(value)} <span className="text-secondary text-xs">{unit}</span>
-              </>
+      <div className="border-border/50 border-b py-4 last:border-b-0">
+        <p className={`mb-3 text-sm ${cacheon ? 'text-accent font-semibold' : 'text-secondary'}`}>
+          {name}
+        </p>
+        <dl className="grid grid-cols-2 gap-5">
+          <div>
+            <dt className="text-secondary mb-1 text-xs">Output speed</dt>
+            <dd className="font-mono text-xl tabular-nums">
+              {throughput === null ? (
+                <span className="text-sm">Not published</span>
+              ) : (
+                <>
+                  {throughput.toFixed(1)} <span className="text-secondary text-xs">tok/s</span>
+                </>
+              )}
+            </dd>
+            {throughput !== null && (
+              <div className="bg-border/40 mt-2 h-2" aria-hidden="true">
+                <div
+                  className={cacheon ? 'bg-accent h-full' : 'h-full bg-slate-500'}
+                  style={{ width: `${(throughput / maximum) * 100}%` }}
+                />
+              </div>
             )}
-          </span>
-        </div>
-        {value !== null && (
-          <div className="bg-border/40 h-2.5" aria-hidden="true">
-            <div
-              className={cacheon ? 'bg-accent h-full' : 'h-full bg-slate-500'}
-              style={{ width: `${(value / maximum) * 100}%` }}
-            />
           </div>
-        )}
+          <div>
+            <dt className="text-secondary mb-1 text-xs">
+              TTFT <span className="sr-only">(time to first token)</span>
+            </dt>
+            <dd className="font-mono text-xl tabular-nums">
+              {ttft === null ? (
+                <span className="text-sm">Not published</span>
+              ) : (
+                <>
+                  {ttft.toFixed(3)} <span className="text-secondary text-xs">s</span>
+                </>
+              )}
+            </dd>
+          </div>
+        </dl>
       </div>
     )
   }
@@ -80,28 +93,14 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
         </div>
         <div className="border-border bg-surface border">
           <div className="border-border flex flex-wrap items-center justify-between gap-4 border-b p-5 sm:px-8">
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Choose a metric">
-              {(['throughput', 'ttft'] as const).map((key) => (
-                <button
-                  type="button"
-                  key={key}
-                  aria-pressed={metric === key}
-                  onClick={() => setMetric(key)}
-                  className={`cursor-pointer px-3 py-2 text-sm ${metric === key ? 'bg-primary text-bg' : 'text-secondary hover:bg-border'}`}
-                >
-                  {key === 'throughput' ? 'Output speed' : 'Time to first token'}
-                </button>
-              ))}
-            </div>
-            <span className="text-secondary font-mono text-xs">
-              {metric === 'throughput' ? '↑ Higher is better' : '↓ Lower is better'}
-            </span>
+            <p className="text-sm font-medium">Output speed &amp; time to first token</p>
+            <span className="text-secondary font-mono text-xs">↑ Higher tok/s · ↓ Lower TTFT</span>
           </div>
           <div className="grid lg:grid-cols-[1.4fr_1fr]">
             <div className="p-5 sm:p-8" aria-live="polite" aria-atomic="true">
               <h3 className="mb-4 text-lg font-medium">{model.name}</h3>
               <p className="text-secondary text-xs">Internal result · {model.cacheon.label}</p>
-              {bar('Cacheon', model.cacheon[metric], true)}
+              {stats('Cacheon', model.cacheon.throughput, model.cacheon.ttft, true)}
               <div className="border-border mt-5 border-t pt-5">
                 <p className="text-secondary mb-2 text-xs">
                   OpenRouter · P50 over the last 30 minutes
@@ -112,12 +111,14 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
                     : 'Provider data temporarily unavailable.'}
                 </p>
                 {providers.map((provider) => (
-                  <div key={provider.id}>{bar(provider.name, provider[metric])}</div>
+                  <div key={provider.id}>
+                    {stats(provider.name, provider.throughput, provider.ttft)}
+                  </div>
                 ))}
                 {providers.length === 0 && comparison.status !== 'unavailable' && (
                   <p className="text-secondary py-4 text-sm">
-                    OpenRouter is not returning {metric === 'throughput' ? 'throughput' : 'TTFT'}{' '}
-                    measurements for this model right now. Check back after the next refresh.
+                    OpenRouter is not returning throughput measurements for this model right now.
+                    Check back after the next refresh.
                   </p>
                 )}
               </div>
@@ -219,9 +220,9 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
           </details>
         </div>
         <p className="text-secondary mt-4 text-xs">
-          OpenRouter data refreshes on demand after one hour. Charts show the top three available
-          endpoints for the selected metric, including Fast tiers. Missing metrics are not ranked.
-          No cross-source speedup or quality-equivalence claim is implied.
+          OpenRouter data refreshes on demand after one hour. The comparison shows the three fastest
+          available endpoints by output speed, with TTFT alongside, including Fast tiers. Missing
+          metrics are not ranked. No cross-source speedup or quality-equivalence claim is implied.
         </p>
       </div>
     </section>
