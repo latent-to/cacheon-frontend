@@ -4,6 +4,7 @@ import type { GpuMarketRate } from '~/lib/gpu-market'
 import { leadingProviders } from '~/lib/comparisons'
 import type { Comparison } from '~/lib/comparisons'
 import { estimateGpuCost } from '~/lib/cost-estimate'
+import { clampConcurrency, concurrencyRange, estimateUserThroughput } from '~/lib/concurrency'
 
 const price = (value: number | null) =>
   value === null
@@ -20,6 +21,9 @@ export default function CostEstimator({
   comparison: Comparison
 }) {
   const providers = leadingProviders(comparison.providers, 'throughput')
+  const points = model.cacheon.concurrency
+  const range = concurrencyRange(points)
+  const singleMeasurement = range?.min === range?.max
   const updated =
     comparison.fetchedAt === null
       ? null
@@ -30,21 +34,21 @@ export default function CostEstimator({
         }) + ' UTC'
   const [values, setValues] = useState({
     rate: String(market.hourlyRate),
-    users: '24',
-    speed: String(Number(model.cacheon.throughput.toFixed(1))),
+    users: String(clampConcurrency(points, 24) ?? ''),
     utilization: '80',
   })
+  const users = Number(values.users || NaN)
+  const speed = estimateUserThroughput(points, users)
   const result = estimateGpuCost(
     Number(values.rate || NaN),
     model.hardware.count,
-    Number(values.users || NaN),
-    Number(values.speed || NaN),
+    users,
+    speed ?? NaN,
     Number(values.utilization || NaN),
   )
   const fields = [
     { key: 'rate', label: 'USD / GPU-hour', min: 0, max: undefined, step: '0.01' },
-    { key: 'users', label: 'Concurrent generating users', min: 1, max: undefined, step: '1' },
-    { key: 'speed', label: 'Assumed tok/s per user', min: 0.1, max: undefined, step: '0.1' },
+    { key: 'users', label: 'Concurrent users', min: range?.min, max: range?.max, step: '1' },
     { key: 'utilization', label: 'Time spent generating (%)', min: 0.1, max: 100, step: '0.1' },
   ] as const
   return (
@@ -107,25 +111,52 @@ export default function CostEstimator({
               max={max}
               step={step}
               value={values[key]}
-              onChange={(event) => setValues({ ...values, [key]: event.target.value })}
+              readOnly={key === 'users' && singleMeasurement}
+              aria-describedby={key === 'users' ? 'concurrency-evidence' : undefined}
+              onChange={(event) => {
+                const value = event.target.value
+                setValues({
+                  ...values,
+                  [key]:
+                    key === 'users' && value !== ''
+                      ? String(clampConcurrency(points, Number(value)) ?? '')
+                      : value,
+                })
+              }}
               className="border-border bg-bg text-primary focus:border-accent mt-2 block w-full border p-3 font-mono text-base outline-none"
             />
           </label>
         ))}
+        <div className="text-secondary text-xs">
+          {points.some((point) => point.users === users) ? 'Measured' : 'Estimated'} tok/s per user
+          <output
+            className="border-border bg-bg text-primary mt-2 block w-full border p-3 font-mono text-base"
+            aria-live="polite"
+          >
+            {speed === null ? '—' : speed.toFixed(1)}
+          </output>
+        </div>
       </div>
+      <p id="concurrency-evidence" className="text-secondary mt-3 text-xs leading-relaxed">
+        {singleMeasurement
+          ? `Available evidence covers ${range?.max} concurrent ${range?.max === 1 ? 'user' : 'users'} only. Concurrency is fixed at that measurement until a compatible scaling benchmark is available.`
+          : `Measured range: ${range?.min}–${range?.max} concurrent users. Speed is interpolated between measured points; estimates stop at the measured limits.`}{' '}
+        <a href={model.cacheon.evidence} className="text-accent underline underline-offset-4">
+          Benchmark evidence ↗
+        </a>
+      </p>
       {!result && (
         <p role="status" className="mt-3 text-sm">
-          Enter a nonnegative hourly rate, a whole number of users, positive speed, and utilization
-          between 0 and 100%.
+          Enter a nonnegative hourly rate, a whole number of users within the measured range, and
+          utilization above 0 and at most 100%.
         </p>
       )}
       <p className="text-secondary mt-5 text-xs leading-relaxed">
-        Workload assumptions are editable above; defaults are 24 concurrent generating users and 80%
-        usage. Cost = GPU count × hourly rate ÷ (users × tok/s/user × 3,600 × utilization). Speed
-        starts at the internal result; maintaining that speed at higher concurrency is an
-        assumption, not a measured scaling result. Adjust it for your workload. GPU cost excludes
-        input processing, idle overhead beyond the utilization setting, networking, storage,
-        operations, and Cacheon fees. Provider API prices include services beyond GPU rental.
+        Defaults are 24 concurrent users where measured and 80% usage. Cost = GPU count × hourly
+        rate ÷ (users × tok/s/user × 3,600 × utilization). This is a decode-only cost estimate;
+        concurrent sessions are not continuously decoding. GPU cost excludes input processing, idle
+        overhead beyond the utilization setting, networking, storage, operations, and Cacheon fees.
+        Provider API prices include services beyond GPU rental.
       </p>
       <div className="border-border mt-7 border-t pt-7">
         <h4 className="text-lg font-medium">Compare API pricing</h4>

@@ -27,5 +27,35 @@
     ]
   },
   "metric_mapping": "result.decode_tps[1] and result.ttft_s[1] are candidate measurements; index 0 is the paired baseline.",
-  "limitations": "Arena replay means, not matched to OpenRouter traffic or P50. Hardware reference is linked in the estimator."
+  "limitations": "Arena replay means, not matched to OpenRouter traffic or P50. Hardware reference is linked in the estimator.",
+  "concurrency": 24,
+  "concurrency_evidence": {
+    "api_source": "https://dash.cacheon.ai/api/submissions/267785688a6ba143aa583415ff746d79709aa259058c177b63a6e8c494555f18?arena=glm",
+    "workload_digest": "2f4cf7a2b509e8cd0e7f7ac808358ad0468e4f7a8948348cec3cfbbbb023cf56",
+    "measurement_role": "C",
+    "lanes": [
+      {
+        "role": "C",
+        "window": 1,
+        "load": 24,
+        "decode_tps": 123.15560664265767,
+        "mean_ttft_s": 2.990637280370861
+      },
+      {
+        "role": "C",
+        "window": 2,
+        "load": 24,
+        "decode_tps": 125.56840642281772,
+        "mean_ttft_s": 2.888243235492274
+      },
+      {
+        "role": "C",
+        "window": 1,
+        "load": 24,
+        "decode_tps": 126.4078575341968,
+        "mean_ttft_s": 2.86047516009713
+      }
+    ],
+    "fit_status": "Only one concurrency level verified for this result. No scaling curve or extrapolation is supported."
+  }
 }

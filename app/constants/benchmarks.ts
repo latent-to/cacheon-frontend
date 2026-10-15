@@ -1,3 +1,5 @@
+import type { ConcurrencyPoint } from '../lib/concurrency'
+
 export type ModelBenchmark = {
   id: string
   name: string
@@ -5,6 +7,7 @@ export type ModelBenchmark = {
   source: string
   hardware: { gpu: string; count: number; marketId: 'b300' | 'h100'; source: string }
   cacheon: {
+    concurrency: ConcurrencyPoint[]
     throughput: number
     ttft: number | null
     label: string
@@ -27,6 +30,7 @@ export const modelBenchmarks: ModelBenchmark[] = [
       source: '/docs/results/prefix-cache',
     },
     cacheon: {
+      concurrency: [{ users: 24, throughput: 125.0439568665574 }],
       throughput: 125.0439568665574,
       ttft: 2.9131185586534216,
       label: 'AIPerf benchmark',
@@ -49,6 +53,7 @@ export const modelBenchmarks: ModelBenchmark[] = [
       source: '/docs/results/deepseek-v41-flash-b300',
     },
     cacheon: {
+      concurrency: [{ users: 24, throughput: 338.6842184583297 }],
       throughput: 338.6842184583297,
       ttft: 3.576266984644592,
       label: 'AIPerf · newer baseline',
@@ -71,6 +76,7 @@ export const modelBenchmarks: ModelBenchmark[] = [
       source: '/benchmarks/qwen-h100-20261007.json',
     },
     cacheon: {
+      concurrency: [{ users: 1, throughput: 528.928151916859 }],
       throughput: 528.928151916859,
       ttft: 0.19634094050002204,
       label: 'Tuned Qwen checkpoint · six-prompt median',

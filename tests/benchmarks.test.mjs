@@ -3,6 +3,76 @@ import test from 'node:test'
 import { getComparison, parseEndpoints } from '../app/lib/openrouter.server.ts'
 import { estimateGpuCost } from '../app/lib/cost-estimate.ts'
 import { leadingProviders } from '../app/lib/comparisons.ts'
+import {
+  clampConcurrency,
+  concurrencyRange,
+  estimateUserThroughput,
+} from '../app/lib/concurrency.ts'
+import { modelBenchmarks } from '../app/constants/benchmarks.ts'
+import { readFileSync } from 'node:fs'
+
+test('concurrency interpolation preserves measurements, interpolates inside them, and never extrapolates', () => {
+  // Synthetic fixture exercises interpolation; these values are not website measurements.
+  const points = [
+    { users: 4, throughput: 200 },
+    { users: 16, throughput: 140 },
+    { users: 24, throughput: 100 },
+  ]
+  assert.deepEqual(concurrencyRange(points), { min: 4, max: 24 })
+  assert.equal(estimateUserThroughput(points, 4), 200)
+  assert.equal(estimateUserThroughput(points, 10), 170)
+  assert.equal(estimateUserThroughput(points, 16), 140)
+  assert.equal(estimateUserThroughput(points, 20), 120)
+  assert.equal(estimateUserThroughput(points, 24), 100)
+  for (const users of [0, 1, 25, 1000, 4.5, NaN, Infinity]) {
+    assert.equal(estimateUserThroughput(points, users), null)
+  }
+  assert.equal(clampConcurrency(points, 1000), 24)
+  assert.equal(clampConcurrency(points, -1), 4)
+  assert.equal(clampConcurrency(points, NaN), null)
+})
+
+test('invalid measurement series cannot produce a range or estimate', () => {
+  for (const points of [
+    [],
+    [{ users: 1, throughput: 0 }],
+    [{ users: 1, throughput: NaN }],
+    [{ users: 0, throughput: 50 }],
+    [{ users: 1.5, throughput: 50 }],
+    [
+      { users: 4, throughput: 50 },
+      { users: 4, throughput: 40 },
+    ],
+    [
+      { users: 4, throughput: 50 },
+      { users: 1, throughput: 40 },
+    ],
+  ]) {
+    assert.equal(concurrencyRange(points), null)
+    assert.equal(estimateUserThroughput(points, 4), null)
+  }
+})
+
+test('website limits match retained evidence and single-point results cannot imply a scaling curve', () => {
+  for (const model of modelBenchmarks) {
+    const data = JSON.parse(
+      readFileSync(new URL(`../public${model.cacheon.evidence}`, import.meta.url)),
+    )
+    const points = model.cacheon.concurrency
+    assert.deepEqual(points, [{ users: data.concurrency, throughput: model.cacheon.throughput }])
+    assert.equal(clampConcurrency(points, 24), data.concurrency)
+    assert.equal(clampConcurrency(points, 1000), data.concurrency)
+    assert.equal(estimateUserThroughput(points, data.concurrency), model.cacheon.throughput)
+    assert.equal(estimateUserThroughput(points, data.concurrency + 1), null)
+    assert.equal(estimateUserThroughput(points, data.concurrency - 1), null)
+    if (data.concurrency_evidence) {
+      assert.ok(data.concurrency_evidence.lanes.every((lane) => lane.load === data.concurrency))
+      const lanes = data.concurrency_evidence.lanes
+      const mean = lanes.reduce((sum, lane) => sum + lane.decode_tps, 0) / lanes.length
+      assert.ok(Math.abs(mean - model.cacheon.throughput) < 1e-9)
+    }
+  }
+})
 
 const model = 'qwen/test'
 const hour = 3_600_000
