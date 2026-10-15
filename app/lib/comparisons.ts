@@ -3,6 +3,7 @@ export type ProviderResult = {
   name: string
   throughput: number | null
   ttft: number | null
+  pricing: { input: number | null; output: number | null; cachedInput: number | null }
 }
 
 export type Comparison = {

@@ -1,7 +1,14 @@
 import { useState } from 'react'
 import { modelBenchmarks } from '~/constants/benchmarks'
+import CostEstimator from './CostEstimator'
 import { leadingProviders } from '~/lib/comparisons'
-import type { Comparison } from '~/lib/comparisons'
+import type { Comparison, ProviderResult } from '~/lib/comparisons'
+
+function money(value: number | null) {
+  return value === null
+    ? 'Not available'
+    : `$${value.toLocaleString('en-US', { maximumFractionDigits: 4 })}`
+}
 
 export default function Benchmarks({ comparisons }: { comparisons: Record<string, Comparison> }) {
   const [modelId, setModelId] = useState(modelBenchmarks[0].id)
@@ -17,7 +24,13 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
           dateStyle: 'medium',
           timeStyle: 'short',
         }) + ' UTC'
-  function stats(name: string, throughput: number | null, ttft: number | null, cacheon = false) {
+  function stats(
+    name: string,
+    throughput: number | null,
+    ttft: number | null,
+    cacheon = false,
+    pricing?: ProviderResult['pricing'],
+  ) {
     return (
       <div className="border-border/50 border-b py-4 last:border-b-0">
         <p className={`mb-3 text-sm ${cacheon ? 'text-accent font-semibold' : 'text-secondary'}`}>
@@ -28,7 +41,7 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
             <dt className="text-secondary mb-1 text-xs">Output speed</dt>
             <dd className="font-mono text-xl tabular-nums">
               {throughput === null ? (
-                <span className="text-sm">Not published</span>
+                <span className="text-sm">{cacheon ? 'Awaiting source' : 'Not published'}</span>
               ) : (
                 <>
                   {throughput.toFixed(1)} <span className="text-secondary text-xs">tok/s</span>
@@ -50,7 +63,7 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
             </dt>
             <dd className="font-mono text-xl tabular-nums">
               {ttft === null ? (
-                <span className="text-sm">Not published</span>
+                <span className="text-sm">{cacheon ? 'Awaiting source' : 'Not published'}</span>
               ) : (
                 <>
                   {ttft.toFixed(3)} <span className="text-secondary text-xs">s</span>
@@ -59,6 +72,12 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
             </dd>
           </div>
         </dl>
+        {pricing && (
+          <p className="text-secondary mt-3 text-xs">
+            API price / 1M tokens: input {money(pricing.input)} · output {money(pricing.output)}
+            {pricing.cachedInput !== null && ` · cached input ${money(pricing.cachedInput)}`}
+          </p>
+        )}
       </div>
     )
   }
@@ -71,11 +90,10 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
         </p>
         <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <h2 className="max-w-xl text-3xl leading-tight font-medium tracking-tight sm:text-5xl">
-            Our results. <br />
-            The leading providers.
+            How do we compare?
           </h2>
           <p className="text-secondary max-w-sm text-sm">
-            Compare output speed and time to first token with leading providers on OpenRouter.
+            Compare speed, time to first token, and cost with leading providers on OpenRouter.
           </p>
         </div>
         <div className="mb-7 flex flex-wrap gap-2" role="group" aria-label="Choose a model">
@@ -112,7 +130,13 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
                 </p>
                 {providers.map((provider) => (
                   <div key={provider.id}>
-                    {stats(provider.name, provider.throughput, provider.ttft)}
+                    {stats(
+                      provider.name,
+                      provider.throughput,
+                      provider.ttft,
+                      false,
+                      provider.pricing,
+                    )}
                   </div>
                 ))}
                 {providers.length === 0 && comparison.status !== 'unavailable' && (
@@ -141,6 +165,16 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
               >
                 View OpenRouter source ↗
               </a>
+              {model.cacheon.resultSource && (
+                <a
+                  href={model.cacheon.resultSource}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-accent mt-3 block text-sm underline underline-offset-4"
+                >
+                  View winning submission ↗
+                </a>
+              )}
               {model.cacheon.evidence && (
                 <a
                   href={model.cacheon.evidence}
@@ -151,7 +185,7 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
               )}
             </aside>
           </div>
-          <details open className="border-border border-t">
+          <details className="border-border border-t">
             <summary className="text-secondary cursor-pointer p-5 text-sm sm:px-8">
               OpenRouter provider stats
             </summary>
@@ -159,12 +193,20 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
               <table className="w-full min-w-[380px] text-left text-sm">
                 <caption className="text-secondary mb-4 text-left text-xs">
                   OpenRouter reports P50 performance over the last 30 minutes for available
-                  endpoints; Cacheon reports internal results under the conditions above.
+                  endpoints. API prices are USD per million tokens; Cacheon reports internal results
+                  under the conditions above.
                   {updated && ` OpenRouter last refreshed ${updated}.`}
                 </caption>
                 <thead className="text-secondary">
                   <tr>
-                    {['Provider / endpoint', 'tok/s', 'TTFT'].map((label) => (
+                    {[
+                      'Provider / endpoint',
+                      'tok/s',
+                      'TTFT',
+                      'Input / 1M',
+                      'Output / 1M',
+                      'Cached input / 1M',
+                    ].map((label) => (
                       <th
                         key={label}
                         scope="col"
@@ -183,8 +225,11 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
                     {[
                       model.cacheon.throughput.toFixed(1),
                       model.cacheon.ttft === null
-                        ? 'Not published'
+                        ? 'Awaiting source'
                         : `${model.cacheon.ttft.toFixed(3)} s`,
+                      '—',
+                      'GPU estimate below',
+                      '—',
                     ].map((value, index) => (
                       <td
                         key={index}
@@ -204,6 +249,9 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
                           ? 'Not published'
                           : provider.throughput.toFixed(1),
                         provider.ttft === null ? 'Not published' : `${provider.ttft.toFixed(3)} s`,
+                        money(provider.pricing.input),
+                        money(provider.pricing.output),
+                        money(provider.pricing.cachedInput),
                       ].map((value, index) => (
                         <td
                           key={index}
@@ -219,6 +267,7 @@ export default function Benchmarks({ comparisons }: { comparisons: Record<string
             </div>
           </details>
         </div>
+        <CostEstimator key={model.id} model={model} />
         <p className="text-secondary mt-4 text-xs">
           OpenRouter data refreshes on demand after one hour. The comparison shows the three fastest
           available endpoints by output speed, with TTFT alongside, including Fast tiers. Missing

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getComparison, parseEndpoints } from '../app/lib/openrouter.server.ts'
+import { estimateGpuCost } from '../app/lib/cost-estimate.ts'
 import { leadingProviders } from '../app/lib/comparisons.ts'
 
 const model = 'qwen/test'
@@ -52,7 +53,7 @@ function harness() {
   }
 }
 
-test('API normalization converts TTFT milliseconds to seconds and omits all pricing', () => {
+test('API normalization converts TTFT milliseconds to seconds and normalizes USD/token prices', () => {
   const rows = parseEndpoints(
     payload([
       endpoint(),
@@ -68,7 +69,10 @@ test('API normalization converts TTFT milliseconds to seconds and omits all pric
     model,
   )
   assert.equal(rows.length, 2)
-  assert.ok(rows.every((row) => !('pricing' in row)))
+  assert.ok(Math.abs(rows[0].pricing.input - 0.1) < 1e-12)
+  assert.equal(rows[0].pricing.output, 0.5)
+  assert.equal(rows[0].pricing.cachedInput, 0)
+  assert.deepEqual(rows[1].pricing, { input: null, output: null, cachedInput: null })
   assert.equal(rows[0].throughput, 100)
   assert.equal(rows[0].ttft, 0.4)
   assert.equal(rows[1].throughput, null)
@@ -187,7 +191,7 @@ test('a successful response with missing metrics replaces old metrics rather tha
   assert.equal(result.status, 'fresh')
   assert.equal(result.providers[0].throughput, null)
   assert.equal(result.providers[0].ttft, null)
-  assert.ok(!JSON.stringify(result).includes('pricing'))
+  assert.equal(result.providers[0].pricing.output, 0.5)
 })
 
 test('one failed model does not discard another model’s cached results', async (t) => {
@@ -218,4 +222,22 @@ test('adding authentication bypasses previously cached empty public metrics with
   assert.equal(authenticated.providers[0].ttft, 0.4)
   assert.equal(h.calls(), 2)
   assert.ok([...h.entries.keys()].every((key) => !key.includes('private-test-key')))
+})
+
+test('GPU estimates account for hardware, concurrency, speed and utilization, rejecting invalid inputs', () => {
+  assert.deepEqual(estimateGpuCost(5, 4, 10, 100, 50), {
+    hourly: 20,
+    perMillion: (20 / 1800000) * 1e6,
+  })
+  assert.deepEqual(estimateGpuCost(0, 1, 1, 100, 100), { hourly: 0, perMillion: 0 })
+  for (const args of [
+    [-1, 4, 1, 100, 100],
+    [5, 0, 1, 100, 100],
+    [5, 4, 1.5, 100, 100],
+    [5, 4, 1, 0, 100],
+    [5, 4, 1, 100, 0],
+    [5, 4, 1, 100, 101],
+    [NaN, 4, 1, 100, 100],
+  ])
+    assert.equal(estimateGpuCost(...args), null)
 })

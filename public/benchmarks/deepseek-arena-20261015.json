@@ -1,0 +1,31 @@
+{
+  "model": "DeepSeek-V4.1-Flash",
+  "captured_date": "2026-10-15",
+  "source": "https://dash.cacheon.ai/deepseek-v4.1-flash?submission=cb6c3daf107419958799178cf9bc2837d3bd12e3d363a9200b7992d8a52b88ef",
+  "api_source": "https://dash.cacheon.ai/api/winners?arena=dsv41flash",
+  "reservation_id": "cb6c3daf107419958799178cf9bc2837d3bd12e3d363a9200b7992d8a52b88ef",
+  "retained_at": "October 11, 2026",
+  "candidate_decode_tps_per_user": 196.3111061850701,
+  "candidate_mean_ttft_seconds": 2.6345374686460636,
+  "raw_result": {
+    "speedup": 1.2857287998115563,
+    "required_speedup": 1.0486871764877788,
+    "audit": {
+      "decision": "PASS",
+      "detail": "872 audited calls, 0 violations, worst_frac=0.7812, compare_errors=0, baseline_refused=0"
+    },
+    "passes": 3,
+    "pass_limit": 4,
+    "detail": "positive paired gain clears the sealed statistical boundary",
+    "decode_tps": [
+      157.94550841059888,
+      196.3111061850701
+    ],
+    "ttft_s": [
+      3.404704957735099,
+      2.6345374686460636
+    ]
+  },
+  "metric_mapping": "result.decode_tps[1] and result.ttft_s[1] are candidate measurements; index 0 is the paired baseline.",
+  "limitations": "Arena replay means, not matched to OpenRouter traffic or P50. Hardware reference is linked in the estimator."
+}

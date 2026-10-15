@@ -8,7 +8,7 @@ import type { Route } from './+types/home'
 import { data } from 'react-router'
 import { getComparison } from '~/lib/openrouter.server'
 
-// React Router runs this on the Worker; only public performance metrics reach the client.
+// React Router runs this on the Worker; only public performance metrics and provider prices reach the client.
 // eslint-disable-next-line react-refresh/only-export-components
 export async function loader({ context }: Route.LoaderArgs) {
   const env = context.cloudflare.env
@@ -94,42 +94,25 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
               </div>
             </div>
           </div>
-          <div className="border-border mt-16 grid border-y sm:mt-20 sm:grid-cols-3">
-            {modelBenchmarks.map((model, index) => (
-              <div
-                key={model.id}
-                className={`py-7 ${index > 0 ? 'border-border border-t sm:border-t-0 sm:border-l sm:pl-8' : 'sm:pr-8'}`}
-              >
-                <p className="text-secondary mb-3 text-sm">{model.name}</p>
-                <dl className="grid grid-cols-2 gap-3">
-                  <div>
+          <div className="border-border mt-16 grid border-y sm:mt-20 sm:grid-cols-2">
+            {modelBenchmarks
+              .filter((model) => model.id !== 'qwen')
+              .map((model, index) => (
+                <div
+                  key={model.id}
+                  className={`py-7 ${index > 0 ? 'border-border border-t sm:border-t-0 sm:border-l sm:pl-8' : 'sm:pr-8'}`}
+                >
+                  <p className="text-secondary mb-3 text-sm">{model.name}</p>
+                  <dl>
                     <dt className="text-secondary mb-2 text-xs">Output speed</dt>
                     <dd className="font-mono text-[clamp(1.5rem,3vw,2.25rem)] tracking-tight tabular-nums">
                       {model.cacheon.throughput.toFixed(1)}
                     </dd>
                     <dd className="text-secondary mt-1 text-xs">tok/s/user</dd>
-                  </div>
-                  <div>
-                    <dt className="text-secondary mb-2 text-xs">TTFT</dt>
-                    <dd className="font-mono tabular-nums">
-                      {model.cacheon.ttft === null ? (
-                        <span className="text-sm">Not published</span>
-                      ) : (
-                        <>
-                          <span className="text-[clamp(1.5rem,3vw,2.25rem)] tracking-tight">
-                            {model.cacheon.ttft.toFixed(3)}
-                          </span>
-                          <span className="text-secondary mt-1 block text-xs">seconds</span>
-                        </>
-                      )}
-                    </dd>
-                  </div>
-                </dl>
-                <p className="text-secondary mt-3 text-xs">
-                  {model.id === 'qwen' ? 'Tuned checkpoint · measured median' : 'AIPerf benchmark'}
-                </p>
-              </div>
-            ))}
+                  </dl>
+                  <p className="text-secondary mt-3 text-xs">AIPerf benchmark</p>
+                </div>
+              ))}
           </div>
           <p className="text-secondary mt-4 text-xs">
             Internal performance results. Conditions vary by model.{' '}

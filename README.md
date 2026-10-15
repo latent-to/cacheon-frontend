@@ -10,14 +10,19 @@ validator, rewards, roadmap, and team content lives at `/subnet`.
 `app/constants/benchmarks.ts` holds internal measurements and the OpenRouter model
 IDs. The homepage's server loader fetches each model's official
 `/api/v1/models/{author}/{slug}/endpoints` response through the Cloudflare Cache API.
-It keeps each endpoint's last-30-minute P50 throughput/TTFT together and discards
-pricing before caching or sending data to the browser. OpenRouter's latency
+It keeps each endpoint's last-30-minute P50 throughput/TTFT together and caches input, output, and cached-input API prices as USD per million tokens. OpenRouter's latency
 percentiles are milliseconds; the adapter converts them to seconds.
 Only available endpoints (`status: 0`) are shown. The comparison ranks the top three by
-output speed, with TTFT shown alongside each speed, including Fast tiers; an expanded table
+output speed, with TTFT shown alongside each speed, including Fast tiers; a table collapsed by default
 shows all available provider performance stats. Missing metrics stay null and
 are not ranked. Models appear as GLM, DeepSeek, then Qwen, with GLM selected first.
-No Cacheon or provider pricing is shown or included in homepage loader data.
+The hero shows GLM and DeepSeek speed only. The Performance section includes all three models.
+A GPU-only cost estimator uses model-specific hardware (GLM 4 × B300, DeepSeek 2 × B300,
+Qwen 1 × H100) and editable hourly cost, concurrency, per-user throughput, and utilization.
+Default hourly rates ($5/B300 and $2/H100) are illustrative, not market quotes;
+concurrency defaults to one. Hardware references are linked separately from performance runs.
+The estimate is not a Cacheon API price and excludes service fees and non-GPU costs.
+Higher-concurrency speed must be supplied as an assumption, not inferred as measured scaling.
 
 Cache entries are fresh for one hour per Cloudflare location. The next request
 after expiry returns a visibly stale snapshot while refreshing in `waitUntil`.
@@ -43,10 +48,13 @@ normalized with older units. Homepage responses use `Cache-Control: no-store`.
 The Qwen result is backed by the six retained October 7 H100 measurements in
 `public/benchmarks/qwen-h100-20261007.json`. The tuned checkpoint and o200k token
 counting differ from OpenRouter. Both medians include all six prompts; this is the
-fastest observed candidate of seven, not repeated stability testing. GLM's 125 and
-DeepSeek's 232 tok/s/user come from the existing internally supplied performance
-summary and use AIPerf, as confirmed by the team. Their TTFT measurements remain
-unpublished.
+fastest observed candidate of seven, not repeated stability testing. GLM and DeepSeek use paired candidate throughput and mean TTFT from retained winning arena submissions,
+archived in `public/benchmarks/*-arena-20261015.json` with source links. These are
+AIPerf replay measurements, as confirmed by the team. GLM reports 125.04 tok/s/user
+and 2.913 s TTFT; DeepSeek reports 196.31 tok/s/user and 2.635 s TTFT. The earlier
+232 tok/s DeepSeek summary has no paired TTFT source located and is superseded here
+by the sourced winner. GLM's separate single-prompt result (208.1 tok/s, 1.018 s TTFT)
+is a different workload and is not combined with arena metrics.
 Before making matched-performance or market-leadership claims, supply runs using
 the same checkpoint, token counting, prompts, reasoning settings, concurrency,
 cache state, and client measurement boundary for each provider.
