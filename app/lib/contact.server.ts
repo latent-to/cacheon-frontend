@@ -17,7 +17,7 @@ export type ContactEnv = {
   CONTACT_RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> }
 }
 
-const unavailable = 'We could not send your message. Please try again or email sales@cacheon.ai.'
+const unavailable = 'We could not send your message. Please try again later.'
 
 export async function submitContact(request: Request, env: ContactEnv) {
   const result = (status: number, body: ContactResult) => ({ status, body })

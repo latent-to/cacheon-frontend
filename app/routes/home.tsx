@@ -194,9 +194,6 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
                 Tell us what you run and what you want to improve. We’ll discuss how Cacheon can
                 optimize inference for your team, along with scope and pricing.
               </p>
-              <a href="mailto:sales@cacheon.ai" className="text-accent mt-6 inline-block text-sm">
-                sales@cacheon.ai ↗
-              </a>
             </div>
             <ContactForm initialResult={actionData} />
           </div>

@@ -67,7 +67,8 @@ through the `SALES_EMAIL` Cloudflare email binding. Messages use
 `website@cacheon.ai` as From and the visitor's validated address as Reply-To.
 Name, email, optional company, and workload details are sent as plain text.
 The client shows success only after the email service accepts the submission;
-provider failures show a retry message and a direct email alternative.
+provider failures show a retry message. The destination email address is not
+displayed on the page or included in public form responses.
 
 Before production deployment, onboard `cacheon.ai` for
 [Cloudflare Email Sending](https://developers.cloudflare.com/email-service/get-started/send-emails/)

@@ -133,6 +133,7 @@ test('email failure returns a retry error without exposing provider details', as
   const result = await submitContact(request(), env)
   assert.equal(result.status, 503)
   assert.equal(result.body.ok, false)
-  assert.ok(result.body.message.includes('sales@cacheon.ai'))
+  assert.ok(result.body.message.includes('Please try again'))
+  assert.ok(!JSON.stringify(result).includes('sales@cacheon.ai'))
   assert.ok(!JSON.stringify(result).includes('Private provider detail'))
 })
