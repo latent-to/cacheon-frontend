@@ -10,12 +10,14 @@ validator, rewards, roadmap, and team content lives at `/subnet`.
 `app/constants/benchmarks.ts` holds internal measurements and the OpenRouter model
 IDs. The homepage's server loader fetches each model's official
 `/api/v1/models/{author}/{slug}/endpoints` response through the Cloudflare Cache API.
-It keeps each endpoint's prices and last-30-minute P50 throughput/TTFT together.
+It keeps each endpoint's last-30-minute P50 throughput/TTFT together and discards
+pricing before caching or sending data to the browser. OpenRouter's latency
+percentiles are milliseconds; the adapter converts them to seconds.
 Only available endpoints (`status: 0`) are shown. Charts rank the top three with
-measurements for the selected metric, including Fast tiers; the pricing table
-includes all available endpoints. Missing API metrics stay null and are not ranked.
-The API can return prices with no performance metrics; that state is explicit in
-the UI, without reusing old hardcoded numbers or mixing measurement windows.
+measurements for the selected metric, including Fast tiers; an expanded table
+shows all available provider performance stats. Missing metrics stay null and
+are not ranked. Models appear as GLM, DeepSeek, then Qwen, with GLM selected first.
+No Cacheon or provider pricing is shown or included in homepage loader data.
 
 Cache entries are fresh for one hour per Cloudflare location. The next request
 after expiry returns a visibly stale snapshot while refreshing in `waitUntil`.
@@ -26,27 +28,15 @@ within an isolate. Cold requests have a five-second upstream timeout; the three
 models refresh independently. No cron, browser polling, KV binding, or database
 is required. Data refreshes with traffic, not while the site is idle.
 
-An optional `OPENROUTER_API_KEY` Worker secret is sent only to OpenRouter; it is
-never returned in loader data. Set it with `npx wrangler secret put OPENROUTER_API_KEY`
-if the endpoint requires authentication. Public access currently returns prices
-but may omit performance measurements; authentication does not guarantee those
-metrics will be available. Homepage loader responses use `Cache-Control: no-store`
-so the upstream-data cache never freezes Cacheon pricing.
-
-## Configure Cacheon pricing
-
-Edit `vars.CACHEON_PRICING` in `wrangler.jsonc`, or supply that JSON binding in the
-deployment environment. Model keys are `qwen`, `glm`, and `deepseek`. Each accepts
-`input`, `output`, and `cacheRead` in **USD per million tokens**. For example,
-`"qwen": { "input": 0.1, "output": 0.5, "cacheRead": 0.025 }` is illustrative,
-not a published price. Null or omitted fields show **Contact us**; zero displays
-as free (`$0`). Defaults remain unpublished until actual rates are supplied.
-Negative/non-finite values, unknown model names, and misspelled fields fail
-configuration validation rather than displaying incorrect prices. JSON objects
-and JSON strings are supported. Use `.dev.vars` for local string overrides.
-
-Prices appear above the benchmark chart and in the comparison table. There is no
-public pricing editor; these are operator-controlled deployment settings.
+Set the server-only `OPENROUTER_API_KEY` Worker secret with
+`npx wrangler secret put OPENROUTER_API_KEY`. For local previews, set it in the
+ignored `.env` file. Restart the preview after editing it; a `.dev.vars` file
+takes precedence over `.env` in Wrangler. Authenticated endpoint requests return performance
+percentiles; unauthenticated responses currently omit them. Keys never reach
+loader data or the client bundle. Missing provider measurements remain unavailable.
+Authenticated and public snapshots use separate cache keys so adding a key does
+not reuse an empty public snapshot. Versioned cache keys also invalidate data
+normalized with older units. Homepage responses use `Cache-Control: no-store`.
 
 ## Internal measurement provenance
 
@@ -126,7 +116,7 @@ npm run build          # production build
 npm run preview        # build + wrangler dev (local Worker)
 npm run deploy         # build + wrangler deploy
 npm run typecheck      # full type check (fumadocs-mdx + react-router typegen + tsc)
-npm run test:benchmarks # pricing, API normalization, ranking, and cache behavior (Node 22.6+)
+npm run test:benchmarks # API normalization, ranking, and cache behavior (Node 22.6+)
 npm run lint
 npm run format:check
 ```

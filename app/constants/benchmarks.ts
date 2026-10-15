@@ -14,20 +14,6 @@ export type ModelBenchmark = {
 
 export const modelBenchmarks: ModelBenchmark[] = [
   {
-    id: 'qwen',
-    name: 'Qwen3.6 35B A3B',
-    openRouterModel: 'qwen/qwen3.6-35b-a3b',
-    source: 'https://openrouter.ai/qwen/qwen3.6-35b-a3b',
-    cacheon: {
-      throughput: 528.928151916859,
-      ttft: 0.19634094050002204,
-      label: 'Tuned Qwen checkpoint · six-prompt median',
-      methodology:
-        'Measured October 7, 2026 on one H100 80 GB. Tuned albedo-qwen3.6-35b-king-CXXV checkpoint; six 10,000-token prompts, one request at a time, thinking enabled, MTP. Throughput counts reasoning and answer text with o200k tokens and excludes TTFT. TTFT is the median of all six streams, including the first. This checkpoint, tokenizer, caching, and workload differ from OpenRouter traffic.',
-      evidence: '/benchmarks/qwen-h100-20261007.json',
-    },
-  },
-  {
     id: 'glm',
     name: 'GLM-5.3',
     openRouterModel: 'z-ai/glm-5.3',
@@ -51,6 +37,20 @@ export const modelBenchmarks: ModelBenchmark[] = [
       label: 'Internally reported · protocol pending',
       methodology:
         '232 tok/s/user is the internally reported Cacheon result. Test conditions and time to first token have not yet been published. A matched provider comparison is still needed to establish relative performance.',
+    },
+  },
+  {
+    id: 'qwen',
+    name: 'Qwen3.6 35B A3B',
+    openRouterModel: 'qwen/qwen3.6-35b-a3b',
+    source: 'https://openrouter.ai/qwen/qwen3.6-35b-a3b',
+    cacheon: {
+      throughput: 528.928151916859,
+      ttft: 0.19634094050002204,
+      label: 'Tuned Qwen checkpoint · six-prompt median',
+      methodology:
+        'Measured October 7, 2026 on one H100 80 GB. Tuned albedo-qwen3.6-35b-king-CXXV checkpoint; six 10,000-token prompts, one request at a time, thinking enabled, MTP. Throughput counts reasoning and answer text with o200k tokens and excludes TTFT. TTFT is the median of all six streams, including the first. This checkpoint, tokenizer, caching, and workload differ from OpenRouter traffic.',
+      evidence: '/benchmarks/qwen-h100-20261007.json',
     },
   },
 ]

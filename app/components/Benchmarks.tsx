@@ -1,24 +1,17 @@
 import { useState } from 'react'
 import { modelBenchmarks } from '~/constants/benchmarks'
-import { formatPrice, leadingProviders } from '~/lib/comparisons'
-import type { Comparison, Pricing } from '~/lib/comparisons'
+import { leadingProviders } from '~/lib/comparisons'
+import type { Comparison } from '~/lib/comparisons'
 
 type Metric = 'throughput' | 'ttft'
 
-export default function Benchmarks({
-  pricing,
-  comparisons,
-}: {
-  pricing: Record<string, Pricing>
-  comparisons: Record<string, Comparison>
-}) {
-  const [modelId, setModelId] = useState('qwen')
+export default function Benchmarks({ comparisons }: { comparisons: Record<string, Comparison> }) {
+  const [modelId, setModelId] = useState(modelBenchmarks[0].id)
   const [metric, setMetric] = useState<Metric>('throughput')
   const model = modelBenchmarks.find((item) => item.id === modelId)!
   const comparison = comparisons[modelId]
   const providers = leadingProviders(comparison.providers, metric)
   const maximum = Math.max(1, model.cacheon[metric] ?? 0, ...providers.map((p) => p[metric] ?? 0))
-  const prices = pricing[modelId]
   const updated =
     comparison.fetchedAt === null
       ? null
@@ -69,7 +62,7 @@ export default function Benchmarks({
             The leading providers.
           </h2>
           <p className="text-secondary max-w-sm text-sm">
-            Explore output speed, time to first token, and published API prices for each model.
+            Compare output speed and time to first token with leading providers on OpenRouter.
           </p>
         </div>
         <div className="mb-7 flex flex-wrap gap-2" role="group" aria-label="Choose a model">
@@ -84,28 +77,6 @@ export default function Benchmarks({
               {item.name}
             </button>
           ))}
-        </div>
-        <div className="border-border mb-7 border p-5" aria-live="polite">
-          <h3 className="mb-4 text-sm font-medium">
-            Cacheon pricing · {model.name}{' '}
-            <span className="text-secondary font-normal">· USD per million tokens</span>
-          </h3>
-          <dl className="grid gap-4 sm:grid-cols-3">
-            {(
-              [
-                ['Input', prices.input],
-                ['Output', prices.output],
-                ['Cache read', prices.cacheRead],
-              ] as const
-            ).map(([label, value]) => (
-              <div key={label}>
-                <dt className="text-secondary text-xs">{label}</dt>
-                <dd className="mt-1 font-mono text-lg">
-                  {value === null ? 'Contact us' : formatPrice(value)}
-                </dd>
-              </div>
-            ))}
-          </dl>
         </div>
         <div className="border-border bg-surface border">
           <div className="border-border flex flex-wrap items-center justify-between gap-4 border-b p-5 sm:px-8">
@@ -146,8 +117,7 @@ export default function Benchmarks({
                 {providers.length === 0 && comparison.status !== 'unavailable' && (
                   <p className="text-secondary py-4 text-sm">
                     OpenRouter is not returning {metric === 'throughput' ? 'throughput' : 'TTFT'}{' '}
-                    measurements for this model right now. Available provider prices are listed
-                    below.
+                    measurements for this model right now. Check back after the next refresh.
                   </p>
                 )}
               </div>
@@ -180,28 +150,20 @@ export default function Benchmarks({
               )}
             </aside>
           </div>
-          <details className="border-border border-t">
+          <details open className="border-border border-t">
             <summary className="text-secondary cursor-pointer p-5 text-sm sm:px-8">
-              Provider details & pricing
+              OpenRouter provider stats
             </summary>
-            <div className="overflow-x-auto px-5 pb-6 sm:px-8">
-              <table className="w-full min-w-[600px] text-left text-sm">
+            <div className="max-h-96 overflow-auto px-5 pb-6 sm:px-8">
+              <table className="w-full min-w-[380px] text-left text-sm">
                 <caption className="text-secondary mb-4 text-left text-xs">
-                  Prices in USD per million tokens. OpenRouter reports P50 performance over the last
-                  30 minutes for available endpoints; Cacheon reports internal results under the
-                  conditions above.
+                  OpenRouter reports P50 performance over the last 30 minutes for available
+                  endpoints; Cacheon reports internal results under the conditions above.
                   {updated && ` OpenRouter last refreshed ${updated}.`}
                 </caption>
                 <thead className="text-secondary">
                   <tr>
-                    {[
-                      'Provider / endpoint',
-                      'tok/s',
-                      'TTFT',
-                      'Input / 1M',
-                      'Output / 1M',
-                      'Cache read / 1M',
-                    ].map((label) => (
+                    {['Provider / endpoint', 'tok/s', 'TTFT'].map((label) => (
                       <th
                         key={label}
                         scope="col"
@@ -222,9 +184,6 @@ export default function Benchmarks({
                       model.cacheon.ttft === null
                         ? 'Not published'
                         : `${model.cacheon.ttft.toFixed(3)} s`,
-                      ...[prices.input, prices.output, prices.cacheRead].map((value) =>
-                        value === null ? 'Contact us' : formatPrice(value),
-                      ),
                     ].map((value, index) => (
                       <td
                         key={index}
@@ -244,9 +203,6 @@ export default function Benchmarks({
                           ? 'Not published'
                           : provider.throughput.toFixed(1),
                         provider.ttft === null ? 'Not published' : `${provider.ttft.toFixed(3)} s`,
-                        formatPrice(provider.pricing.input),
-                        formatPrice(provider.pricing.output),
-                        formatPrice(provider.pricing.cacheRead),
                       ].map((value, index) => (
                         <td
                           key={index}

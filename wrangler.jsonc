@@ -3,13 +3,6 @@
   "name": "cacheon-frontend",
   "compatibility_date": "2026-04-20",
   "main": "./workers/app.ts",
-  "vars": {
-    "CACHEON_PRICING": {
-      "qwen": { "input": null, "output": null, "cacheRead": null },
-      "glm": { "input": null, "output": null, "cacheRead": null },
-      "deepseek": { "input": null, "output": null, "cacheRead": null }
-    }
-  },
   "ratelimits": [
     {
       "name": "CONTACT_RATE_LIMITER",

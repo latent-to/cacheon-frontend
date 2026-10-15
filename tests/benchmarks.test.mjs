@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readPricing } from '../app/lib/pricing.server.ts'
 import { getComparison, parseEndpoints } from '../app/lib/openrouter.server.ts'
-import { formatPrice, leadingProviders } from '../app/lib/comparisons.ts'
+import { leadingProviders } from '../app/lib/comparisons.ts'
 
 const model = 'qwen/test'
 const hour = 3_600_000
@@ -11,7 +10,7 @@ const endpoint = (overrides = {}) => ({
   tag: 'provider/fp8',
   status: 0,
   throughput_last_30m: { p50: 100, p90: 40 },
-  latency_last_30m: { p50: 0.4, p90: 2 },
+  latency_last_30m: { p50: 400, p90: 2000 },
   pricing: { prompt: '0.0000001', completion: '0.0000005', input_cache_read: '0' },
   ...overrides,
 })
@@ -53,31 +52,7 @@ function harness() {
   }
 }
 
-test('pricing supports runtime JSON, unpublished fields, zero, and fractional prices', () => {
-  const prices = readPricing('{"qwen":{"input":0,"output":0.125,"cacheRead":null}}', [
-    'qwen',
-    'glm',
-  ])
-  assert.deepEqual(prices, {
-    qwen: { input: 0, output: 0.125, cacheRead: null },
-    glm: { input: null, output: null, cacheRead: null },
-  })
-  assert.equal(formatPrice(prices.qwen.input), '$0')
-  assert.equal(formatPrice(prices.qwen.output), '$0.125')
-  assert.equal(formatPrice(null), 'Not published')
-  for (const bad of [
-    { qwen: { input: -1 } },
-    { qwen: { output: Infinity } },
-    { qwen: { output: '0.5' } },
-    { qwen: { outpt: 1 } },
-    { typo: {} },
-    [],
-  ]) {
-    assert.throws(() => readPricing(bad, ['qwen']))
-  }
-})
-
-test('API normalization keeps each endpoint intact and converts per-token pricing exactly once', () => {
+test('API normalization converts TTFT milliseconds to seconds and omits all pricing', () => {
   const rows = parseEndpoints(
     payload([
       endpoint(),
@@ -93,28 +68,24 @@ test('API normalization keeps each endpoint intact and converts per-token pricin
     model,
   )
   assert.equal(rows.length, 2)
-  assert.ok(Math.abs(rows[0].pricing.input - 0.1) < Number.EPSILON)
-  assert.equal(formatPrice(rows[0].pricing.input), '$0.1')
-  assert.equal(rows[0].pricing.output, 0.5)
-  assert.equal(rows[0].pricing.cacheRead, 0)
+  assert.ok(rows.every((row) => !('pricing' in row)))
   assert.equal(rows[0].throughput, 100)
   assert.equal(rows[0].ttft, 0.4)
   assert.equal(rows[1].throughput, null)
   assert.equal(rows[1].ttft, null)
-  assert.deepEqual(rows[1].pricing, { input: null, output: null, cacheRead: null })
   assert.notEqual(rows[0].id, rows[1].id)
   assert.throws(() => parseEndpoints(payload([], 'wrong/model'), model))
   assert.throws(() => parseEndpoints({ data: { id: model } }, model))
 })
 
-test('ranking follows the selected metric, excludes missing values, and keeps endpoint prices', () => {
+test('ranking follows the selected metric and excludes missing values', () => {
   const rows = parseEndpoints(
     payload(
       [80, 50, 120, 90, null].map((speed, i) =>
         endpoint({
           tag: `provider/${i}`,
           throughput_last_30m: { p50: speed },
-          latency_last_30m: { p50: i / 10 },
+          latency_last_30m: { p50: i * 100 },
         }),
       ),
     ),
@@ -216,7 +187,7 @@ test('a successful response with missing metrics replaces old metrics rather tha
   assert.equal(result.status, 'fresh')
   assert.equal(result.providers[0].throughput, null)
   assert.equal(result.providers[0].ttft, null)
-  assert.equal(result.providers[0].pricing.output, 0.5)
+  assert.ok(!JSON.stringify(result).includes('pricing'))
 })
 
 test('one failed model does not discard another model’s cached results', async (t) => {
@@ -232,4 +203,19 @@ test('one failed model does not discard another model’s cached results', async
   assert.equal(good.status, 'fresh')
   assert.equal(bad.status, 'unavailable')
   assert.equal(h.entries.size, 2)
+})
+
+test('adding authentication bypasses previously cached empty public metrics without caching credentials', async () => {
+  const h = harness()
+  h.respond(async () =>
+    Response.json(payload([endpoint({ throughput_last_30m: null, latency_last_30m: null })])),
+  )
+  assert.equal((await getComparison(model, h.options)).providers[0].throughput, null)
+  h.options.apiKey = 'private-test-key'
+  h.respond(async () => Response.json(payload()))
+  const authenticated = await getComparison(model, h.options)
+  assert.equal(authenticated.providers[0].throughput, 100)
+  assert.equal(authenticated.providers[0].ttft, 0.4)
+  assert.equal(h.calls(), 2)
+  assert.ok([...h.entries.keys()].every((key) => !key.includes('private-test-key')))
 })

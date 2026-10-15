@@ -6,17 +6,12 @@ import { submitContact } from '~/lib/contact.server'
 import { modelBenchmarks } from '~/constants/benchmarks'
 import type { Route } from './+types/home'
 import { data } from 'react-router'
-import { readPricing } from '~/lib/pricing.server'
 import { getComparison } from '~/lib/openrouter.server'
 
-// React Router runs this on the Worker; only public prices and metrics reach the client.
+// React Router runs this on the Worker; only public performance metrics reach the client.
 // eslint-disable-next-line react-refresh/only-export-components
 export async function loader({ context }: Route.LoaderArgs) {
   const env = context.cloudflare.env
-  const pricing = readPricing(
-    env.CACHEON_PRICING,
-    modelBenchmarks.map((model) => model.id),
-  )
   const cache = await caches.open('openrouter-comparisons')
   const comparisons = Object.fromEntries(
     await Promise.all(
@@ -30,7 +25,7 @@ export async function loader({ context }: Route.LoaderArgs) {
       ]),
     ),
   )
-  return data({ pricing, comparisons }, { headers: { 'Cache-Control': 'no-store' } })
+  return data({ comparisons }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 // React Router runs form submissions on the Worker.
@@ -126,7 +121,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
           </p>
         </section>
 
-        <Benchmarks pricing={loaderData.pricing} comparisons={loaderData.comparisons} />
+        <Benchmarks comparisons={loaderData.comparisons} />
 
         <section className="mx-auto max-w-6xl px-6 py-20 sm:px-8 sm:py-28">
           <p className="text-accent mb-5 font-mono text-xs tracking-widest uppercase">
@@ -192,7 +187,7 @@ export default function Home({ loaderData, actionData }: Route.ComponentProps) {
               </h2>
               <p className="text-secondary mt-5 max-w-lg">
                 Tell us what you run and what you want to improve. We’ll discuss how Cacheon can
-                optimize inference for your team, along with scope and pricing.
+                optimize inference for your team and help plan the next steps.
               </p>
             </div>
             <ContactForm initialResult={actionData} />
