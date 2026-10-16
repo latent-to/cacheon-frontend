@@ -1,0 +1,129 @@
+{
+  "captured_unix": 1792157197.542973,
+  "reservation_id": "55133670b650f581423802cd46e37204b03a9c39e497d80e734b516bf0df586f",
+  "content_hash": "698c27e928f93b5c3a73a3127868ee68675d9d6cb07c338324d0ccf2ade8174c",
+  "decision": "PASS",
+  "result": {
+    "speedup": 1.103893041410883,
+    "required_speedup": 1.0428244041885435,
+    "audit": {
+      "decision": "PASS",
+      "detail": "220 audited calls, 0 violations, worst_frac=0.8516, compare_errors=0, baseline_refused=0"
+    },
+    "passes": 3,
+    "pass_limit": 4,
+    "detail": "positive paired gain clears the sealed statistical boundary",
+    "decode_tps": [
+      335.78064776555044,
+      372.3350476684982
+    ],
+    "ttft_s": [
+      3.6531189407336284,
+      3.449381991554084
+    ]
+  },
+  "hardware": "2 x NVIDIA B300",
+  "concurrency": 24,
+  "aggregate_output_tok_s": 1340.2415072282445,
+  "aggregate_definition": "Sum of output tokens over all 477 successful replay requests per window, including cold and warm turns, divided by the sum of complete request wall-time spans across the three candidate windows. Starts at earliest request start, ends at latest response end. Not concurrent users multiplied by decode speed.",
+  "windows": [
+    {
+      "physical_lane": "e57537d2ed6fb5f665fde5f783467972442d80bfc3bb058728cb92d41e9192c0",
+      "window": 1,
+      "concurrency": 24,
+      "completed_requests": 477,
+      "output_tokens": 438088,
+      "elapsed_s": 323.873424214,
+      "aggregate_output_tok_s": 1352.6518919024752
+    },
+    {
+      "physical_lane": "e57537d2ed6fb5f665fde5f783467972442d80bfc3bb058728cb92d41e9192c0",
+      "window": 2,
+      "concurrency": 24,
+      "completed_requests": 477,
+      "output_tokens": 438088,
+      "elapsed_s": 325.11318293,
+      "aggregate_output_tok_s": 1347.4938052398957
+    },
+    {
+      "physical_lane": "ad1401bcc986ed7f0242d726d2504ba6e66ba6f637e0957696f5819e9cbe0a8d",
+      "window": 1,
+      "concurrency": 24,
+      "completed_requests": 477,
+      "output_tokens": 438088,
+      "elapsed_s": 331.630686763,
+      "aggregate_output_tok_s": 1321.011647854771
+    }
+  ],
+  "candidate_lanes": [
+    {
+      "role": "C",
+      "window": 1,
+      "load": 24,
+      "physical_lane": "e57537d2ed6fb5f665fde5f783467972442d80bfc3bb058728cb92d41e9192c0",
+      "warm_turns": 453,
+      "request_time_s": 2632.1017808220026,
+      "mean_warm_latency_s": 5.810379207112589,
+      "elapsed_s": 258.139193226,
+      "turns_per_second": 1.7548671874998851,
+      "attainment": 0.8092243186582809,
+      "mean_ttft_s": 3.3365516830022073,
+      "p95_ttft_s": 10.413839688,
+      "decode_tps": 373.08551965641766,
+      "unsuccessful_turns": 0
+    },
+    {
+      "role": "C",
+      "window": 2,
+      "load": 24,
+      "physical_lane": "e57537d2ed6fb5f665fde5f783467972442d80bfc3bb058728cb92d41e9192c0",
+      "warm_turns": 453,
+      "request_time_s": 2676.6996449479966,
+      "mean_warm_latency_s": 5.908829238295798,
+      "elapsed_s": 261.746495339,
+      "turns_per_second": 1.7306821984886513,
+      "attainment": 0.8029350104821803,
+      "mean_ttft_s": 3.441349307004415,
+      "p95_ttft_s": 9.948629056,
+      "decode_tps": 374.04528226093004,
+      "unsuccessful_turns": 0
+    },
+    {
+      "role": "C",
+      "window": 1,
+      "load": 24,
+      "physical_lane": "ad1401bcc986ed7f0242d726d2504ba6e66ba6f637e0957696f5819e9cbe0a8d",
+      "warm_turns": 453,
+      "request_time_s": 2747.6940630540007,
+      "mean_warm_latency_s": 6.065549808066227,
+      "elapsed_s": 265.186607684,
+      "turns_per_second": 1.708231060219304,
+      "attainment": 0.7756813417190775,
+      "mean_ttft_s": 3.570244984655629,
+      "p95_ttft_s": 10.537123696,
+      "decode_tps": 369.8743410881467,
+      "unsuccessful_turns": 0
+    }
+  ],
+  "source": "https://dash.cacheon.ai/deepseek-v4.1-flash?submission=55133670b650f581423802cd46e37204b03a9c39e497d80e734b516bf0df586f",
+  "raw_attempt_sha256": "d5858fe042d9ec2fecd12a950f02081b1dbcb5026895089505704b12f1ee059c",
+  "raw_detail_sha256": "cd657ed36bd0275b2202b816fd71a78767b5756dc354e481ef24bf765e43929e",
+  "methodology": "Concurrent multi-turn arena replay on two B300 GPUs. The dashboard reports mean warm-turn per-user decode speed and mean TTFT across three candidate windows. GPU cost uses complete replay output tokens divided by complete replay wall time, including cold turns. Not a matched OpenRouter traffic comparison.",
+  "runs": [
+    {
+      "id": "55133670b650f581423802cd46e37204b03a9c39e497d80e734b516bf0df586f",
+      "state": "PASS",
+      "points": [
+        {
+          "concurrency": 24,
+          "usable": true,
+          "failures_or_truncations": 0,
+          "mean_tok_s_per_user": 372.3350476684982,
+          "mean_ttft_s": 3.449381991554084,
+          "aggregate_output_tok_s": 1340.2415072282445
+        }
+      ]
+    }
+  ],
+  "fit_status": "Only concurrency 24 was measured for this bundle. No interpolation, extrapolation or scaling of another configuration is used."
+}

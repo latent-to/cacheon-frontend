@@ -7,10 +7,10 @@ const linkCls =
   'text-sm font-medium uppercase tracking-caps text-secondary no-underline transition-colors hover:text-primary'
 
 const navLinks = [
-  { to: '/#product', label: 'Product' },
+  { to: '/#how-it-works', label: 'How it works' },
   { to: '/#benchmarks', label: 'Benchmarks' },
-  { to: '/docs', label: 'Docs' },
   { to: '/subnet', label: 'Subnet' },
+  { to: '/docs', label: 'Docs' },
   { to: '/#contact-us', label: 'Contact us ↗' },
 ] as const
 

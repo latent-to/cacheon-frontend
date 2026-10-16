@@ -1,0 +1,199 @@
+{
+  "measured_date_utc": "2026-10-16",
+  "hardware": "4 x NVIDIA B300",
+  "model_revision": "54e52520606f96b3d9fc84088ad22882a61648ac",
+  "runtime": "SGLang 0.5.20, original top-five kernel bundles",
+  "methodology": "Custom streaming benchmark, not AIPerf. Six 10k-input prompts balanced across synchronized waves; o200k counts reasoning and answers. Median per-user decode speed excludes TTFT. Aggregate output throughput divides all output tokens by total wave wall time. Arithmetic checks precede performance measurements. Every request must finish naturally with at least 1500 answer tokens for a point to be usable.",
+  "output_token_cap": "16384",
+  "limitations": "GLM and DeepSeek ran concurrently on separate GPU sets on the same host. An additional unrelated workload on GPUs 6\u20137 overlapped GLM configurations 4 and 5. Shared host resources may affect results. These are workload-specific measurements, not a matched OpenRouter comparison or comprehensive quality evaluation. Failed points are excluded; curves cannot bridge them. Historical AIPerf headline results remain separate.",
+  "runs": [
+    {
+      "id": "01-26778568",
+      "state": "failed_correctness_check",
+      "raw_summary_sha256": "100e3e4dd7054cbf8f3ea67a98b4c210f58d76d699cea84b78bf4235c80dc2e5",
+      "points": [],
+      "bundle_content_sha256": "0e4b20d17a0a35eb3933f3dd5358550bc275ce979d25e957bd6c2d74e48015c7"
+    },
+    {
+      "id": "02-d5be4989",
+      "state": "complete_with_failures",
+      "raw_summary_sha256": "48f8459d08b32e4603a766a0a9f62c941c27cf0926db6fe5806e70691468dfe1",
+      "points": [
+        {
+          "concurrency": 1,
+          "requests": 6,
+          "valid_requests": 6,
+          "failures_or_truncations": 0,
+          "usable": true,
+          "median_tok_s_per_user": 297.0138688177521,
+          "median_ttft_s": 0.7153227505004907,
+          "aggregate_output_tok_s": 288.6774638438594
+        },
+        {
+          "concurrency": 2,
+          "requests": 6,
+          "valid_requests": 6,
+          "failures_or_truncations": 0,
+          "usable": true,
+          "median_tok_s_per_user": 284.1308392510856,
+          "median_ttft_s": 0.9086587214987958,
+          "aggregate_output_tok_s": 507.60146303692005
+        },
+        {
+          "concurrency": 4,
+          "requests": 12,
+          "valid_requests": 11,
+          "failures_or_truncations": 1,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 8,
+          "requests": 24,
+          "valid_requests": 2,
+          "failures_or_truncations": 22,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 16,
+          "requests": 48,
+          "valid_requests": 12,
+          "failures_or_truncations": 36,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 24,
+          "requests": 72,
+          "valid_requests": 43,
+          "failures_or_truncations": 29,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        }
+      ],
+      "bundle_content_sha256": "d743bb9cac327f80f53efa504b80c4d439631a53a3d0069cde12efca3c796fe6"
+    },
+    {
+      "id": "03-35a8c9d1",
+      "state": "failed_correctness_check",
+      "raw_summary_sha256": "71e6aa92461ccda7e8dac88a2ebd4a6d5ff18b82c59804462107bad5668238b3",
+      "points": [],
+      "bundle_content_sha256": "8edd97c58a094e3a7bf8458891ca27b8ad65329f85d43e1590b4dba428f7b40b"
+    },
+    {
+      "id": "04-0b6f7bf3",
+      "state": "complete_with_failures",
+      "raw_summary_sha256": "7baca16daffa486418e5efd25c12b6a9e37210edf0e2bed1c11322f347b9f492",
+      "points": [
+        {
+          "concurrency": 1,
+          "requests": 6,
+          "valid_requests": 4,
+          "failures_or_truncations": 2,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 2,
+          "requests": 6,
+          "valid_requests": 2,
+          "failures_or_truncations": 4,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 4,
+          "requests": 12,
+          "valid_requests": 9,
+          "failures_or_truncations": 3,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 8,
+          "requests": 24,
+          "valid_requests": 18,
+          "failures_or_truncations": 6,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 16,
+          "requests": 48,
+          "valid_requests": 47,
+          "failures_or_truncations": 1,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 24,
+          "requests": 72,
+          "valid_requests": 71,
+          "failures_or_truncations": 1,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        }
+      ],
+      "bundle_content_sha256": "4f1a3b574702ddbb706ac083ffc0a1d619f40cf61ebfe95700ef16e97735619e"
+    },
+    {
+      "id": "05-569d3bc0",
+      "state": "complete_with_failures",
+      "raw_summary_sha256": "945824ab42d5c466a13b871806782fb4420170a92e2441f2489493fd304e21a7",
+      "points": [
+        {
+          "concurrency": 1,
+          "requests": 6,
+          "valid_requests": 1,
+          "failures_or_truncations": 5,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 2,
+          "requests": 6,
+          "valid_requests": 2,
+          "failures_or_truncations": 4,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 4,
+          "requests": 12,
+          "valid_requests": 6,
+          "failures_or_truncations": 6,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 8,
+          "requests": 24,
+          "valid_requests": 22,
+          "failures_or_truncations": 2,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        },
+        {
+          "concurrency": 16,
+          "requests": 48,
+          "valid_requests": 48,
+          "failures_or_truncations": 0,
+          "usable": true,
+          "median_tok_s_per_user": 151.05240266573543,
+          "median_ttft_s": 0.2607008944978588,
+          "aggregate_output_tok_s": 1456.3418550219048
+        },
+        {
+          "concurrency": 24,
+          "requests": 72,
+          "valid_requests": 70,
+          "failures_or_truncations": 2,
+          "usable": false,
+          "reason": "At least one response failed the complete, natural-stop, minimum-answer-length validation."
+        }
+      ],
+      "bundle_content_sha256": "d2b3c85aef5bf7a71084d4e7360a9bd934e0d9e75b13030fea48335a8b2d3669"
+    }
+  ]
+}

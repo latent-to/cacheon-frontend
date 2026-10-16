@@ -2,38 +2,30 @@
 
 Frontend for [cacheon.ai](https://cacheon.ai) — customer inference optimization, benchmarks, and documentation for [Cacheon](https://github.com/latent-to/cacheon).
 
-The homepage leads with inference optimization for customer workloads and benchmarks. Contributor,
-validator, rewards, roadmap, and team content lives at `/subnet`.
+The homepage (`app/routes/home.tsx`) serves customers with two paths: Cacheon-hosted
+inference and optimization of a team's own serving stack. Its sections live in
+`app/components/customer/` and use the shared `Nav`, `Footer`, and Tailwind theme
+tokens. Contributor, validator, rewards, roadmap, and team content lives at `/subnet`.
 
 ## Benchmark content
 
-`app/constants/benchmarks.ts` holds internal measurements and the OpenRouter model
-IDs. The homepage's server loader fetches each model's official
-`/api/v1/models/{author}/{slug}/endpoints` response through the Cloudflare Cache API.
-It keeps each endpoint's last-30-minute P50 throughput/TTFT together and caches input, output, and cached-input API prices as USD per million tokens. OpenRouter's latency
-percentiles are milliseconds; the adapter converts them to seconds.
-Only available endpoints (`status: 0`) are shown. The comparison ranks the top three by
-output speed, with TTFT shown alongside each speed, including Fast tiers; a table collapsed by default
-shows all available provider performance stats. Missing metrics stay null and
-are not ranked. Models appear as GLM, DeepSeek, then Qwen, with GLM selected first.
-The hero shows GLM and DeepSeek speed only. The Performance section includes all three models.
-A GPU-only cost estimator uses model-specific hardware (GLM 4 × B300, DeepSeek 2 × B300,
-Qwen 1 × H100) and editable hourly cost, concurrency, and utilization.
-Concurrency is editable from 1 to 24 for GLM and DeepSeek; Qwen is capped at its
-measured single-user limit. Per-user throughput is interpolated between compatible
-measured points when available. Below the lowest measured concurrency, the calculator
-holds that point's per-user speed constant and explicitly labels it as assumed.
-The current GLM and DeepSeek results each have only a 24-user measurement, so lower
-user counts use this assumption rather than claiming a fitted scaling curve.
-Hourly rates come from Lium's public `pricing.json` feed, using the starting available
-listing for the exact GPU SKU (or its labeled reference price when no listings exist).
-The server caches successful reads for one hour and failures for five minutes, with
-a clearly dated October 15 snapshot fallback ($8/B300, $3.75/H100). Feed timestamps
-and source links are displayed. Defaults are 24 concurrent users (1 for Qwen) and 80% usage.
-The pricing section reuses the exact OpenRouter snapshot and top-three speed-ranked
-endpoints, emphasizing output prices with provider speed beneath, alongside input and cached-input prices. Hardware references are linked separately from performance runs.
-The estimate is not a Cacheon API price and excludes service fees and non-GPU costs.
-User input and estimates cannot exceed the model's measured maximum concurrency or 24 users.
+`app/constants/customer-results.ts` holds the internal results shown on the homepage
+(`customerModels`) and dated OpenRouter provider snapshots (`providerSnapshots`).
+`app/constants/benchmarks.ts` holds the OpenRouter model IDs. The homepage's server
+loader (`getModelComparisons` in `app/lib/model-comparisons.server.ts`) fetches each
+model's official `/api/v1/models/{author}/{slug}/endpoints` response through the
+Cloudflare Cache API. It keeps each endpoint's last-30-minute P50 throughput/TTFT
+together and caches input, output, and cached-input API prices as USD per million
+tokens. OpenRouter's latency percentiles are milliseconds; the adapter converts them
+to seconds. Only available endpoints (`status: 0`) are shown. Missing metrics stay
+null and are not ranked.
+
+`resolveMarket` (`app/lib/provider-market.ts`) selects the available endpoint with
+the highest measured output speed for each model, including Fast tiers, and keeps
+that endpoint's prices together. A collapsed table lists every measured endpoint.
+The page revalidates its loader every five minutes while the tab is visible.
+`GET /api/comparisons` returns the same `{ comparisons }` payload as same-origin JSON.
+No credentials or customer data are returned.
 
 Cache entries are fresh for one hour per Cloudflare location. The next request
 after expiry returns a visibly stale snapshot while refreshing in `waitUntil`.
@@ -54,7 +46,46 @@ Authenticated and public snapshots use separate cache keys so adding a key does
 not reuse an empty public snapshot. Versioned cache keys also invalidate data
 normalized with older units. Homepage responses use `Cache-Control: no-store`.
 
+## Measurement sources
+
+`providerSnapshots` supplies the dated OpenRouter tables recorded October 17, 2026:
+Standard, all reasoning efforts, P50, no selected quantization filter, including Fast
+variants. They populate the page without an API key. A model switches to live data
+only when the response includes measured throughput; otherwise its table remains
+labeled with the snapshot date. Prices and metrics always come from the same provider
+row and source. DeepSeek's snapshot leader is Together at 224 tok/s; GLM's is
+Baseten (fp8) US Fast at 168 tok/s.
+
+The homepage's internal results (`customerModels`):
+
+| Model               | Decode tok/s/user | Hardware          | Measurement                                                                                                                                                                             |
+| ------------------- | ----------------: | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GLM-5.3             | 297.0138688177521 | 4 × B300          | October 16, 2026 custom streaming benchmark; concurrency 1; six 10k-input prompts; median decode counting reasoning and answers with o200k, excluding TTFT. Median TTFT 0.7153227505 s. |
+| DeepSeek V4.1 Flash |         372.33505 | 2 × B300 per lane | October 16, 2026 internal replay; 24 live sessions; pooled warm-turn tokens/decode time per window, then mean of three windows. Paired baseline: 335.78065 tok/s/user.                  |
+
+The GLM headline uses the fastest usable point in the
+[retained concurrency sweep](public/benchmarks/glm-concurrency-20261016.json),
+run `02-d5be4989`; all six requests completed naturally with at least 1,500 answer
+tokens. It is a separate workload from the DeepSeek 24-session agent replay. OpenRouter P50 measurements describe separate provider traffic;
+the homepage does not claim a controlled provider comparison. All timing labels and
+measurement disclosures must remain with their figures.
+
+The complete public GLM sweep and [DeepSeek winning replay](public/benchmarks/deepseek-winner-20261016.json)
+are included unchanged under `public/benchmarks/`, including excluded GLM points,
+DeepSeek's three windows, measurement definitions, and original evidence identities.
+They were copied from the design preview's [GLM source](https://cacheon-frontend-preview.c-ad6.workers.dev/benchmarks/glm-concurrency-20261016.json)
+and [DeepSeek source](https://cacheon-frontend-preview.c-ad6.workers.dev/benchmarks/deepseek-winner-20261016.json).
+The OpenRouter provider rows are transcribed from the supplied screenshots;
+their capture date stays with `providerSnapshots`, and each model's source URL is its `marketUrl`.
+
+The GPU cost-estimator libraries (`app/lib/concurrency.ts`, `cost-estimate.ts`,
+`gpu-market*.ts`) are no longer rendered; they remain only because
+`tests/benchmarks.test.mjs` still covers them.
+
 ## Internal measurement provenance
+
+The earlier AIPerf results below remain in `app/constants/benchmarks.ts` and
+`public/benchmarks/` but are no longer displayed on the homepage.
 
 The Qwen result is backed by the six retained October 7 H100 measurements in
 `public/benchmarks/qwen-h100-20261007.json`. The tuned checkpoint and o200k token
