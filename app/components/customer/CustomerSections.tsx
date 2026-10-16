@@ -127,7 +127,7 @@ export function EngineSection() {
     ],
   ]
   return (
-    <section id="product" className={`${section} grid gap-10 lg:grid-cols-[0.85fr_1.65fr]`}>
+    <section id="how-it-works"className={`${section} grid gap-10 lg:grid-cols-[0.85fr_1.65fr]`}>
       <div>
         <p className={eyebrow}>The engine behind both paths</p>
         <h2 className={h2}>
