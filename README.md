@@ -54,6 +54,59 @@ Authenticated and public snapshots use separate cache keys so adding a key does
 not reuse an empty public snapshot. Versioned cache keys also invalidate data
 normalized with older units. Homepage responses use `Cache-Control: no-store`.
 
+## Customer website preview
+
+`/customer-preview/index.html` serves a complete static customer page with separate
+hosted-inference and own-stack journeys. Run `npm run dev` and open that path to
+review it. Its styles are scoped to the page; assets, documentation, and contact
+links resolve on the current frontend origin.
+
+`GET /api/comparisons` exposes the homepage's cached public comparison data. The
+preview selects the available endpoint with the highest measured output speed for
+each model, including Fast tiers, and keeps that endpoint's prices together.
+It reuses the existing OpenRouter reader and server-only secret, allows cross-origin
+reads for the standalone design preview, and returns `{ comparisons }` keyed by
+the existing model IDs. No credentials or customer data are returned. The client
+refreshes every five minutes while visible; the server cache follows the policy
+above. Stale API data retains its timestamp.
+
+`public/customer-preview/openrouter-data.js` supplies the dated OpenRouter tables
+recorded October 17, 2026: Standard, all reasoning efforts, P50, no selected
+quantization filter, including Fast variants. These populate the preview without
+a key. A model switches to API data only when that response includes measured
+throughput; otherwise its table remains labeled with the snapshot date. Prices
+and metrics always come from the same provider row and source. DeepSeek's snapshot
+leader is Together at 224 tok/s; GLM's is Baseten (fp8) US Fast at 168 tok/s.
+
+The preview's benchmark definitions are in `public/customer-preview/site.js`:
+
+| Model               | Decode tok/s/user | Hardware          | Measurement                                                                                                                                                                             |
+| ------------------- | ----------------: | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GLM-5.3             | 297.0138688177521 | 4 × B300          | October 16, 2026 custom streaming benchmark; concurrency 1; six 10k-input prompts; median decode counting reasoning and answers with o200k, excluding TTFT. Median TTFT 0.7153227505 s. |
+| DeepSeek V4.1 Flash |         372.33505 | 2 × B300 per lane | October 16, 2026 internal replay; 24 live sessions; pooled warm-turn tokens/decode time per window, then mean of three windows. Paired baseline: 335.78065 tok/s/user.                  |
+
+The GLM headline uses the fastest usable point in the
+[retained concurrency sweep](public/benchmarks/glm-concurrency-20261016.json),
+run `02-d5be4989`; all six requests completed naturally with at least 1,500 answer
+tokens. It is a separate workload from the existing homepage's 24-session agent
+replay. OpenRouter P50 measurements describe separate provider traffic;
+the preview does not claim a controlled provider comparison. All timing labels and
+measurement disclosures must remain with their figures when porting the design.
+
+The complete public GLM sweep and [DeepSeek winning replay](public/benchmarks/deepseek-winner-20261016.json)
+are included unchanged under `public/benchmarks/`, including excluded GLM points,
+DeepSeek's three windows, measurement definitions, and original evidence identities.
+They were copied from the preview's [GLM source](https://cacheon-frontend-preview.c-ad6.workers.dev/benchmarks/glm-concurrency-20261016.json)
+and [DeepSeek source](https://cacheon-frontend-preview.c-ad6.workers.dev/benchmarks/deepseek-winner-20261016.json).
+The OpenRouter provider rows are transcribed from the supplied screenshots;
+their capture date and source URLs stay in `openrouter-data.js`.
+
+This path is a reviewable implementation handoff. Integrating it into the homepage
+retires `public/customer-preview/` in that same change, together with the old
+homepage presentation and any cost-calculator code no longer consumed. The API
+route replaces manual provider-data updates. Deploying this branch enables the
+preview path and API route through the existing Worker configuration.
+
 ## Internal measurement provenance
 
 The Qwen result is backed by the six retained October 7 H100 measurements in
