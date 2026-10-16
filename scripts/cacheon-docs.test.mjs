@@ -223,6 +223,7 @@ test('generates the public sitemap from the same ordered page inventory', () => 
   assert.match(sitemap, /<loc>https:\/\/cacheon\.ai\/docs<\/loc>/)
   assert.match(sitemap, /<loc>https:\/\/cacheon\.ai\/docs\/get-started\/concepts<\/loc>/)
   assert.doesNotMatch(sitemap, /lastmod/)
+  assert.ok(sitemap.includes('<loc>https://cacheon.ai/subnet</loc>'))
 })
 
 test('imports only navigation pages and writes ordered metadata plus a source manifest', async () => {

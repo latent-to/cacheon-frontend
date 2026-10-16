@@ -1,14 +1,6 @@
 import { rewriteMarkdownRequest } from '~/lib/docs-markdown-rewrite'
 import { createRequestHandler } from 'react-router'
-
-declare module 'react-router' {
-  export interface AppLoadContext {
-    cloudflare: {
-      env: Env
-      ctx: ExecutionContext
-    }
-  }
-}
+import type {} from '../app/load-context'
 
 const requestHandler = createRequestHandler(
   () => import('virtual:react-router/server-build'),

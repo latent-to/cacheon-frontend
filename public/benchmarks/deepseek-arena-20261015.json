@@ -1,0 +1,78 @@
+{
+  "model": "DeepSeek V4.1 Flash",
+  "captured_date": "2026-10-15",
+  "source": "https://dash.cacheon.ai/deepseek-v4.1-flash?submission=840a00d2a3400ad69102b343f43d114f213a9dbd31c258cf0fcf03b58c779719",
+  "api_source": "https://dash.cacheon.ai/api/submissions/840a00d2a3400ad69102b343f43d114f213a9dbd31c258cf0fcf03b58c779719?arena=dsv41flash",
+  "reservation_id": "840a00d2a3400ad69102b343f43d114f213a9dbd31c258cf0fcf03b58c779719",
+  "measurement_role": "baseline",
+  "baseline": {
+    "kind": "stock",
+    "checkpoint": null,
+    "evaluated": false,
+    "assigned": true,
+    "artifact_digest": "",
+    "reservation_id": null,
+    "stack_digest": "da8207c9bc6dbbddd762d86d8fd859c34a476ac9ea2bc27200bd8ada3da7f242",
+    "tree_digest": "820fae6a9897a34f7368db6f07e8dc9c8a56427761b20b5bd045da31268cff3d",
+    "arena_digest": "acc8df79a095275989078072e4569a61ef8028df87f739a60b4220984b6f8911",
+    "reward_bar": null,
+    "source": "dsv41flash"
+  },
+  "baseline_decode_tps_per_user": 338.6842184583297,
+  "baseline_mean_ttft_seconds": 3.576266984644592,
+  "raw_result": {
+    "speedup": 1.0001348158041046,
+    "required_speedup": 1.0224453133624454,
+    "audit": null,
+    "passes": 4,
+    "pass_limit": 4,
+    "detail": "positive paired gain is not established within the sealed budget",
+    "decode_tps": [
+      338.6842184583297,
+      339.0948922823434
+    ],
+    "ttft_s": [
+      3.576266984644592,
+      3.54324970025883
+    ]
+  },
+  "metric_mapping": "Index 0 of decode_tps and ttft_s is the baseline arm. Index 1 is the candidate. This page reports the baseline, not the candidate, which failed the speed threshold.",
+  "limitations": "Concurrent multi-turn arena replay means, not matched to OpenRouter traffic P50s. Not the earlier 232 tok/s report.",
+  "concurrency": 24,
+  "concurrency_evidence": {
+    "api_source": "https://dash.cacheon.ai/api/submissions/840a00d2a3400ad69102b343f43d114f213a9dbd31c258cf0fcf03b58c779719?arena=dsv41flash",
+    "workload_digest": "8410d3f6680a39c4d532709baf27f4c306538183b782a518ef64b1318e8dce64",
+    "measurement_role": "B",
+    "lanes": [
+      {
+        "role": "B",
+        "window": 1,
+        "load": 24,
+        "decode_tps": 337.45359614483084,
+        "mean_ttft_s": 3.673420800192053
+      },
+      {
+        "role": "B",
+        "window": 2,
+        "load": 24,
+        "decode_tps": 338.2522556606786,
+        "mean_ttft_s": 3.503539055523179
+      },
+      {
+        "role": "B",
+        "window": 1,
+        "load": 24,
+        "decode_tps": 334.8892187053328,
+        "mean_ttft_s": 3.5913961578233993
+      },
+      {
+        "role": "B",
+        "window": 2,
+        "load": 24,
+        "decode_tps": 344.1418033224768,
+        "mean_ttft_s": 3.536711925039735
+      }
+    ],
+    "fit_status": "Only one concurrency level verified for this result. No scaling curve or extrapolation is supported."
+  }
+}

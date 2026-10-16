@@ -3,6 +3,13 @@
   "name": "cacheon-frontend",
   "compatibility_date": "2026-04-20",
   "main": "./workers/app.ts",
+  "ratelimits": [
+    {
+      "name": "CONTACT_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 5, "period": 60 }
+    }
+  ],
   "observability": {
     "enabled": true
   },

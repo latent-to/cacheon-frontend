@@ -1,6 +1,141 @@
 # Cacheon.ai Frontend
 
-Frontend for [cacheon.ai](https://cacheon.ai) — the dashboard and docs site for [Cacheon](https://github.com/latent-to/cacheon) (Bittensor SN14).
+Frontend for [cacheon.ai](https://cacheon.ai) — customer inference optimization, benchmarks, and documentation for [Cacheon](https://github.com/latent-to/cacheon).
+
+The homepage (`app/routes/home.tsx`) serves customers with two paths: Cacheon-hosted
+inference and optimization of a team's own serving stack. Its sections live in
+`app/components/customer/` and use the shared `Nav`, `Footer`, and Tailwind theme
+tokens. Contributor, validator, rewards, roadmap, and team content lives at `/subnet`.
+
+## Benchmark content
+
+`app/constants/customer-results.ts` holds the internal results shown on the homepage
+(`customerModels`) and dated OpenRouter provider snapshots (`providerSnapshots`).
+`app/constants/benchmarks.ts` holds the OpenRouter model IDs. The homepage's server
+loader (`getModelComparisons` in `app/lib/model-comparisons.server.ts`) fetches each
+model's official `/api/v1/models/{author}/{slug}/endpoints` response through the
+Cloudflare Cache API. It keeps each endpoint's last-30-minute P50 throughput/TTFT
+together and caches input, output, and cached-input API prices as USD per million
+tokens. OpenRouter's latency percentiles are milliseconds; the adapter converts them
+to seconds. Only available endpoints (`status: 0`) are shown. Missing metrics stay
+null and are not ranked.
+
+`resolveMarket` (`app/lib/provider-market.ts`) selects the available endpoint with
+the highest measured output speed for each model, including Fast tiers, and keeps
+that endpoint's prices together. A collapsed table lists every measured endpoint.
+The page revalidates its loader every five minutes while the tab is visible.
+`GET /api/comparisons` returns the same `{ comparisons }` payload as same-origin JSON.
+No credentials or customer data are returned.
+
+Cache entries are fresh for one hour per Cloudflare location. The next request
+after expiry returns a visibly stale snapshot while refreshing in `waitUntil`.
+Failures retain the last successful data for at most 24 hours, preserving its
+original timestamp, and back off for five minutes. A cold failure displays
+unavailable and is cached for five minutes. Concurrent refreshes are coalesced
+within an isolate. Cold requests have a five-second upstream timeout; the three
+models refresh independently. No cron, browser polling, KV binding, or database
+is required. Data refreshes with traffic, not while the site is idle.
+
+Set the server-only `OPENROUTER_API_KEY` Worker secret with
+`npx wrangler secret put OPENROUTER_API_KEY`. For local previews, set it in the
+ignored `.env` file. Restart the preview after editing it; a `.dev.vars` file
+takes precedence over `.env` in Wrangler. Authenticated endpoint requests return performance
+percentiles; unauthenticated responses currently omit them. Keys never reach
+loader data or the client bundle. Missing provider measurements remain unavailable.
+Authenticated and public snapshots use separate cache keys so adding a key does
+not reuse an empty public snapshot. Versioned cache keys also invalidate data
+normalized with older units. Homepage responses use `Cache-Control: no-store`.
+
+## Measurement sources
+
+`providerSnapshots` supplies the dated OpenRouter tables recorded October 17, 2026:
+Standard, all reasoning efforts, P50, no selected quantization filter, including Fast
+variants. They populate the page without an API key. A model switches to live data
+only when the response includes measured throughput; otherwise its table remains
+labeled with the snapshot date. Prices and metrics always come from the same provider
+row and source. DeepSeek's snapshot leader is Together at 224 tok/s; GLM's is
+Baseten (fp8) US Fast at 168 tok/s.
+
+The homepage's internal results (`customerModels`):
+
+| Model               | Decode tok/s/user | Hardware          | Measurement                                                                                                                                                                             |
+| ------------------- | ----------------: | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GLM-5.3             | 297.0138688177521 | 4 × B300          | October 16, 2026 custom streaming benchmark; concurrency 1; six 10k-input prompts; median decode counting reasoning and answers with o200k, excluding TTFT. Median TTFT 0.7153227505 s. |
+| DeepSeek V4.1 Flash |         372.33505 | 2 × B300 per lane | October 16, 2026 internal replay; 24 live sessions; pooled warm-turn tokens/decode time per window, then mean of three windows. Paired baseline: 335.78065 tok/s/user.                  |
+
+The GLM headline uses the fastest usable point in the
+[retained concurrency sweep](public/benchmarks/glm-concurrency-20261016.json),
+run `02-d5be4989`; all six requests completed naturally with at least 1,500 answer
+tokens. It is a separate workload from the DeepSeek 24-session agent replay. OpenRouter P50 measurements describe separate provider traffic;
+the homepage does not claim a controlled provider comparison. All timing labels and
+measurement disclosures must remain with their figures.
+
+The complete public GLM sweep and [DeepSeek winning replay](public/benchmarks/deepseek-winner-20261016.json)
+are included unchanged under `public/benchmarks/`, including excluded GLM points,
+DeepSeek's three windows, measurement definitions, and original evidence identities.
+They were copied from the design preview's [GLM source](https://cacheon-frontend-preview.c-ad6.workers.dev/benchmarks/glm-concurrency-20261016.json)
+and [DeepSeek source](https://cacheon-frontend-preview.c-ad6.workers.dev/benchmarks/deepseek-winner-20261016.json).
+The OpenRouter provider rows are transcribed from the supplied screenshots;
+their capture date stays with `providerSnapshots`, and each model's source URL is its `marketUrl`.
+
+The GPU cost-estimator libraries (`app/lib/concurrency.ts`, `cost-estimate.ts`,
+`gpu-market*.ts`) are no longer rendered; they remain only because
+`tests/benchmarks.test.mjs` still covers them.
+
+## Internal measurement provenance
+
+The earlier AIPerf results below remain in `app/constants/benchmarks.ts` and
+`public/benchmarks/` but are no longer displayed on the homepage.
+
+The Qwen result is backed by the six retained October 7 H100 measurements in
+`public/benchmarks/qwen-h100-20261007.json`. The tuned checkpoint and o200k token
+counting differ from OpenRouter. Both medians include all six prompts; this is the
+fastest observed candidate of seven, not repeated stability testing. GLM uses paired candidate throughput and mean TTFT from its retained winning submission:
+125.04 tok/s/user and 2.913 s TTFT. DeepSeek uses the newer baseline arm in submission
+`840a00d2`: 338.68 tok/s/user and 3.576 s TTFT. That submission's candidate failed the
+speed threshold; the displayed metrics are the baseline, not a winning candidate.
+Source links and selected raw results are archived in `public/benchmarks/*-arena-20261015.json`.
+Both are AIPerf replay measurements. GLM's separate single-prompt result (208.1 tok/s,
+1.018 s TTFT) is a different workload and is not combined with arena metrics.
+Before making matched-performance or market-leadership claims, supply runs using
+the same checkpoint, token counting, prompts, reasoning settings, concurrency,
+cache state, and client measurement boundary for each provider.
+
+## Contact form delivery
+
+The homepage form sends inquiries to a configured Discord channel using a bot,
+through a server action. Name, reply email, optional company, and the full workload
+message are included in one Discord message. Mentions are disabled. The website
+shows success only after Discord returns a message receipt, and a generic retry
+message on failure. No destination email, channel ID, or bot token is exposed in
+page content, loader data, or form responses. There is no email fallback.
+
+Before deployment, choose a private sales channel and a bot that has View Channel,
+Send Messages, and Embed Links permissions there. Set both values as Worker secrets
+using the interactive prompts (do not commit tokens or put them in public vars):
+
+```bash
+npx wrangler secret put CONTACT_DISCORD_BOT_TOKEN
+npx wrangler secret put CONTACT_DISCORD_CHANNEL_ID
+```
+
+This change does not create a bot or select a channel. Until these are configured,
+submissions fail with the retry message. Confirm delivery to the intended channel
+before launch. Discord receives the submitted customer details; restrict channel
+membership to the team handling inquiries.
+
+Same-origin POST checks, server validation, a hidden honeypot, a 32 KiB request cap,
+and `CONTACT_RATE_LIMITER` (five attempts per IP per minute per Cloudflare location)
+protect the endpoint. Missing configuration fails closed. Provider errors and
+contact details are not logged by the application. Discord requests time out after
+eight seconds and are not automatically retried to avoid duplicate deliveries.
+A manual retry after an ambiguous timeout can still produce a duplicate.
+
+`npm run test:contact` uses mocked HTTP delivery and never posts to Discord.
+Local development with real Discord secrets **does send real messages**. Leave
+those secrets unset during routine preview checks.
+
+Discord API reference: [Create Message](https://docs.discord.com/developers/resources/message#create-message).
 
 ## Stack
 
@@ -32,6 +167,7 @@ npm run build          # production build
 npm run preview        # build + wrangler dev (local Worker)
 npm run deploy         # build + wrangler deploy
 npm run typecheck      # full type check (fumadocs-mdx + react-router typegen + tsc)
+npm run test:benchmarks # API normalization, ranking, and cache behavior (Node 22.6+)
 npm run lint
 npm run format:check
 ```

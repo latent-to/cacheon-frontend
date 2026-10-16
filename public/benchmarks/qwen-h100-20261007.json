@@ -1,0 +1,25 @@
+{
+  "measured_date": "2026-10-07",
+  "model": "dendriteholdings/albedo-qwen3.6-35b-king-CXXV",
+  "model_revision": "35281e539b1989695420ca69efb016b0a253a2e0",
+  "hardware": "1 x NVIDIA H100 80 GB HBM3",
+  "concurrency": 1,
+  "input_tokens_per_prompt": 10000,
+  "tokenizer": "o200k",
+  "thinking": true,
+  "temperature": 0.6,
+  "generation_limit": 16384,
+  "runtime": "SGLang 0.5.20; EAGLE MTP, 3 steps, top-k 1, 4 draft tokens; FP8 KV cache",
+  "throughput_definition": "Reasoning plus answer tokens, excluding first chunk tokens, divided by first-to-last text-chunk time. Excludes TTFT.",
+  "median_throughput_tps": 528.928151916859,
+  "median_ttft_seconds": 0.19634094050002204,
+  "limitations": "One six-prompt pass of the fastest observed candidate among seven. Includes first-stream TTFT. Tuned checkpoint and o200k token counting differ from OpenRouter. Not a matched provider comparison or comprehensive answer-quality evaluation.",
+  "requests": [
+    { "id": "aa10k-literature-0", "throughput_tps": 539.6374536480992, "ttft_seconds": 1.3545395020000797 },
+    { "id": "aa10k-technical-1", "throughput_tps": 539.1031923379599, "ttft_seconds": 0.1913781140001447 },
+    { "id": "aa10k-literature-2", "throughput_tps": 518.753111495758, "ttft_seconds": 0.18627107600013915 },
+    { "id": "aa10k-technical-3", "throughput_tps": 558.1999692832134, "ttft_seconds": 0.18727667400025894 },
+    { "id": "aa10k-literature-4", "throughput_tps": 444.6089612063288, "ttft_seconds": 0.20130376699989938 },
+    { "id": "aa10k-technical-5", "throughput_tps": 435.7976313392807, "ttft_seconds": 0.5417294120002225 }
+  ]
+}
