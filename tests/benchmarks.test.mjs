@@ -383,3 +383,107 @@ test('GPU market uses available listing prices and distinguishes reference fallb
     false,
   )
 })
+
+// Current customer results must keep model identity, timing, and provenance paired.
+import {
+  customerModels,
+  deepseekCaseStudy,
+  providerSnapshots,
+} from '../app/constants/customer-results.ts'
+import { resolveMarket } from '../app/lib/provider-market.ts'
+
+const arenaEvidence = JSON.parse(
+  readFileSync(new URL('../public/benchmarks/arena-results-20261030.json', import.meta.url)),
+)
+const providerEvidence = JSON.parse(
+  readFileSync(new URL('../public/benchmarks/openrouter-20261030.json', import.meta.url)),
+)
+
+test('customer figures match final eligible arena evidence and exact model identities', () => {
+  const slugs = {
+    deepseek: 'deepseek/deepseek-v4.1-flash',
+    glm: 'z-ai/glm-5.3',
+    musespark: 'meta/muse-spark-open',
+  }
+  assert.deepEqual(customerModels.map((m) => m.id).sort(), Object.keys(slugs).sort())
+  for (const model of customerModels) {
+    const source = arenaEvidence.models.find((m) => m.customer_model_id === model.id)
+    assert.equal(model.openRouterModel, slugs[model.id])
+    assert.equal(source.openrouter.id, model.openRouterModel)
+    assert.equal(model.marketUrl, `https://openrouter.ai/${model.openRouterModel}#providers`)
+    assert.equal(source.final_decision, 'PASS')
+    assert.equal(source.reward_eligible, true)
+    assert.equal(source.audit.decision, 'PASS')
+    assert.equal(source.verification.qualification_attempt_hash_verified, true)
+    assert.equal(source.hardware.runtime_matches_retained_candidate, true)
+    assert.equal(model.arenaResult.submission, source.reservation_id)
+    assert.equal(model.resultUrl, source.dashboard_url)
+    assert.equal(model.arenaResult.concurrency, source.load)
+    assert.equal(model.arenaResult.speed, source.candidate_decode_tps)
+    assert.equal(model.arenaResult.ttft, source.candidate_mean_ttft_s)
+    assert.equal(model.arenaResult.baselineSpeed, source.baseline_decode_tps)
+    assert.equal(model.arenaResult.baselineTtft, source.baseline_mean_ttft_s)
+    for (const [role, speed, ttft] of [
+      ['B', model.arenaResult.baselineSpeed, model.arenaResult.baselineTtft],
+      ['C', model.arenaResult.speed, model.arenaResult.ttft],
+    ]) {
+      const windows = source.lanes.filter((row) => row.role === role)
+      assert.equal(windows.length, 3)
+      assert.ok(windows.every((row) => row.load === source.load && row.unsuccessful_turns === 0))
+      assert.ok(
+        Math.abs(windows.reduce((n, row) => n + row.decode_tps, 0) / windows.length - speed) < 1e-9,
+      )
+      assert.ok(
+        Math.abs(windows.reduce((n, row) => n + row.mean_ttft_s, 0) / windows.length - ttft) < 1e-9,
+      )
+    }
+    if (model.id !== 'glm') {
+      assert.equal(model.speed, model.arenaResult.speed)
+      assert.equal(model.ttft, model.arenaResult.ttft)
+    }
+  }
+  const ds = customerModels.find((m) => m.id === 'deepseek')
+  assert.equal(deepseekCaseStudy.baseline, ds.arenaResult.baselineSpeed)
+  assert.equal(deepseekCaseStudy.candidate, ds.arenaResult.speed)
+  assert.ok(!ds.arenaResult.status.includes('Crowned'))
+  assert.equal(arenaEvidence.active_deepseek_1017.eligible_winner_count, 0)
+  for (const excluded of arenaEvidence.excluded) {
+    assert.ok(!customerModels.some((m) => m.arenaResult.submission === excluded.reservation_id))
+  }
+})
+
+test('GLM headline retains one usable streaming point, distinct from arena replay', () => {
+  const glm = customerModels.find((m) => m.id === 'glm')
+  const evidence = JSON.parse(
+    readFileSync(new URL('../public/benchmarks/glm-concurrency-20261016.json', import.meta.url)),
+  )
+  const point = evidence.runs
+    .find((run) => run.id === '02-d5be4989')
+    .points.find((p) => p.concurrency === 1)
+  assert.equal(point.usable, true)
+  assert.equal(point.requests, point.valid_requests)
+  assert.equal(glm.speed, point.median_tok_s_per_user)
+  assert.equal(glm.ttft, point.median_ttft_s)
+  assert.notEqual(glm.speed, glm.arenaResult.speed)
+})
+
+test('dated provider fallback uses all available endpoints with the live normalizer and matching slug', () => {
+  for (const model of customerModels) {
+    const source = providerEvidence.models.find((m) => m.id === model.openRouterModel)
+    const snapshot = providerSnapshots[model.id]
+    assert.equal(snapshot.openRouterModel, model.openRouterModel)
+    assert.deepEqual(
+      snapshot.providers,
+      parseEndpoints({ data: { id: source.id, endpoints: source.providers } }, source.id),
+    )
+    const market = resolveMarket(undefined, snapshot)
+    assert.equal(
+      market.leader.throughput,
+      Math.max(...snapshot.providers.map((row) => row.throughput ?? 0)),
+    )
+    assert.match(market.statusLine, /30 Oct 2026, 15:00 UTC/)
+  }
+  // Retain Qwen in the compilation without displaying it as a customer comparison.
+  assert.ok(arenaEvidence.models.some((m) => m.customer_model_id === 'qwen38'))
+  assert.ok(!customerModels.some((m) => m.id === 'qwen38'))
+})

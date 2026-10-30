@@ -1,0 +1,3117 @@
+{
+  "captured_at": "2026-10-30T15:00:47.791068+00:00",
+  "source": "OpenRouter authenticated model endpoints API",
+  "window": "last 30 minutes",
+  "units": {
+    "throughput": "tokens per second",
+    "latency": "milliseconds",
+    "pricing": "USD per token"
+  },
+  "models": [
+    {
+      "id": "z-ai/glm-5.3",
+      "url": "https://openrouter.ai/api/v1/models/z-ai/glm-5.3/endpoints",
+      "canonical_slug": "z-ai/glm-5.3-20260816",
+      "hugging_face_id": "zai-org/GLM-5.3",
+      "providers": [
+        {
+          "provider_name": "Wafer",
+          "tag": "wafer/us",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 529,
+            "p75": 748,
+            "p90": 1076.9000000000005,
+            "p99": 4718.520000000004
+          },
+          "throughput_last_30m": {
+            "p50": 100,
+            "p75": 79,
+            "p90": 60,
+            "p99": 22
+          },
+          "pricing": {
+            "prompt": "0.0000000699",
+            "completion": "0.0000014",
+            "input_cache_read": "0.0000000689",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Relace",
+          "tag": "relace",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 1578,
+            "p75": 2845.75,
+            "p90": 4367,
+            "p99": 7685.849999999986
+          },
+          "throughput_last_30m": {
+            "p50": 67,
+            "p75": 45,
+            "p90": 28,
+            "p99": 13.63
+          },
+          "pricing": {
+            "prompt": "0.0000000703",
+            "completion": "0.0000043843",
+            "input_cache_read": "0.0000000703",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "InferenceNet",
+          "tag": "inference-net/us",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 486,
+            "p75": 914,
+            "p90": 1602,
+            "p99": 6182.600000000006
+          },
+          "throughput_last_30m": {
+            "p50": 129,
+            "p75": 92,
+            "p90": 62.10000000000002,
+            "p99": 18
+          },
+          "pricing": {
+            "prompt": "0.00000008",
+            "completion": "0.0000036",
+            "input_cache_read": "0.000000076",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "InferenceNet",
+          "tag": "inference-net/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 507,
+            "p75": 752.25,
+            "p90": 1167.9000000000005,
+            "p99": 4961.710000000003
+          },
+          "throughput_last_30m": {
+            "p50": 133,
+            "p75": 94.75,
+            "p90": 66,
+            "p99": 19
+          },
+          "pricing": {
+            "prompt": "0.00000008",
+            "completion": "0.0000036",
+            "input_cache_read": "0.000000076",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Morph",
+          "tag": "morph/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1348.5,
+            "p75": 2102.75,
+            "p90": 3979.0000000000027,
+            "p99": 11045.989999999998
+          },
+          "throughput_last_30m": {
+            "p50": 26,
+            "p75": 19,
+            "p90": 13,
+            "p99": 10
+          },
+          "pricing": {
+            "prompt": "0.000000086",
+            "completion": "0.0000014",
+            "input_cache_read": "0.000000069",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Reka",
+          "tag": "reka",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 911.5,
+            "p75": 1473.75,
+            "p90": 3874.7000000000057,
+            "p99": 13458.640000000007
+          },
+          "throughput_last_30m": {
+            "p50": 45,
+            "p75": 24,
+            "p90": 11,
+            "p99": 5
+          },
+          "pricing": {
+            "prompt": "0.00000014",
+            "completion": "0.0000021",
+            "input_cache_read": "0.000000105",
+            "discount": 0.3
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Makora",
+          "tag": "makora/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 803,
+            "p75": 1441.75,
+            "p90": 2386.2000000000003,
+            "p99": 8812.200000000033
+          },
+          "throughput_last_30m": {
+            "p50": 62,
+            "p75": 45,
+            "p90": 30,
+            "p99": 5.080000000000002
+          },
+          "pricing": {
+            "prompt": "0.00000014",
+            "completion": "0.000003",
+            "input_cache_read": "0.0000001",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Wafer",
+          "tag": "wafer/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 334,
+            "p75": 479.25,
+            "p90": 750,
+            "p99": 2406.800000000003
+          },
+          "throughput_last_30m": {
+            "p50": 89,
+            "p75": 71,
+            "p90": 53,
+            "p99": 19
+          },
+          "pricing": {
+            "prompt": "0.000000179",
+            "completion": "0.0000014",
+            "input_cache_read": "0.000000178",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "DekaLLM",
+          "tag": "dekallm",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 2001.5,
+            "p75": 2434.25,
+            "p90": 2970.1000000000004,
+            "p99": 5012.19
+          },
+          "throughput_last_30m": {
+            "p50": 22,
+            "p75": 13,
+            "p90": 9,
+            "p99": 4
+          },
+          "pricing": {
+            "prompt": "0.00000018",
+            "completion": "0.00000295",
+            "input_cache_read": "0.00000015",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "AkashML",
+          "tag": "akashml/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1368.5,
+            "p75": 1822.5,
+            "p90": 2603.9000000000005,
+            "p99": 5194.929999999995
+          },
+          "throughput_last_30m": {
+            "p50": 56,
+            "p75": 41,
+            "p90": 31.60000000000001,
+            "p99": 19
+          },
+          "pricing": {
+            "prompt": "0.00000019",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000019",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Baidu",
+          "tag": "baidu/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 749,
+            "p75": 1068,
+            "p90": 2019.0000000000005,
+            "p99": 4612.480000000012
+          },
+          "throughput_last_30m": {
+            "p50": 66,
+            "p75": 48,
+            "p90": 39,
+            "p99": 23.380000000000003
+          },
+          "pricing": {
+            "prompt": "0.00000028",
+            "completion": "0.00000088",
+            "input_cache_read": "0.000000052",
+            "discount": 0.8
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Io Net",
+          "tag": "io-net/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1156,
+            "p75": 1600,
+            "p90": 2193.6000000000004,
+            "p99": 3193.0200000000004
+          },
+          "throughput_last_30m": {
+            "p50": 77,
+            "p75": 56.25,
+            "p90": 41.1,
+            "p99": 25
+          },
+          "pricing": {
+            "prompt": "0.00000033",
+            "completion": "0.0000032",
+            "input_cache_read": "0.00000031",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Sail Research",
+          "tag": "sail-research/us",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1095,
+            "p75": 1530.5,
+            "p90": 2014.4,
+            "p99": 3449.4600000000087
+          },
+          "throughput_last_30m": {
+            "p50": 45,
+            "p75": 42,
+            "p90": 39,
+            "p99": 27
+          },
+          "pricing": {
+            "prompt": "0.0000005",
+            "completion": "0.000002",
+            "input_cache_read": "0.00000008",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Sail Research",
+          "tag": "sail-research/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 875,
+            "p75": 1239.5,
+            "p90": 1770.0000000000018,
+            "p99": 3539.58
+          },
+          "throughput_last_30m": {
+            "p50": 45,
+            "p75": 41,
+            "p90": 37,
+            "p99": 23.04
+          },
+          "pricing": {
+            "prompt": "0.0000005",
+            "completion": "0.000002",
+            "input_cache_read": "0.00000008",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "DeepInfra",
+          "tag": "deepinfra/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 1261,
+            "p75": 2307,
+            "p90": 5490.800000000001,
+            "p99": 22435.40000000006
+          },
+          "throughput_last_30m": {
+            "p50": 68,
+            "p75": 44,
+            "p90": 25,
+            "p99": 6.300000000000001
+          },
+          "pricing": {
+            "prompt": "0.0000005625",
+            "completion": "0.0000025",
+            "input_cache_read": "0.000000125",
+            "discount": 0.375
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Tenstorrent",
+          "tag": "tenstorrent/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 412,
+            "p75": 785,
+            "p90": 1511.5000000000027,
+            "p99": 4613.800000000007
+          },
+          "throughput_last_30m": {
+            "p50": 84,
+            "p75": 61,
+            "p90": 48,
+            "p99": 32
+          },
+          "pricing": {
+            "prompt": "0.0000006",
+            "completion": "0.0000025",
+            "input_cache_read": "0.0000001",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Novita",
+          "tag": "novita/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 2625.5,
+            "p75": 3544,
+            "p90": 5358.700000000001,
+            "p99": 13719.440000000053
+          },
+          "throughput_last_30m": {
+            "p50": 49,
+            "p75": 34,
+            "p90": 24,
+            "p99": 13
+          },
+          "pricing": {
+            "prompt": "0.00000063",
+            "completion": "0.00000198",
+            "input_cache_read": "0.000000117",
+            "discount": 0.55
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "SiliconFlow",
+          "tag": "siliconflow/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 2923,
+            "p75": 3939,
+            "p90": 4920.500000000001,
+            "p99": 8505.769999999993
+          },
+          "throughput_last_30m": {
+            "p50": 56,
+            "p75": 36,
+            "p90": 25,
+            "p99": 8
+          },
+          "pricing": {
+            "prompt": "0.0000007",
+            "completion": "0.0000022",
+            "input_cache_read": "0.00000013",
+            "discount": 0.5
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "GMICloud",
+          "tag": "gmicloud/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 3412,
+            "p75": 3710.25,
+            "p90": 4306.200000000001,
+            "p99": 6623.869999999998
+          },
+          "throughput_last_30m": {
+            "p50": 24.5,
+            "p75": 20,
+            "p90": 15,
+            "p99": 8.879999999999999
+          },
+          "pricing": {
+            "prompt": "0.0000007",
+            "completion": "0.0000022",
+            "input_cache_read": "0.00000013",
+            "discount": 0.5
+          },
+          "uptime_last_30m": null
+        },
+        {
+          "provider_name": "Phala",
+          "tag": "phala",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 2596,
+            "p75": 2924,
+            "p90": 3698.2000000000007,
+            "p99": 9472.100000000006
+          },
+          "throughput_last_30m": {
+            "p50": 42,
+            "p75": 37,
+            "p90": 27.4,
+            "p99": 13.879999999999999
+          },
+          "pricing": {
+            "prompt": "0.00000084",
+            "completion": "0.00000264",
+            "input_cache_read": "0.000000156",
+            "discount": 0.4
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Decart",
+          "tag": "decart/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 745,
+            "p75": 959,
+            "p90": 1208.5,
+            "p99": 2376.24999999999
+          },
+          "throughput_last_30m": {
+            "p50": 94,
+            "p75": 80,
+            "p90": 68,
+            "p99": 47
+          },
+          "pricing": {
+            "prompt": "0.00000084",
+            "completion": "0.00000269",
+            "input_cache_read": "0.00000019",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "DigitalOcean",
+          "tag": "digitalocean",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 803,
+            "p75": 1074,
+            "p90": 1444.7999999999995,
+            "p99": 7267.679999999986
+          },
+          "throughput_last_30m": {
+            "p50": 107.5,
+            "p75": 87.25,
+            "p90": 63,
+            "p99": 31.2
+          },
+          "pricing": {
+            "prompt": "0.00000091",
+            "completion": "0.00000286",
+            "input_cache_read": "0.000000169",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Fireworks",
+          "tag": "fireworks/spot",
+          "status": -5,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": null,
+          "throughput_last_30m": null,
+          "pricing": {
+            "prompt": "0.00000098",
+            "completion": "0.00000308",
+            "input_cache_read": "0.000000182",
+            "discount": 0
+          },
+          "uptime_last_30m": 0
+        },
+        {
+          "provider_name": "PrimeIntellect",
+          "tag": "primeintellect",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 497,
+            "p75": 844.5,
+            "p90": 1506,
+            "p99": 5657.400000000014
+          },
+          "throughput_last_30m": {
+            "p50": 102,
+            "p75": 78,
+            "p90": 60,
+            "p99": 23
+          },
+          "pricing": {
+            "prompt": "0.00000098",
+            "completion": "0.00000308",
+            "input_cache_read": "0.000000182",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Alibaba",
+          "tag": "alibaba",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 1673,
+            "p75": 2268.5,
+            "p90": 3135,
+            "p99": 6935.879999999999
+          },
+          "throughput_last_30m": {
+            "p50": 52,
+            "p75": 37,
+            "p90": 26.600000000000023,
+            "p99": 14
+          },
+          "pricing": {
+            "prompt": "0.00000119",
+            "completion": "0.00000374",
+            "input_cache_read": "0.000000238",
+            "discount": 0
+          },
+          "uptime_last_30m": null
+        },
+        {
+          "provider_name": "CoreWeave",
+          "tag": "coreweave/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1475.5,
+            "p75": 2679.75,
+            "p90": 6247,
+            "p99": 16452.25
+          },
+          "throughput_last_30m": {
+            "p50": 75,
+            "p75": 56,
+            "p90": 32.60000000000001,
+            "p99": 8.46
+          },
+          "pricing": {
+            "prompt": "0.0000012",
+            "completion": "0.000004",
+            "input_cache_read": "0.00000019",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Friendli",
+          "tag": "friendli",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 381,
+            "p75": 924,
+            "p90": 1579.8000000000006,
+            "p99": 3021.92
+          },
+          "throughput_last_30m": {
+            "p50": 97,
+            "p75": 79,
+            "p90": 65,
+            "p99": 33
+          },
+          "pricing": {
+            "prompt": "0.00000126",
+            "completion": "0.00000396",
+            "input_cache_read": "0.000000234",
+            "discount": 0.1
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Inceptron",
+          "tag": "inceptron/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 603,
+            "p75": 1049,
+            "p90": 1717,
+            "p99": 5918.359999999986
+          },
+          "throughput_last_30m": {
+            "p50": 88,
+            "p75": 67,
+            "p90": 48,
+            "p99": 17
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.00000264",
+            "input_cache_read": "0.00000014",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Mistral",
+          "tag": "mistral/zdr",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "nvfp4",
+          "latency_last_30m": {
+            "p50": 947,
+            "p75": 1651,
+            "p90": 2526.8,
+            "p99": 12611.759999999966
+          },
+          "throughput_last_30m": {
+            "p50": 121,
+            "p75": 78,
+            "p90": 46.60000000000001,
+            "p99": 9
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000014",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "BaseTen",
+          "tag": "baseten/fp4/us",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 1643,
+            "p75": 2300.5,
+            "p90": 3360.1999999999994,
+            "p99": 17300.14000000005
+          },
+          "throughput_last_30m": {
+            "p50": 72,
+            "p75": 47.25,
+            "p90": 32,
+            "p99": 13.370000000000001
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000014",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Mistral",
+          "tag": "mistral/nvfp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "nvfp4",
+          "latency_last_30m": {
+            "p50": 628,
+            "p75": 1074,
+            "p90": 1557.8,
+            "p99": 4832.30000000003
+          },
+          "throughput_last_30m": {
+            "p50": 113.5,
+            "p75": 81,
+            "p90": 58.3,
+            "p99": 30
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000014",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Nebius",
+          "tag": "nebius/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 910,
+            "p75": 1049,
+            "p90": 3247.2,
+            "p99": 5290.260000000001
+          },
+          "throughput_last_30m": {
+            "p50": 88,
+            "p75": 67.75,
+            "p90": 35,
+            "p99": 26.9
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000026",
+            "discount": 0
+          },
+          "uptime_last_30m": null
+        },
+        {
+          "provider_name": "Crusoe",
+          "tag": "crusoe/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 429,
+            "p75": 572,
+            "p90": 676,
+            "p99": 2812.859999999997
+          },
+          "throughput_last_30m": {
+            "p50": 120,
+            "p75": 87,
+            "p90": 71,
+            "p99": 49
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000026",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Venice",
+          "tag": "venice",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 1104,
+            "p75": 1751.5,
+            "p90": 2922.2000000000016,
+            "p99": 8242.570000000002
+          },
+          "throughput_last_30m": {
+            "p50": 74,
+            "p75": 48.75,
+            "p90": 30,
+            "p99": 15.280000000000001
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000026",
+            "discount": 0.2
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Together",
+          "tag": "together",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 820,
+            "p75": 1172,
+            "p90": 1534.1999999999998,
+            "p99": 5485.93999999999
+          },
+          "throughput_last_30m": {
+            "p50": 97,
+            "p75": 73,
+            "p90": 56,
+            "p99": 24
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000026",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Parasail",
+          "tag": "parasail/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 804.5,
+            "p75": 1077.75,
+            "p90": 2214.4,
+            "p99": 13675.089999999967
+          },
+          "throughput_last_30m": {
+            "p50": 95,
+            "p75": 69,
+            "p90": 50,
+            "p99": 9
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000026",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Modal",
+          "tag": "modal",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 394,
+            "p75": 541,
+            "p90": 795.1000000000004,
+            "p99": 4123.100000000068
+          },
+          "throughput_last_30m": {
+            "p50": 124,
+            "p75": 92,
+            "p90": 72,
+            "p99": 23.509999999999998
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000026",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "BaseTen",
+          "tag": "baseten/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 1133,
+            "p75": 1561,
+            "p90": 1847.8999999999999,
+            "p99": 5137.5500000000175
+          },
+          "throughput_last_30m": {
+            "p50": 64,
+            "p75": 41.5,
+            "p90": 33,
+            "p99": 23.619999999999997
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000014",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Fireworks",
+          "tag": "fireworks",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 802,
+            "p75": 1189,
+            "p90": 1887,
+            "p99": 4902
+          },
+          "throughput_last_30m": {
+            "p50": 88,
+            "p75": 69,
+            "p90": 50,
+            "p99": 23
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000026",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Cloudflare",
+          "tag": "cloudflare",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 2712,
+            "p75": 4620.5,
+            "p90": 9088,
+            "p99": 37883.5
+          },
+          "throughput_last_30m": {
+            "p50": 30,
+            "p75": 21,
+            "p90": 12,
+            "p99": 3
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000026",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "AtlasCloud",
+          "tag": "atlas-cloud/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 2338,
+            "p75": 3253.75,
+            "p90": 5367.5,
+            "p99": 13060.649999999998
+          },
+          "throughput_last_30m": {
+            "p50": 33,
+            "p75": 28,
+            "p90": 22,
+            "p99": 16.6
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000026",
+            "discount": 0
+          },
+          "uptime_last_30m": null
+        },
+        {
+          "provider_name": "Z.AI",
+          "tag": "z-ai/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1828,
+            "p75": 4112.25,
+            "p90": 6460.900000000001,
+            "p99": 13459.520000000004
+          },
+          "throughput_last_30m": {
+            "p50": 50,
+            "p75": 32,
+            "p90": 17,
+            "p99": 8.909999999999997
+          },
+          "pricing": {
+            "prompt": "0.0000014",
+            "completion": "0.0000044",
+            "input_cache_read": "0.00000026",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Mistral",
+          "tag": "mistral/nvfp4/eu",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "nvfp4",
+          "latency_last_30m": {
+            "p50": 1006,
+            "p75": 1895,
+            "p90": 4157,
+            "p99": 44352
+          },
+          "throughput_last_30m": {
+            "p50": 114,
+            "p75": 61.5,
+            "p90": 31.5,
+            "p99": 5.9
+          },
+          "pricing": {
+            "prompt": "0.00000154",
+            "completion": "0.00000484",
+            "input_cache_read": "0.000000154",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Amazon Bedrock",
+          "tag": "amazon-bedrock/us-east-1",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 2580,
+            "p75": 4178,
+            "p90": 6474.6,
+            "p99": 15109.120000000003
+          },
+          "throughput_last_30m": {
+            "p50": 126,
+            "p75": 67.5,
+            "p90": 32,
+            "p99": 12.8
+          },
+          "pricing": {
+            "prompt": "0.00000168",
+            "completion": "0.00000528",
+            "input_cache_read": "0.000000312",
+            "input_cache_write": "0.0000021",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "ModelRun",
+          "tag": "modelrun/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 380,
+            "p75": 830,
+            "p90": 1642.9999999999998,
+            "p99": 10360.52
+          },
+          "throughput_last_30m": {
+            "p50": 154,
+            "p75": 122,
+            "p90": 86,
+            "p99": 14.26
+          },
+          "pricing": {
+            "prompt": "0.0000021",
+            "completion": "0.0000066",
+            "input_cache_read": "0.0000004",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Fireworks",
+          "tag": "fireworks/fast",
+          "status": 0,
+          "service_tier": "priority",
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 667,
+            "p75": 1111,
+            "p90": 1868,
+            "p99": 6959.630000000001
+          },
+          "throughput_last_30m": {
+            "p50": 143,
+            "p75": 92,
+            "p90": 60,
+            "p99": 23
+          },
+          "pricing": {
+            "prompt": "0.0000021",
+            "completion": "0.0000066",
+            "input_cache_read": "0.00000039",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "BaseTen",
+          "tag": "baseten/us/fast",
+          "status": 0,
+          "service_tier": "priority",
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 859,
+            "p75": 1573,
+            "p90": 3145.3999999999996,
+            "p99": 22174.760000000017
+          },
+          "throughput_last_30m": {
+            "p50": 148,
+            "p75": 97,
+            "p90": 49,
+            "p99": 5.26
+          },
+          "pricing": {
+            "prompt": "0.0000021",
+            "completion": "0.0000066",
+            "input_cache_read": "0.00000021",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "BaseTen",
+          "tag": "baseten/fast",
+          "status": 0,
+          "service_tier": "priority",
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 724.5,
+            "p75": 1387.5,
+            "p90": 3893.3,
+            "p99": 21151.680000000008
+          },
+          "throughput_last_30m": {
+            "p50": 146,
+            "p75": 101.5,
+            "p90": 52,
+            "p99": 7.78
+          },
+          "pricing": {
+            "prompt": "0.0000021",
+            "completion": "0.0000066",
+            "input_cache_read": "0.00000021",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Alibaba",
+          "tag": "alibaba/prime",
+          "status": 0,
+          "service_tier": "priority",
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 1731,
+            "p75": 2596,
+            "p90": 3279,
+            "p99": 7316.969999999992
+          },
+          "throughput_last_30m": {
+            "p50": 65,
+            "p75": 37.5,
+            "p90": 27,
+            "p99": 12.3
+          },
+          "pricing": {
+            "prompt": "0.0000028",
+            "completion": "0.0000088",
+            "input_cache_read": "0.00000056",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        }
+      ]
+    },
+    {
+      "id": "deepseek/deepseek-v4.1-flash",
+      "url": "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints",
+      "canonical_slug": "deepseek/deepseek-v4.1-flash-20260910",
+      "hugging_face_id": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "providers": [
+        {
+          "provider_name": "Morph",
+          "tag": "morph/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 909.5,
+            "p75": 1629,
+            "p90": 2675,
+            "p99": 7776.100000000028
+          },
+          "throughput_last_30m": {
+            "p50": 68,
+            "p75": 49,
+            "p90": 34,
+            "p99": 17
+          },
+          "pricing": {
+            "prompt": "0.000000022",
+            "completion": "0.000000192",
+            "input_cache_read": "0.000000004",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "OpenInference",
+          "tag": "open-inference/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 955,
+            "p75": 4211,
+            "p90": 5062.900000000001,
+            "p99": 7160.429999999992
+          },
+          "throughput_last_30m": {
+            "p50": 105,
+            "p75": 89,
+            "p90": 74,
+            "p99": 27
+          },
+          "pricing": {
+            "prompt": "0.0000000433",
+            "completion": "0.00000104",
+            "input_cache_read": "0.0000000399",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Wafer",
+          "tag": "wafer/us",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "mxfp4",
+          "latency_last_30m": {
+            "p50": 449,
+            "p75": 1153,
+            "p90": 3017.800000000001,
+            "p99": 5958.630000000001
+          },
+          "throughput_last_30m": {
+            "p50": 153,
+            "p75": 103,
+            "p90": 60,
+            "p99": 17
+          },
+          "pricing": {
+            "prompt": "0.000000045",
+            "completion": "0.0000005",
+            "input_cache_read": "0.000000006",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Relace",
+          "tag": "relace",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 1449.5,
+            "p75": 4161,
+            "p90": 5785,
+            "p99": 7031.350000000002
+          },
+          "throughput_last_30m": {
+            "p50": 55,
+            "p75": 22,
+            "p90": 11,
+            "p99": 8
+          },
+          "pricing": {
+            "prompt": "0.00000007",
+            "completion": "0.0000005",
+            "input_cache_read": "0.000000008",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Decart",
+          "tag": "decart/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 747,
+            "p75": 925,
+            "p90": 1217,
+            "p99": 2970
+          },
+          "throughput_last_30m": {
+            "p50": 81,
+            "p75": 65,
+            "p90": 53,
+            "p99": 33
+          },
+          "pricing": {
+            "prompt": "0.00000009",
+            "completion": "0.00000018",
+            "input_cache_read": "0.000000018",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Sail Research",
+          "tag": "sail-research/fp4/us",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 531,
+            "p75": 707,
+            "p90": 1049.9000000000005,
+            "p99": 2820.8800000000047
+          },
+          "throughput_last_30m": {
+            "p50": 50,
+            "p75": 40,
+            "p90": 34,
+            "p99": 25
+          },
+          "pricing": {
+            "prompt": "0.00000009",
+            "completion": "0.00000025",
+            "input_cache_read": "0.000000006",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Sail Research",
+          "tag": "sail-research/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 483,
+            "p75": 579.75,
+            "p90": 720.9000000000001,
+            "p99": 1945.5000000000027
+          },
+          "throughput_last_30m": {
+            "p50": 49,
+            "p75": 39,
+            "p90": 33,
+            "p99": 26
+          },
+          "pricing": {
+            "prompt": "0.00000009",
+            "completion": "0.00000025",
+            "input_cache_read": "0.000000006",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Reka",
+          "tag": "reka",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 338,
+            "p75": 513,
+            "p90": 1025,
+            "p99": 6660.350000000017
+          },
+          "throughput_last_30m": {
+            "p50": 92,
+            "p75": 71,
+            "p90": 51,
+            "p99": 15.730000000000004
+          },
+          "pricing": {
+            "prompt": "0.000000105",
+            "completion": "0.00000084",
+            "input_cache_read": "0.000000007",
+            "discount": 0.3
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "DeepInfra",
+          "tag": "deepinfra/fp8/flex",
+          "status": 0,
+          "service_tier": "flex",
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 2328.5,
+            "p75": 3290,
+            "p90": 4197.500000000003,
+            "p99": 5831.920000000013
+          },
+          "throughput_last_30m": {
+            "p50": 69,
+            "p75": 45,
+            "p90": 29,
+            "p99": 15
+          },
+          "pricing": {
+            "prompt": "0.000000112",
+            "completion": "0.000000336",
+            "input_cache_read": "0.00000000336",
+            "discount": 0.3
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "CoreWeave",
+          "tag": "coreweave/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 715,
+            "p75": 1276,
+            "p90": 2393.800000000001,
+            "p99": 8500.09
+          },
+          "throughput_last_30m": {
+            "p50": 164,
+            "p75": 105,
+            "p90": 70,
+            "p99": 24
+          },
+          "pricing": {
+            "prompt": "0.00000013",
+            "completion": "0.00000065",
+            "input_cache_read": "0.000000002",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "InferenceNet",
+          "tag": "inference-net/us",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 375,
+            "p75": 498,
+            "p90": 687.9000000000005,
+            "p99": 2022.630000000001
+          },
+          "throughput_last_30m": {
+            "p50": 103,
+            "p75": 83,
+            "p90": 68,
+            "p99": 47
+          },
+          "pricing": {
+            "prompt": "0.000000134",
+            "completion": "0.00000051",
+            "input_cache_read": "0.000000009",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "InferenceNet",
+          "tag": "inference-net/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 391,
+            "p75": 547,
+            "p90": 817.8000000000011,
+            "p99": 1989.5300000000025
+          },
+          "throughput_last_30m": {
+            "p50": 121,
+            "p75": 93,
+            "p90": 73,
+            "p99": 43
+          },
+          "pricing": {
+            "prompt": "0.000000134",
+            "completion": "0.00000051",
+            "input_cache_read": "0.000000009",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "AtlasCloud",
+          "tag": "atlas-cloud/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 712,
+            "p75": 835,
+            "p90": 1013,
+            "p99": 2445.260000000002
+          },
+          "throughput_last_30m": {
+            "p50": 77,
+            "p75": 51,
+            "p90": 41,
+            "p99": 25
+          },
+          "pricing": {
+            "prompt": "0.000000135",
+            "completion": "0.00000054",
+            "input_cache_read": "0.0000000135",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "DeepInfra",
+          "tag": "deepinfra/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 541,
+            "p75": 862,
+            "p90": 1396.9000000000005,
+            "p99": 3520.21000000001
+          },
+          "throughput_last_30m": {
+            "p50": 87,
+            "p75": 56,
+            "p90": 39,
+            "p99": 24
+          },
+          "pricing": {
+            "prompt": "0.00000014",
+            "completion": "0.00000042",
+            "input_cache_read": "0.0000000042",
+            "discount": 0.3
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "StreamLake",
+          "tag": "streamlake/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1195,
+            "p75": 1579,
+            "p90": 2514.0000000000027,
+            "p99": 8864.08
+          },
+          "throughput_last_30m": {
+            "p50": 69,
+            "p75": 47,
+            "p90": 34,
+            "p99": 14
+          },
+          "pricing": {
+            "prompt": "0.000000147",
+            "completion": "0.000000588",
+            "input_cache_read": "0.00000000294",
+            "discount": 0.51
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Alibaba",
+          "tag": "alibaba",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 711,
+            "p75": 1098,
+            "p90": 2468.7000000000016,
+            "p99": 10911.440000000002
+          },
+          "throughput_last_30m": {
+            "p50": 116,
+            "p75": 73,
+            "p90": 44,
+            "p99": 10
+          },
+          "pricing": {
+            "prompt": "0.000000165",
+            "completion": "0.00000066",
+            "input_cache_read": "0.0000000165",
+            "discount": 0,
+            "overrides": [
+              {
+                "utc_start": 0,
+                "utc_end": 1400,
+                "prompt": "0.00000033",
+                "completion": "0.00000132",
+                "input_cache_read": "0.000000033"
+              },
+              {
+                "utc_start": 1400,
+                "utc_end": 0,
+                "prompt": "0.000000165",
+                "completion": "0.00000066",
+                "input_cache_read": "0.0000000165"
+              }
+            ]
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "GMICloud",
+          "tag": "gmicloud/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 2392,
+            "p75": 3067.5,
+            "p90": 5137.8,
+            "p99": 7746.0999999999985
+          },
+          "throughput_last_30m": {
+            "p50": 87,
+            "p75": 58.5,
+            "p90": 36,
+            "p99": 20.060000000000002
+          },
+          "pricing": {
+            "prompt": "0.00000018",
+            "completion": "0.00000072",
+            "input_cache_read": "0.0000000036",
+            "discount": 0.4
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Wafer",
+          "tag": "wafer/mxfp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "mxfp4",
+          "latency_last_30m": {
+            "p50": 395,
+            "p75": 858,
+            "p90": 2898.7000000000016,
+            "p99": 5628.630000000001
+          },
+          "throughput_last_30m": {
+            "p50": 144,
+            "p75": 101,
+            "p90": 58,
+            "p99": 17
+          },
+          "pricing": {
+            "prompt": "0.00000019",
+            "completion": "0.00000065",
+            "input_cache_read": "0.000000012",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Novita",
+          "tag": "novita/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 981,
+            "p75": 1220,
+            "p90": 2662.600000000002,
+            "p99": 9187.220000000023
+          },
+          "throughput_last_30m": {
+            "p50": 101,
+            "p75": 79,
+            "p90": 59,
+            "p99": 28
+          },
+          "pricing": {
+            "prompt": "0.000000195",
+            "completion": "0.00000078",
+            "input_cache_read": "0.0000000039",
+            "discount": 0.35
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Mancer 2",
+          "tag": "mancer/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 784,
+            "p75": 878,
+            "p90": 1110.8000000000002,
+            "p99": 3717.479999999994
+          },
+          "throughput_last_30m": {
+            "p50": 34,
+            "p75": 27,
+            "p90": 22,
+            "p99": 14.88
+          },
+          "pricing": {
+            "prompt": "0.0000002",
+            "completion": "0.000001",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "DeepInfra",
+          "tag": "deepinfra/fp8/priority",
+          "status": -5,
+          "service_tier": "priority",
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 471,
+            "p75": 768,
+            "p90": 1412.1999999999998,
+            "p99": 4495.27999999999
+          },
+          "throughput_last_30m": {
+            "p50": 97,
+            "p75": 74,
+            "p90": 47.900000000000006,
+            "p99": 26.490000000000002
+          },
+          "pricing": {
+            "prompt": "0.00000021",
+            "completion": "0.00000063",
+            "input_cache_read": "0.0000000063",
+            "discount": 0.3
+          },
+          "uptime_last_30m": 0
+        },
+        {
+          "provider_name": "Fireworks",
+          "tag": "fireworks/spot",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 1775.5,
+            "p75": 3572.25,
+            "p90": 20722.20000000002,
+            "p99": 58741.730000000054
+          },
+          "throughput_last_30m": {
+            "p50": 99,
+            "p75": 62,
+            "p90": 39,
+            "p99": 16.909999999999997
+          },
+          "pricing": {
+            "prompt": "0.00000021",
+            "completion": "0.00000084",
+            "input_cache_read": "0.0000000042",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Phala",
+          "tag": "phala",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 1327,
+            "p75": 1811,
+            "p90": 2328.000000000001,
+            "p99": 5962.16
+          },
+          "throughput_last_30m": {
+            "p50": 136,
+            "p75": 68,
+            "p90": 58,
+            "p99": 33.33
+          },
+          "pricing": {
+            "prompt": "0.00000021",
+            "completion": "0.00000084",
+            "input_cache_read": "0.0000000042",
+            "discount": 0.3
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "DigitalOcean",
+          "tag": "digitalocean",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 657,
+            "p75": 963,
+            "p90": 1608.9000000000005,
+            "p99": 5990.970000000005
+          },
+          "throughput_last_30m": {
+            "p50": 166,
+            "p75": 114,
+            "p90": 81,
+            "p99": 33
+          },
+          "pricing": {
+            "prompt": "0.000000225",
+            "completion": "0.0000009",
+            "input_cache_read": "0.000000006",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Makora",
+          "tag": "makora/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 331,
+            "p75": 518,
+            "p90": 926.8000000000011,
+            "p99": 2610.160000000006
+          },
+          "throughput_last_30m": {
+            "p50": 148,
+            "p75": 107,
+            "p90": 73,
+            "p99": 38
+          },
+          "pricing": {
+            "prompt": "0.00000026",
+            "completion": "0.00000117",
+            "input_cache_read": "0.0000000058",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Crusoe",
+          "tag": "crusoe/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 468,
+            "p75": 611.5,
+            "p90": 844,
+            "p99": 1769.5600000000013
+          },
+          "throughput_last_30m": {
+            "p50": 137,
+            "p75": 108,
+            "p90": 78,
+            "p99": 37
+          },
+          "pricing": {
+            "prompt": "0.00000029",
+            "completion": "0.0000012",
+            "input_cache_read": "0.000000007",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Google",
+          "tag": "google-vertex/global",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 736,
+            "p75": 1553,
+            "p90": 4361.600000000007,
+            "p99": 31270.799999999505
+          },
+          "throughput_last_30m": {
+            "p50": 48,
+            "p75": 32,
+            "p90": 20,
+            "p99": 4
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.00000003",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Nebius",
+          "tag": "nebius/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 716,
+            "p75": 956.75,
+            "p90": 1701,
+            "p99": 3591.7000000000003
+          },
+          "throughput_last_30m": {
+            "p50": 98,
+            "p75": 58,
+            "p90": 41,
+            "p99": 20.79
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.00000001",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "PrimeIntellect",
+          "tag": "primeintellect",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 339,
+            "p75": 417,
+            "p90": 589,
+            "p99": 1708.6099999999974
+          },
+          "throughput_last_30m": {
+            "p50": 190,
+            "p75": 147,
+            "p90": 111.60000000000002,
+            "p99": 65
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.000000006",
+            "discount": 0
+          },
+          "uptime_last_30m": 96.66666666666667
+        },
+        {
+          "provider_name": "Cohere",
+          "tag": "cohere",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 370,
+            "p75": 547,
+            "p90": 1316.9000000000005,
+            "p99": 4157.350000000002
+          },
+          "throughput_last_30m": {
+            "p50": 201,
+            "p75": 156,
+            "p90": 113,
+            "p99": 40
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.000000003",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Baidu",
+          "tag": "baidu/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 743,
+            "p75": 989.25,
+            "p90": 1516.5000000000014,
+            "p99": 3335.1699999999996
+          },
+          "throughput_last_30m": {
+            "p50": 176,
+            "p75": 80,
+            "p90": 52,
+            "p99": 24.46
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.000000006",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "BaseTen",
+          "tag": "baseten/us",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 240,
+            "p75": 418,
+            "p90": 735,
+            "p99": 3347.000000000011
+          },
+          "throughput_last_30m": {
+            "p50": 158,
+            "p75": 100,
+            "p90": 64,
+            "p99": 25
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.000000007",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Together",
+          "tag": "together",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 233,
+            "p75": 424,
+            "p90": 935.6000000000022,
+            "p99": 8607.430000000033
+          },
+          "throughput_last_30m": {
+            "p50": 239,
+            "p75": 177,
+            "p90": 124,
+            "p99": 35.91
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.000000006",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "SiliconFlow",
+          "tag": "siliconflow/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1338,
+            "p75": 1767.5,
+            "p90": 2253.8,
+            "p99": 3649.580000000012
+          },
+          "throughput_last_30m": {
+            "p50": 101,
+            "p75": 61,
+            "p90": 33,
+            "p99": 22
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.000000006",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Modal",
+          "tag": "modal",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 371.5,
+            "p75": 478,
+            "p90": 884.5999999999999,
+            "p99": 5097.639999999998
+          },
+          "throughput_last_30m": {
+            "p50": 101,
+            "p75": 66.25,
+            "p90": 43,
+            "p99": 26
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.00000003",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "BaseTen",
+          "tag": "baseten",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 263,
+            "p75": 536,
+            "p90": 1071.9000000000005,
+            "p99": 3628.8100000000013
+          },
+          "throughput_last_30m": {
+            "p50": 190,
+            "p75": 131,
+            "p90": 83,
+            "p99": 30
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.000000007",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Parasail",
+          "tag": "parasail/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 576,
+            "p75": 917,
+            "p90": 1566.800000000001,
+            "p99": 6121.620000000017
+          },
+          "throughput_last_30m": {
+            "p50": 166,
+            "p75": 120,
+            "p90": 79,
+            "p99": 24
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.000000006",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Fireworks",
+          "tag": "fireworks",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 621,
+            "p75": 775,
+            "p90": 1025.8,
+            "p99": 4032.060000000004
+          },
+          "throughput_last_30m": {
+            "p50": 82,
+            "p75": 60,
+            "p90": 49,
+            "p99": 35.82
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.000000006",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Venice",
+          "tag": "venice/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 309,
+            "p75": 592.25,
+            "p90": 1245.9000000000005,
+            "p99": 7733.860000000008
+          },
+          "throughput_last_30m": {
+            "p50": 160,
+            "p75": 103,
+            "p90": 61,
+            "p99": 17
+          },
+          "pricing": {
+            "prompt": "0.0000003",
+            "completion": "0.0000012",
+            "input_cache_read": "0.0000000075",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Fireworks",
+          "tag": "fireworks/us",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 507,
+            "p75": 684,
+            "p90": 891,
+            "p99": 1570.0499999999984
+          },
+          "throughput_last_30m": {
+            "p50": 236,
+            "p75": 162,
+            "p90": 106.10000000000002,
+            "p99": 60
+          },
+          "pricing": {
+            "prompt": "0.00000045",
+            "completion": "0.0000018",
+            "input_cache_read": "0.000000009",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "BaseTen",
+          "tag": "baseten/fast",
+          "status": -5,
+          "service_tier": "priority",
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 311,
+            "p75": 358,
+            "p90": 735.6000000000004,
+            "p99": 2265.959999999999
+          },
+          "throughput_last_30m": {
+            "p50": 180,
+            "p75": 115,
+            "p90": 90,
+            "p99": 39
+          },
+          "pricing": {
+            "prompt": "0.0000006",
+            "completion": "0.0000024",
+            "input_cache_read": "0.000000014",
+            "discount": 0
+          },
+          "uptime_last_30m": 3.4482758620689653
+        }
+      ]
+    },
+    {
+      "id": "qwen/qwen3.8-27b",
+      "url": "https://openrouter.ai/api/v1/models/qwen/qwen3.8-27b/endpoints",
+      "canonical_slug": "qwen/qwen3.8-27b-20260814",
+      "hugging_face_id": "Qwen/Qwen3.8-27B",
+      "providers": [
+        {
+          "provider_name": "Darkbloom",
+          "tag": "darkbloom/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 646,
+            "p75": 1986,
+            "p90": 3707.5,
+            "p99": 16790.4
+          },
+          "throughput_last_30m": {
+            "p50": 42,
+            "p75": 31,
+            "p90": 19,
+            "p99": 6
+          },
+          "pricing": {
+            "prompt": "0.000000035",
+            "completion": "0.0000015",
+            "input_cache_read": "0.0000000175",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Chutes",
+          "tag": "chutes/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 2455,
+            "p75": 3694.75,
+            "p90": 6388,
+            "p99": 42575.47
+          },
+          "throughput_last_30m": {
+            "p50": 28,
+            "p75": 22,
+            "p90": 15,
+            "p99": 4
+          },
+          "pricing": {
+            "prompt": "0.000000039",
+            "completion": "0.00000125",
+            "input_cache_read": "0.0000000039",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Near AI",
+          "tag": "near-ai/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1878.5,
+            "p75": 3632.75,
+            "p90": 5441.700000000002,
+            "p99": 6977.630000000001
+          },
+          "throughput_last_30m": {
+            "p50": 38,
+            "p75": 26,
+            "p90": 21,
+            "p99": 15
+          },
+          "pricing": {
+            "prompt": "0.00000004",
+            "completion": "0.00000135",
+            "input_cache_read": "0.000000018",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Ionstream",
+          "tag": "ionstream/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1297,
+            "p75": 2389.75,
+            "p90": 4274.6,
+            "p99": 15537.379999999988
+          },
+          "throughput_last_30m": {
+            "p50": 35,
+            "p75": 26,
+            "p90": 21,
+            "p99": 10
+          },
+          "pricing": {
+            "prompt": "0.00000004",
+            "completion": "0.00000195",
+            "input_cache_read": "0.00000002",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Reka",
+          "tag": "reka/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 521,
+            "p75": 1198,
+            "p90": 5892,
+            "p99": 17008.899999999998
+          },
+          "throughput_last_30m": {
+            "p50": 15,
+            "p75": 13,
+            "p90": 11,
+            "p99": 6
+          },
+          "pricing": {
+            "prompt": "0.00000004",
+            "completion": "0.0000022",
+            "input_cache_read": "0.00000002",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Modal",
+          "tag": "modal",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 972.5,
+            "p75": 1351,
+            "p90": 1873.9000000000005,
+            "p99": 6175.340000000018
+          },
+          "throughput_last_30m": {
+            "p50": 70,
+            "p75": 36,
+            "p90": 23,
+            "p99": 9
+          },
+          "pricing": {
+            "prompt": "0.00000004",
+            "completion": "0.0000023",
+            "input_cache_read": "0.00000002",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "DekaLLM",
+          "tag": "dekallm",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 738,
+            "p75": 1485.25,
+            "p90": 2769.9000000000005,
+            "p99": 16652.290000000026
+          },
+          "throughput_last_30m": {
+            "p50": 65,
+            "p75": 45,
+            "p90": 30,
+            "p99": 11
+          },
+          "pricing": {
+            "prompt": "0.00000004",
+            "completion": "0.0000025",
+            "input_cache_read": "0.00000002",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Wafer",
+          "tag": "wafer/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1181,
+            "p75": 5717,
+            "p90": 11075.400000000001,
+            "p99": 19032.460000000003
+          },
+          "throughput_last_30m": {
+            "p50": 67,
+            "p75": 53,
+            "p90": 41,
+            "p99": 12.580000000000002
+          },
+          "pricing": {
+            "prompt": "0.00000006",
+            "completion": "0.0000023",
+            "input_cache_read": "0.000000059",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "DeepInfra",
+          "tag": "deepinfra/bf16",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "bf16",
+          "latency_last_30m": {
+            "p50": 533.5,
+            "p75": 1165,
+            "p90": 2042.800000000001,
+            "p99": 4876.990000000002
+          },
+          "throughput_last_30m": {
+            "p50": 39,
+            "p75": 33,
+            "p90": 28,
+            "p99": 13
+          },
+          "pricing": {
+            "prompt": "0.00000015",
+            "completion": "0.000001875",
+            "input_cache_read": "0.0000000375",
+            "discount": 0.25
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Tenstorrent",
+          "tag": "tenstorrent/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 771,
+            "p75": 3839.5,
+            "p90": 21988,
+            "p99": 48399
+          },
+          "throughput_last_30m": {
+            "p50": 64,
+            "p75": 58,
+            "p90": 39.7,
+            "p99": 6.47
+          },
+          "pricing": {
+            "prompt": "0.00000015",
+            "completion": "0.000002",
+            "input_cache_read": "0.00000005",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Mancer 2",
+          "tag": "mancer/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 3806,
+            "p75": 6256,
+            "p90": 7537.6,
+            "p99": 9273.04
+          },
+          "throughput_last_30m": {
+            "p50": 50,
+            "p75": 14,
+            "p90": 8.8,
+            "p99": 7.18
+          },
+          "pricing": {
+            "prompt": "0.00000018",
+            "completion": "0.0000025",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "ModelRun",
+          "tag": "modelrun/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 209,
+            "p75": 333,
+            "p90": 864,
+            "p99": 5074.18
+          },
+          "throughput_last_30m": {
+            "p50": 115,
+            "p75": 85,
+            "p90": 57,
+            "p99": 18
+          },
+          "pricing": {
+            "prompt": "0.0000002",
+            "completion": "0.0000025",
+            "input_cache_read": "0.00000009",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Phala",
+          "tag": "phala",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 615.5,
+            "p75": 1199,
+            "p90": 2179.7000000000016,
+            "p99": 13988.840000000011
+          },
+          "throughput_last_30m": {
+            "p50": 67,
+            "p75": 44,
+            "p90": 25,
+            "p99": 12
+          },
+          "pricing": {
+            "prompt": "0.0000002",
+            "completion": "0.0000025",
+            "input_cache_read": "0.00000005",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "AkashML",
+          "tag": "akashml/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 573,
+            "p75": 737,
+            "p90": 1078.1999999999998,
+            "p99": 3940.3799999999947
+          },
+          "throughput_last_30m": {
+            "p50": 43,
+            "p75": 35,
+            "p90": 26.5,
+            "p99": 12
+          },
+          "pricing": {
+            "prompt": "0.000000225",
+            "completion": "0.00000198",
+            "input_cache_read": "0.00000005",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Parasail",
+          "tag": "parasail/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 5586,
+            "p75": 9695,
+            "p90": 13746.2,
+            "p99": 26426.480000000032
+          },
+          "throughput_last_30m": {
+            "p50": 23,
+            "p75": 18,
+            "p90": 16,
+            "p99": 9
+          },
+          "pricing": {
+            "prompt": "0.00000024",
+            "completion": "0.0000022",
+            "input_cache_read": "0.00000005",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "CoreWeave",
+          "tag": "coreweave/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 585,
+            "p75": 1015.25,
+            "p90": 2282.0999999999995,
+            "p99": 14558.900000000034
+          },
+          "throughput_last_30m": {
+            "p50": 34,
+            "p75": 27,
+            "p90": 15,
+            "p99": 1
+          },
+          "pricing": {
+            "prompt": "0.0000004",
+            "completion": "0.000003",
+            "input_cache_read": "0.00000015",
+            "discount": 0
+          },
+          "uptime_last_30m": 93.33333333333333
+        },
+        {
+          "provider_name": "Novita",
+          "tag": "novita",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 13195.5,
+            "p75": 14967,
+            "p90": 18173.4,
+            "p99": 173684.66999999995
+          },
+          "throughput_last_30m": {
+            "p50": 25,
+            "p75": 16,
+            "p90": 11,
+            "p99": 4.36
+          },
+          "pricing": {
+            "prompt": "0.00000042",
+            "completion": "0.000003",
+            "input_cache_read": "0.000000085",
+            "discount": 0
+          },
+          "uptime_last_30m": null
+        },
+        {
+          "provider_name": "Alibaba",
+          "tag": "alibaba",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 622,
+            "p75": 2014.5,
+            "p90": 5088,
+            "p99": 43130.65999999954
+          },
+          "throughput_last_30m": {
+            "p50": 40,
+            "p75": 26,
+            "p90": 15,
+            "p99": 6
+          },
+          "pricing": {
+            "prompt": "0.000000425",
+            "completion": "0.00000255",
+            "input_cache_read": "0.000000085",
+            "input_cache_write": "0.00000053125",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Cloudflare",
+          "tag": "cloudflare",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 423,
+            "p75": 854,
+            "p90": 3952.1999999999994,
+            "p99": 5855.84
+          },
+          "throughput_last_30m": {
+            "p50": 23,
+            "p75": 15.75,
+            "p90": 13.200000000000001,
+            "p99": 9.42
+          },
+          "pricing": {
+            "prompt": "0.00000045",
+            "completion": "0.0000032",
+            "input_cache_read": "0.00000005",
+            "discount": 0
+          },
+          "uptime_last_30m": null
+        },
+        {
+          "provider_name": "Venice",
+          "tag": "venice/fp8",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp8",
+          "latency_last_30m": {
+            "p50": 1781.5,
+            "p75": 2375.25,
+            "p90": 3327.500000000001,
+            "p99": 8016.659999999997
+          },
+          "throughput_last_30m": {
+            "p50": 51.5,
+            "p75": 34.25,
+            "p90": 22,
+            "p99": 17.98
+          },
+          "pricing": {
+            "prompt": "0.00000045",
+            "completion": "0.0000032",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Cerebras",
+          "tag": "cerebras/fp16",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp16",
+          "latency_last_30m": {
+            "p50": 359,
+            "p75": 592,
+            "p90": 1009.4000000000001,
+            "p99": 3276.880000000012
+          },
+          "throughput_last_30m": {
+            "p50": 769,
+            "p75": 348,
+            "p90": 165,
+            "p99": 46.300000000000004
+          },
+          "pricing": {
+            "prompt": "0.00000099",
+            "completion": "0.00000149",
+            "input_cache_read": "0.00000099",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        }
+      ]
+    },
+    {
+      "id": "meta/muse-spark-open",
+      "url": "https://openrouter.ai/api/v1/models/meta/muse-spark-open/endpoints",
+      "canonical_slug": "meta/muse-spark-open-20261015",
+      "hugging_face_id": "meta-models/Muse-Spark-Open-816B-A42B",
+      "providers": [
+        {
+          "provider_name": "Fireworks",
+          "tag": "fireworks/us",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 316.5,
+            "p75": 322.25,
+            "p90": 325.7,
+            "p99": 327.77
+          },
+          "throughput_last_30m": {
+            "p50": 82,
+            "p75": 81,
+            "p90": 80.4,
+            "p99": 80.04
+          },
+          "pricing": {
+            "prompt": "0.00000125",
+            "completion": "0.00000425",
+            "input_cache_read": "0.00000015",
+            "discount": 0
+          },
+          "uptime_last_30m": null
+        },
+        {
+          "provider_name": "Makora",
+          "tag": "makora/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 588,
+            "p75": 873.25,
+            "p90": 1216,
+            "p99": 2238.86
+          },
+          "throughput_last_30m": {
+            "p50": 184,
+            "p75": 133,
+            "p90": 97,
+            "p99": 48
+          },
+          "pricing": {
+            "prompt": "0.00000125",
+            "completion": "0.00000425",
+            "input_cache_read": "0.00000015",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Modal",
+          "tag": "modal",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 780,
+            "p75": 1057.25,
+            "p90": 1497.7000000000007,
+            "p99": 19860.55
+          },
+          "throughput_last_30m": {
+            "p50": 129,
+            "p75": 102,
+            "p90": 78.4,
+            "p99": 48.84
+          },
+          "pricing": {
+            "prompt": "0.00000125",
+            "completion": "0.00000425",
+            "input_cache_read": "0.00000015",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Together",
+          "tag": "together",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 3047,
+            "p75": 4175,
+            "p90": 5189.199999999999,
+            "p99": 8305.280000000006
+          },
+          "throughput_last_30m": {
+            "p50": 15,
+            "p75": 11,
+            "p90": 9,
+            "p99": 6
+          },
+          "pricing": {
+            "prompt": "0.00000125",
+            "completion": "0.00000425",
+            "input_cache_read": "0.00000015",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Nebius",
+          "tag": "nebius/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 6041,
+            "p75": 9368.5,
+            "p90": 11869.599999999999,
+            "p99": 16801.139999999996
+          },
+          "throughput_last_30m": {
+            "p50": 20,
+            "p75": 12,
+            "p90": 8,
+            "p99": 4
+          },
+          "pricing": {
+            "prompt": "0.00000125",
+            "completion": "0.00000425",
+            "input_cache_read": "0.00000015",
+            "discount": 0
+          },
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "Fireworks",
+          "tag": "fireworks",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "unknown",
+          "latency_last_30m": {
+            "p50": 616.5,
+            "p75": 2069.5,
+            "p90": 3671.5,
+            "p99": 6057.049999999997
+          },
+          "throughput_last_30m": {
+            "p50": 69,
+            "p75": 45,
+            "p90": 35,
+            "p99": 19
+          },
+          "pricing": {
+            "prompt": "0.00000125",
+            "completion": "0.00000425",
+            "input_cache_read": "0.00000015",
+            "discount": 0
+          },
+          "uptime_last_30m": null
+        },
+        {
+          "provider_name": "BaseTen",
+          "tag": "baseten/fp4",
+          "status": 0,
+          "service_tier": null,
+          "quantization": "fp4",
+          "latency_last_30m": {
+            "p50": 316,
+            "p75": 378.75,
+            "p90": 1130.6999999999994,
+            "p99": 5973.809999999976
+          },
+          "throughput_last_30m": {
+            "p50": 256,
+            "p75": 200.25,
+            "p90": 173.5,
+            "p99": 127.55
+          },
+          "pricing": {
+            "prompt": "0.00000125",
+            "completion": "0.00000425",
+            "input_cache_read": "0.00000015",
+            "discount": 0
+          },
+          "uptime_last_30m": null
+        }
+      ]
+    }
+  ]
+}

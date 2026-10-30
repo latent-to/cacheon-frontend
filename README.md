@@ -11,7 +11,7 @@ tokens. Contributor, validator, rewards, roadmap, and team content lives at `/su
 
 `app/constants/customer-results.ts` holds the internal results shown on the homepage
 (`customerModels`) and dated OpenRouter provider snapshots (`providerSnapshots`).
-`app/constants/benchmarks.ts` holds the OpenRouter model IDs. The homepage's server
+`customerModels` is also the single source of OpenRouter model IDs for live requests; display names never determine API slugs. The homepage's server
 loader (`getModelComparisons` in `app/lib/model-comparisons.server.ts`) fetches each
 model's official `/api/v1/models/{author}/{slug}/endpoints` response through the
 Cloudflare Cache API. It keeps each endpoint's last-30-minute P50 throughput/TTFT
@@ -48,35 +48,48 @@ normalized with older units. Homepage responses use `Cache-Control: no-store`.
 
 ## Measurement sources
 
-`providerSnapshots` supplies the dated OpenRouter tables recorded October 17, 2026:
-Standard, all reasoning efforts, P50, no selected quantization filter, including Fast
-variants. They populate the page without an API key. A model switches to live data
-only when the response includes measured throughput; otherwise its table remains
-labeled with the snapshot date. Prices and metrics always come from the same provider
-row and source. DeepSeek's snapshot leader is Together at 224 tok/s; GLM's is
-Baseten (fp8) US Fast at 168 tok/s.
+The October 30, 2026 refresh reconciles the public dashboard winners with each
+submission's final decision and the read-only validator database. Retained
+qualification artifact hashes and runtime identities were verified. The public,
+sanitized compilation is [arena-results-20261030.json](public/benchmarks/arena-results-20261030.json).
+It keeps baseline/candidate timing, load, hardware, checkpoint, artifact identity,
+qualification score, and final status together. Qualification score is a
+fixed-work-rate metric, not the ratio of displayed decode speeds. A PASS or crown
+does not establish production integration.
 
-The homepage's internal results (`customerModels`):
+| Customer result     |  Decode tok/s/user |           TTFT (s) | Hardware          | Workload / date                         | OpenRouter ID                  |
+| ------------------- | -----------------: | -----------------: | ----------------- | --------------------------------------- | ------------------------------ |
+| DeepSeek V4.1 Flash | 434.06736713754543 |  2.597567250050037 | 2 × B300 per lane | 24 sessions, warm-turn means, Oct 19    | `deepseek/deepseek-v4.1-flash` |
+| GLM-5.3 streaming   |  297.0138688177521 | 0.7153227505004907 | 4 × B300          | Single user, six-prompt medians, Oct 16 | `z-ai/glm-5.3`                 |
+| Muse Spark Open     |  199.2529406496159 | 1.8979672124784053 | 4 × B300 per lane | 16 sessions, warm-turn means, Oct 25    | `meta/muse-spark-open`         |
 
-| Model               | Decode tok/s/user | Hardware          | Measurement                                                                                                                                                                             |
-| ------------------- | ----------------: | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GLM-5.3             | 297.0138688177521 | 4 × B300          | October 16, 2026 custom streaming benchmark; concurrency 1; six 10k-input prompts; median decode counting reasoning and answers with o200k, excluding TTFT. Median TTFT 0.7153227505 s. |
-| DeepSeek V4.1 Flash |         372.33505 | 2 × B300 per lane | October 16, 2026 internal replay; 24 live sessions; pooled warm-turn tokens/decode time per window, then mean of three windows. Paired baseline: 335.78065 tok/s/user.                  |
+DeepSeek uses the original September model's NVIDIA NVFP4 derivative, not the
+October 17 model. The active 1017 PD arena has no accepted winner at this snapshot:
+a retained crown was superseded by a final FAIL after regrade. Its result must not
+replace the legacy result or use the original model's provider prices. The
+October 19 DeepSeek result is an audited PASS in the public winners list; its
+durable settlement is held, so the site does not describe it as a new crown.
+Newer Muse/legacy DeepSeek PASS rows that lost eligibility are excluded.
 
-The GLM headline uses the fastest usable point in the
-[retained concurrency sweep](public/benchmarks/glm-concurrency-20261016.json),
-run `02-d5be4989`; all six requests completed naturally with at least 1,500 answer
-tokens. It is a separate workload from the DeepSeek 24-session agent replay. OpenRouter P50 measurements describe separate provider traffic;
-the homepage does not claim a controlled provider comparison. All timing labels and
-measurement disclosures must remain with their figures.
+GLM's headline remains the usable single-user point for run `02-d5be4989` in
+[the October 16 streaming sweep](public/benchmarks/glm-concurrency-20261016.json).
+Measurement details separately show its latest arena crown from October 10:
+125.0439568665574 tok/s/user, 2.9131185586534216 s mean TTFT, 24 sessions.
+Those workloads and winning bundles are not combined. Qwen3.8's latest result
+is retained in the compilation but omitted from customer-facing comparisons.
+Its `qwen/qwen3.8-27b` mapping remains distinct from Qwen3.6 27B and the older tuned
+Qwen3.6 35B A3B H100 benchmark.
 
-The complete public GLM sweep and [DeepSeek winning replay](public/benchmarks/deepseek-winner-20261016.json)
-are included unchanged under `public/benchmarks/`, including excluded GLM points,
-DeepSeek's three windows, measurement definitions, and original evidence identities.
-They were copied from the design preview's [GLM source](https://cacheon-frontend-preview.c-ad6.workers.dev/benchmarks/glm-concurrency-20261016.json)
-and [DeepSeek source](https://cacheon-frontend-preview.c-ad6.workers.dev/benchmarks/deepseek-winner-20261016.json).
-The OpenRouter provider rows are transcribed from the supplied screenshots;
-their capture date stays with `providerSnapshots`, and each model's source URL is its `marketUrl`.
+`app/constants/provider-snapshots.ts` supplies all available endpoint rows from
+the authenticated OpenRouter API captured **October 30, 2026 at 15:00 UTC**.
+The credential-free source is [openrouter-20261030.json](public/benchmarks/openrouter-20261030.json).
+The same `parseEndpoints` normalizer used by live requests generated these rows:
+P50 throughput and TTFT stay with that endpoint's prices; milliseconds become
+seconds, USD/token becomes USD/million, and unavailable endpoints are excluded.
+All measured providers, including faster competitors, remain eligible for ranking.
+A model uses live measurements when available and otherwise shows the dated
+snapshot. These are separate provider traffic measurements, not a controlled
+comparison with Cacheon's workloads or quantized checkpoints.
 
 The GPU cost-estimator libraries (`app/lib/concurrency.ts`, `cost-estimate.ts`,
 `gpu-market*.ts`) are no longer rendered; they remain only because

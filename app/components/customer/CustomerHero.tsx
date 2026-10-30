@@ -39,7 +39,7 @@ export default function CustomerHero({
       <div className={`${panel} p-6`} aria-live="polite">
         <ModelTabs value={model.id} onChange={onModelChange} label="Model results" />
         <p className="text-secondary mt-7 mb-1 font-mono text-xs tracking-widest uppercase">
-          Up to
+          Measured output speed
         </p>
         <p className="flex items-start gap-1 font-mono text-[clamp(2.75rem,6vw,4.25rem)] leading-tight font-medium tracking-tight tabular-nums">
           {model.speed.toFixed(1)}
