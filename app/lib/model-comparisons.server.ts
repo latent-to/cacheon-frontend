@@ -1,5 +1,5 @@
 import type { AppLoadContext } from 'react-router'
-import { modelBenchmarks } from '~/constants/benchmarks'
+import { customerModels } from '~/constants/customer-results'
 import type { Comparison } from '~/lib/comparisons'
 import { getComparison } from '~/lib/openrouter.server'
 
@@ -10,7 +10,7 @@ export async function getModelComparisons({
   const cache = await caches.open('openrouter-comparisons')
   return Object.fromEntries(
     await Promise.all(
-      modelBenchmarks.map(async (model) => [
+      customerModels.map(async (model) => [
         model.id,
         await getComparison(model.openRouterModel, {
           cache,

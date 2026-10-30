@@ -285,7 +285,7 @@ const faqs = [
   ],
   [
     'Which models and hardware have results?',
-    'The examples here cover GLM-5.3 on B300 and DeepSeek V4.1 Flash on B300. Support and optimization scope depend on the exact model, runtime, and hardware. Share your setup so we can evaluate the fit.',
+    'The examples here cover GLM-5.3, DeepSeek V4.1 Flash, and Muse Spark Open on B300. Support and optimization scope depend on the exact model, runtime, and hardware. Share your setup so we can evaluate the fit.',
   ],
   [
     'How are model outputs checked?',

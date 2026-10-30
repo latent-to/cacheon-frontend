@@ -47,6 +47,7 @@ export default function PerformanceSection({
           label="Cacheon"
           detail={model.stat}
           value={model.speed.toFixed(1)}
+          ttft={model.ttft}
           width={width(model.speed)}
           own
         />
@@ -54,6 +55,7 @@ export default function PerformanceSection({
           label="Fastest measured endpoint"
           detail={leader ? `${leader.name} · OpenRouter P50` : 'Comparison unavailable'}
           value={leader ? leader.throughput.toFixed(1) : '—'}
+          ttft={leader?.ttft ?? null}
           width={leader ? width(leader.throughput) : '0%'}
         />
 
@@ -87,11 +89,76 @@ export default function PerformanceSection({
           </summary>
           <p className="my-2">{model.detail}</p>
           <p className="my-2">
-            The OpenRouter reference is the available endpoint with the highest reported
-            last-30-minute P50 output speed, including Fast tiers. Its input, cached-input, and
-            output prices are kept together. Models, precision, prompts, load, and measurement
-            boundaries can differ.
+            OpenRouter model:{' '}
+            <a
+              href={model.marketUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${textLink} font-mono text-xs break-all`}
+            >
+              {model.openRouterModel}
+            </a>
+            . {model.mappingNote}
           </p>
+          <p className="my-2">
+            The OpenRouter reference is the available endpoint with the highest reported
+            last-30-minute P50 output speed, including Fast tiers. Its time to first token (TTFT),
+            input, cached-input, and output prices are kept together. Models, precision, prompts,
+            load, and measurement boundaries can differ.
+          </p>
+          <div className="border-border mt-5 border-t pt-5">
+            <h3 className="text-primary text-sm font-medium">Latest verified arena result</h3>
+            <p className="mt-2">
+              {model.arenaResult.observedOn} · {model.arenaResult.hardware} ·{' '}
+              {model.arenaResult.concurrency} live sessions · {model.arenaResult.status}
+            </p>
+            {model.id === 'glm' && (
+              <p className="mt-2">
+                The headline above comes from the separate{' '}
+                <a href="/benchmarks/glm-concurrency-20261016.json" className={textLink}>
+                  single-user streaming benchmark
+                </a>
+                . This arena result measures the replay workload under concurrent load.
+              </p>
+            )}
+            <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <dt>Paired baseline → candidate · tok/s/user</dt>
+                <dd className="text-primary mt-1 font-mono text-lg tabular-nums">
+                  {model.arenaResult.baselineSpeed.toFixed(1)} →{' '}
+                  {model.arenaResult.speed.toFixed(1)}
+                </dd>
+              </div>
+              <div>
+                <dt>Paired baseline → candidate · TTFT</dt>
+                <dd className="text-primary mt-1 font-mono text-lg tabular-nums">
+                  {model.arenaResult.baselineTtft.toFixed(2)} → {model.arenaResult.ttft.toFixed(2)}{' '}
+                  s
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-3 break-words">
+              Submission: <span className="font-mono">{model.arenaResult.submission}</span>
+            </p>
+            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+              <a
+                href={model.resultUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={textLink}
+              >
+                View dashboard result ↗
+              </a>
+              <a
+                href={model.evidenceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={textLink}
+              >
+                View compiled evidence ↗
+              </a>
+            </div>
+          </div>
         </details>
 
         <details className="text-secondary mt-2 text-xs leading-relaxed">
@@ -175,12 +242,14 @@ function SpeedRow({
   label,
   detail,
   value,
+  ttft,
   width,
   own = false,
 }: {
   label: string
   detail: string
   value: string
+  ttft: number | null
   width: string
   own?: boolean
 }) {
@@ -189,6 +258,12 @@ function SpeedRow({
       <div className="col-span-2 sm:col-span-1">
         <strong className="block text-sm font-medium">{label}</strong>
         <small className="text-secondary mt-1 block text-xs">{detail}</small>
+        <small className="text-secondary mt-1 block text-xs">
+          Time to first token:{' '}
+          <span className="font-mono tabular-nums">
+            {ttft !== null ? `${ttft.toFixed(2)} s` : '—'}
+          </span>
+        </small>
       </div>
       <div className="bg-border/40 h-4" aria-hidden="true">
         <div
